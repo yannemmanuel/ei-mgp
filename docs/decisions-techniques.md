@@ -170,7 +170,45 @@ précaution : les libellés des référentiels (catégories, statuts, niveaux de
 base plutôt que codés en dur dans les fichiers de langue Laravel, ce qui limite (sans l'éliminer) le
 coût d'une future extension multilingue, sans construire cette extension maintenant.
 
-## DT-16 — Emplacement et initialisation du projet
+## DT-17 — Version de Livewire réellement installée : v4
+
+**Constat** : `composer require livewire/livewire` a résolu la version **4.4** (et non 3.x comme
+anticipé lors de l'analyse). Le prompt utilisateur demande « Livewire 3+ » : la v4 est donc
+conforme. À surveiller en Phase 4+ : la v4 peut introduire des différences d'API mineures par
+rapport à la documentation Livewire 3 largement diffusée (composants single-file, découverte des
+composants) — vérifier la documentation officielle v4 au moment d'écrire les premiers composants
+plutôt que de se fier uniquement à des exemples v3.
+
+## DT-18 — Base de données dédiée aux tests automatisés (PostgreSQL, pas SQLite)
+
+**Question** : le squelette Laravel par défaut configure `phpunit.xml` sur SQLite en mémoire.
+**Décision** : basculer les tests sur une base PostgreSQL dédiée `ei_mgp_test` (même rôle
+`ei_mgp_app`), plutôt que SQLite. Justification : le schéma utilise des fonctionnalités
+propres à PostgreSQL (colonnes `jsonb`, contrainte `CHECK` sur `niveaux_gravite.niveau`, ULID
+comme clé primaire) qui ne se comportent pas de façon identique — voire pas du tout — sous
+SQLite. Tester sur SQLite aurait donné une fausse confiance (tests verts localement, échecs
+potentiels en production PostgreSQL). Le rôle applicatif `ei_mgp_app` a reçu l'attribut
+`CREATEDB` (validé par l'utilisateur le 27/08/2026) pour permettre la recréation autonome de
+cette base à chaque phase sans solliciter à nouveau les identifiants superutilisateur.
+**Réversible** : oui, retour à SQLite possible en modifiant uniquement `phpunit.xml` si un besoin
+de rapidité d'exécution (CI) devait primer sur le réalisme — non recommandé pour ce projet compte
+tenu des garanties structurelles (RG-06, CHECK constraint) qui doivent être testées contre le
+moteur cible réel.
+
+## DT-19 — Annotations `@property` explicites pour les attributs castés en enum PHP
+
+**Constat** : Larastan (niveau 5) ne parvient pas systématiquement à inférer qu'un attribut
+Eloquent casté vers un enum PHP natif (`casts()` retournant `'colonne' => MonEnum::class`) est
+bien de type `MonEnum` lorsqu'il est comparé (`===`) à l'intérieur de la classe du modèle
+elle-même (ex. `NiveauGravite::isCritique()`), et retombe sur le type `string` de la colonne SQL
+sous-jacente. **Décision** : ajouter des annotations `@property NomEnum $colonne` explicites sur
+les modèles concernés, en plus (pas à la place) de `casts()` — ce n'est pas une suppression
+d'erreur (aucun `@phpstan-ignore` utilisé) mais une déclaration correcte et standard du type réel
+de l'attribut, qui documente en même temps le modèle pour les développeurs. À appliquer
+systématiquement dès qu'un modèle expose un attribut casté en enum utilisé dans une comparaison
+stricte au sein de sa propre classe.
+
+## DT-20 — Emplacement et initialisation du projet
 
 Le CDC source a été localisé à
 `C:\Users\DELL\Documents\Formulaire SST\Cahier_des_Charges_Fonctionnel_Digitalisation_EI_MGP.pdf`

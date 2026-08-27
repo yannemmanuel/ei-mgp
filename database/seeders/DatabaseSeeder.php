@@ -2,24 +2,27 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Référentiels fonctionnels (parcours, catégories, niveaux de gravité, statuts, sites,
+ * directions, canaux de captage) : données requises pour que l'application fonctionne,
+ * exécutées dans TOUS les environnements (dev, test, production), contrairement aux comptes
+ * de démonstration qui seront ajoutés en Phase 3 (RBAC) via un seeder dédié et guardé par
+ * l'environnement (cf. docs/decisions-techniques.md, prompt §36).
+ */
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            DirectionSeeder::class,
+            SiteSeeder::class,
+            ParcoursSeeder::class,
+            CanalCaptageSeeder::class,
+            NiveauGraviteSeeder::class,
+            StatutDossierSeeder::class,
+            CategorieSeeder::class,
         ]);
     }
 }
