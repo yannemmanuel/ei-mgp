@@ -1,10 +1,13 @@
 <?php
 
+use App\Http\Controllers\PieceJointeDownloadController;
 use App\Http\Controllers\QrCodeRedirectController;
 use App\Livewire\Declaration\EiEmployeForm;
 use App\Livewire\Declaration\GriefCommunauteForm;
 use App\Livewire\Declaration\GriefEmployeForm;
 use App\Livewire\Declaration\GriefSousTraitantForm;
+use App\Livewire\Dossiers\DossierDetailPage;
+use App\Livewire\Dossiers\DossierListPage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -14,6 +17,13 @@ Route::get('/', function () {
 Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware('auth')->name('dashboard');
+
+// Module 2 — Gestion des dossiers (EX-GES-01 à 06).
+Route::middleware('auth')->group(function () {
+    Route::get('/dossiers', DossierListPage::class)->name('dossiers.index');
+    Route::get('/dossiers/{dossier}', DossierDetailPage::class)->name('dossiers.show');
+    Route::get('/pieces-jointes/{pieceJointe}/telecharger', PieceJointeDownloadController::class)->name('pieces-jointes.telecharger');
+});
 
 // Module 1 — Déclaration (EX-DEC-01/02/05) : accès public, sans compte, par QR code ou lien direct.
 Route::middleware('throttle:declaration')->group(function () {

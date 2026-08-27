@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * Polymorphe : Dossier | Investigation | ActionCorrective. Le contrôle d'accès au fichier se
  * fait via la Policy du modèle "attachable", jamais par une URL de stockage publique directe
  * (docs/exigences-securite.md §3).
+ *
+ * @property string $attachable_type
+ * @property string $attachable_id
  */
 class PieceJointe extends Model
 {

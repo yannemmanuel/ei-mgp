@@ -8,9 +8,17 @@
     @livewireStyles
 </head>
 <body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+<div>
     <header class="border-b border-slate-200 bg-white">
         <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <span class="text-sm font-semibold uppercase tracking-wide text-slate-500">Digitalisation EI / MGP</span>
+            <div class="flex items-center gap-6">
+                <a href="{{ route('dashboard') }}" class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Digitalisation EI / MGP
+                </a>
+                @can('viewAny', App\Models\Dossier::class)
+                    <a href="{{ route('dossiers.index') }}" class="text-sm font-medium text-slate-600 hover:text-slate-900">Dossiers</a>
+                @endcan
+            </div>
 
             @auth
                 <div class="flex items-center gap-4 text-sm text-slate-600">
@@ -32,6 +40,7 @@
     <main class="mx-auto max-w-6xl px-4 py-8">
         {{ $slot }}
     </main>
+</div>
 
     @livewireScripts
 </body>

@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Statuts internes (CDC §7.1). "libelle_affiche" est la source unique de vérité pour la
  * projection vers le statut simplifié montré au déclarant (CDC §7.2, RGI-10) : ne jamais
  * recalculer ce libellé ailleurs dans le code.
+ *
+ * @property StatutDossierCode $code
  */
 class StatutDossier extends Model
 {
