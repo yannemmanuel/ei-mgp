@@ -6,6 +6,14 @@ use App\Models\Dossier;
 use App\Models\NiveauGravite;
 use App\Models\Parcours;
 use App\Models\StatutDossier;
+use Database\Seeders\CanalCaptageSeeder;
+use Database\Seeders\CategorieSeeder;
+use Database\Seeders\DirectionSeeder;
+use Database\Seeders\NiveauGraviteSeeder;
+use Database\Seeders\ParcoursSeeder;
+use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SiteSeeder;
+use Database\Seeders\StatutDossierSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -68,4 +76,35 @@ function createTestDossierForParcours(string $parcoursCode): Model
         'statut_id' => StatutDossier::first()->id,
         'canal_captage_id' => CanalCaptage::first()->id,
     ]);
+}
+
+/**
+ * Sème l'ensemble des référentiels fonctionnels (Phase 2) nécessaires aux tests du Module
+ * Déclaration (Phase 4) : parcours, catégories, niveaux de gravité, statuts, canaux, sites,
+ * directions, rôles/permissions.
+ */
+function seedReferentiels(): void
+{
+    (new DirectionSeeder)->run();
+    (new SiteSeeder)->run();
+    (new ParcoursSeeder)->run();
+    (new CanalCaptageSeeder)->run();
+    (new NiveauGraviteSeeder)->run();
+    (new StatutDossierSeeder)->run();
+    (new CategorieSeeder)->run();
+    (new RolePermissionSeeder)->run();
+}
+
+/**
+ * Retourne une catégorie active quelconque du parcours donné, hors "Autre" (référentiels déjà
+ * semés). Exclure "Autre" explicitement : sans ORDER BY, Postgres ne garantit aucun ordre de
+ * retour et peut renvoyer cette catégorie en premier (tri d'index sur son "code" alphabétique),
+ * ce qui déclencherait à tort la validation de categorieAutrePrecision dans les tests qui ne
+ * testent pas spécifiquement ce cas.
+ */
+function categorieDe(string $parcoursCode): Categorie
+{
+    return Categorie::whereHas('parcours', fn ($q) => $q->where('code', $parcoursCode))
+        ->where('is_autre', false)
+        ->firstOrFail();
 }

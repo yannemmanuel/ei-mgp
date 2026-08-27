@@ -156,6 +156,8 @@ dossiers
 ├── lieu                        varchar nullable
 ├── date_survenance             timestamp nullable     (RGI-01 : jamais postérieure à created_at)
 ├── attentes_declarant          varchar nullable        (résultat souhaité — formulaire Grief Employé §9.2)
+├── caractere_repetitif         varchar nullable        (Grief Employé §9.2 — ajouté en Phase 4)
+├── proposition_mesure_corrective text nullable         (EI Employé §9.1 — ajouté en Phase 4)
 ├── synthese_resolution         text nullable           (EX-GES-05)
 ├── motif_reouverture           text nullable           (RG-07)
 ├── motif_rejet                 text nullable

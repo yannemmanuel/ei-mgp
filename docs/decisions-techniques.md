@@ -215,6 +215,39 @@ classe externe au modèle (ici, `app/Policies/*.php`). Solution identique : anno
 `@property Parcours $parcours` sur le modèle porteur de la relation, en plus (pas à la place) de
 la méthode de relation elle-même.
 
+## DT-21 — Composants Livewire en mode classe traditionnelle, pas en fichier unique (SFC)
+
+**Constat (Phase 4)** : Livewire 4 (réellement installé, DT-17) change la génération par défaut de
+`make:livewire` vers des composants **single-file** (`resources/views/components/{nom}.blade.php`,
+préfixés d'un emoji ⚡, classe anonyme inline). C'est une nouveauté par rapport à Livewire 3.
+**Décision** : utiliser systématiquement `php artisan make:livewire NomComposant --class`, qui
+génère la paire classique `App\Livewire\...\NomComposant` (classe PHP nommée) +
+`resources/views/livewire/.../nom-composant.blade.php` — toujours supportée en v4. Justification :
+les formulaires de déclaration partagent une logique commune via une classe abstraite
+(`DeclarationFormBase`), ce qui est nettement plus lisible et testable avec des classes PHP
+nommées qu'avec des classes anonymes en ligne dans un fichier Blade. Le mode SFC n'est pas
+utilisé dans ce projet.
+**Réversible** : oui, sans impact sur le schéma ou les autres modules — un choix de convention de
+fichiers, pas d'architecture de données.
+
+## DT-22 — Layout de secours `resources/views/layouts/app.blade.php` requis par Livewire 4
+
+**Constat (Phase 4)** : tout composant Livewire utilisé directement comme cible de route
+(`Route::get('/declarer/ei-employe', EiEmployeForm::class)`, nos 4 formulaires publics) est
+automatiquement enveloppé par Livewire 4 dans un layout de page, dont la valeur par défaut
+(`config('livewire.component_layout')`) est `layouts::app` — c'est-à-dire le fichier
+`resources/views/layouts/app.blade.php` (registre de namespace propre à Livewire, distinct des
+composants Blade anonymes `<x-layouts.*>` utilisés par le reste du projet). Sans ce fichier,
+toute route pointant directement vers un composant Livewire échoue avec
+`No hint path defined for [layouts]`.
+**Décision** : créer `resources/views/layouts/app.blade.php` comme simple passe-plat
+(`{{ $slot }}`), puisque nos vues de composants produisent déjà un document HTML complet via
+`<x-layouts.guest>`/`<x-layouts.app>`. Aucune double-imbrication de document HTML n'en résulte.
+**À retenir pour les phases suivantes** : tout nouveau composant Livewire utilisé comme route
+directe (`Route::get(..., MonComposant::class)`) bénéficiera automatiquement de ce passe-plat —
+aucune action supplémentaire n'est nécessaire tant que la vue du composant reste responsable de
+son propre document complet.
+
 ## DT-20 — Emplacement et initialisation du projet
 
 Le CDC source a été localisé à

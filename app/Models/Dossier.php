@@ -47,6 +47,8 @@ class Dossier extends Model
         'lieu',
         'date_survenance',
         'attentes_declarant',
+        'caractere_repetitif',
+        'proposition_mesure_corrective',
         'synthese_resolution',
         'motif_reouverture',
         'motif_rejet',
