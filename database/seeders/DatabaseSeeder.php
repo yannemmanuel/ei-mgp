@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
             NiveauGraviteSeeder::class,
             StatutDossierSeeder::class,
             CategorieSeeder::class,
+            RolePermissionSeeder::class,
+            DemoUsersSeeder::class,
         ]);
     }
 }

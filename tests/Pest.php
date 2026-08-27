@@ -1,5 +1,12 @@
 <?php
 
+use App\Models\CanalCaptage;
+use App\Models\Categorie;
+use App\Models\Dossier;
+use App\Models\NiveauGravite;
+use App\Models\Parcours;
+use App\Models\StatutDossier;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -44,7 +51,21 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Crée un dossier de test rattaché au parcours donné, avec une catégorie de ce même parcours
+ * (requis par la contrainte d'intégrité categories.parcours_id -> parcours). Les référentiels
+ * (ParcoursSeeder, CategorieSeeder, NiveauGraviteSeeder, StatutDossierSeeder, CanalCaptageSeeder)
+ * doivent avoir été semés au préalable par le test appelant.
+ */
+function createTestDossierForParcours(string $parcoursCode): Model
 {
-    // ..
+    $parcours = Parcours::where('code', $parcoursCode)->firstOrFail();
+
+    return Dossier::factory()->create([
+        'parcours_id' => $parcours->id,
+        'categorie_id' => Categorie::where('parcours_id', $parcours->id)->first()->id,
+        'niveau_gravite_id' => NiveauGravite::first()->id,
+        'statut_id' => StatutDossier::first()->id,
+        'canal_captage_id' => CanalCaptage::first()->id,
+    ]);
 }

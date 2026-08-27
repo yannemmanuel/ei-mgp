@@ -208,6 +208,13 @@ de l'attribut, qui documente en même temps le modèle pour les développeurs. �
 systématiquement dès qu'un modèle expose un attribut casté en enum utilisé dans une comparaison
 stricte au sein de sa propre classe.
 
+**Extension (Phase 3)** : le même besoin d'annotation explicite se manifeste pour les relations
+`belongsTo()` chaînées (ex. `$dossier->parcours->code` dans les Policies) : Larastan niveau 5 ne
+résout pas toujours le type de retour d'une relation accédée comme propriété magique depuis une
+classe externe au modèle (ici, `app/Policies/*.php`). Solution identique : annotation
+`@property Parcours $parcours` sur le modèle porteur de la relation, en plus (pas à la place) de
+la méthode de relation elle-même.
+
 ## DT-20 — Emplacement et initialisation du projet
 
 Le CDC source a été localisé à

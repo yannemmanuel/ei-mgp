@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Les 4 parcours du CDC (§2.1). Table de référence figée : les 4 lignes sont seedées une fois
  * (cf. database/seeders/ParcoursSeeder.php) et ne sont pas destinées à être créées librement
  * depuis la console d'administration (docs/decisions-techniques.md).
+ *
+ * @property ParcoursCode $code
  */
 class Parcours extends Model
 {

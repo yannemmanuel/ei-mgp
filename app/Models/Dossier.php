@@ -15,6 +15,12 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * declaration_identites (RG-06). Pas de suppression possible (RG-03) : ce modèle n'utilise
  * volontairement pas SoftDeletes, et aucune méthode delete() ne doit être exposée dans
  * l'application au-delà de cette classe.
+ *
+ * @property Parcours $parcours
+ * @property Categorie $categorie
+ * @property NiveauGravite $niveauGravite
+ * @property StatutDossier $statut
+ * @property CanalCaptage $canalCaptage
  */
 class Dossier extends Model
 {

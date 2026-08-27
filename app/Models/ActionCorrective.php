@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * cf. RG-10 / EX-ACT-05 : un dossier ne peut être clôturé tant que ses actions correctives ne
  * sont pas elles-mêmes closes et leur efficacité vérifiée — règle appliquée par
  * App\Services\Workflow\DossierWorkflowService (Phase 6), pas ici.
+ *
+ * @property Dossier $dossier
  */
 class ActionCorrective extends Model
 {

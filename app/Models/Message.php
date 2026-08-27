@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Messagerie sécurisée (EX-NOT-07). expediteur_user_id reste NULL côté déclarant, y compris
  * anonyme (RG-06) : ne jamais l'alimenter depuis le contexte "déclarant".
+ *
+ * @property Dossier $dossier
  */
 class Message extends Model
 {
