@@ -462,3 +462,66 @@ ce composant (RG-06, `MessagePolicy` ne s'applique qu'aux acteurs). Côté décl
 d'envoi est revérifiée via la marque de session posée par `SuiviDossier::rechercher()`
 (`suivi_verifie_{id}`), jamais en faisant confiance au seul fait que le composant a été monté depuis
 une vue supposée autorisée.
+
+## DT-29 — Périmètre du module Administration (Phase 10)
+
+**Constat** : contrairement aux Modules 1 à 6, le CDC ne définit aucun bloc `EX-ADM-*` dédié à
+l'administration (`docs/exigences-fonctionnelles.md` passe directement du Module 5 au Module 6) —
+l'« administration fonctionnelle » n'apparaît que comme un attribut d'accès de deux acteurs
+(`service_mgp`, `administrateur_digital`) dans la matrice §3, déjà résolu en DT-02 : référentiels
+métier (catégories, statuts affichés, sites, modèles de notification) pour `service_mgp` ;
+paramétrage technique (comptes, rôles, QR codes, canaux) pour `administrateur_digital`. Le périmètre
+de cette phase est donc directement dérivé de DT-02 et du catalogue de permissions déjà seedé en
+Phase 2 (`RolePermissionSeeder`), pas d'une exigence fonctionnelle numérotée.
+
+**Question 1 — quels référentiels sont librement créables ?** Distinction faite entre référentiels
+dont le `code` est **contraint par un enum PHP** consommé par la logique métier
+(`canaux_captage.code` → `CanalCaptageCode`, consommé par `DeclarationService`/`ReferenceGeneratorService` ;
+`statuts_dossier.code` → `StatutDossierCode`, pivot du graphe `DossierWorkflowService`) et ceux dont
+le `code` est un identifiant métier libre sans contrepartie dans le code PHP (`categories.code`,
+`sites.code`, `notification_templates.evenement_code` — une simple clé de recherche pour
+`NotificationService`). **Décision** : `CanauxAdmin`/`StatutsAdmin` n'exposent que l'édition du
+libellé/ordre/statut des lignes déjà seedées (créer une ligne `canaux_captage` sans cas `enum`
+correspondant, ou une ligne `statuts_dossier` sans transition dans `TRANSITIONS_AUTORISEES`, la
+rendrait invisible au moteur de règles — pas une simple donnée orpheline mais une incohérence
+structurelle) ; `CategoriesAdmin`/`SitesAdmin`/`NotificationTemplatesAdmin` permettent la création
+libre.
+
+**Question 2 — pas de suppression, seulement une désactivation.** Aucun écran d'administration ne
+propose de suppression, uniquement un bascule `actif` (ou, pour les QR codes, `desactive_le`) — par
+analogie avec RG-03 (pas de suppression d'un dossier validé) étendue par prudence aux référentiels
+qu'il référence : supprimer une catégorie ou un site déjà utilisé par un dossier casserait
+l'intégrité historique de ce dossier. Décision technique, pas une règle métier du CDC.
+
+**Question 3 — `roles.manage` n'ouvre pas d'écran de création de rôle/permission.** Le catalogue de
+15 rôles / 34 permissions est **fixé par `RolePermissionSeeder`** (Phase 2) et directement consommé
+par les Policies (`RoleParcoursScope`, chaque `*Policy::create/update/...`) : ajouter un rôle ou une
+permission via une console d'administration sans toucher au code des Policies ne les rendrait
+opérants nulle part. **Décision** : `roles.manage` est couvert par la capacité d'**assigner les
+rôles existants** à un utilisateur (`UtilisateursAdmin`), pas par la création de nouveaux
+rôles/permissions — cohérent avec `acteurs.md` §1 (« aucun rôle ne bénéficie d'un bypass implicite,
+même `administrateur_digital` reçoit des permissions explicites, listées et testables »), qui décrit
+un catalogue fermé, pas un système RBAC dynamique.
+
+**Question 4 — mot de passe initial d'un compte créé par un administrateur.** Le CDC ne décrit pas
+de flux d'invitation par email. **Décision** : mot de passe aléatoire de 12 caractères
+(`Str::password()`) généré à la création, affiché **une seule fois** à l'administrateur (même
+schéma d'affichage éphémère que le code d'accès des déclarations anonymes, Phase 4/9) à charge pour
+lui de le communiquer ; l'utilisateur le change ensuite via le parcours Fortify « mot de passe
+oublié » déjà en place (Phase 3). Pas de flux d'email transactionnel ajouté, non demandé par le CDC.
+
+**Question 5 — garde-fou anti-auto-verrouillage.** `UtilisateursAdmin::enregistrer()` refuse
+qu'un administrateur désactive son propre compte. Ce n'est pas une règle du CDC mais une protection
+technique évidente (éviter qu'une console d'administration puisse verrouiller son seul opérateur
+hors du système) — signalée ici plutôt qu'ajoutée silencieusement, même principe que DT-06/DT-08.
+
+**Question 6 — middleware `permission:` au niveau des routes.** `docs/exigences-securite.md` §2
+exige explicitement le middleware Spatie `permission:` « sur toutes les routes back-office ».
+**Décision** : appliqué ici pour la première fois (`bootstrap/app.php` : alias `permission` ajouté),
+car les écrans d'administration sont les premiers de l'application à n'avoir **aucun** cloisonnement
+par parcours — un simple contrôle de permission suffit, contrairement aux dossiers/investigations/
+actions correctives, où seule une Policy (permission **+** `RoleParcoursScope`) est correcte et où
+un middleware `permission:` seul serait insuffisant (et donc n'a jamais été utilisé dans les phases
+précédentes). Chaque composant revérifie néanmoins la permission dans `mount()`
+(`abort_unless(Auth::user()->can(...), 403)`), défense en profondeur si jamais un composant était un
+jour monté hors de sa route dédiée.
