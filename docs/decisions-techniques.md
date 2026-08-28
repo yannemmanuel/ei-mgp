@@ -256,3 +256,49 @@ Le CDC source a été localisé à
 à `C:\Users\DELL\Projets\ei-mgp\`, qui deviendra la racine du dépôt Git en Phase 1 (`git init`,
 premier commit `feat: initialize laravel project`, en respectant strictement les règles de sécurité
 Git du prompt — jamais de `.env`, secrets ou credentials committés).
+
+## DT-23 — Périmètre du moteur de délais (Phase 6) et écart de granularité CDC §6 / §7.1
+
+**Constat (Phase 6)** : le Phase 5 a déjà livré le graphe de transitions (`DossierWorkflowService`).
+Phase 6 se concentre donc sur le calcul des échéances/retards (CDC §11.2), pas sur l'envoi des
+relances/alertes (EX-NOT-03/04, différé à la Phase 9 qui réutilisera `DelaiService` tel quel).
+Par ailleurs, les tableaux de processus par parcours (§6) citent une étape « Retour d'information au
+plaignant » dont le statut résultant affiché est « En traitement », mais l'énumération des statuts
+internes (§7.1) n'a pas de statut dédié à cette granularité (elle se produit en réalité pendant
+`En investigation`, sans transition propre). **Décision** : ne pas inventer un statut interne
+artificiel pour cette étape — elle reste enregistrée dans `sla_delais` à titre de référence
+(traçabilité CDC complète) mais n'est pas suivie comme échéance autonome avec compte à rebours.
+« Clôture, suivi et évaluation » est en revanche traitée comme un délai global mesuré depuis la
+création du dossier (`dateLimiteGlobale`), pas comme une sous-étape déclenchée par un statut.
+Enfin, pour les délais exprimés en CDC sous forme d'intervalle (ex. « 3 à 6 mois »), la borne
+**supérieure** est retenue systématiquement, cohérent avec le titre même de la section CDC §11.2
+(« délais maximaux »).
+**Réversible** : oui, ce sont des choix de configuration/lecture du CDC, sans impact de schéma.
+
+## DT-24 — Ajout de l'unité `semaines` à `UniteDelai`
+
+**Constat (Phase 6)** : le CDC §11.2 exprime littéralement certains délais en « 2 semaines »
+(traitement/enquête, Grief Sous-traitant et Grief Communauté), une granularité absente de l'énum
+`UniteDelai` initiale (Heures/JoursOuvres/Mois, définie en Phase 2). **Décision** : ajouter un cas
+`Semaines` plutôt que de convertir de force en jours ouvrés (ce qui aurait exigé un arbitrage non
+demandé par le CDC sur le nombre de jours ouvrés par semaine). Le calcul (`addWeeks`) est fait en
+jours calendaires, cohérent avec le fait que le CDC ne qualifie pas cette unité de « ouvrée ».
+**Réversible** : oui, ajout d'un cas d'énum sans migration de schéma (`unite` reste une colonne
+`string` castée).
+
+## DT-25 — Perte de type générique Larastan à travers une relation Eloquent chaînée à `whereHas()`
+
+**Constat (Phase 6)** : dans `DelaiService::dateDebutEtape()`, la chaîne
+`$dossier->historiqueStatuts()->whereHas(...)->latest(...)->first()` faisait perdre à Larastan
+(niveau 5) le type générique du modèle relié (`HistoriqueStatut`), le résultat retombant sur le type
+générique `Illuminate\Database\Eloquent\Model` (erreur `property.notFound` sur `created_at`) — alors
+que la même séquence amorcée depuis un modèle statique (`SlaDelai::query()->where(...)->first()`,
+présent dans le même fichier) préserve correctement son type. **Décision** : remplacer l'amorce
+`$dossier->historiqueStatuts()` (relation) par `HistoriqueStatut::query()->where('dossier_id',
+$dossier->id)` (requête statique équivalente), qui contourne la perte de générique observée à
+travers `whereHas()` sur une relation. Comportement fonctionnel strictement identique (mêmes tests
+Phase 6 toujours au vert après le changement) ; aucune suppression d'erreur (`@phpstan-ignore` ou
+`@var` de contournement) utilisée — extension du principe de DT-19 (préférer une déclaration/
+structure de requête que Larastan comprend nativement plutôt qu'une annotation de contournement).
+**À retenir** : privilégier `Modele::query()` à `$parent->relation()` lorsqu'un résultat unique
+(`->first()`) issu d'une chaîne avec `whereHas()` doit être ensuite manipulé comme instance typée.

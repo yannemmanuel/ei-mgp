@@ -69,6 +69,7 @@
                     <th class="px-4 py-2 text-left font-medium text-slate-500">Catégorie</th>
                     <th class="px-4 py-2 text-left font-medium text-slate-500">Gravité</th>
                     <th class="px-4 py-2 text-left font-medium text-slate-500">Statut</th>
+                    <th class="px-4 py-2 text-left font-medium text-slate-500">Échéance</th>
                     <th class="px-4 py-2 text-left font-medium text-slate-500">Reçu le</th>
                     <th class="px-4 py-2"></th>
                 </tr>
@@ -90,6 +91,22 @@
                                 {{ $dossier->statut->libelle_interne }}
                             </span>
                         </td>
+                        <td class="px-4 py-2">
+                            @php $joursRestants = $this->joursRestants($dossier); @endphp
+                            @if ($joursRestants === null)
+                                <span class="text-xs text-slate-400">—</span>
+                            @elseif ($joursRestants < 0)
+                                <span class="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                    En retard ({{ abs($joursRestants) }} j)
+                                </span>
+                            @elseif ($joursRestants <= 3)
+                                <span class="inline-flex items-center rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                    J-{{ $joursRestants }}
+                                </span>
+                            @else
+                                <span class="text-xs text-slate-500">{{ $joursRestants }} j restants</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-2 text-slate-500">{{ $dossier->created_at->format('d/m/Y') }}</td>
                         <td class="px-4 py-2 text-right">
                             <a href="{{ route('dossiers.show', $dossier) }}" class="font-medium text-slate-700 hover:text-slate-900">
@@ -99,7 +116,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-400">Aucun dossier ne correspond à ces critères.</td>
+                        <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-400">Aucun dossier ne correspond à ces critères.</td>
                     </tr>
                 @endforelse
             </tbody>

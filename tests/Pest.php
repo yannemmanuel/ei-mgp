@@ -13,6 +13,7 @@ use Database\Seeders\NiveauGraviteSeeder;
 use Database\Seeders\ParcoursSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SiteSeeder;
+use Database\Seeders\SlaDelaiSeeder;
 use Database\Seeders\StatutDossierSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,6 +93,7 @@ function seedReferentiels(): void
     (new NiveauGraviteSeeder)->run();
     (new StatutDossierSeeder)->run();
     (new CategorieSeeder)->run();
+    (new SlaDelaiSeeder)->run();
     (new RolePermissionSeeder)->run();
 }
 

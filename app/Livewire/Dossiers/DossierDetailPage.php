@@ -6,6 +6,7 @@ use App\Enums\StatutDossierCode;
 use App\Models\Dossier;
 use App\Models\User;
 use App\Services\Dossier\AffectationService;
+use App\Services\Workflow\DelaiService;
 use App\Services\Workflow\DossierWorkflowService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -156,6 +157,12 @@ class DossierDetailPage extends Component
     public function getUtilisateursDisponiblesProperty()
     {
         return User::query()->where('actif', true)->orderBy('name')->get();
+    }
+
+    /** @return int|null Jours restants avant l'échéance de l'étape courante (négatif si dépassée). */
+    public function getJoursRestantsProperty(): ?int
+    {
+        return app(DelaiService::class)->joursRestants($this->dossier);
     }
 
     public function render()

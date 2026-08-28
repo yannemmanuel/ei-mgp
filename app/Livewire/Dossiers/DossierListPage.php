@@ -8,6 +8,7 @@ use App\Models\NiveauGravite;
 use App\Models\Parcours;
 use App\Models\StatutDossier;
 use App\Models\User;
+use App\Services\Workflow\DelaiService;
 use App\Support\RoleParcoursScope;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -116,6 +117,12 @@ class DossierListPage extends Component
     public function getNiveauxGraviteDisponiblesProperty()
     {
         return NiveauGravite::query()->actif()->orderBy('niveau')->get();
+    }
+
+    /** @return int|null Jours restants avant l'échéance de l'étape courante (négatif si dépassée). */
+    public function joursRestants(Dossier $dossier): ?int
+    {
+        return app(DelaiService::class)->joursRestants($dossier);
     }
 
     public function render()

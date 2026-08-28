@@ -25,6 +25,21 @@
             @if ($dossier->is_anonymous)
                 <span class="inline-flex items-center rounded bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">Anonyme</span>
             @endif
+            @if ($this->joursRestants !== null)
+                @if ($this->joursRestants < 0)
+                    <span class="inline-flex items-center rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                        En retard ({{ abs($this->joursRestants) }} j)
+                    </span>
+                @elseif ($this->joursRestants <= 3)
+                    <span class="inline-flex items-center rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                        Échéance dans {{ $this->joursRestants }} j
+                    </span>
+                @else
+                    <span class="inline-flex items-center rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                        {{ $this->joursRestants }} j avant échéance
+                    </span>
+                @endif
+            @endif
         </div>
     </div>
 

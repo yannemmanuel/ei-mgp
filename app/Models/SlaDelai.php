@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * cf. docs/decisions-techniques.md DT-04 : "est_valide_metier" conditionne l'activation des
  * alertes de dépassement (EX-NOT-04) pour cette étape.
+ *
+ * @property UniteDelai $unite cf. docs/decisions-techniques.md DT-19 (annotation explicite requise
+ *                             pour que Larastan reconnaisse le cast enum au travers des appels inter-fichiers).
  */
 class SlaDelai extends Model
 {
