@@ -70,6 +70,25 @@ it('forbids a declarant without a verified /suivi session grant from sending a m
         ->assertForbidden();
 });
 
+it('throttles message submissions from an unauthenticated declarant (exigences-securite.md §4)', function () {
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+    session(["suivi_verifie_{$dossier->id}" => true]);
+
+    for ($i = 0; $i < 10; $i++) {
+        Livewire::test(MessagerieDossier::class, ['dossier' => $dossier])
+            ->set('corps', "Message numéro {$i}.")
+            ->call('envoyer')
+            ->assertHasNoErrors();
+    }
+
+    Livewire::test(MessagerieDossier::class, ['dossier' => $dossier])
+        ->set('corps', 'Message de trop.')
+        ->call('envoyer')
+        ->assertHasErrors(['corps']);
+
+    expect(Message::where('dossier_id', $dossier->id)->count())->toBe(10);
+});
+
 it('lists messages from both sides in chronological order', function () {
     $correspondant = User::factory()->create();
     $correspondant->assignRole('correspondant_mgp');

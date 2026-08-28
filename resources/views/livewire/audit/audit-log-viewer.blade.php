@@ -44,7 +44,7 @@
                             @if ($log->new_values)
                                 <pre class="overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-600">{{ json_encode($log->new_values, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                             @endif
-                            @if ($log->ip_address)
+                            @if ($this->peutVoirAdresseIp && $log->ip_address)
                                 <p class="mt-1 text-xs text-slate-400">{{ $log->ip_address }}</p>
                             @endif
                         </td>

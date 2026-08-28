@@ -3,6 +3,7 @@
 namespace App\Livewire\Suivi;
 
 use App\Models\Dossier;
+use App\Services\Audit\AuditLogger;
 use App\Services\Declaration\AccessCodeService;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
@@ -22,7 +23,7 @@ class SuiviDossier extends Component
 
     public ?string $dossierId = null;
 
-    public function rechercher(AccessCodeService $codesAcces): void
+    public function rechercher(AccessCodeService $codesAcces, AuditLogger $auditLogger): void
     {
         $this->validate([
             'reference' => ['required', 'string'],
@@ -50,6 +51,14 @@ class SuiviDossier extends Component
         if (! $codeValide) {
             RateLimiter::hit($cleIp, 600);
             RateLimiter::hit($cleReference, 900);
+
+            // docs/exigences-securite.md §4 : tentative échouée journalisée pour l'auditeur/DPO
+            // (piste d'un éventuel brute-force) — seule la référence tentée est enregistrée,
+            // jamais le code d'accès saisi. L'IP est déjà capturée automatiquement par
+            // AuditLogger::enregistrer() et reste soumise à la même restriction de consultation
+            // que le reste du journal (App\Livewire\Audit\AuditLogViewer::peutVoirAdresseIp).
+            $auditLogger->enregistrer('suivi.tentative_echouee', nouvellesValeurs: ['reference_tentee' => $referenceNormalisee]);
+
             // Message générique volontaire : ne jamais révéler si c'est la référence ou le code
             // qui est incorrect (empêcherait un attaquant de distinguer les deux cas).
             $this->addError('reference', 'Aucun dossier ne correspond à ces informations.');

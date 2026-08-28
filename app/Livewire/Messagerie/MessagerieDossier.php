@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\Message;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 
 /**
@@ -45,6 +46,17 @@ class MessagerieDossier extends Component
             // session référence+code) — revérifié ici, ce composant ne fait jamais confiance à
             // son seul montage depuis une vue autorisée (RG-06, exigences-securite.md §4).
             abort_unless(session('suivi_verifie_'.$this->dossier->id) === true, 403);
+
+            // docs/exigences-securite.md §4 : débit contrôlé sur l'envoi de message public, même
+            // principe que DT-14 (déclaration) — un acteur interne authentifié n'a pas besoin de
+            // cette limite, seul le canal public non authentifié y est exposé.
+            $cle = 'messagerie-envoi:'.request()->ip();
+            if (RateLimiter::tooManyAttempts($cle, 10)) {
+                $this->addError('corps', 'Trop de messages envoyés. Merci de réessayer plus tard.');
+
+                return;
+            }
+            RateLimiter::hit($cle, 600);
         }
 
         $this->validate([

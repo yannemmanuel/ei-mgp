@@ -28,6 +28,22 @@ class AuditLogViewer extends Component
         abort_unless(Auth::user()->can('audit.view'), 403);
     }
 
+    private function utilisateurPeutVoirAdresseIp(): bool
+    {
+        return Auth::user()->hasAnyRole(['dpo', 'auditeur']);
+    }
+
+    /**
+     * exigences-audit.md §5 : l'IP/user-agent de soumission ne doit être consultable que par le
+     * DPO/Auditeur (enquête sur abus), jamais par les autres rôles porteurs de `audit.view`
+     * (`service_mgp`, pourtant habilité au reste du journal) — un déclarant anonyme ne doit
+     * jamais pouvoir être réidentifié par un rôle de traitement métier via ce journal.
+     */
+    public function getPeutVoirAdresseIpProperty(): bool
+    {
+        return $this->utilisateurPeutVoirAdresseIp();
+    }
+
     public function updated(): void
     {
         $this->resetPage();

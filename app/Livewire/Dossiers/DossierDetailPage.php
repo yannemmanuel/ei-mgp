@@ -61,12 +61,18 @@ class DossierDetailPage extends Component
             'motifReaffectation' => ['required', 'string', 'min:5', 'max:1000'],
         ], [], ['nouvelUtilisateurId' => 'nouvel utilisateur', 'motifReaffectation' => 'motif']);
 
-        $service->reaffecter(
-            $this->dossier,
-            User::findOrFail($this->nouvelUtilisateurId),
-            Auth::user(),
-            $this->motifReaffectation,
-        );
+        try {
+            $service->reaffecter(
+                $this->dossier,
+                User::findOrFail($this->nouvelUtilisateurId),
+                Auth::user(),
+                $this->motifReaffectation,
+            );
+        } catch (\RuntimeException $e) {
+            $this->addError('nouvelUtilisateurId', $e->getMessage());
+
+            return;
+        }
 
         $this->rafraichir();
         session()->flash('status', 'Dossier réaffecté.');
@@ -155,9 +161,14 @@ class DossierDetailPage extends Component
         return ! Auth::user()->hasRole('comite_ethique');
     }
 
+    /** DT-06 : le déclarant identifié n'apparaît jamais dans la liste des affectations possibles. */
     public function getUtilisateursDisponiblesProperty()
     {
-        return User::query()->where('actif', true)->orderBy('name')->get();
+        return User::query()
+            ->where('actif', true)
+            ->when($this->dossier->declarant_user_id !== null, fn ($q) => $q->whereKeyNot($this->dossier->declarant_user_id))
+            ->orderBy('name')
+            ->get();
     }
 
     /** @return int|null Jours restants avant l'échéance de l'étape courante (négatif si dépassée). */

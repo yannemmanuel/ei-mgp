@@ -704,3 +704,59 @@ laisse plusieurs points d'interprétation ouverts, tranchés comme suit :
   de chaque mois à 02h00, `routes/console.php`) : les seuils se comptant en mois/années, une
   vérification quotidienne n'apporterait aucune réactivité utile — cohérent avec le raisonnement déjà
   appliqué à `CalculerStatistiquesMensuelles` (DT-28).
+
+## DT-33 — Phase 14 : audit de sécurité, mêmes méthodes que DT-32
+
+Même démarche qu'en Phase 13, appliquée cette fois à `docs/exigences-securite.md` et
+`docs/exigences-audit.md` plutôt qu'aux exigences fonctionnelles : relecture systématique de
+chaque contrôle listé, vérification de sa présence effective dans le code. La majorité des
+contrôles étaient déjà en place, construits au fil des phases précédentes plutôt que reportés à
+une phase dédiée (rate limiting des déclarations et de `/suivi` dès la Phase 4/9, validation
+`finfo` des pièces jointes dès la Phase 5, `ExportPolicy` en Phase 12, etc. — cf. DT-14, DT-28).
+Quatre lacunes réelles ont été trouvées et corrigées :
+
+**1. DT-06 (interdiction de l'auto-affectation) documentée en Phase 6 mais jamais codée.**
+`AffectationService::reaffecter()` n'appliquait aucune vérification empêchant de désigner le
+déclarant identifié du dossier comme son propre traitant — la règle existait uniquement en
+commentaire d'intention dans `decisions-techniques.md`. **Décision** : garde-fou ajouté
+uniquement dans `reaffecter()` (la désignation manuelle et délibérée d'une personne précise),
+pas dans `DeclarationService::affecterAutomatiquement()` (qui notifie l'ensemble des détenteurs
+d'un rôle, un mécanisme de portée différente — l'exclure risquerait de laisser un dossier sans
+aucun affecté automatique si le déclarant est l'unique détenteur actif de ce rôle, une régression
+non demandée par DT-06). Le déclarant est également retiré de la liste déroulante
+`DossierDetailPage::utilisateursDisponibles` pour ne pas présenter une option qui échouerait de
+toute façon côté serveur.
+
+**2. Messagerie sécurisée publique non soumise à un débit contrôlé.** `exigences-securite.md` §4
+liste explicitement « envoi de message via la messagerie sécurisée » parmi les actions publiques à
+throttler, au même titre que la soumission de déclaration et `/suivi` — seules ces deux dernières
+l'étaient. **Décision** : même mécanisme que DT-14 (`RateLimiter` interne au composant, car les
+interactions Livewire transitent par un endpoint partagé que le throttling de route ne peut pas
+cibler), appliqué uniquement à la branche non authentifiée de `MessagerieDossier::envoyer()` — un
+agent interne authentifié, déjà soumis à `MessagePolicy`, n'a pas besoin de cette limite
+supplémentaire.
+
+**3. Adresse IP du journal d'audit visible par `service_mgp`, contrairement à `exigences-audit.md`
+§5.** Ce document restreint explicitement la consultation de l'IP/user-agent de soumission au
+DPO/Auditeur, « jamais visible par les rôles de traitement métier » — mais `AuditLogViewer`
+affichait `ip_address` à quiconque porte `audit.view`, ce qui inclut `service_mgp`. **Décision** :
+nouvelle méthode `peutVoirAdresseIp` (via `hasAnyRole(['dpo', 'auditeur'])`) conditionnant
+l'affichage dans la vue — le reste du journal (action, modèle, valeurs) reste visible à
+`service_mgp` comme prévu par `exigences-audit.md` §4, seule l'IP est concernée par cette
+restriction plus étroite.
+
+**4. Tentatives échouées sur `/suivi` non journalisées.** `exigences-securite.md` §4 exige que le
+verrouillage après N échecs soit « journalisé pour l'auditeur/DPO » — le `RateLimiter` bloquait
+déjà les tentatives excessives, mais aucune ligne `audit_logs` n'était créée. **Décision** : chaque
+échec (pas seulement le déclenchement du verrouillage) écrit une ligne `suivi.tentative_echouee`
+via `AuditLogger`, contenant uniquement la référence tentée — jamais le code d'accès saisi, qui
+resterait exploitable par un attaquant relisant le journal. L'IP est déjà capturée automatiquement
+par `AuditLogger::enregistrer()` pour toute ligne créée hors console, et reste soumise à la même
+restriction de consultation que le point 3 ci-dessus.
+
+**Durcissement additionnel (hors lacune identifiée, standard OWASP générique).** Un middleware
+global `SetSecurityHeaders` ajoute `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` et
+`Referrer-Policy: strict-origin-when-cross-origin` à toute réponse — aucun de ces en-têtes n'est
+spécifique à une règle métier du CDC (`exigences-securite.md` §5 renvoie génériquement à l'OWASP
+Top 10 sans lister d'en-têtes précis), il s'agit d'un contrôle technique de référence largement
+consensuel plutôt que d'une règle métier inventée.

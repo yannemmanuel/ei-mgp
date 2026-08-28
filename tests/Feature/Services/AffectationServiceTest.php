@@ -50,6 +50,19 @@ it('promotes a dossier from Reçu to Affecté when it receives its first manual 
     expect($dossier->fresh()->statut->code)->toBe(StatutDossierCode::Affecte);
 });
 
+it('refuses to affect the declarant identifié to their own dossier (DT-06)', function () {
+    $declarant = User::factory()->create();
+    $chef = User::factory()->create();
+
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+    $dossier->update(['declarant_user_id' => $declarant->id]);
+
+    expect(fn () => app(AffectationService::class)->reaffecter($dossier, $declarant, $chef, 'Prise en charge.'))
+        ->toThrow(RuntimeException::class);
+
+    expect(DossierAffectation::where('dossier_id', $dossier->id)->where('user_id', $declarant->id)->exists())->toBeFalse();
+});
+
 it('does not change the status when reassigning a dossier already past Reçu', function () {
     $dossier = createTestDossierForParcours(ParcoursCode::GriefCommunaute->value);
     $dossier->update(['statut_id' => StatutDossier::where('code', StatutDossierCode::EnAnalyse->value)->first()->id]);

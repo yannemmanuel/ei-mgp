@@ -29,6 +29,15 @@ class AffectationService
             throw new RuntimeException('Le motif de réaffectation est obligatoire (EX-GES-03).');
         }
 
+        // DT-06 : un utilisateur ne peut jamais être désigné traitant de son propre dossier
+        // lorsqu'il en est le déclarant identifié. Ne s'applique qu'à cette réaffectation
+        // manuelle et délibérée d'un responsable unique — pas à l'affectation automatique
+        // (DeclarationService::affecterAutomatiquement), qui notifie l'ensemble d'une équipe par
+        // rôle plutôt que de désigner une personne précise.
+        if ($dossier->declarant_user_id !== null && $dossier->declarant_user_id === $nouvelUtilisateur->id) {
+            throw new RuntimeException('Un utilisateur ne peut pas être affecté comme traitant de son propre dossier (DT-06).');
+        }
+
         DB::transaction(function () use ($dossier, $nouvelUtilisateur, $effectuePar, $motif) {
             DossierAffectation::query()
                 ->where('dossier_id', $dossier->id)

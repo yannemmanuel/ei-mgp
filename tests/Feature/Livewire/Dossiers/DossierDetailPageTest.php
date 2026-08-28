@@ -73,6 +73,26 @@ it('requires a motif to reassign', function () {
         ->assertHasErrors(['motifReaffectation']);
 });
 
+it('refuses to reassign to the declarant identifié and excludes them from the dropdown (DT-06)', function () {
+    $chef = User::factory()->create();
+    $chef->assignRole('service_mgp');
+    $declarant = User::factory()->create();
+
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+    $dossier->update(['declarant_user_id' => $declarant->id]);
+
+    $component = Livewire::actingAs($chef)->test(DossierDetailPage::class, ['dossier' => $dossier]);
+
+    expect($component->get('utilisateursDisponibles')->pluck('id'))->not->toContain($declarant->id);
+
+    $component->set('nouvelUtilisateurId', (string) $declarant->id)
+        ->set('motifReaffectation', 'Prise en charge.')
+        ->call('reaffecter')
+        ->assertHasErrors(['nouvelUtilisateurId']);
+
+    expect(DossierAffectation::where('dossier_id', $dossier->id)->where('user_id', $declarant->id)->exists())->toBeFalse();
+});
+
 it('forbids reassignment by a role without dossiers.reassign', function () {
     $rqse = User::factory()->create();
     $rqse->assignRole('rqse');

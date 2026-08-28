@@ -23,6 +23,20 @@ it('lets auditeur, dpo, and service_mgp view the audit log', function () {
     }
 });
 
+it('shows the submission IP only to dpo/auditeur, never to service_mgp (exigences-audit.md §5)', function () {
+    AuditLog::factory()->create(['action' => 'action_test_ip_visibility', 'ip_address' => '203.0.113.42']);
+
+    $mgp = User::factory()->create();
+    $mgp->assignRole('service_mgp');
+    $this->actingAs($mgp)->get(route('audit.index'))->assertDontSee('203.0.113.42');
+
+    foreach (['dpo', 'auditeur'] as $role) {
+        $utilisateur = User::factory()->create();
+        $utilisateur->assignRole($role);
+        $this->actingAs($utilisateur)->get(route('audit.index'))->assertSee('203.0.113.42');
+    }
+});
+
 it('filters entries by action', function () {
     $auditeur = User::factory()->create();
     $auditeur->assignRole('auditeur');

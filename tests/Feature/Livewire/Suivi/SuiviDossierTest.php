@@ -3,6 +3,7 @@
 use App\Enums\CanalCaptageCode;
 use App\Enums\ParcoursCode;
 use App\Livewire\Suivi\SuiviDossier;
+use App\Models\AuditLog;
 use App\Models\NiveauGravite;
 use App\Services\Declaration\DeclarationService;
 use Illuminate\Support\Facades\RateLimiter;
@@ -72,6 +73,19 @@ it('refuses an unknown reference with the same generic error message', function 
         ->set('codeAcces', '123456')
         ->call('rechercher')
         ->assertHasErrors(['reference']);
+});
+
+it('journalizes a failed lookup attempt with the attempted reference, never the code (exigences-securite.md §4)', function () {
+    ['dossier' => $dossier] = declarerPourSuivi(anonyme: true);
+
+    Livewire::test(SuiviDossier::class)
+        ->set('reference', $dossier->reference)
+        ->set('codeAcces', '000000')
+        ->call('rechercher');
+
+    $log = AuditLog::where('action', 'suivi.tentative_echouee')->firstOrFail();
+    expect($log->new_values)->toBe(['reference_tentee' => $dossier->reference])
+        ->and(json_encode($log->new_values))->not->toContain('000000');
 });
 
 it('locks out further attempts on the same reference after repeated failures (docs/exigences-securite.md §4)', function () {
