@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\CalculerStatistiquesMensuelles;
 use App\Console\Commands\DetecterRetards;
 use App\Console\Commands\RecalculerRetardActionsCorrectives;
 use App\Console\Commands\RelancerEcheances;
@@ -21,3 +22,7 @@ Schedule::command(RecalculerRetardActionsCorrectives::class)->daily();
 // techniques.md DT-28).
 Schedule::command(RelancerEcheances::class)->daily();
 Schedule::command(DetecterRetards::class)->daily();
+
+// EX-REP-05 : statistiques mensuelles archivées le 1er de chaque mois pour le mois précédent
+// (le mois courant n'est jamais complet le jour de son propre calcul).
+Schedule::command(CalculerStatistiquesMensuelles::class)->monthlyOn(1, '01:30');

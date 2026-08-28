@@ -592,3 +592,58 @@ l'hébergement cible, hors de portée d'une phase applicative. Les trois autres 
 route/contrôleur d'update-delete, `AuditLogPolicy` sans méthode `update`/`delete`, exceptions dans
 `AuditLog::update()`/`delete()`) restent en place et déjà testées. Point laissé ouvert et signalé
 plutôt que traité par une décision technique substituant l'absence d'accès DB.
+
+## DT-31 — Module Reporting (Phase 12)
+
+**Question 1 — `/dashboard` comme page d'atterrissage universelle.** EX-REP-01 réserve le tableau
+de bord consolidé à « Service MGP/DADD, Direction » (en pratique, tout rôle porteur de
+`reporting.view` : `service_mgp`, `dg`, `auditeur`, tous transversaux). Mais `/dashboard` est aussi
+la page d'atterrissage post-connexion de **tous** les utilisateurs authentifiés
+(`routes/web.php`, `Route::get('/')`). **Décision** : ne jamais faire un 403 sur cette route — le
+composant `DashboardConsolide` se ramifie en interne selon `reporting.view` : le tableau de bord
+consolidé complet pour les rôles habilités, un résumé personnel (nombre de dossiers actuellement
+affectés) pour les autres. Remplace l'ancienne vue statique `resources/views/dashboard.blade.php`
+(placeholder de Phase 3, supprimée : son contenu vit maintenant dans la branche « résumé personnel »
+du composant).
+
+**Question 2 — définition de « taux de résolution » et « taux de clôture » (EX-REP-03).** Le CDC
+nomme ces deux indicateurs sans formule. **Décision** : les traiter comme deux mesures distinctes,
+pas des synonymes — « taux de résolution » = part des dossiers ayant atteint `Résolu` **ou**
+`Clôturé` (le problème est réglé, indépendamment de la formalité administrative de clôture) ;
+« taux de clôture » = part des dossiers dans un statut **terminal** (`is_terminal`, donc `Clôturé`
+**ou** `Rejeté`, cohérent avec RGI-11 qui assimile déjà les deux côté déclarant) — l'avancement
+administratif, indépendamment de l'issue. Un dossier `Rejeté` compte donc dans le taux de clôture
+mais jamais dans le taux de résolution (il n'a jamais été « résolu » au sens propre).
+
+**Question 3 — `délai moyen` mesuré uniquement sur les dossiers clôturés.** `dossiers.date_cloture`
+n'est renseigné que par `DossierWorkflowService::cloturer()` (jamais par `rejeter()`) : la moyenne
+SQL (`AVG(EXTRACT(EPOCH FROM (date_cloture - created_at)) / 86400)`, filtrée `whereNotNull`) exclut
+donc naturellement les dossiers rejetés et ceux encore en cours, sans condition supplémentaire à
+écrire — cohérent avec le sens usuel de « délai de traitement moyen » (mesuré sur les dossiers
+effectivement menés à terme).
+
+**Question 4 — `ExportPolicy` sans modèle Eloquent porteur.** Contrairement à `DossierPolicy`,
+`InvestigationPolicy`, etc., aucun modèle `Export` n'existe pour que la résolution de Policy par
+convention (`App\Models\X` → `App\Policies\XPolicy`) s'applique. **Décision** : enregistrement
+explicite via `Gate::define('export-rapports', [ExportPolicy::class, 'export'])` (et
+`'export-rapports-nominatif'`) dans `AppServiceProvider::boot()` — la seule fois dans ce projet
+qu'une Policy n'est pas résolue par la convention standard, documenté pour ne pas surprendre en
+cherchant en vain un modèle `Export`.
+
+**Question 5 — `StatistiqueMensuelleService` n'utilise jamais `updateOrCreate()`.** Cohérent avec le
+commentaire déjà présent sur `App\Models\StatistiqueMensuelle` depuis la Phase 2 (« jamais modifiée
+après coup ») : `calculerPour()` vérifie l'existence de chaque ligne (`periode` × `parcours_id` ×
+`categorie_id` × `niveau_gravite_id`) avant `create()` et ignore silencieusement (retourne 0) toute
+combinaison déjà archivée — un recalcul accidentel du même mois ne peut jamais réécrire une valeur
+déjà publiée. Si une correction devenait un jour nécessaire, elle passerait par une nouvelle ligne
+ou une purge manuelle explicite, jamais par ce service.
+
+**Question 6 — le rendu PDF (dompdf) n'est pas testable au travers du harnais de test Livewire.**
+`Excel::download()` dispose d'un faux officiel (`Excel::fake()`), pas `Pdf::download()`
+(barryvdh/laravel-dompdf) : appeler l'action réelle depuis `Livewire::test()->call('exporterPdf')`
+génère un vrai binaire PDF que le harnais de test tente de sérialiser en JSON, ce qui échoue
+(« Malformed UTF-8 characters »). **Décision** : tester le contenu de la vue `exports.dossiers-pdf`
+directement (`view(...)->render()`), et couvrir l'autorisation (refus sans `reporting.export`)
+séparément via `Livewire::test()`, sans jamais déclencher un rendu PDF réel dans les tests
+d'autorisation. La logique métier (filtre, redaction nominative) est de toute façon déjà partagée et
+testée via `IndicateurService`/`DossiersExport`/`ReportingFilter`, communs aux deux formats d'export.

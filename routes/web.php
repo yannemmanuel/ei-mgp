@@ -17,6 +17,7 @@ use App\Livewire\Declaration\GriefSousTraitantForm;
 use App\Livewire\Dossiers\DossierDetailPage;
 use App\Livewire\Dossiers\DossierListPage;
 use App\Livewire\Investigations\InvestigationDetailPage;
+use App\Livewire\Reporting\DashboardConsolide;
 use App\Livewire\Suivi\SuiviDossier;
 use Illuminate\Support\Facades\Route;
 
@@ -24,9 +25,11 @@ Route::get('/', function () {
     return redirect(auth()->check() ? '/dashboard' : '/login');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware('auth')->name('dashboard');
+// Module 6 — Reporting (EX-REP-01/02) : page d'atterrissage post-connexion pour TOUS les
+// utilisateurs authentifiés — le contenu (tableau de bord consolidé ou résumé personnel) se
+// ramifie selon reporting.view à l'intérieur du composant, jamais un 403 ici (docs/decisions-
+// techniques.md DT-31).
+Route::get('/dashboard', DashboardConsolide::class)->middleware('auth')->name('dashboard');
 
 // Module 2 — Gestion des dossiers (EX-GES-01 à 06).
 Route::middleware('auth')->group(function () {
