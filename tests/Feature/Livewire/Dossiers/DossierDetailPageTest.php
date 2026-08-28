@@ -128,7 +128,7 @@ it('closes a resolved dossier with a synthese_resolution', function () {
     expect($dossier->fresh()->statut->code)->toBe(StatutDossierCode::Cloture);
 });
 
-it('only lets service_mgp / dg reopen a closed dossier (RG-07)', function () {
+it('only lets service_mgp / dg reopen a closed dossier (RG-07, EX-GES-06)', function () {
     $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
     $dossier->update(['statut_id' => StatutDossier::where('code', StatutDossierCode::Cloture->value)->first()->id]);
 
@@ -149,6 +149,47 @@ it('only lets service_mgp / dg reopen a closed dossier (RG-07)', function () {
         ->assertHasNoErrors();
 
     expect($dossier->fresh()->statut->code)->toBe(StatutDossierCode::Reouvert);
+});
+
+it('lets the dpo mark and unmark a dossier as contentieux (RG-11)', function () {
+    $dpo = User::factory()->create();
+    $dpo->assignRole('dpo');
+
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+    expect($dossier->contentieux)->toBeFalse();
+
+    Livewire::actingAs($dpo)->test(DossierDetailPage::class, ['dossier' => $dossier])
+        ->call('basculerContentieux');
+
+    expect($dossier->fresh()->contentieux)->toBeTrue();
+
+    Livewire::actingAs($dpo)->test(DossierDetailPage::class, ['dossier' => $dossier])
+        ->call('basculerContentieux');
+
+    expect($dossier->fresh()->contentieux)->toBeFalse();
+});
+
+it('forbids a non-dpo role from toggling contentieux (RG-11)', function () {
+    $chef = User::factory()->create();
+    $chef->assignRole('service_mgp');
+
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+
+    Livewire::actingAs($chef)->test(DossierDetailPage::class, ['dossier' => $dossier])
+        ->call('basculerContentieux')
+        ->assertForbidden();
+
+    expect($dossier->fresh()->contentieux)->toBeFalse();
+});
+
+it('does not show the contentieux control to a non-dpo role', function () {
+    $chef = User::factory()->create();
+    $chef->assignRole('service_mgp');
+
+    $dossier = createTestDossierForParcours(ParcoursCode::EiEmploye->value);
+
+    $this->actingAs($chef)->get(route('dossiers.show', $dossier))
+        ->assertDontSee('Conservation des données (RG-11)');
 });
 
 it('requires authorization to download a piece jointe', function () {

@@ -175,6 +175,26 @@ class DossierDetailPage extends Component
         return Auth::user()->can('view', $message);
     }
 
+    private function utilisateurPeutGererContentieux(): bool
+    {
+        return Auth::user()->can('rgpd.conservation.manage');
+    }
+
+    /** RG-11 : seul le DPO peut poser/lever le blocage contentieux empêchant l'anonymisation automatique. */
+    public function getPeutGererContentieuxProperty(): bool
+    {
+        return $this->utilisateurPeutGererContentieux();
+    }
+
+    public function basculerContentieux(): void
+    {
+        abort_unless($this->utilisateurPeutGererContentieux(), 403);
+
+        $this->dossier->update(['contentieux' => ! $this->dossier->contentieux]);
+        $this->rafraichir();
+        session()->flash('status', $this->dossier->contentieux ? 'Dossier marqué en contentieux : anonymisation automatique bloquée.' : 'Blocage contentieux levé.');
+    }
+
     public function render()
     {
         return view('livewire.dossiers.dossier-detail-page');

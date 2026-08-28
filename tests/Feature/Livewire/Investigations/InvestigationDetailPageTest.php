@@ -35,7 +35,7 @@ it('forbids a user outside the dossier parcours scope from viewing the investiga
         ->assertForbidden();
 });
 
-it('lets the enquêteur edit the fiche while it is "en cours" (EX-INV-02/03/04)', function () {
+it('lets the enquêteur edit the fiche while it is "en cours" (EX-INV-02, EX-INV-03, EX-INV-04)', function () {
     $correspondant = User::factory()->create();
     $correspondant->assignRole('correspondant_mgp');
     $investigation = investigationPourTests(ParcoursCode::GriefEmploye->value, $correspondant);

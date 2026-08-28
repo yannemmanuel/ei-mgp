@@ -56,7 +56,7 @@ it('lets service_mgp see dossiers from all 4 parcours', function () {
     expect($component->get('dossiers'))->toHaveCount(4);
 });
 
-it('filters by parcours', function () {
+it('filters by parcours (EX-GES-01)', function () {
     $gestionnaire = User::factory()->create();
     $gestionnaire->assignRole('service_mgp');
 
@@ -69,7 +69,7 @@ it('filters by parcours', function () {
     expect($component->get('dossiers')->pluck('id')->all())->toBe([$ei->id]);
 });
 
-it('filters by statut', function () {
+it('filters by statut (EX-GES-01)', function () {
     $gestionnaire = User::factory()->create();
     $gestionnaire->assignRole('service_mgp');
 

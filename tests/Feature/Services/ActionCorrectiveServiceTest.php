@@ -34,7 +34,7 @@ function dossierQuelconqueActionCorrective(): Dossier
     return amenerDossierEnActionCorrective(ParcoursCode::EiEmploye->value, User::factory()->create());
 }
 
-it('creates an action corrective on a dossier "action corrective en cours" (EX-ACT-01/02)', function () {
+it('creates an action corrective on a dossier "action corrective en cours" (EX-ACT-01, EX-ACT-02)', function () {
     $acteur = User::factory()->create();
     $dossier = amenerDossierEnActionCorrective(ParcoursCode::EiEmploye->value, $acteur);
     $responsable = User::factory()->create();

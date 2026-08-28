@@ -143,12 +143,23 @@ class DeclarationService
         });
     }
 
+    /**
+     * RG-09 : une déclaration catégorisée « Autre » est orientée par défaut vers Service MGP/DADD
+     * (pas les rôles de captage habituels du parcours) — elle ne rentre par définition dans
+     * aucune catégorie métier existante, seul un rôle transverse peut la requalifier. Le délai
+     * suivi reste néanmoins celui de l'analyse préliminaire du PARCOURS d'origine, jamais un
+     * délai spécifique à la catégorie (RGI-13) : `App\Services\Workflow\DelaiService` n'indexe
+     * `sla_delais` que par parcours + étape, jamais par catégorie — RGI-13 est donc déjà respecté
+     * structurellement, sans code additionnel.
+     */
     private function affecterAutomatiquement(Dossier $dossier, ParcoursCode $parcoursCode): bool
     {
         // ROLES_AFFECTATION_AUTOMATIQUE couvre les 4 parcours de façon exhaustive (vérifié par
         // Larastan) : pas de repli "aucun rôle configuré" à gérer ici, seulement le cas "aucun
         // utilisateur actif ne porte ce rôle", couvert par isNotEmpty() ci-dessous.
-        $roles = self::ROLES_AFFECTATION_AUTOMATIQUE[$parcoursCode->value];
+        $roles = $dossier->categorie->is_autre
+            ? ['service_mgp']
+            : self::ROLES_AFFECTATION_AUTOMATIQUE[$parcoursCode->value];
 
         $utilisateurs = User::query()
             ->role($roles)

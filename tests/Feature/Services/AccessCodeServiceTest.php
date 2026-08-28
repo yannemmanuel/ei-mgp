@@ -2,7 +2,7 @@
 
 use App\Services\Declaration\AccessCodeService;
 
-it('generates a 6-digit numeric code', function () {
+it('generates a 6-digit numeric code (EX-DEC-09)', function () {
     $service = app(AccessCodeService::class);
 
     $code = $service->generer();

@@ -5,11 +5,13 @@ use App\Enums\ParcoursCode;
 use App\Enums\StatutDossierCode;
 use App\Events\DeclarationCritique;
 use App\Events\DeclarationSoumise;
+use App\Models\Categorie;
 use App\Models\DeclarationIdentite;
 use App\Models\Dossier;
 use App\Models\DossierAffectation;
 use App\Models\HistoriqueStatut;
 use App\Models\NiveauGravite;
+use App\Models\Parcours;
 use App\Models\User;
 use App\Services\Declaration\DeclarationService;
 use Illuminate\Http\UploadedFile;
@@ -102,6 +104,35 @@ it('auto-assigns the dossier to the roles responsible for capturing this parcour
 
     expect($assignes)->toBe(collect([$rqse->id, $secretaire->id])->sort()->values()->all());
     expect($dossier->fresh()->statut->code)->toBe(StatutDossierCode::Affecte);
+});
+
+it('routes a declaration categorized "Autre" to service_mgp instead of the usual capture roles (RG-09)', function () {
+    $rqse = User::factory()->create();
+    $rqse->assignRole('rqse'); // rôle de captage habituel du parcours EI Employé — ne doit PAS être affecté ici.
+    $gestionnaire = User::factory()->create();
+    $gestionnaire->assignRole('service_mgp');
+
+    $categorieAutre = Categorie::where('parcours_id', Parcours::where('code', ParcoursCode::EiEmploye->value)->firstOrFail()->id)
+        ->where('is_autre', true)
+        ->firstOrFail();
+
+    $resultat = app(DeclarationService::class)->creer(
+        parcoursCode: ParcoursCode::EiEmploye,
+        canalCaptageCode: CanalCaptageCode::QrCode->value,
+        anonyme: true,
+        donneesDossier: [
+            'categorie_id' => $categorieAutre->id,
+            'niveau_gravite_id' => NiveauGravite::where('niveau', 1)->first()->id,
+            'description' => str_repeat('a', 25),
+            'lieu' => 'Atelier',
+            'date_survenance' => now()->subDay(),
+        ],
+        donneesIdentite: [],
+    );
+
+    $assignes = DossierAffectation::where('dossier_id', $resultat['dossier']->id)->pluck('user_id')->all();
+
+    expect($assignes)->toBe([$gestionnaire->id]);
 });
 
 it('leaves the dossier at Reçu when no user holds the capture role for this parcours', function () {

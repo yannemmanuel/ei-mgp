@@ -22,6 +22,9 @@
             @if ($dossier->is_anonymous)
                 <span class="badge badge-indigo">Anonyme</span>
             @endif
+            @if ($this->peutGererContentieux && $dossier->contentieux)
+                <span class="badge badge-red">Contentieux</span>
+            @endif
             @if ($this->joursRestants !== null)
                 @if ($this->joursRestants < 0)
                     <span class="badge badge-red">
@@ -234,6 +237,26 @@
                     </div>
                 @endif
             @endcan
+
+            @if ($this->peutGererContentieux)
+                <div class="card p-5">
+                    <h2 class="mb-3 text-sm font-semibold text-slate-900">Conservation des données (RG-11)</h2>
+                    <p class="mb-3 text-xs text-slate-500">
+                        Un dossier en contentieux est exclu de l'anonymisation automatique après clôture.
+                    </p>
+                    <form wire:submit="basculerContentieux">
+                        @if ($dossier->contentieux)
+                            <button type="submit" class="btn btn-warning btn-block">
+                                Lever le blocage contentieux
+                            </button>
+                        @else
+                            <button type="submit" class="btn btn-danger btn-block">
+                                Marquer en contentieux
+                            </button>
+                        @endif
+                    </form>
+                </div>
+            @endif
         </div>
     </div>
 </x-layouts.app>

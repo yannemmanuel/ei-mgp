@@ -20,7 +20,7 @@ function dossierAuStatut(string $parcoursCode, StatutDossierCode $statut): Dossi
     return $dossier->fresh();
 }
 
-it('follows the CDC §7.1 transition graph and rejects transitions outside it', function () {
+it('follows the CDC §7.1 transition graph and rejects transitions outside it (EX-GES-04)', function () {
     $dossier = dossierAuStatut(ParcoursCode::EiEmploye->value, StatutDossierCode::Affecte);
     $acteur = User::factory()->create();
     $workflow = app(DossierWorkflowService::class);

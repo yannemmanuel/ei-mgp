@@ -647,3 +647,60 @@ directement (`view(...)->render()`), et couvrir l'autorisation (refus sans `repo
 séparément via `Livewire::test()`, sans jamais déclencher un rendu PDF réel dans les tests
 d'autorisation. La logique métier (filtre, redaction nominative) est de toute façon déjà partagée et
 testée via `IndicateurService`/`DossiersExport`/`ReportingFilter`, communs aux deux formats d'export.
+
+## DT-32 — Phase 13 : audit de traçabilité et politique de conservation (RG-11)
+
+**Méthodologie de l'audit.** Extraction par grep de tous les identifiants `EX-*`/`RG-*`/`RGI-*`
+cités dans `docs/exigences-fonctionnelles.md` et `docs/regles-metier.md`, recoupée avec une
+recherche des mêmes identifiants littéraux dans `tests/`. Chaque « absence » a ensuite été triée
+manuellement en trois catégories : (a) faux négatif — comportement déjà couvert mais sous un titre
+de test qui ne cite pas l'identifiant à l'identique (ex. `EX-REP-02/03` ne matche pas un grep sur
+`EX-REP-03` seul — corrigé par relecture, aucune action de code) ; (b) comportement réellement non
+testé ; (c) comportement réellement non implémenté. Deux lacunes réelles ont été trouvées par cette
+méthode, absentes de toute recherche par mots-clés fonctionnels classique car aucun code ne les
+mentionnait déjà :
+
+**RG-09 — Déclaration « Autre » non routée vers le Service MGP/DADD.** `DeclarationService::
+affecterAutomatiquement()` routait toute déclaration selon son parcours (`ROLES_AFFECTATION_
+AUTOMATIQUE`), sans jamais distinguer la catégorie « Autre » (`categories.is_autre`) — alors que
+RG-09 exige explicitement ce routage par défaut. **Décision** : une branche minimale sur
+`$dossier->categorie->is_autre` route vers `['service_mgp']` avant la résolution habituelle par
+parcours ; aucune autre structure existante modifiée. RGI-13 (le délai de l'« Autre » suit le délai
+du parcours d'origine, pas un délai dédié) était en revanche déjà satisfait sans code
+supplémentaire : `DelaiService` indexe `sla_delais` uniquement par `parcours_id`, jamais par
+catégorie — seul un commentaire a été ajouté pour l'expliciter.
+
+**RG-11 — Politique de conservation des données, absente à 100 %.** Aucune trace (`archiver`,
+`anonymiser`, rétention, `contentieux`) n'existait nulle part dans `app/` avant cette phase. Le CDC
+laisse plusieurs points d'interprétation ouverts, tranchés comme suit :
+
+- **Périmètre : uniquement `date_cloture IS NOT NULL`.** RG-11 parle de dossiers « clôturés ». Un
+  dossier `Rejeté` n'a pas de `date_cloture` (seul `DossierWorkflowService::cloturer()` la renseigne,
+  jamais `rejeter()`) et n'entre donc jamais dans le périmètre d'archivage/anonymisation — cohérent
+  avec DT-31 Question 3, qui exclut déjà les rejetés du « délai moyen de traitement » pour la même
+  raison. Étendre le périmètre aux dossiers rejetés aurait nécessité de modifier `rejeter()` pour lui
+  donner une date de référence, une extension non demandée par le CDC.
+- **« Anonymisation » plutôt que « suppression ».** Le CDC évoque un cycle de vie se terminant par
+  une suppression des données personnelles, jamais par la suppression du dossier lui-même (RG-03 :
+  aucune suppression possible ; RG-12 : les statistiques agrégées doivent rester calculables sans
+  limite de durée). **Décision** : seule la ligne `declaration_identites` est supprimée (`->delete()`
+  sur la relation `identite`) ; la ligne `dossiers` survit indéfiniment, marquée `anonymise_le`.
+- **Borne haute de la fourchette CDC (« 5 à 10 ans ») retenue pour l'anonymisation.** Choix identique
+  au précédent établi en DT-23 pour les délais maximaux ambigus : en cas de fourchette, la
+  borne la plus protectrice pour les droits du déclarant (ici, conserver plus longtemps avant
+  suppression) est retenue par défaut, à charge pour la DPO de resserrer si besoin via configuration
+  future.
+- **`contentieux` : nouveau champ booléen, seul mécanisme d'exception « sauf contentieux » du CDC.**
+  Aucune structure existante ne permettait d'honorer cette exception explicitement requise par RG-11.
+  Ajout minimal (`dossiers.contentieux`, défaut `false`) plutôt qu'une table séparée : un seul bit
+  d'état, jamais historisé au-delà de ce que le journal d'audit (Phase 11) capture déjà automatiquement
+  via `DossierObserver` (aucun code d'audit dédié nécessaire — la colonne est un champ `dossiers`
+  comme un autre pour l'observer générique).
+- **Seul le rôle `dpo` peut poser/lever ce blocage.** Permission `rgpd.conservation.manage`, déjà
+  présente dans `RolePermissionSeeder` depuis la Phase 2 (prévue mais jamais consommée par aucune UI
+  jusqu'à cette phase) — confirmé qu'aucun autre rôle ne la porte avant d'exposer le contrôle dans
+  `DossierDetailPage`.
+- **Cadence mensuelle de la commande planifiée** (`dossiers:appliquer-politique-conservation`, le 1er
+  de chaque mois à 02h00, `routes/console.php`) : les seuils se comptant en mois/années, une
+  vérification quotidienne n'apporterait aucune réactivité utile — cohérent avec le raisonnement déjà
+  appliqué à `CalculerStatistiquesMensuelles` (DT-28).

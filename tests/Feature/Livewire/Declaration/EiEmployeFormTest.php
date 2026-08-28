@@ -26,11 +26,11 @@ function champsValidesEiEmploye(): array
     ];
 }
 
-it('renders successfully on the public route', function () {
+it('renders successfully on the public route (EX-DEC-02)', function () {
     $this->get(route('declarer.ei-employe'))->assertOk()->assertSeeLivewire(EiEmployeForm::class);
 });
 
-it('requires description, categorie, gravite, date and lieu', function () {
+it('requires description, categorie, gravite, date and lieu (EX-DEC-07)', function () {
     Livewire::test(EiEmployeForm::class)
         ->set('horodatageAffichage', now()->subSeconds(10)->timestamp)
         ->set('anonymat', true)
@@ -61,7 +61,7 @@ it('blocks a non-anonymous submission from an unauthenticated visitor (EX-DEC-04
     expect(Dossier::count())->toBe(0);
 });
 
-it('creates an anonymous dossier without any identity row and shows the reference + access code', function () {
+it('creates an anonymous dossier without any identity row and shows the reference + access code (EX-DEC-03)', function () {
     Livewire::test(EiEmployeForm::class)
         ->set('horodatageAffichage', now()->subSeconds(10)->timestamp)
         ->set('anonymat', true)
@@ -131,4 +131,29 @@ it('rejects a submission made faster than the minimum fill time (DT-14)', functi
         ->assertHasErrors(['description']);
 
     expect(Dossier::count())->toBe(0);
+});
+
+it('rejects a date de survenance postérieure à aujourd\'hui (RGI-01)', function () {
+    Livewire::test(EiEmployeForm::class)
+        ->set('horodatageAffichage', now()->subSeconds(10)->timestamp)
+        ->set('anonymat', true)
+        ->set(champsValidesEiEmploye())
+        ->set('dateSurvenance', now()->addDay()->toDateString())
+        ->call('submit')
+        ->assertHasErrors(['dateSurvenance']);
+
+    expect(Dossier::count())->toBe(0);
+});
+
+it('accepts a date de survenance équal to today (RGI-01, boundary)', function () {
+    Livewire::actingAs(User::factory()->create())
+        ->test(EiEmployeForm::class)
+        ->set('horodatageAffichage', now()->subSeconds(10)->timestamp)
+        ->set('anonymat', true)
+        ->set(champsValidesEiEmploye())
+        ->set('dateSurvenance', now()->toDateString())
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Dossier::count())->toBe(1);
 });

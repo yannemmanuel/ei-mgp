@@ -42,6 +42,9 @@ class DossierFactory extends Factory
             'motif_reouverture' => null,
             'motif_rejet' => null,
             'date_cloture' => null,
+            'contentieux' => false,
+            'archive_le' => null,
+            'anonymise_le' => null,
         ];
     }
 

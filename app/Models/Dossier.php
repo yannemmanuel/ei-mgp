@@ -56,6 +56,9 @@ class Dossier extends Model
         'motif_reouverture',
         'motif_rejet',
         'date_cloture',
+        'contentieux',
+        'archive_le',
+        'anonymise_le',
     ];
 
     protected function casts(): array
@@ -64,6 +67,9 @@ class Dossier extends Model
             'is_anonymous' => 'boolean',
             'date_survenance' => 'datetime',
             'date_cloture' => 'datetime',
+            'contentieux' => 'boolean',
+            'archive_le' => 'datetime',
+            'anonymise_le' => 'datetime',
         ];
     }
 

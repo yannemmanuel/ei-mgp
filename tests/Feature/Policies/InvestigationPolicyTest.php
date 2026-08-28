@@ -19,7 +19,7 @@ beforeEach(function () {
     $this->seed(RolePermissionSeeder::class);
 });
 
-it('never lets the enqueteur validate their own investigation (RGI-06)', function () {
+it('never lets the enqueteur validate their own investigation (RGI-06, EX-INV-05)', function () {
     $dossier = createTestDossierForParcours(ParcoursCode::GriefEmploye->value);
 
     $enqueteur = User::factory()->create();

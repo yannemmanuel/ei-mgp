@@ -92,7 +92,7 @@ it('never notifies for an anonymous dossier (no declarant_user_id) on status cha
     Notification::assertNothingSent();
 });
 
-it('dispatches the circuit accéléré synchronously, never via the queue (RG-08)', function () {
+it('dispatches the circuit accéléré synchronously, never via the queue (RG-08, EX-NOT-05)', function () {
     Queue::fake();
 
     $categorie = categorieDe(ParcoursCode::EiEmploye->value);
