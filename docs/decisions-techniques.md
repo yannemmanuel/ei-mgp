@@ -389,3 +389,76 @@ signalée explicitement** : si un `responsable_id` est un utilisateur sans permi
 l'application ; un gestionnaire (`correspondant_mgp`, `rqse`, etc.) devra le faire pour lui. Le CDC
 ne définissant aucun rôle « responsable d'action » distinct des rôles de gestion existants, cette
 limite n'est pas comblée par l'invention d'un rôle ou d'une permission supplémentaire.
+
+## DT-28 — Périmètre du module Notifications (Phase 9)
+
+**Infrastructure retenue.** Le système de notifications natif de Laravel (`Illuminate\Notifications`,
+`User` déjà `Notifiable` depuis le squelette initial) plutôt qu'une implémentation maison : canal
+« outil » = canal `database` (table technique standard `notifications`, nom conservé en anglais
+comme les autres tables d'infrastructure du framework, DT-10), canal « email » = canal `mail`.
+Une seule classe `App\Notifications\DossierEvenementNotification`, pilotée entièrement par un
+gabarit `notification_templates` résolu par `App\Services\Notification\NotificationService` — le
+contenu n'est jamais codé en dur dans une classe de notification par évènement.
+
+**Question 1 — « N+1 » (EX-NOT-04).** Le CDC exige d'alerter le supérieur hiérarchique du
+responsable actuel du dossier, une notion absente du schéma (Phase 2) et de `acteurs.md` (qui ne
+définit aucun rôle « responsable hiérarchique »). **Décision** : ajout d'une colonne nullable
+`users.responsable_hierarchique_id` (auto-référence). Nullable délibérément : un utilisateur sans
+supérieur renseigné ne déclenche simplement aucune alerte N+1 le concernant — absence de donnée,
+pas une déduction silencieuse ni une alerte fictive. Ajout de schéma minimal justifié par une
+exigence explicitement nommée (« N+1 »), pas une règle métier inventée.
+
+**Question 2 — destinataires hors RBAC du circuit accéléré (EX-NOT-05).** Prolonge DT-07 : « Service
+Prévention » (EI Employé) et « toutes les Directions » (Grief Communauté) n'ont ni rôle applicatif
+ni utilisateur identifiable. **Décision** : colonne `notification_templates.destinataires_email_supplementaires`
+(JSON, adresses email statiques), utilisée uniquement pour le canal `email` (jamais pour le canal
+`outil`, qui suppose un compte applicatif). Valeurs actuelles (`prevention@example.test`,
+`directions@example.test`) **indicatives**, à remplacer par les vraies adresses de diffusion avant
+mise en production (même statut que les délais « à valider » de DT-04). « Président CSST » reste
+résolu via `poste = 'Directeur de structure'` (DT-07) ; « SST/DR/Commanditaire » (Grief
+Sous-traitant) via le rôle `captage_grief_soustraitant` déjà présent dans `acteurs.md`.
+
+**Question 3 — quand notifier le déclarant (EX-NOT-02, RGI-10).** Le CDC parle de changement de
+statut « majeur ». **Décision** : ne notifier que lorsque le **libellé affiché** change
+(`statuts_dossier.libelle_affiche`), pas à chaque transition interne — plusieurs statuts internes
+partagent le même libellé affiché (ex. « En investigation » et « En attente d'information » →
+« En traitement »), et notifier à chacun spammerait le déclarant de messages qu'il ne peut pas
+distinguer. Découle directement de RGI-10, pas une invention.
+
+**Question 4 — page de suivi et code d'accès pour les dossiers non anonymes (EX-NOT-06).** Deux
+formulations du CDC (extraites en Phase 0) divergent : RGI-12 dit « référence et, **si anonyme**, un
+code secondaire » (lecture conditionnelle), tandis que `exigences-securite.md` §4 dit « `/suivi`
+accessible **uniquement** via `reference + code_secondaire` » (sans condition). **Décision** :
+retenir la lecture la plus sûre (exigences-securite.md, document de sécurité dédié) — un code
+d'accès est désormais généré pour **tous** les dossiers, anonymes ou non (`DeclarationService::creer()`,
+avant Phase 9 réservé au cas anonyme). Écart assumé et documenté par rapport au comportement de
+Phase 4 ; aucune régression fonctionnelle (le code était déjà retourné/affiché à l'accusé de
+réception, seul son universalité change).
+
+**Question 5 — débit et verrouillage sur `/suivi`.** `exigences-securite.md` §4 exige un
+« verrouillage temporaire après N tentatives échouées **sur une même référence** », en plus du
+rate limiting par IP général. **Décision** : deux compteurs `RateLimiter` indépendants
+(`suivi-lookup-ip:{ip}`, 10/10 min ; `suivi-lookup-ref:{reference}`, 5/15 min), tous deux comptant
+uniquement les échecs (jamais les succès) — cohérent avec la formulation « tentatives échouées ».
+Contrôlé dans `SuiviDossier::rechercher()`, pas par un middleware de route (même raison que DT-14 :
+les actions Livewire transitent par un endpoint AJAX partagé). Message d'erreur volontairement
+générique (« Aucun dossier ne correspond à ces informations ») que ce soit la référence ou le code
+qui soit invalide, pour ne jamais révéler lequel des deux est en cause.
+
+**Question 6 — paliers d'escalade répétés, sans déduplication (EX-NOT-04).** Le CDC ne précise pas
+si une alerte de retard doit être envoyée une seule fois ou répétée tant que le dossier reste en
+retard. **Décision** : `dossiers:detecter-retards` revérifie et ré-envoie à chaque exécution
+(quotidienne) tant que le retard persiste — cohérent avec la nature d'une alerte d'escalade
+(contrairement à `dossiers:relancer-echeances`, qui est un rappel ponctuel déclenché une seule fois
+à J-3 exactement). Aucune table de déduplication ajoutée, non demandée par le CDC. Les deux paliers
+(N+1 + Service MGP à >0 %, Direction à partir de +50 %) sont **additifs** : le premier reste actif
+même une fois le second atteint.
+
+**Question 7 — mode de la messagerie partagée (EX-NOT-07).** `App\Livewire\Messagerie\MessagerieDossier`
+sert à la fois la vue interne (`DossierDetailPage`, acteur authentifié) et la vue publique
+(`SuiviDossier`, déclarant). **Décision** : le mode est déterminé par `Auth::check()` plutôt que par
+un paramètre explicite — un déclarant, anonyme ou non, n'est par construction jamais authentifié sur
+ce composant (RG-06, `MessagePolicy` ne s'applique qu'aux acteurs). Côté déclarant, l'autorisation
+d'envoi est revérifiée via la marque de session posée par `SuiviDossier::rechercher()`
+(`suivi_verifie_{id}`), jamais en faisant confiance au seul fait que le composant a été monté depuis
+une vue supposée autorisée.

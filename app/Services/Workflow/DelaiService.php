@@ -141,6 +141,39 @@ class DelaiService
         return $limite !== null && CarbonImmutable::now()->greaterThan($limite);
     }
 
+    /**
+     * EX-NOT-04 : pourcentage de dépassement du délai alloué à l'étape courante, utilisé pour le
+     * palier d'escalade "+50 %" (alerte Direction). Négatif ou nul tant que l'échéance n'est pas
+     * dépassée. Null si aucun délai n'est suivi pour ce dossier (cf. DT-04).
+     */
+    public function pourcentageDepassement(Dossier $dossier): ?float
+    {
+        $debut = $this->dateDebutEtape($dossier);
+        $limite = $this->dateLimite($dossier);
+
+        if ($debut === null || $limite === null) {
+            return null;
+        }
+
+        $dureeAllouee = $debut->diffInSeconds($limite);
+
+        if ($dureeAllouee <= 0) {
+            return null;
+        }
+
+        $ecoulement = $debut->diffInSeconds(CarbonImmutable::now());
+
+        return (($ecoulement - $dureeAllouee) / $dureeAllouee) * 100;
+    }
+
+    /** EX-NOT-04 : vrai si le dépassement atteint (ou dépasse) le seuil donné, en pourcentage du délai alloué. */
+    public function estEnRetardDe(Dossier $dossier, float $pourcentageSeuil): bool
+    {
+        $pourcentage = $this->pourcentageDepassement($dossier);
+
+        return $pourcentage !== null && $pourcentage >= $pourcentageSeuil;
+    }
+
     private function ajouter(CarbonImmutable $depart, int $valeur, UniteDelai $unite): CarbonImmutable
     {
         return match ($unite) {

@@ -4,38 +4,35 @@
     </div>
 
     @session('status')
-        <div class="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+        <div class="alert alert-success mb-4">
             {{ $value }}
         </div>
     @endsession
 
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-5">
+    <div class="card mb-6 flex flex-wrap items-center justify-between gap-3 p-5">
         <div>
             <p class="font-mono text-sm text-slate-500">{{ $dossier->reference }}</p>
             <h1 class="text-lg font-semibold text-slate-900">{{ $dossier->parcours->libelle }} — {{ $dossier->categorie->libelle }}</h1>
         </div>
-        <div class="flex items-center gap-2">
-            <span class="inline-flex items-center rounded px-2 py-1 text-xs font-medium text-white"
-                  style="background-color: {{ $dossier->niveauGravite->couleur ?? '#64748b' }}">
-                {{ $dossier->niveauGravite->libelle }}
-            </span>
-            <span class="inline-flex items-center rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+        <div class="flex flex-wrap items-center gap-2">
+            <x-gravite-badge :niveau="$dossier->niveauGravite" />
+            <span class="badge badge-slate">
                 {{ $dossier->statut->libelle_interne }}
             </span>
             @if ($dossier->is_anonymous)
-                <span class="inline-flex items-center rounded bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700">Anonyme</span>
+                <span class="badge badge-indigo">Anonyme</span>
             @endif
             @if ($this->joursRestants !== null)
                 @if ($this->joursRestants < 0)
-                    <span class="inline-flex items-center rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                    <span class="badge badge-red">
                         En retard ({{ abs($this->joursRestants) }} j)
                     </span>
                 @elseif ($this->joursRestants <= 3)
-                    <span class="inline-flex items-center rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                    <span class="badge badge-amber">
                         Échéance dans {{ $this->joursRestants }} j
                     </span>
                 @else
-                    <span class="inline-flex items-center rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                    <span class="badge badge-emerald">
                         {{ $this->joursRestants }} j avant échéance
                     </span>
                 @endif
@@ -45,7 +42,7 @@
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="space-y-6 lg:col-span-2">
-            <div class="rounded-lg border border-slate-200 bg-white p-5">
+            <div class="card p-5">
                 <h2 class="mb-3 text-sm font-semibold text-slate-900">Description</h2>
                 <p class="whitespace-pre-line text-sm text-slate-700">{{ $dossier->description }}</p>
 
@@ -73,7 +70,7 @@
             </div>
 
             @if ($this->peutVoirIdentite && $dossier->identite)
-                <div class="rounded-lg border border-slate-200 bg-white p-5">
+                <div class="card p-5">
                     <h2 class="mb-3 text-sm font-semibold text-slate-900">Identité du déclarant</h2>
                     <dl class="grid grid-cols-2 gap-3 text-sm">
                         @foreach ([
@@ -88,17 +85,20 @@
                     </dl>
                 </div>
             @elseif (! $dossier->is_anonymous && ! $this->peutVoirIdentite)
-                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <div class="alert alert-warning">
                     Les données nominatives de ce dossier ne sont pas accessibles à votre rôle.
                 </div>
             @endif
 
-            <div class="rounded-lg border border-slate-200 bg-white p-5">
+            <div class="card p-5">
                 <h2 class="mb-3 text-sm font-semibold text-slate-900">Pièces jointes</h2>
                 @forelse ($dossier->piecesJointes as $piece)
                     <a href="{{ route('pieces-jointes.telecharger', $piece) }}"
-                       class="block truncate text-sm text-slate-700 hover:text-slate-900 hover:underline">
-                        📎 {{ $piece->nom_original }}
+                       class="flex items-center gap-2 truncate rounded-md px-2 py-1.5 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900">
+                        <svg class="h-4 w-4 shrink-0 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                            <path d="M8 12.5l4.5-4.5a2.121 2.121 0 013 3L10 16.5a4.243 4.243 0 01-6-6l6.5-6.5a3.536 3.536 0 015 5L9 15" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <span class="truncate underline-offset-2 hover:underline">{{ $piece->nom_original }}</span>
                     </a>
                 @empty
                     <p class="text-sm text-slate-400">Aucune pièce jointe.</p>
@@ -109,7 +109,11 @@
 
             <livewire:actions-correctives.action-corrective-panel :dossier="$dossier" :key="'actions-correctives-'.$dossier->id" />
 
-            <div class="rounded-lg border border-slate-200 bg-white p-5">
+            @if ($this->peutVoirMessagerie)
+                <livewire:messagerie.messagerie-dossier :dossier="$dossier" :key="'messagerie-'.$dossier->id" />
+            @endif
+
+            <div class="card p-5">
                 <h2 class="mb-3 text-sm font-semibold text-slate-900">Historique</h2>
                 <ul class="space-y-3">
                     @foreach ($this->historique as $entree)
@@ -133,7 +137,7 @@
         </div>
 
         <div class="space-y-6">
-            <div class="rounded-lg border border-slate-200 bg-white p-5">
+            <div class="card p-5">
                 <h2 class="mb-3 text-sm font-semibold text-slate-900">Affectation</h2>
                 @forelse ($this->affectationsActives as $affectation)
                     <p class="text-sm text-slate-700">{{ $affectation->utilisateur->name }}</p>
@@ -144,7 +148,7 @@
                 @can('reassign', $dossier)
                     <form wire:submit="reaffecter" class="mt-4 space-y-2 border-t border-slate-100 pt-4">
                         <label class="block text-xs font-medium text-slate-500">Réaffecter à</label>
-                        <select wire:model="nouvelUtilisateurId" class="block w-full rounded-md border-slate-300 text-sm">
+                        <select wire:model="nouvelUtilisateurId" class="block w-full text-sm">
                             <option value="">— Sélectionner —</option>
                             @foreach ($this->utilisateursDisponibles as $utilisateur)
                                 <option value="{{ $utilisateur->id }}">{{ $utilisateur->name }}</option>
@@ -153,10 +157,10 @@
                         @error('nouvelUtilisateurId') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
                         <label class="block text-xs font-medium text-slate-500">Motif *</label>
-                        <textarea wire:model="motifReaffectation" rows="2" class="block w-full rounded-md border-slate-300 text-sm"></textarea>
+                        <textarea wire:model="motifReaffectation" rows="2" class="block w-full text-sm"></textarea>
                         @error('motifReaffectation') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
 
-                        <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+                        <button type="submit" class="btn btn-primary btn-block">
                             Réaffecter
                         </button>
                     </form>
@@ -165,10 +169,10 @@
 
             @can('updateStatus', $dossier)
                 @if ($this->transitionsDisponibles->isNotEmpty())
-                    <div class="rounded-lg border border-slate-200 bg-white p-5">
+                    <div class="card p-5">
                         <h2 class="mb-3 text-sm font-semibold text-slate-900">Changer le statut</h2>
                         <form wire:submit="changerStatut" class="space-y-2">
-                            <select wire:model="nouveauStatutCode" class="block w-full rounded-md border-slate-300 text-sm">
+                            <select wire:model="nouveauStatutCode" class="block w-full text-sm">
                                 <option value="">— Sélectionner —</option>
                                 @foreach ($this->transitionsDisponibles as $statut)
                                     <option value="{{ $statut->code->value }}">{{ $statut->libelle_interne }}</option>
@@ -176,8 +180,8 @@
                             </select>
                             @error('nouveauStatutCode') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                             <textarea wire:model="commentaireStatut" rows="2" placeholder="Commentaire (facultatif)"
-                                      class="block w-full rounded-md border-slate-300 text-sm"></textarea>
-                            <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+                                      class="block w-full text-sm"></textarea>
+                            <button type="submit" class="btn btn-primary btn-block">
                                 Mettre à jour
                             </button>
                         </form>
@@ -185,13 +189,13 @@
                 @endif
 
                 @if ($dossier->statut->code === \App\Enums\StatutDossierCode::EnAnalyse)
-                    <div class="rounded-lg border border-red-200 bg-white p-5">
+                    <div class="card border-red-200 p-5">
                         <h2 class="mb-3 text-sm font-semibold text-red-700">Rejeter (non recevable)</h2>
                         <form wire:submit="rejeter" class="space-y-2">
                             <textarea wire:model="motifRejet" rows="2" placeholder="Motif du rejet *"
-                                      class="block w-full rounded-md border-slate-300 text-sm"></textarea>
+                                      class="block w-full text-sm"></textarea>
                             @error('motifRejet') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                            <button type="submit" class="w-full rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500">
+                            <button type="submit" class="btn btn-danger btn-block">
                                 Rejeter le dossier
                             </button>
                         </form>
@@ -201,13 +205,13 @@
 
             @can('close', $dossier)
                 @if ($dossier->statut->code === \App\Enums\StatutDossierCode::Resolu)
-                    <div class="rounded-lg border border-slate-200 bg-white p-5">
+                    <div class="card p-5">
                         <h2 class="mb-3 text-sm font-semibold text-slate-900">Clôturer (EX-GES-05)</h2>
                         <form wire:submit="cloturer" class="space-y-2">
                             <textarea wire:model="syntheseResolution" rows="3" placeholder="Synthèse de résolution *"
-                                      class="block w-full rounded-md border-slate-300 text-sm"></textarea>
+                                      class="block w-full text-sm"></textarea>
                             @error('syntheseResolution') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                            <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700">
+                            <button type="submit" class="btn btn-primary btn-block">
                                 Clôturer le dossier
                             </button>
                         </form>
@@ -217,13 +221,13 @@
 
             @can('reopen', $dossier)
                 @if ($dossier->statut->code === \App\Enums\StatutDossierCode::Cloture)
-                    <div class="rounded-lg border border-amber-200 bg-white p-5">
+                    <div class="card border-amber-200 p-5">
                         <h2 class="mb-3 text-sm font-semibold text-amber-700">Réouverture contrôlée (RG-07)</h2>
                         <form wire:submit="reouvrir" class="space-y-2">
                             <textarea wire:model="motifReouverture" rows="2" placeholder="Motif de réouverture *"
-                                      class="block w-full rounded-md border-slate-300 text-sm"></textarea>
+                                      class="block w-full text-sm"></textarea>
                             @error('motifReouverture') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                            <button type="submit" class="w-full rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500">
+                            <button type="submit" class="btn btn-warning btn-block">
                                 Réouvrir le dossier
                             </button>
                         </form>

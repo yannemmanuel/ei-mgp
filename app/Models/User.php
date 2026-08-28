@@ -31,6 +31,7 @@ class User extends Authenticatable
         'site_id',
         'sso_subject_id',
         'actif',
+        'responsable_hierarchique_id',
     ];
 
     /**
@@ -65,6 +66,12 @@ class User extends Authenticatable
     public function site(): BelongsTo
     {
         return $this->belongsTo(Site::class);
+    }
+
+    /** EX-NOT-04 : cible de l'escalade "N+1" (cf. docs/decisions-techniques.md DT-28). */
+    public function responsableHierarchique(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'responsable_hierarchique_id');
     }
 
     /** Dossiers déclarés par cet employé identifié (jamais renseigné pour une déclaration anonyme). */

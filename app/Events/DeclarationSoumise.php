@@ -7,8 +7,12 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Déclenché à la création de tout dossier (EX-NOT-01). Aucun listener en Phase 4 : le module
- * Notifications (Phase 9) s'y abonnera pour notifier le(s) acteur(s) affecté(s).
+ * Déclenché à la création de tout dossier. EX-NOT-01 (notifier le(s) acteur(s) affecté(s)) est
+ * finalement couvert par App\Events\DossierAffecte (Phase 9) — plus précis : il ne se déclenche
+ * que lorsqu'une affectation a réellement eu lieu, et porte directement la liste des utilisateurs
+ * concernés, alors que DeclarationSoumise se déclenche pour tout dossier, affecté ou non. Cet
+ * évènement reste disponible sans listener pour un usage futur (ex. audit, statistiques) non
+ * spécifié par le CDC.
  */
 class DeclarationSoumise
 {

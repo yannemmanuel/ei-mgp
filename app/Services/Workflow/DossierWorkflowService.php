@@ -3,6 +3,7 @@
 namespace App\Services\Workflow;
 
 use App\Enums\StatutDossierCode;
+use App\Events\StatutDossierChange;
 use App\Models\ActionCorrective;
 use App\Models\Dossier;
 use App\Models\HistoriqueStatut;
@@ -128,6 +129,8 @@ class DossierWorkflowService
                 'commentaire' => $commentaire,
                 'effectue_par' => $acteur->id,
             ]);
+
+            event(new StatutDossierChange($dossier, $statutPrecedent, $statutSuivant));
         });
     }
 }

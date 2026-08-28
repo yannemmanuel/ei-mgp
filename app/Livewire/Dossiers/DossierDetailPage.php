@@ -4,6 +4,7 @@ namespace App\Livewire\Dossiers;
 
 use App\Enums\StatutDossierCode;
 use App\Models\Dossier;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\Dossier\AffectationService;
 use App\Services\Workflow\DelaiService;
@@ -163,6 +164,15 @@ class DossierDetailPage extends Component
     public function getJoursRestantsProperty(): ?int
     {
         return app(DelaiService::class)->joursRestants($this->dossier);
+    }
+
+    /** EX-NOT-07 : la messagerie n'est visible que pour les rôles porteurs de messagerie.view (acteurs.md). */
+    public function getPeutVoirMessagerieProperty(): bool
+    {
+        $message = new Message(['dossier_id' => $this->dossier->id]);
+        $message->setRelation('dossier', $this->dossier);
+
+        return Auth::user()->can('view', $message);
     }
 
     public function render()

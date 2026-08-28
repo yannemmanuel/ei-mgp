@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             StatutDossierSeeder::class,
             CategorieSeeder::class,
             SlaDelaiSeeder::class,
+            NotificationTemplateSeeder::class,
             RolePermissionSeeder::class,
             DemoUsersSeeder::class,
         ]);

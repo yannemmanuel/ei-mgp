@@ -14,6 +14,7 @@ use Database\Seeders\CanalCaptageSeeder;
 use Database\Seeders\CategorieSeeder;
 use Database\Seeders\DirectionSeeder;
 use Database\Seeders\NiveauGraviteSeeder;
+use Database\Seeders\NotificationTemplateSeeder;
 use Database\Seeders\ParcoursSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SiteSeeder;
@@ -98,6 +99,7 @@ function seedReferentiels(): void
     (new StatutDossierSeeder)->run();
     (new CategorieSeeder)->run();
     (new SlaDelaiSeeder)->run();
+    (new NotificationTemplateSeeder)->run();
     (new RolePermissionSeeder)->run();
 }
 

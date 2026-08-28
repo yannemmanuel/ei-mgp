@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property CanalNotification $canal cf. docs/decisions-techniques.md DT-19/DT-25 (annotation
+ *                                    explicite requise pour que Larastan reconnaisse le cast enum au travers des appels
+ *                                    inter-fichiers, ex. App\Services\Notification\NotificationService).
+ * @property array<int, string>|null $destinataires_email_supplementaires
+ */
 class NotificationTemplate extends Model
 {
     use HasFactory;
@@ -16,6 +22,7 @@ class NotificationTemplate extends Model
         'evenement_code',
         'parcours_id',
         'canal',
+        'destinataires_email_supplementaires',
         'objet',
         'corps',
         'actif',
@@ -25,6 +32,7 @@ class NotificationTemplate extends Model
     {
         return [
             'canal' => CanalNotification::class,
+            'destinataires_email_supplementaires' => 'array',
             'actif' => 'boolean',
         ];
     }

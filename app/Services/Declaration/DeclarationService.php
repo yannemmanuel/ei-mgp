@@ -7,6 +7,7 @@ use App\Enums\StatutDossierCode;
 use App\Enums\TypeAffectation;
 use App\Events\DeclarationCritique;
 use App\Events\DeclarationSoumise;
+use App\Events\DossierAffecte;
 use App\Models\CanalCaptage;
 use App\Models\DeclarationIdentite;
 use App\Models\Dossier;
@@ -76,11 +77,14 @@ class DeclarationService
 
             $reference = $this->references->suivante($parcoursCode);
 
-            $codeAccesClair = null;
-            $accessCodeHash = null;
+            // EX-NOT-06 / docs/exigences-securite.md §4 : la page de suivi publique exige
+            // toujours référence + code d'accès, anonyme ou non (RG-02 ne couvrait jusqu'ici que
+            // le cas anonyme ; généralisé ici pour que /suivi ait une clé secondaire uniforme —
+            // cf. docs/decisions-techniques.md DT-28).
+            $codeAccesClair = $this->codesAcces->generer();
+            $accessCodeHash = $this->codesAcces->hacher($codeAccesClair);
+
             if ($anonyme) {
-                $codeAccesClair = $this->codesAcces->generer();
-                $accessCodeHash = $this->codesAcces->hacher($codeAccesClair);
                 // RG-06 : aucune donnée d'identification pour une déclaration anonyme, y
                 // compris le déclarant identifié qui aurait pu être connecté au moment du dépôt.
                 $donneesDossier['declarant_user_id'] = null;
@@ -160,6 +164,10 @@ class DeclarationService
                 'actif' => true,
                 'affecte_le' => now(),
             ]);
+        }
+
+        if ($utilisateurs->isNotEmpty()) {
+            event(new DossierAffecte($dossier, $utilisateurs));
         }
 
         return $utilisateurs->isNotEmpty();

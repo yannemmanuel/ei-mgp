@@ -9,6 +9,7 @@ use App\Livewire\Declaration\GriefSousTraitantForm;
 use App\Livewire\Dossiers\DossierDetailPage;
 use App\Livewire\Dossiers\DossierListPage;
 use App\Livewire\Investigations\InvestigationDetailPage;
+use App\Livewire\Suivi\SuiviDossier;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -41,6 +42,11 @@ Route::middleware('throttle:declaration')->group(function () {
     Route::get('/declarer/grief-communaute', GriefCommunauteForm::class)->name('declarer.grief-communaute');
 
     Route::get('/q/{token}', QrCodeRedirectController::class)->name('qr.redirect');
+
+    // EX-NOT-06 : page de suivi publique (référence + code d'accès). Le débit réel de la
+    // recherche est contrôlé dans SuiviDossier::rechercher() (cf. DT-14) : ce middleware ne
+    // couvre que le chargement initial de la page.
+    Route::get('/suivi', SuiviDossier::class)->name('suivi.index');
 });
 
 // EX-DEC-10 : saisie relais, réservée aux agents authentifiés porteurs de dossiers.create.

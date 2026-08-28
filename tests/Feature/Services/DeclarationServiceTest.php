@@ -40,7 +40,9 @@ it('creates a complete dossier and returns its reference (RG-01, EX-DEC-08)', fu
 
     expect($resultat['dossier'])->toBeInstanceOf(Dossier::class);
     expect($resultat['dossier']->reference)->toMatch('/^EI-\d{4}-\d{6}$/');
-    expect($resultat['code_acces'])->toBeNull();
+    // EX-NOT-06 / docs/exigences-securite.md §4 : /suivi exige toujours référence + code d'accès,
+    // même pour un dossier non anonyme (cf. docs/decisions-techniques.md DT-28).
+    expect($resultat['code_acces'])->toMatch('/^\d{6}$/');
 });
 
 it('never creates a declaration_identites row for an anonymous declaration and generates an access code (RG-06, RG-02)', function () {

@@ -4,6 +4,7 @@ namespace App\Services\Dossier;
 
 use App\Enums\StatutDossierCode;
 use App\Enums\TypeAffectation;
+use App\Events\DossierAffecte;
 use App\Models\Dossier;
 use App\Models\DossierAffectation;
 use App\Models\User;
@@ -49,6 +50,8 @@ class AffectationService
             if ($dossier->statut->code === StatutDossierCode::Recu) {
                 $this->workflow->changerStatut($dossier, StatutDossierCode::Affecte, $effectuePar, 'Affectation manuelle : '.$motif);
             }
+
+            event(new DossierAffecte($dossier, collect([$nouvelUtilisateur])));
         });
     }
 }
