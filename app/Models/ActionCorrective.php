@@ -15,6 +15,9 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * App\Services\Workflow\DossierWorkflowService (Phase 6), pas ici.
  *
  * @property Dossier $dossier
+ * @property StatutActionCorrective $statut cf. docs/decisions-techniques.md DT-19/DT-25 (annotation
+ *                                          explicite requise pour que Larastan reconnaisse le cast enum au travers des appels
+ *                                          inter-fichiers, ex. App\Services\ActionCorrective\ActionCorrectiveService).
  */
 class ActionCorrective extends Model
 {

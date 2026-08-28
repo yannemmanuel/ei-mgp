@@ -119,6 +119,20 @@ function amenerDossierEnInvestigation(string $parcoursCode, User $acteur): Dossi
 }
 
 /**
+ * Amène un dossier jusqu'au statut "Action corrective en cours" via de vraies transitions du
+ * workflow (Recu -> ... -> En investigation -> Action corrective en cours), pour les tests du
+ * module Actions correctives (Phase 8).
+ */
+function amenerDossierEnActionCorrective(string $parcoursCode, User $acteur): Dossier
+{
+    $dossier = amenerDossierEnInvestigation($parcoursCode, $acteur);
+
+    app(DossierWorkflowService::class)->changerStatut($dossier->fresh(), StatutDossierCode::ActionCorrectiveEnCours, $acteur);
+
+    return $dossier->fresh();
+}
+
+/**
  * Retourne une catégorie active quelconque du parcours donné, hors "Autre" (référentiels déjà
  * semés). Exclure "Autre" explicitement : sans ORDER BY, Postgres ne garantit aucun ordre de
  * retour et peut renvoyer cette catégorie en premier (tri d'index sur son "code" alphabétique),

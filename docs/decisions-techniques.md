@@ -343,3 +343,49 @@ donner lieu à un second cycle d'investigation, chaque fiche restant indépendam
 la validation reste binaire (`en_attente_validation` → `validee` uniquement) ; tout échange nécessaire
 avant validation passe par la messagerie sécurisée déjà existante (Phase 4), pas par un état
 supplémentaire inventé. Signalé ici comme limite de périmètre assumée, pas une règle métier cachée.
+
+## DT-27 — Périmètre du module Actions correctives (Phase 8)
+
+**Question 1 — la transition automatique « Action corrective en cours » → « Résolu ».**
+`workflows.md` §1 attribue cette transition à « Système (EX-ACT-05, quand toutes les actions sont
+vérifiées efficaces) », mais ne précise pas l'événement déclencheur exact. **Décision** : la
+déclencher en réaction directe à la clôture de la **dernière** action encore ouverte du dossier
+(`ActionCorrectiveService::cloturer()` → `avancerDossierSiToutesActionsClosees()`), jamais par une
+tâche planifiée indépendante — cohérent avec RG-10, qui exige que chaque action soit à la fois
+**close** (`date_cloture` renseignée) et **vérifiée efficace**, pas seulement vérifiée. Un dossier
+« Action corrective en cours » sans aucune action ne déclenche jamais cette transition automatique
+(rien à clôturer) ; l'acteur habilité conserve la transition manuelle déjà ouverte par
+`DossierWorkflowService` (Phase 6) pour ce cas. La transition est tracée dans `historique_statuts`
+au nom de l'acteur qui a clôturé la dernière action (même convention que l'affectation automatique
+de la Phase 5), pas au nom d'un compte « système » fictif.
+
+**Question 2 — gating de la création (EX-ACT-01).** Une action corrective ne peut être créée que sur
+un dossier au statut « Action corrective en cours », par symétrie avec le gating retenu pour les
+investigations (DT-26 Q3) : c'est la seule ligne des tableaux de processus par parcours (§6) où
+l'étape « Mise en œuvre des mesures » est associée à ce statut interne.
+
+**Question 3 — action liée à une investigation non validée.** EX-ACT-01 dit littéralement « depuis
+recommandations validées ». **Décision** : `investigation_id` reste nullable (le schéma de la
+Phase 2 le permettait déjà, pour les dossiers sans investigation formelle), mais si renseigné,
+l'investigation référencée doit être `validee`, revérifié côté service (pas seulement côté
+formulaire).
+
+**Question 4 — « job de recalcul du retard » (EX-ACT-03).** Contrairement au reste du calcul de
+délais (Phase 6, DelaiService, purement calculé à la volée), EX-ACT-03 exige littéralement un enum
+`statut` incluant `en_retard` comme **valeur stockée**, pas une propriété dérivée à l'affichage.
+**Décision** : commande Artisan dédiée (`ei-mgp:recalculer-retard-actions-correctives`) planifiée
+quotidiennement (`routes/console.php`, cadence non spécifiée par le CDC — retenue par cohérence avec
+la granularité "jour" de la colonne `echeance`), qui bascule `non_demarree`/`en_cours` vers
+`en_retard` dès que l'échéance est dépassée. Ce job ne fait jamais le chemin inverse : une reprise
+(`en_retard` → `en_cours`) est toujours une décision explicite de l'acteur via
+`ActionCorrectiveService::changerStatut()`.
+
+**Question 5 — qui est le « Responsable de l'action » (EX-ACT-03) ?** `responsable_id` référence
+`users` génériquement (pas de rôle `acteurs.md` dédié « responsable d'action »), et le formulaire de
+création liste tous les utilisateurs actifs, comme le fait déjà `DossierDetailPage` pour la
+réaffectation — le module ne filtre pas la liste par permission `actions.update`. **Limite assumée,
+signalée explicitement** : si un `responsable_id` est un utilisateur sans permission `actions.*`
+(ex. un employé sans rôle de gestion), il ne pourra pas lui-même faire progresser son action dans
+l'application ; un gestionnaire (`correspondant_mgp`, `rqse`, etc.) devra le faire pour lui. Le CDC
+ne définissant aucun rôle « responsable d'action » distinct des rôles de gestion existants, cette
+limite n'est pas comblée par l'invention d'un rôle ou d'une permission supplémentaire.
