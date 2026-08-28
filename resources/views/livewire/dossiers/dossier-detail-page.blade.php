@@ -105,6 +105,8 @@
                 @endforelse
             </div>
 
+            <livewire:investigations.investigation-panel :dossier="$dossier" :key="'investigations-'.$dossier->id" />
+
             <div class="rounded-lg border border-slate-200 bg-white p-5">
                 <h2 class="mb-3 text-sm font-semibold text-slate-900">Historique</h2>
                 <ul class="space-y-3">

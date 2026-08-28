@@ -1,11 +1,15 @@
 <?php
 
+use App\Enums\StatutDossierCode;
 use App\Models\CanalCaptage;
 use App\Models\Categorie;
 use App\Models\Dossier;
 use App\Models\NiveauGravite;
 use App\Models\Parcours;
 use App\Models\StatutDossier;
+use App\Models\User;
+use App\Services\Dossier\AffectationService;
+use App\Services\Workflow\DossierWorkflowService;
 use Database\Seeders\CanalCaptageSeeder;
 use Database\Seeders\CategorieSeeder;
 use Database\Seeders\DirectionSeeder;
@@ -95,6 +99,23 @@ function seedReferentiels(): void
     (new CategorieSeeder)->run();
     (new SlaDelaiSeeder)->run();
     (new RolePermissionSeeder)->run();
+}
+
+/**
+ * Amène un dossier jusqu'au statut "En investigation" via de vraies transitions du workflow
+ * (Recu -> Affecté -> En analyse -> En investigation), afin que historique_statuts contienne une
+ * entrée exploitable par DelaiService::dateDebutEtape (RGI-05, Phase 6/7).
+ */
+function amenerDossierEnInvestigation(string $parcoursCode, User $acteur): Dossier
+{
+    $dossier = createTestDossierForParcours($parcoursCode);
+    app(AffectationService::class)->reaffecter($dossier, $acteur, $acteur, 'Prise en charge.');
+
+    $workflow = app(DossierWorkflowService::class);
+    $workflow->changerStatut($dossier->fresh(), StatutDossierCode::EnAnalyse, $acteur);
+    $workflow->changerStatut($dossier->fresh(), StatutDossierCode::EnInvestigation, $acteur);
+
+    return $dossier->fresh();
 }
 
 /**

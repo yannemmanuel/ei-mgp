@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * @property Dossier $dossier
+ * @property StatutInvestigation $statut cf. docs/decisions-techniques.md DT-19/DT-25 (annotation
+ *                                       explicite requise pour que Larastan reconnaisse le cast enum au travers des appels
+ *                                       inter-fichiers, ex. App\Services\Investigation\InvestigationService).
  */
 class Investigation extends Model
 {

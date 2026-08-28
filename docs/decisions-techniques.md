@@ -286,19 +286,60 @@ jours calendaires, cohérent avec le fait que le CDC ne qualifie pas cette unit�
 **Réversible** : oui, ajout d'un cas d'énum sans migration de schéma (`unite` reste une colonne
 `string` castée).
 
-## DT-25 — Perte de type générique Larastan à travers une relation Eloquent chaînée à `whereHas()`
+## DT-25 — Perte de type générique Larastan à travers une relation Eloquent chaînée
 
-**Constat (Phase 6)** : dans `DelaiService::dateDebutEtape()`, la chaîne
+**Constat (Phase 6, étendu Phase 7)** : dans `DelaiService::dateDebutEtape()`, la chaîne
 `$dossier->historiqueStatuts()->whereHas(...)->latest(...)->first()` faisait perdre à Larastan
 (niveau 5) le type générique du modèle relié (`HistoriqueStatut`), le résultat retombant sur le type
 générique `Illuminate\Database\Eloquent\Model` (erreur `property.notFound` sur `created_at`) — alors
 que la même séquence amorcée depuis un modèle statique (`SlaDelai::query()->where(...)->first()`,
-présent dans le même fichier) préserve correctement son type. **Décision** : remplacer l'amorce
-`$dossier->historiqueStatuts()` (relation) par `HistoriqueStatut::query()->where('dossier_id',
-$dossier->id)` (requête statique équivalente), qui contourne la perte de générique observée à
-travers `whereHas()` sur une relation. Comportement fonctionnel strictement identique (mêmes tests
-Phase 6 toujours au vert après le changement) ; aucune suppression d'erreur (`@phpstan-ignore` ou
-`@var` de contournement) utilisée — extension du principe de DT-19 (préférer une déclaration/
-structure de requête que Larastan comprend nativement plutôt qu'une annotation de contournement).
-**À retenir** : privilégier `Modele::query()` à `$parent->relation()` lorsqu'un résultat unique
-(`->first()`) issu d'une chaîne avec `whereHas()` doit être ensuite manipulé comme instance typée.
+présent dans le même fichier) préserve correctement son type. **Extension (Phase 7)** : le même
+symptôme est réapparu dans `InvestigationPanel::getInvestigationsProperty()` sur une chaîne
+`$this->dossier->investigations()->with(...)->orderByDesc(...)->get()` — **sans** `whereHas()` cette
+fois. Le facteur commun n'est donc pas `whereHas()` spécifiquement, mais plus largement : une
+relation `HasMany` accédée comme méthode (`$parent->relation()`) puis prolongée par un ou plusieurs
+appels de constructeur de requête, perd son paramètre générique pour Larastan niveau 5, alors qu'une
+requête amorcée directement depuis un modèle statique (`Modele::query()->where(...)`) le conserve
+systématiquement. **Décision** : remplacer partout ce schéma par une requête statique équivalente
+(`HistoriqueStatut::query()->where('dossier_id', $dossier->id)`,
+`Investigation::query()->where('dossier_id', $this->dossier->id)`). Comportement fonctionnel
+strictement identique (tests toujours au vert après chaque changement) ; aucune suppression
+d'erreur (`@phpstan-ignore` ou `@var` de contournement) utilisée — extension du principe de DT-19
+(préférer une structure de requête que Larastan comprend nativement plutôt qu'une annotation de
+contournement).
+**À retenir pour les phases suivantes** : dès qu'un résultat issu d'une relation `HasMany`/`HasOne`
+chaînée à `with()`/`where()`/`orderBy()`/`whereHas()`/etc. doit être manipulé comme instance ou
+collection typée (accès à un attribut, passage à une méthode typée), amorcer la requête avec
+`Modele::query()->where('cle_etrangere', $parent->id)` plutôt que `$parent->relation()`.
+
+## DT-26 — Périmètre du module Investigations (Phase 7)
+
+**Question 1 — qui est l'enquêteur ?** Le CDC (EX-INV-01) désigne l'acteur de l'ouverture d'une
+fiche comme « Correspondant MGP / Enquêteur » — un seul et même rôle applicatif (`correspondant_mgp`,
+cf. `acteurs.md`), pas deux comptes distincts. **Décision** : `enqueteur_id` est toujours l'auteur de
+l'ouverture (`Auth::user()`) — aucune étape d'« assignation d'un enquêteur » distincte n'est
+implémentée, le CDC n'en décrivant aucune. Réversible sans migration si un futur besoin d'assignation
+séparée apparaissait (il suffirait d'ajouter un paramètre explicite à `InvestigationService::ouvrir()`).
+
+**Question 2 — date de recevabilité (RGI-05).** Le CDC ne définit nulle part un champ ou un
+événement explicitement nommé « date de recevabilité » sur le dossier. **Décision** : l'interpréter
+comme la date de l'entrée la plus récente du dossier dans le statut interne « En investigation »
+(cohérent avec `workflows.md` §1, où c'est la transition qui suit la décision de recevabilité prise
+lors de l'étape « En analyse »). Réutilise `DelaiService::dateDebutEtape()` (Phase 6) plutôt que de
+dupliquer la requête — signalé explicitement comme interprétation, pas une donnée du CDC.
+
+**Question 3 — gating de l'ouverture.** Une fiche ne peut être ouverte que sur un dossier
+actuellement au statut « En investigation » (pas « Réouvert », qui doit d'abord retransitionner vers
+« En investigation » via le graphe déjà existant, Phase 6). Cohérent avec `workflows.md` §1, où
+l'acteur de la ligne « En investigation » est justement « Enquêteur / Correspondant MGP ».
+
+**Question 4 — plusieurs investigations par dossier.** Le schéma (Phase 2) n'impose aucune
+contrainte d'unicité `dossier_id` sur `investigations` (relation `hasMany`, pas `hasOne`).
+**Décision** : ne pas ajouter de restriction non demandée par le CDC — un dossier réouvert peut ainsi
+donner lieu à un second cycle d'investigation, chaque fiche restant indépendamment traçable.
+
+**Question 5 — pas de flux de rejet de validation.** Le CDC décrit une validation hiérarchique
+(EX-INV-05) mais aucun mécanisme de renvoi/rejet avec commentaire vers l'enquêteur. **Décision** :
+la validation reste binaire (`en_attente_validation` → `validee` uniquement) ; tout échange nécessaire
+avant validation passe par la messagerie sécurisée déjà existante (Phase 4), pas par un état
+supplémentaire inventé. Signalé ici comme limite de périmètre assumée, pas une règle métier cachée.

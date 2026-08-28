@@ -8,6 +8,7 @@ use App\Livewire\Declaration\GriefEmployeForm;
 use App\Livewire\Declaration\GriefSousTraitantForm;
 use App\Livewire\Dossiers\DossierDetailPage;
 use App\Livewire\Dossiers\DossierListPage;
+use App\Livewire\Investigations\InvestigationDetailPage;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -23,6 +24,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/dossiers', DossierListPage::class)->name('dossiers.index');
     Route::get('/dossiers/{dossier}', DossierDetailPage::class)->name('dossiers.show');
     Route::get('/pieces-jointes/{pieceJointe}/telecharger', PieceJointeDownloadController::class)->name('pieces-jointes.telecharger');
+});
+
+// Module 3 — Investigations (EX-INV-01 à 05). {investigation} scopée à {dossier} via la relation
+// Investigation::dossier() (convention Laravel de scoping implicite des bindings imbriqués),
+// revérifiée explicitement dans InvestigationDetailPage::mount() par défense en profondeur.
+Route::middleware('auth')->group(function () {
+    Route::get('/dossiers/{dossier}/investigations/{investigation}', InvestigationDetailPage::class)->name('dossiers.investigations.show');
 });
 
 // Module 1 — Déclaration (EX-DEC-01/02/05) : accès public, sans compte, par QR code ou lien direct.
