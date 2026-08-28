@@ -9,6 +9,7 @@ use App\Livewire\Administration\QrCodesAdmin;
 use App\Livewire\Administration\SitesAdmin;
 use App\Livewire\Administration\StatutsAdmin;
 use App\Livewire\Administration\UtilisateursAdmin;
+use App\Livewire\Audit\AuditLogViewer;
 use App\Livewire\Declaration\EiEmployeForm;
 use App\Livewire\Declaration\GriefCommunauteForm;
 use App\Livewire\Declaration\GriefEmployeForm;
@@ -73,6 +74,9 @@ Route::middleware('auth')->prefix('administration')->name('administration.')->gr
     Route::middleware('permission:notifications.templates.manage')->get('/notifications', NotificationTemplatesAdmin::class)->name('notifications');
     Route::middleware('permission:qrcodes.manage')->get('/qr-codes', QrCodesAdmin::class)->name('qr-codes');
 });
+
+// Audit (Phase 11, docs/exigences-audit.md §4) : lecture seule, réservée à auditeur/dpo/service_mgp.
+Route::middleware(['auth', 'permission:audit.view'])->get('/audit', AuditLogViewer::class)->name('audit.index');
 
 // EX-DEC-10 : saisie relais, réservée aux agents authentifiés porteurs de dossiers.create.
 Route::middleware(['auth', 'throttle:declaration'])->group(function () {

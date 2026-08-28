@@ -525,3 +525,70 @@ un middleware `permission:` seul serait insuffisant (et donc n'a jamais été ut
 précédentes). Chaque composant revérifie néanmoins la permission dans `mount()`
 (`abort_unless(Auth::user()->can(...), 403)`), défense en profondeur si jamais un composant était un
 jour monté hors de sa route dédiée.
+
+## DT-30 — Mise en place effective du journal d'audit (Phase 11)
+
+**Contexte.** `AuditLog` (modèle append-only) et `AuditLogPolicy` existent depuis la Phase 2, mais
+rien n'écrivait dans `audit_logs` jusqu'ici. `docs/exigences-audit.md`, déjà très précis depuis la
+Phase 0, a été suivi au pied de la lettre plutôt que réinterprété.
+
+**Architecture retenue.** `App\Services\Audit\AuditLogger::enregistrer()` reste l'unique point
+d'écriture (`INSERT` pur). Deux mécanismes l'alimentent :
+- `App\Observers\AuditObserver`, **générique**, attaché via l'attribut PHP `#[ObservedBy(...)]`
+  (colocalisé sur chaque modèle plutôt qu'une longue liste dans un ServiceProvider) à tous les
+  modèles concernés n'ayant pas de règle spécifique : `DossierAffectation`, `PieceJointe`,
+  `Investigation`, `ActionCorrective`, `Categorie`, `Site`, `StatutDossier`, `CanalCaptage`,
+  `NotificationTemplate`, `NiveauGravite`, `QrCode`, `User`. Exclut systématiquement les colonnes
+  listées dans `$model->getHidden()` (jamais `password`/`remember_token` dans un champ JSON d'audit,
+  même haché) — réutilise une métadonnée de modèle déjà correcte plutôt qu'une liste d'exclusion
+  propre à l'audit.
+- Appels explicites là où l'action n'a pas de modèle dédié ou échappe au cycle de vie Eloquent
+  standard : notification envoyée (`NotificationService`), connexion/déconnexion
+  (`Illuminate\Auth\Events\Login/Logout`), changement de rôles (`UtilisateursAdmin`, la table pivot
+  `model_has_roles` n'étant pas un attribut du modèle `User`).
+
+**Question 1 — `Dossier` : éviter le doublon avec `historique_statuts`.** `docs/exigences-audit.md`
+§1 demande `audit_logs` **en plus** de `historique_statuts`, pas à sa place. `App\Observers\DossierObserver`
+ignore les modifications ne portant que sur `statut_id` (déjà couvertes, avec un contexte plus riche,
+par un nouveau listener `EnregistrerAuditStatutChange` sur `App\Events\StatutDossierChange`, Phase 9).
+Cette classe **compose** `AuditObserver` plutôt que d'en hériter : une méthode `updated(Dossier
+$dossier)` surchargeant `updated(Model $model)` violerait la covariance des paramètres (LSP),
+relevée par Larastan comme erreur non ignorable.
+
+**Question 2 — redaction du contenu des notifications pour un dossier anonyme.**
+`docs/exigences-audit.md` §2/§5 : jamais le contenu (objet/corps) d'une notification concernant un
+dossier anonyme, seulement type/canal/destinataire. Implémenté directement dans
+`NotificationService::envoyerA()` (clé `objet` absente du tableau audité si `$dossier->is_anonymous`),
+pas par un filtre a posteriori.
+
+**Question 3 — connexions/déconnexions : tous les comptes, pas seulement les « privilégiés ».**
+DT-08 parlait des « comptes à privilèges ». **Décision** : journaliser toutes les connexions/
+déconnexions sans distinction de rôle — le CDC/DT-08 ne fournissant aucune définition opérationnelle
+de « privilégié », classifier finement aurait été une invention plus risquée qu'une couverture
+large ; un sur-ensemble strict de ce qui était demandé, jamais un sous-ensemble.
+
+**Question 4 — pièce jointe « supprimée logiquement ».** `docs/exigences-audit.md` §2 liste l'ajout
+**et** la « suppression logique » d'une pièce jointe parmi les actions à auditer. **Constat** :
+aucune fonctionnalité de suppression de pièce jointe n'existe nulle part dans l'application (le
+modèle `PieceJointe` n'a même pas de colonne `updated_at`, cf. son commentaire de Phase 2 : « une
+pièce jointe n'est jamais modifiée après téléversement »). Seule la création est donc auditée
+(`AuditObserver::created`) ; la suppression logique n'a rien à auditer tant qu'elle n'existe pas —
+signalé ici plutôt que de construire une fonctionnalité de suppression non demandée juste pour avoir
+quelque chose à auditer.
+
+**Question 5 — lacune corrigée : `service_mgp` n'avait pas `audit.view`.** `docs/exigences-audit.md`
+§4 liste explicitement `service_mgp` comme ayant un accès lecture seule à `audit_logs` (« pilotage »),
+au même titre qu'`auditeur`/`dpo` — mais `RolePermissionSeeder` (Phase 2) avait omis cette ligne.
+Corrigé ici (`RolePermissionSeeder`), découvert par le test de la Policy déjà existante confrontée à
+la spécification déjà existante : aucune des deux n'était fausse en soi, seul le seeder était
+incomplet par rapport à sa propre documentation.
+
+**Question 6 — durcissement PostgreSQL non réalisé (point ouvert).**
+`docs/exigences-audit.md` §3 point 4 envisageait un rôle PostgreSQL applicatif distinct, limité à
+`INSERT`/`SELECT` sur `audit_logs` (defense in depth au niveau base de données, en plus des couches
+application/Policy/modèle déjà en place). **Non réalisé** : nécessiterait des identifiants
+superutilisateur PostgreSQL (comme la création initiale de la base, Phase 1) et une décision sur
+l'hébergement cible, hors de portée d'une phase applicative. Les trois autres couches (aucune
+route/contrôleur d'update-delete, `AuditLogPolicy` sans méthode `update`/`delete`, exceptions dans
+`AuditLog::update()`/`delete()`) restent en place et déjà testées. Point laissé ouvert et signalé
+plutôt que traité par une décision technique substituant l'absence d'accès DB.

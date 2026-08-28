@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\NotificationTemplate;
 use App\Models\User;
 use App\Notifications\DossierEvenementNotification;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Notification;
  */
 class NotificationService
 {
+    public function __construct(private readonly AuditLogger $auditLogger) {}
+
     /**
      * Mise en file (comportement par défaut de DossierEvenementNotification) — EX-NOT-01 à 04.
      *
@@ -64,7 +67,7 @@ class NotificationService
             if ($template->canal === CanalNotification::Outil) {
                 foreach ($destinataires as $destinataire) {
                     if ($destinataire instanceof User) {
-                        $this->envoyerA($destinataire, $notification, $immediat);
+                        $this->envoyerA($destinataire, $notification, $immediat, $dossier, $destinataire->email);
                     }
                 }
 
@@ -73,24 +76,35 @@ class NotificationService
 
             foreach ($destinataires as $destinataire) {
                 $cible = $destinataire instanceof User ? $destinataire : Notification::route('mail', $destinataire);
-                $this->envoyerA($cible, $notification, $immediat);
+                $adresse = $destinataire instanceof User ? $destinataire->email : $destinataire;
+                $this->envoyerA($cible, $notification, $immediat, $dossier, $adresse);
             }
 
             foreach ($template->destinataires_email_supplementaires ?? [] as $email) {
-                $this->envoyerA(Notification::route('mail', $email), $notification, $immediat);
+                $this->envoyerA(Notification::route('mail', $email), $notification, $immediat, $dossier, $email);
             }
         }
     }
 
-    private function envoyerA(object $notifiable, DossierEvenementNotification $notification, bool $immediat): void
+    /**
+     * cf. docs/exigences-audit.md §2 : chaque notification effectivement envoyée est auditée
+     * (type, destinataire, canal) — jamais le contenu (objet/corps) pour un dossier anonyme
+     * (docs/exigences-audit.md §5, exigences-securite.md §1).
+     */
+    private function envoyerA(object $notifiable, DossierEvenementNotification $notification, bool $immediat, Dossier $dossier, string $adresseDestinataire): void
     {
         if ($immediat) {
             Notification::sendNow($notifiable, $notification);
-
-            return;
+        } else {
+            $notifiable->notify($notification);
         }
 
-        $notifiable->notify($notification);
+        $this->auditLogger->enregistrer('notification.envoyee', $dossier, [], [
+            'evenement_code' => $notification->evenementCode,
+            'canal' => $notification->canalCible->value,
+            'destinataire' => $adresseDestinataire,
+            ...($dossier->is_anonymous ? [] : ['objet' => $notification->objet]),
+        ]);
     }
 
     /** @return list<NotificationTemplate> Un seul gabarit actif par canal : le spécifique au parcours prime sur le global. */

@@ -3,7 +3,9 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Observers\AuditObserver;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +13,13 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * cf. docs/exigences-audit.md §2 : création/modification de compte auditée (jamais `password`/
+ * `remember_token`, exclus via `$hidden` par App\Observers\AuditObserver). Les changements de
+ * rôles (table pivot `model_has_roles`, hors du cycle de vie Eloquent standard de ce modèle) sont
+ * audités explicitement par App\Livewire\Administration\UtilisateursAdmin, pas ici.
+ */
+#[ObservedBy(AuditObserver::class)]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

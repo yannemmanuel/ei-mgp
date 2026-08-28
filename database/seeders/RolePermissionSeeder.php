@@ -91,6 +91,10 @@ class RolePermissionSeeder extends Seeder
             'notifications.templates.manage',
             'referentiels.categories.manage', 'referentiels.statuts.manage', 'referentiels.sites.manage',
             'reporting.view', 'reporting.export', 'reporting.export.nominatif',
+            // docs/exigences-audit.md §4 : service_mgp a accès en lecture seule à audit_logs
+            // ("pilotage"), au même titre qu'auditeur/dpo — omis par erreur en Phase 2, corrigé
+            // en Phase 11 lors de la mise en place effective du journal d'audit.
+            'audit.view',
         ],
         'comite_ethique' => [
             'dossiers.view',

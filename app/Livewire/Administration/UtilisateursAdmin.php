@@ -5,6 +5,7 @@ namespace App\Livewire\Administration;
 use App\Models\Direction;
 use App\Models\Site;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -112,6 +113,7 @@ class UtilisateursAdmin extends Component
 
         if ($this->utilisateurEnEditionId !== null) {
             $utilisateur = User::findOrFail($this->utilisateurEnEditionId);
+            $rolesAvant = $utilisateur->getRoleNames()->all();
             $utilisateur->update($donnees);
             session()->flash('status', 'Utilisateur mis à jour.');
         } else {
@@ -121,11 +123,26 @@ class UtilisateursAdmin extends Component
                 'password' => $motDePasse,
                 'email_verified_at' => now(),
             ]);
+            $rolesAvant = [];
             $this->motDePasseGenere = $motDePasse;
             session()->flash('status', 'Utilisateur créé.');
         }
 
         $utilisateur->syncRoles($this->rolesSelectionnes);
+
+        // cf. docs/exigences-audit.md §2 : la table pivot model_has_roles échappe au diff
+        // automatique de App\Observers\AuditObserver — audité explicitement ici.
+        sort($rolesAvant);
+        $rolesApres = $this->rolesSelectionnes;
+        sort($rolesApres);
+        if ($rolesAvant !== $rolesApres) {
+            app(AuditLogger::class)->enregistrer(
+                'user.roles_modifies',
+                $utilisateur,
+                ['roles' => $rolesAvant],
+                ['roles' => $rolesApres],
+            );
+        }
 
         $motDePasseGenere = $this->motDePasseGenere;
         $this->annulerEdition();

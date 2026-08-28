@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Observers\DossierObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property StatutDossier $statut
  * @property CanalCaptage $canalCaptage
  */
+#[ObservedBy(DossierObserver::class)]
 class Dossier extends Model
 {
     use HasFactory, HasUlids;

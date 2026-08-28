@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\CanalNotification;
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +15,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *                                    explicite requise pour que Larastan reconnaisse le cast enum au travers des appels
  *                                    inter-fichiers, ex. App\Services\Notification\NotificationService).
  * @property array<int, string>|null $destinataires_email_supplementaires
+ *
+ * cf. docs/exigences-audit.md §2 : modification des référentiels d'administration auditée.
  */
+#[ObservedBy(AuditObserver::class)]
 class NotificationTemplate extends Model
 {
     use HasFactory;

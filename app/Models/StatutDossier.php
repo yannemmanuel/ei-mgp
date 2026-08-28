@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\StatutDossierCode;
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,8 +14,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * projection vers le statut simplifié montré au déclarant (CDC §7.2, RGI-10) : ne jamais
  * recalculer ce libellé ailleurs dans le code.
  *
+ * cf. docs/exigences-audit.md §2 : modification des référentiels d'administration auditée.
+ *
  * @property StatutDossierCode $code
  */
+#[ObservedBy(AuditObserver::class)]
 class StatutDossier extends Model
 {
     use HasFactory;

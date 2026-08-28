@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Administration\UtilisateursAdmin;
+use App\Models\AuditLog;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -71,4 +72,21 @@ it('prevents an administrator from deactivating their own account', function () 
         ->assertHasErrors(['actif']);
 
     expect($admin->fresh()->actif)->toBeTrue();
+});
+
+it('audits a role change explicitly (pivot table, outside the generic Observer diff)', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('administrateur_digital');
+    $cible = User::factory()->create();
+    $cible->assignRole('rqse');
+
+    Livewire::actingAs($admin)->test(UtilisateursAdmin::class)
+        ->call('modifier', $cible->id)
+        ->set('rolesSelectionnes', ['secretaire_csst'])
+        ->call('enregistrer')
+        ->assertHasNoErrors();
+
+    $log = AuditLog::where('action', 'user.roles_modifies')->where('auditable_id', $cible->id)->firstOrFail();
+    expect($log->old_values['roles'])->toBe(['rqse'])
+        ->and($log->new_values['roles'])->toBe(['secretaire_csst']);
 });

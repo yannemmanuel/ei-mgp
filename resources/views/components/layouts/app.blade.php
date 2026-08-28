@@ -29,6 +29,12 @@
                             Administration
                         </a>
                     @endif
+                    @can('audit.view')
+                        <a href="{{ route('audit.index') }}"
+                           class="text-sm font-medium transition-colors {{ request()->routeIs('audit.*') ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900' }}">
+                            Audit
+                        </a>
+                    @endcan
                 @endauth
             </div>
 

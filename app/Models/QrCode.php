@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,7 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property Parcours $parcours
+ *
+ * cf. docs/exigences-audit.md §2 : modification des référentiels d'administration auditée.
  */
+#[ObservedBy(AuditObserver::class)]
 class QrCode extends Model
 {
     use HasFactory, HasUlids;

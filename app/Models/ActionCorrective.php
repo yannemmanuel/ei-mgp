@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\StatutActionCorrective;
+use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  *                                          explicite requise pour que Larastan reconnaisse le cast enum au travers des appels
  *                                          inter-fichiers, ex. App\Services\ActionCorrective\ActionCorrectiveService).
  */
+#[ObservedBy(AuditObserver::class)]
 class ActionCorrective extends Model
 {
     use HasFactory, HasUlids;
