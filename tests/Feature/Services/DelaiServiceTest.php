@@ -10,6 +10,7 @@ use App\Services\Dossier\AffectationService;
 use App\Services\Workflow\DelaiService;
 use App\Services\Workflow\DossierWorkflowService;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     seedReferentiels();
@@ -100,6 +101,24 @@ it('measures the deadline for the current étape from the most recent entry into
     $limite = app(DelaiService::class)->dateLimite($dossier->fresh());
 
     expect($limite->toDateString())->toBe('2026-09-14');
+});
+
+it('queries sla_delais at most once across many joursRestants() calls (Phase 15, DT-34)', function () {
+    $dossiers = collect(range(1, 5))->map(fn () => amenerDossierEnInvestigation(ParcoursCode::GriefEmploye->value, User::factory()->create()));
+
+    // Doit être résolu comme singleton (App\Providers\AppServiceProvider) pour que le cache
+    // interne survive entre les appels, exactement comme DossierListPage::joursRestants()
+    // l'invoque une fois par ligne de la page.
+    $delaiService = app(DelaiService::class);
+
+    DB::enableQueryLog();
+    foreach ($dossiers as $dossier) {
+        $delaiService->joursRestants($dossier);
+    }
+    $requetesSlaDelais = collect(DB::getQueryLog())->filter(fn ($q) => str_contains($q['query'], 'sla_delais'));
+    DB::disableQueryLog();
+
+    expect($requetesSlaDelais)->toHaveCount(1);
 });
 
 it('flags a dossier as globally overdue past the overall cloture deadline (§11.2), but never once closed', function () {

@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\NiveauGravite;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -28,6 +29,20 @@ function champsValidesEiEmploye(): array
 
 it('renders successfully on the public route (EX-DEC-02)', function () {
     $this->get(route('declarer.ei-employe'))->assertOk()->assertSeeLivewire(EiEmployeForm::class);
+});
+
+it('caches categories/niveaux de gravité across page loads instead of re-querying (Phase 15, DT-34)', function () {
+    Livewire::test(EiEmployeForm::class)->get('categoriesDisponibles');
+
+    DB::enableQueryLog();
+    Livewire::test(EiEmployeForm::class)->get('categoriesDisponibles');
+    Livewire::test(EiEmployeForm::class)->get('niveauxGraviteDisponibles');
+    $requetes = collect(DB::getQueryLog())->filter(
+        fn ($q) => str_contains($q['query'], 'categories') || str_contains($q['query'], 'niveaux_gravite')
+    );
+    DB::disableQueryLog();
+
+    expect($requetes)->toHaveCount(0);
 });
 
 it('requires description, categorie, gravite, date and lieu (EX-DEC-07)', function () {

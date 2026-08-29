@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Policies\ExportPolicy;
+use App\Services\Workflow\DelaiService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -16,7 +17,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Singleton : DelaiService met en cache mémoire la table sla_delais (jamais modifiée à
+        // l'exécution, cf. DT-34) pour toute la durée de la requête — sans ce binding, chaque
+        // app(DelaiService::class) (ex. DossierListPage::joursRestants(), appelé par ligne de
+        // liste) recréerait une instance et perdrait le bénéfice du cache.
+        $this->app->singleton(DelaiService::class);
     }
 
     /**

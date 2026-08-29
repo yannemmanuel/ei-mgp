@@ -10,6 +10,7 @@ use App\Models\NiveauGravite;
 use App\Services\Declaration\DeclarationService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -96,18 +97,35 @@ abstract class DeclarationFormBase extends Component
         return in_array($this->parcoursCode(), [ParcoursCode::EiEmploye, ParcoursCode::GriefEmploye], true);
     }
 
+    /**
+     * Mis en cache (DT-34) : le formulaire de déclaration est la page la plus exposée de
+     * l'application (publique, sans authentification, potentiellement à fort trafic — CDC §9),
+     * et ces référentiels ne changent qu'au rythme de l'administration (Phase 10), jamais en
+     * cours de session. Fenêtre de 5 minutes : compromis délibéré plutôt qu'une invalidation
+     * explicite câblée dans chaque action d'administration — un ajout/retrait de catégorie met au
+     * plus 5 minutes à apparaître sur le formulaire public, jugé largement acceptable pour des
+     * référentiels qui changent rarement.
+     */
     public function getCategoriesDisponiblesProperty(): Collection
     {
-        return Categorie::query()
-            ->whereHas('parcours', fn ($q) => $q->where('code', $this->parcoursCode()->value))
-            ->actif()
-            ->orderBy('ordre')
-            ->get();
+        return Cache::remember(
+            "declaration.categories-actives.{$this->parcoursCode()->value}",
+            300,
+            fn () => Categorie::query()
+                ->whereHas('parcours', fn ($q) => $q->where('code', $this->parcoursCode()->value))
+                ->actif()
+                ->orderBy('ordre')
+                ->get()
+        );
     }
 
     public function getNiveauxGraviteDisponiblesProperty(): Collection
     {
-        return NiveauGravite::query()->actif()->orderBy('niveau')->get();
+        return Cache::remember(
+            'declaration.niveaux-gravite-actifs',
+            300,
+            fn () => NiveauGravite::query()->actif()->orderBy('niveau')->get()
+        );
     }
 
     public function getCategorieEstAutreProperty(): bool

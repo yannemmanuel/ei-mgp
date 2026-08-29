@@ -760,3 +760,53 @@ global `SetSecurityHeaders` ajoute `X-Content-Type-Options: nosniff`, `X-Frame-O
 spécifique à une règle métier du CDC (`exigences-securite.md` §5 renvoie génériquement à l'OWASP
 Top 10 sans lister d'en-têtes précis), il s'agit d'un contrôle technique de référence largement
 consensuel plutôt que d'une règle métier inventée.
+
+## DT-34 — Phase 15 : performance & optimisation
+
+Le plan à 17 phases (prompt original) n'étant plus accessible en contexte à ce stade (compaction de
+session) et ne figurant dans aucun fichier du dépôt, le contenu exact de cette phase a été confirmé
+avec l'utilisateur plutôt que deviné : Performance & Optimisation.
+
+**1. Index manquants sur `investigations.dossier_id` et `actions_correctives.dossier_id`.**
+PostgreSQL, contrairement à MySQL/InnoDB, n'indexe jamais automatiquement une colonne de clé
+étrangère — seule la contrainte `REFERENCES` est créée par `foreignUlid()->constrained()`. Les
+tables sœurs (`historique_statuts`, `messages`, `dossier_affectations`) ont toutes un index
+explicite sur `dossier_id` depuis leur création (Phase 2) ; ces deux-là l'avaient omis, alors
+qu'elles sont interrogées par `dossier_id` à chaque chargement de la fiche dossier
+(`InvestigationPanel`, `ActionCorrectivePanel`). Migration additive dédiée plutôt que modification
+des migrations d'origine (déjà exécutées en production potentielle, cf. discipline établie depuis
+la Phase 2 de ne jamais réécrire une migration déjà livrée).
+
+**2. `DelaiService` : cache mémoire de `sla_delais`, service enregistré en singleton.**
+`DossierListPage::joursRestants()` appelle `DelaiService::joursRestants()` une fois par ligne de
+la page (jusqu'à 20 dossiers), chaque appel interrogeant `sla_delais` via `delaiConfigure()` — un
+N+1 direct. **Décision** : `sla_delais` n'est modifiable par aucune interface d'administration
+(seedée une fois, jamais exposée en CRUD, contrairement aux autres référentiels de la Phase 10) —
+un cache mémoire de la table entière (une vingtaine de lignes) pour la durée de vie du service est
+donc sans risque de désynchronisation. Pour que ce cache survive entre les appels
+`app(DelaiService::class)` répétés (un nouveau `app()` recrée normalement une instance à chaque
+appel), le service est enregistré en singleton dans `AppServiceProvider::register()` — sans
+conséquence indésirable puisque `DelaiService` ne porte aucun autre état mutable dépendant d'une
+requête particulière.
+
+**3. Cache à courte durée (5 min) des référentiels du formulaire public de déclaration.**
+`Categorie`/`NiveauGravite` sont interrogées à chaque chargement de `DeclarationFormBase` — la
+page la plus exposée de l'application (publique, sans authentification, potentiellement le plus
+fort trafic de tout le dispositif, CDC §9). Contrairement à `sla_delais`, ces tables **sont**
+modifiables via l'administration (Phase 10, `CategoriesAdmin`) : une invalidation explicite câblée
+dans chaque action d'écriture aurait été plus précise, mais aurait dispersé la responsabilité du
+cache dans un fichier d'une autre phase pour un gain marginal. **Décision** : fenêtre de 5 minutes
+(`Cache::remember`, store configuré par `CACHE_STORE`) plutôt qu'une invalidation explicite — un
+ajout/retrait de catégorie met au plus 5 minutes à apparaître sur le formulaire public, un
+compromis jugé largement acceptable pour des référentiels qui changent au rythme de
+l'administration, pas de la session utilisateur. Le code ne présume d'aucun store particulier : le
+gain croît avec un store dédié (Redis/Memcached) en production sans changement de code, le store
+`database` par défaut restant déjà un net progrès face à une jointure Eloquent répétée.
+
+**Périmètre volontairement exclu.** `DelaiService::dateDebutEtape()` interroge `historique_statuts`
+une fois par dossier affiché sur `DossierListPage` (jusqu'à 20 requêtes/page) — un N+1 réel mais
+plus modeste : chaque requête cible une colonne indexée (`dossier_id` + `created_at`, Phase 2) et
+un dossier n'accumule typiquement que quelques transitions. Un préchargement en lot aurait exigé de
+restructurer l'API de `DelaiService` (accepter une collection de dossiers plutôt qu'un dossier
+unique) pour un gain marginal aux volumes attendus — reporté plutôt que construit par précaution
+(cf. consigne générale de ne pas concevoir pour des besoins hypothétiques).

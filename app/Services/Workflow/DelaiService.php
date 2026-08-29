@@ -9,6 +9,7 @@ use App\Models\Dossier;
 use App\Models\HistoriqueStatut;
 use App\Models\SlaDelai;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Suivi des délais maximaux par étape (CDC §11.2). Sert de socle commun à l'affichage d'échéance
@@ -43,6 +44,17 @@ class DelaiService
         'retour_resolution' => 'resolu',
     ];
 
+    /**
+     * `sla_delais` n'est modifiable par aucune UI (seedée une fois, jamais via l'administration —
+     * cf. docs/decisions-techniques.md DT-34) : une table de quelques lignes, figée pour la durée
+     * du process. La mettre en cache mémoire pour la durée de vie du service (singleton, cf.
+     * AppServiceProvider) évite une requête `sla_delais` par dossier lorsque `joursRestants()` est
+     * appelé en boucle sur une page de liste (DossierListPage, jusqu'à 20 dossiers/page).
+     *
+     * @var Collection<int, SlaDelai>|null
+     */
+    private ?Collection $slaDelaisCache = null;
+
     public function etapeActuelle(Dossier $dossier): ?EtapeDelai
     {
         return self::STATUT_VERS_ETAPE[$dossier->statut->code->value] ?? null;
@@ -75,13 +87,10 @@ class DelaiService
             return null;
         }
 
-        $delai = SlaDelai::query()
-            ->where('parcours_id', $dossier->parcours_id)
-            ->where('etape_code', $etape->value)
-            ->where('est_valide_metier', true)
-            ->first();
+        $this->slaDelaisCache ??= SlaDelai::query()->valide()->get();
 
-        return $delai;
+        return $this->slaDelaisCache
+            ->first(fn (SlaDelai $d) => $d->parcours_id === $dossier->parcours_id && $d->etape_code === $etape->value);
     }
 
     public function dateLimite(Dossier $dossier): ?CarbonImmutable
