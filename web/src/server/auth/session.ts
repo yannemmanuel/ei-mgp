@@ -59,12 +59,24 @@ export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
   return utilisateur
 }
 
-/** Lève `ErreurAutorisation` si la permission n'est pas détenue (équivalent du 403 Laravel). */
+/**
+ * Redirige vers /acces-refuse si la permission n'est pas détenue.
+ *
+ * Pourquoi une redirection plutôt qu'une exception rendue par `error.tsx` : en production,
+ * Next.js retire le `name` et le `message` des erreurs serveur avant de les transmettre au
+ * client (pour éviter les fuites d'information). Une frontière d'erreur ne peut donc PAS
+ * distinguer un refus d'autorisation d'une panne technique — elle afficherait « une erreur est
+ * survenue » au lieu de « accès refusé », uniquement en production.
+ *
+ * Divergence assumée avec Laravel : celui-ci répond en HTTP 403, ici l'utilisateur est redirigé
+ * vers une page de refus explicite. L'accès est bloqué de la même façon ; seule la présentation
+ * diffère.
+ */
 export async function exigerPermission(permission: Permission): Promise<UtilisateurAutorise> {
   const utilisateur = await exigerUtilisateur()
 
   if (!aPermission(utilisateur, permission)) {
-    throw new ErreurAutorisation(permission)
+    redirect('/acces-refuse')
   }
 
   return utilisateur

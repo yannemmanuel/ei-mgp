@@ -1,26 +1,217 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --font-serif: var(--font-serif);
+
+  /* Échelles complètes exposées à Tailwind (bg-primary-50, text-secondary-700, ...) :
+     les rôles shadcn ci-dessus ne donnent accès qu'à une seule teinte par rôle. */
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+  --color-primary-900: var(--primary-900);
+  --color-secondary-50: var(--secondary-50);
+  --color-secondary-100: var(--secondary-100);
+  --color-secondary-200: var(--secondary-200);
+  --color-secondary-300: var(--secondary-300);
+  --color-secondary-400: var(--secondary-400);
+  --color-secondary-500: var(--secondary-500);
+  --color-secondary-600: var(--secondary-600);
+  --color-secondary-700: var(--secondary-700);
+  --color-secondary-800: var(--secondary-800);
+  --color-secondary-900: var(--secondary-900);
+  --color-accent-50: var(--accent-50);
+  --color-accent-100: var(--accent-100);
+  --color-accent-200: var(--accent-200);
+  --color-accent-300: var(--accent-300);
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+  --color-accent-700: var(--accent-700);
+  --color-accent-800: var(--accent-800);
+  --color-accent-900: var(--accent-900);
+
+  /* Échelle typographique nommée — reprise de resources/css/app.css (Laravel). */
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.15;
+  --text-display--font-weight: 600;
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.3;
+  --text-h2--font-weight: 600;
+  --text-h3: 1rem;
+  --text-h3--line-height: 1.4;
+  --text-h3--font-weight: 600;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 500;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 600;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ---------------------------------------------------------------------------
+   Palette EI-MGP SODECI — docs/design-system-v2.md, « Option A » validée et
+   déjà appliquée côté Laravel (resources/css/app.css). Les échelles sont
+   reprises à l'identique : le vert de marque est ancré exactement sur #00A651.
+
+   Les couleurs SÉMANTIQUES (gravité, statut) sont volontairement distinctes de
+   la marque : elles encodent une information métier et ne doivent jamais
+   changer si l'identité visuelle évolue.
+   --------------------------------------------------------------------------- */
+:root {
+  --radius: 0.625rem;
+
+  /* Échelle Green (marque SODECI), ancrée sur #00A651 au palier 600. */
+  --primary-50: #effaf5;
+  --primary-100: #dff6ea;
+  --primary-200: #c6ecd8;
+  --primary-300: #94dbb6;
+  --primary-400: #59cf92;
+  --primary-500: #11d46f;
+  --primary-600: #00a651;
+  --primary-700: #008a42;
+  --primary-800: #006b34;
+  --primary-900: #004d25;
+
+  /* Échelle Navy — texte de très haut contraste, en-têtes « Direction ». */
+  --secondary-50: #f4f6fb;
+  --secondary-100: #e4ebf6;
+  --secondary-200: #c6d3ec;
+  --secondary-300: #94aedb;
+  --secondary-400: #537cc6;
+  --secondary-500: #30579c;
+  --secondary-600: #1f3864;
+  --secondary-700: #182c4e;
+  --secondary-800: #12213b;
+  --secondary-900: #0c1627;
+
+  /* Échelle Orange — accent d'alerte secondaire. */
+  --accent-50: #fcf3ee;
+  --accent-100: #f8e5d8;
+  --accent-200: #f2ceb5;
+  --accent-300: #edaa7e;
+  --accent-400: #e7813c;
+  --accent-500: #e86c17;
+  --accent-600: #c55a11;
+  --accent-700: #a44b0e;
+  --accent-800: #833c0b;
+  --accent-900: #5e2b08;
+
+  /* --- Rôles shadcn/ui --- */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: var(--primary-600);
+  --primary-foreground: #ffffff;
+  --secondary: var(--secondary-50);
+  --secondary-foreground: var(--secondary-700);
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: var(--primary-50);
+  --accent-foreground: var(--primary-800);
+  --destructive: #dc2626;
+
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: var(--primary-600);
+
+  /* Graphiques : vert de marque en série principale, navy en série secondaire
+     (docs/design-system-v2.md), puis teintes de soutien. */
+  --chart-1: var(--primary-600);
+  --chart-2: var(--secondary-600);
+  --chart-3: var(--accent-600);
+  --chart-4: var(--primary-300);
+  --chart-5: var(--secondary-300);
+
+  --sidebar: var(--secondary-50);
+  --sidebar-foreground: var(--secondary-800);
+  --sidebar-primary: var(--primary-600);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: var(--secondary-900);
+  --sidebar-border: var(--secondary-100);
+  --sidebar-ring: var(--primary-600);
+}
+
+/* Pas de mode sombre — décision argumentée dans docs/visual-direction.md :
+   le back-office est un outil de travail diurne, le front-office public doit
+   rester lisible sur téléphone en plein jour, et un mode sombre mal exécuté
+   ferait perdre leur codage aux couleurs sémantiques de gravité.
+
+   La variante `dark` reste déclarée en tête de fichier volontairement : liée à
+   la classe `.dark` (jamais posée), elle NEUTRALISE le `prefers-color-scheme`
+   par défaut de Tailwind. Sans elle, un visiteur dont le système est en mode
+   sombre recevrait les styles `dark:` des composants shadcn alors que les
+   tokens ci-dessus resteraient clairs — donc un rendu incohérent.
+
+   Les tokens étant nommés par rôle, un mode sombre resterait possible plus tard
+   en ne redéfinissant que ce bloc, sans toucher aux composants. */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }

@@ -235,6 +235,45 @@ couvert désormais par `chargement.test.ts`, qui charge un compte réel depuis l
 > (noms de classes PHP, expressions régulières) doit passer par `String.raw` et être couvert par
 > un test touchant la base — un test en mémoire ne peut pas détecter ce type d'erreur.
 
+### ✅ Étape 4 — Design system et layouts
+
+shadcn/ui installé, palette **SODECI** appliquée, coquille du back-office (barre latérale +
+en-tête + tiroir mobile), frontières d'erreur, page de connexion reprise.
+
+L'identité visuelle n'est pas réinventée : elle reprend `docs/visual-direction.md` et
+`docs/design-system-v2.md` — **Option A** (vert SODECI `#00A651` primaire, navy secondaire,
+orange accent), échelles complètes, échelle typographique nommée, Instrument Sans + Source Serif 4.
+Ce qui est modernisé, c'est l'exécution : composants accessibles, icônes Lucide (Laravel
+recopiait ses SVG à la main, limite relevée par `docs/audit-frontend-2026-08-29.md`).
+
+**Pas de mode sombre**, conformément à la décision argumentée de `visual-direction.md`. Le bloc
+`.dark` est retiré, mais `@custom-variant dark` est **conservé volontairement** : lié à une classe
+jamais posée, il neutralise le `prefers-color-scheme` par défaut de Tailwind — sans lui, un
+visiteur en mode sombre système recevrait les styles `dark:` des composants shadcn alors que les
+tokens resteraient clairs.
+
+Navigation portée fidèlement depuis `layouts/app.blade.php`, avec ses conditions d'affichage.
+Vérifié sur le serveur réel : `administrateur_digital` ne voit **ni Dossiers ni Audit** (DT-02
+respecté jusque dans l'interface), l'auditeur ni Investigations ni Actions, `service_mgp` tout.
+Masquer un lien reste un confort — chaque page refera sa propre vérification serveur.
+
+#### Défaut évité : le 403 n'aurait fonctionné qu'en développement
+
+`exigerPermission()` levait `ErreurAutorisation`, que `error.tsx` reconnaissait par `error.name`.
+Or **Next.js retire `name` et `message` des erreurs serveur en production** (pour éviter les
+fuites) : la frontière aurait affiché « une erreur est survenue » au lieu de « accès refusé »,
+uniquement en production — l'environnement où le défaut est le plus coûteux à diagnostiquer.
+Corrigé : `exigerPermission()` redirige vers `/acces-refuse`, comportement identique en
+développement et en production. `error.tsx` est recentré sur les pannes techniques.
+
+> Divergence assumée : Laravel répond en HTTP 403, ici l'utilisateur est redirigé vers une page
+> de refus explicite. L'accès est bloqué de la même façon ; seule la présentation diffère.
+
+#### Note d'API
+
+Cette version de shadcn/ui repose sur **Base UI**, pas Radix : la composition polymorphe s'écrit
+`render={<Link />}` et non `asChild`. Vérifié empiriquement plutôt que supposé.
+
 ---
 
 ## 7. Risques ouverts
@@ -259,7 +298,6 @@ couvert désormais par `chargement.test.ts`, qui charge un compte réel depuis l
 
 | # | Étape | Vérification |
 |---|---|---|
-| 4 | Design system shadcn/ui + layouts | — |
 | 5 | Module 1 — Déclaration | RG-01/02/06, RGI-01→04 |
 | 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
 | 7 | Module 3 — Investigations | RGI-05/06 |
