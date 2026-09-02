@@ -1,0 +1,538 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model actions_correctives {
+  id                       String          @id @db.Char(26)
+  dossier_id               String          @db.Char(26)
+  investigation_id         String?         @db.Char(26)
+  intitule                 String          @db.VarChar(255)
+  description              String
+  responsable_id           BigInt
+  echeance                 DateTime        @db.Date
+  statut                   String          @db.VarChar(255)
+  verification_efficacite  Boolean?
+  verification_commentaire String?
+  date_cloture             DateTime?       @db.Timestamp(0)
+  created_at               DateTime?       @db.Timestamp(0)
+  updated_at               DateTime?       @db.Timestamp(0)
+  dossiers                 dossiers        @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "actions_correctives_dossier_id_foreign")
+  investigations           investigations? @relation(fields: [investigation_id], references: [id], onUpdate: NoAction, map: "actions_correctives_investigation_id_foreign")
+  users                    users           @relation(fields: [responsable_id], references: [id], onUpdate: NoAction, map: "actions_correctives_responsable_id_foreign")
+
+  @@index([dossier_id], map: "actions_correctives_dossier_id_index")
+  @@index([echeance, statut], map: "actions_correctives_echeance_statut_index")
+}
+
+model audit_logs {
+  id             BigInt   @id @default(autoincrement())
+  user_id        BigInt?
+  action         String   @db.VarChar(255)
+  auditable_type String?  @db.VarChar(255)
+  auditable_id   String?  @db.VarChar(255)
+  old_values     Json?
+  new_values     Json?
+  ip_address     String?  @db.VarChar(255)
+  user_agent     String?  @db.VarChar(255)
+  url            String?  @db.VarChar(255)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+  users          users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "audit_logs_user_id_foreign")
+
+  @@index([auditable_type, auditable_id], map: "audit_logs_auditable_type_auditable_id_index")
+  @@index([created_at], map: "audit_logs_created_at_index")
+}
+
+model cache {
+  key        String @id @db.VarChar(255)
+  value      String
+  expiration Int
+
+  @@index([expiration], map: "cache_expiration_index")
+}
+
+model cache_locks {
+  key        String @id @db.VarChar(255)
+  owner      String @db.VarChar(255)
+  expiration Int
+
+  @@index([expiration], map: "cache_locks_expiration_index")
+}
+
+model canaux_captage {
+  id         BigInt     @id @default(autoincrement())
+  code       String     @unique(map: "canaux_captage_code_unique") @db.VarChar(255)
+  libelle    String     @db.VarChar(255)
+  actif      Boolean    @default(true)
+  created_at DateTime?  @db.Timestamp(0)
+  updated_at DateTime?  @db.Timestamp(0)
+  dossiers   dossiers[]
+}
+
+model categories {
+  id                      BigInt                    @id @default(autoincrement())
+  parcours_id             BigInt
+  code                    String                    @db.VarChar(255)
+  libelle                 String                    @db.VarChar(255)
+  is_autre                Boolean                   @default(false)
+  actif                   Boolean                   @default(true)
+  ordre                   Int                       @default(0) @db.SmallInt
+  created_at              DateTime?                 @db.Timestamp(0)
+  updated_at              DateTime?                 @db.Timestamp(0)
+  parcours                parcours                  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "categories_parcours_id_foreign")
+  dossiers                dossiers[]
+  statistiques_mensuelles statistiques_mensuelles[]
+
+  @@unique([parcours_id, code], map: "categories_parcours_id_code_unique")
+}
+
+model declaration_identites {
+  id                   BigInt    @id @default(autoincrement())
+  dossier_id           String    @unique(map: "declaration_identites_dossier_id_unique") @db.Char(26)
+  nom_prenom           String?   @db.VarChar(255)
+  matricule            String?   @db.VarChar(255)
+  entreprise           String?   @db.VarChar(255)
+  fonction             String?   @db.VarChar(255)
+  anciennete_annees    Int?      @db.SmallInt
+  localite             String?   @db.VarChar(255)
+  statut_plaignant     String?   @db.VarChar(255)
+  contact_email        String?   @db.VarChar(255)
+  contact_telephone    String?   @db.VarChar(255)
+  souhait_recontact    Boolean?
+  canal_retour_prefere String?   @db.VarChar(255)
+  personnes_impliquees String?
+  temoins              String?
+  consentement_rgpd    Boolean?
+  created_at           DateTime? @db.Timestamp(0)
+  updated_at           DateTime? @db.Timestamp(0)
+  dossiers             dossiers  @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "declaration_identites_dossier_id_foreign")
+}
+
+model directions {
+  id         BigInt     @id @default(autoincrement())
+  code       String     @unique(map: "directions_code_unique") @db.VarChar(255)
+  libelle    String     @db.VarChar(255)
+  actif      Boolean    @default(true)
+  created_at DateTime?  @db.Timestamp(0)
+  updated_at DateTime?  @db.Timestamp(0)
+  dossiers   dossiers[]
+  users      users[]
+}
+
+model dossier_affectations {
+  id                                            BigInt    @id @default(autoincrement())
+  dossier_id                                    String    @db.Char(26)
+  user_id                                       BigInt
+  affecte_par                                   BigInt?
+  motif                                         String?
+  type                                          String    @db.VarChar(255)
+  actif                                         Boolean   @default(true)
+  affecte_le                                    DateTime  @default(now()) @db.Timestamp(0)
+  desaffecte_le                                 DateTime? @db.Timestamp(0)
+  created_at                                    DateTime? @db.Timestamp(0)
+  updated_at                                    DateTime? @db.Timestamp(0)
+  users_dossier_affectations_affecte_parTousers users?    @relation("dossier_affectations_affecte_parTousers", fields: [affecte_par], references: [id], onUpdate: NoAction, map: "dossier_affectations_affecte_par_foreign")
+  dossiers                                      dossiers  @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "dossier_affectations_dossier_id_foreign")
+  users_dossier_affectations_user_idTousers     users     @relation("dossier_affectations_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction, map: "dossier_affectations_user_id_foreign")
+
+  @@index([dossier_id, actif], map: "dossier_affectations_dossier_id_actif_index")
+  @@index([user_id, actif], map: "dossier_affectations_user_id_actif_index")
+}
+
+model dossiers {
+  id                            String                 @id @db.Char(26)
+  reference                     String                 @unique(map: "dossiers_reference_unique") @db.VarChar(255)
+  parcours_id                   BigInt
+  categorie_id                  BigInt
+  categorie_autre_precision     String?                @db.VarChar(255)
+  niveau_gravite_id             BigInt
+  statut_id                     BigInt
+  canal_captage_id              BigInt
+  is_anonymous                  Boolean
+  access_code_hash              String?                @db.VarChar(255)
+  site_id                       BigInt?
+  direction_id                  BigInt?
+  declarant_user_id             BigInt?
+  description                   String
+  lieu                          String?                @db.VarChar(255)
+  date_survenance               DateTime?              @db.Timestamp(0)
+  attentes_declarant            String?                @db.VarChar(255)
+  synthese_resolution           String?
+  motif_reouverture             String?
+  motif_rejet                   String?
+  date_cloture                  DateTime?              @db.Timestamp(0)
+  created_at                    DateTime?              @db.Timestamp(0)
+  updated_at                    DateTime?              @db.Timestamp(0)
+  caractere_repetitif           String?                @db.VarChar(255)
+  proposition_mesure_corrective String?
+  contentieux                   Boolean                @default(false)
+  archive_le                    DateTime?              @db.Timestamp(0)
+  anonymise_le                  DateTime?              @db.Timestamp(0)
+  actions_correctives           actions_correctives[]
+  declaration_identites         declaration_identites?
+  dossier_affectations          dossier_affectations[]
+  canaux_captage                canaux_captage         @relation(fields: [canal_captage_id], references: [id], onUpdate: NoAction, map: "dossiers_canal_captage_id_foreign")
+  categories                    categories             @relation(fields: [categorie_id], references: [id], onUpdate: NoAction, map: "dossiers_categorie_id_foreign")
+  users                         users?                 @relation(fields: [declarant_user_id], references: [id], onUpdate: NoAction, map: "dossiers_declarant_user_id_foreign")
+  directions                    directions?            @relation(fields: [direction_id], references: [id], onUpdate: NoAction, map: "dossiers_direction_id_foreign")
+  niveaux_gravite               niveaux_gravite        @relation(fields: [niveau_gravite_id], references: [id], onUpdate: NoAction, map: "dossiers_niveau_gravite_id_foreign")
+  parcours                      parcours               @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "dossiers_parcours_id_foreign")
+  sites                         sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "dossiers_site_id_foreign")
+  statuts_dossier               statuts_dossier        @relation(fields: [statut_id], references: [id], onUpdate: NoAction, map: "dossiers_statut_id_foreign")
+  historique_statuts            historique_statuts[]
+  investigations                investigations[]
+  messages                      messages[]
+
+  @@index([created_at], map: "dossiers_created_at_index")
+  @@index([niveau_gravite_id], map: "dossiers_niveau_gravite_id_index")
+  @@index([parcours_id, statut_id], map: "dossiers_parcours_id_statut_id_index")
+}
+
+model failed_jobs {
+  id         BigInt   @id @default(autoincrement())
+  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
+  connection String
+  queue      String
+  payload    String
+  exception  String
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+model historique_statuts {
+  id                                                                      BigInt           @id @default(autoincrement())
+  dossier_id                                                              String           @db.Char(26)
+  statut_precedent_id                                                     BigInt?
+  statut_suivant_id                                                       BigInt
+  commentaire                                                             String?
+  effectue_par                                                            BigInt?
+  created_at                                                              DateTime         @default(now()) @db.Timestamp(0)
+  dossiers                                                                dossiers         @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "historique_statuts_dossier_id_foreign")
+  users                                                                   users?           @relation(fields: [effectue_par], references: [id], onUpdate: NoAction, map: "historique_statuts_effectue_par_foreign")
+  statuts_dossier_historique_statuts_statut_precedent_idTostatuts_dossier statuts_dossier? @relation("historique_statuts_statut_precedent_idTostatuts_dossier", fields: [statut_precedent_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "historique_statuts_statut_precedent_id_foreign")
+  statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier   statuts_dossier  @relation("historique_statuts_statut_suivant_idTostatuts_dossier", fields: [statut_suivant_id], references: [id], onUpdate: NoAction, map: "historique_statuts_statut_suivant_id_foreign")
+
+  @@index([dossier_id, created_at], map: "historique_statuts_dossier_id_created_at_index")
+}
+
+model investigations {
+  id                                       String                @id @db.Char(26)
+  dossier_id                               String                @db.Char(26)
+  enqueteur_id                             BigInt
+  date_ouverture                           DateTime              @db.Date
+  faits_constates                          String
+  personnes_rencontrees                    String?
+  cause_immediate                          String?
+  causes_racines                           String?
+  recommandations                          String
+  statut                                   String                @db.VarChar(255)
+  valide_par                               BigInt?
+  valide_le                                DateTime?             @db.Timestamp(0)
+  created_at                               DateTime?             @db.Timestamp(0)
+  updated_at                               DateTime?             @db.Timestamp(0)
+  actions_correctives                      actions_correctives[]
+  dossiers                                 dossiers              @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "investigations_dossier_id_foreign")
+  users_investigations_enqueteur_idTousers users                 @relation("investigations_enqueteur_idTousers", fields: [enqueteur_id], references: [id], onUpdate: NoAction, map: "investigations_enqueteur_id_foreign")
+  users_investigations_valide_parTousers   users?                @relation("investigations_valide_parTousers", fields: [valide_par], references: [id], onUpdate: NoAction, map: "investigations_valide_par_foreign")
+
+  @@index([dossier_id], map: "investigations_dossier_id_index")
+}
+
+model job_batches {
+  id             String  @id @db.VarChar(255)
+  name           String  @db.VarChar(255)
+  total_jobs     Int
+  pending_jobs   Int
+  failed_jobs    Int
+  failed_job_ids String
+  options        String?
+  cancelled_at   Int?
+  created_at     Int
+  finished_at    Int?
+}
+
+model jobs {
+  id           BigInt @id @default(autoincrement())
+  queue        String @db.VarChar(255)
+  payload      String
+  attempts     Int    @db.SmallInt
+  reserved_at  Int?
+  available_at Int
+  created_at   Int
+
+  @@index([queue], map: "jobs_queue_index")
+}
+
+model messages {
+  id                 String    @id @db.Char(26)
+  dossier_id         String    @db.Char(26)
+  expediteur_type    String    @db.VarChar(255)
+  expediteur_user_id BigInt?
+  corps              String
+  lu_le              DateTime? @db.Timestamp(0)
+  created_at         DateTime  @default(now()) @db.Timestamp(0)
+  dossiers           dossiers  @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "messages_dossier_id_foreign")
+  users              users?    @relation(fields: [expediteur_user_id], references: [id], onUpdate: NoAction, map: "messages_expediteur_user_id_foreign")
+
+  @@index([dossier_id, created_at], map: "messages_dossier_id_created_at_index")
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement())
+  migration String @db.VarChar(255)
+  batch     Int
+}
+
+model model_has_permissions {
+  permission_id BigInt
+  model_type    String      @db.VarChar(255)
+  model_id      BigInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "model_has_permissions_permission_id_foreign")
+
+  @@id([permission_id, model_id, model_type])
+  @@index([model_id, model_type], map: "model_has_permissions_model_id_model_type_index")
+}
+
+model model_has_roles {
+  role_id    BigInt
+  model_type String @db.VarChar(255)
+  model_id   BigInt
+  roles      roles  @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "model_has_roles_role_id_foreign")
+
+  @@id([role_id, model_id, model_type])
+  @@index([model_id, model_type], map: "model_has_roles_model_id_model_type_index")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model niveaux_gravite {
+  id                      BigInt                    @id @default(autoincrement())
+  niveau                  Int                       @unique(map: "niveaux_gravite_niveau_unique") @db.SmallInt
+  code                    String                    @unique(map: "niveaux_gravite_code_unique") @db.VarChar(255)
+  libelle                 String                    @db.VarChar(255)
+  effet_circuit           String                    @db.VarChar(255)
+  couleur                 String?                   @db.VarChar(255)
+  actif                   Boolean                   @default(true)
+  created_at              DateTime?                 @db.Timestamp(0)
+  updated_at              DateTime?                 @db.Timestamp(0)
+  dossiers                dossiers[]
+  statistiques_mensuelles statistiques_mensuelles[]
+}
+
+model notification_templates {
+  id                                  BigInt    @id @default(autoincrement())
+  evenement_code                      String    @db.VarChar(255)
+  parcours_id                         BigInt?
+  canal                               String    @db.VarChar(255)
+  objet                               String    @db.VarChar(255)
+  corps                               String
+  actif                               Boolean   @default(true)
+  created_at                          DateTime? @db.Timestamp(0)
+  updated_at                          DateTime? @db.Timestamp(0)
+  destinataires_email_supplementaires Json?     @db.Json
+  parcours                            parcours? @relation(fields: [parcours_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "notification_templates_parcours_id_foreign")
+}
+
+model notifications {
+  id              String    @id @db.Uuid
+  type            String    @db.VarChar(255)
+  notifiable_type String    @db.VarChar(255)
+  notifiable_id   BigInt
+  data            String
+  read_at         DateTime? @db.Timestamp(0)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+
+  @@index([notifiable_type, notifiable_id], map: "notifications_notifiable_type_notifiable_id_index")
+}
+
+model parcours {
+  id                      BigInt                    @id @default(autoincrement())
+  code                    String                    @unique(map: "parcours_code_unique") @db.VarChar(255)
+  libelle                 String                    @db.VarChar(255)
+  actif                   Boolean                   @default(true)
+  ordre                   Int                       @default(0) @db.SmallInt
+  created_at              DateTime?                 @db.Timestamp(0)
+  updated_at              DateTime?                 @db.Timestamp(0)
+  categories              categories[]
+  dossiers                dossiers[]
+  notification_templates  notification_templates[]
+  qr_codes                qr_codes[]
+  sla_delais              sla_delais[]
+  statistiques_mensuelles statistiques_mensuelles[]
+}
+
+model password_reset_tokens {
+  email      String    @id @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+}
+
+model permissions {
+  id                    BigInt                  @id @default(autoincrement())
+  name                  String                  @db.VarChar(255)
+  guard_name            String                  @db.VarChar(255)
+  created_at            DateTime?               @db.Timestamp(0)
+  updated_at            DateTime?               @db.Timestamp(0)
+  model_has_permissions model_has_permissions[]
+  role_has_permissions  role_has_permissions[]
+
+  @@unique([name, guard_name], map: "permissions_name_guard_name_unique")
+}
+
+model pieces_jointes {
+  id              String   @id @db.Char(26)
+  attachable_type String   @db.VarChar(255)
+  attachable_id   String   @db.Char(26)
+  disque          String   @db.VarChar(255)
+  chemin          String   @db.VarChar(255)
+  nom_original    String   @db.VarChar(255)
+  mime_type       String   @db.VarChar(255)
+  taille_octets   BigInt
+  checksum_sha256 String   @db.VarChar(255)
+  televerse_par   BigInt?
+  created_at      DateTime @default(now()) @db.Timestamp(0)
+  users           users?   @relation(fields: [televerse_par], references: [id], onUpdate: NoAction, map: "pieces_jointes_televerse_par_foreign")
+
+  @@index([attachable_type, attachable_id], map: "pieces_jointes_attachable_type_attachable_id_index")
+}
+
+model qr_codes {
+  id           String    @id @db.Char(26)
+  parcours_id  BigInt
+  token        String    @unique(map: "qr_codes_token_unique") @db.VarChar(255)
+  url_cible    String
+  actif        Boolean   @default(true)
+  genere_par   BigInt?
+  genere_le    DateTime  @default(now()) @db.Timestamp(0)
+  desactive_le DateTime? @db.Timestamp(0)
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
+  users        users?    @relation(fields: [genere_par], references: [id], onUpdate: NoAction, map: "qr_codes_genere_par_foreign")
+  parcours     parcours  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "qr_codes_parcours_id_foreign")
+}
+
+model role_has_permissions {
+  permission_id BigInt
+  role_id       BigInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_permission_id_foreign")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_role_id_foreign")
+
+  @@id([permission_id, role_id])
+}
+
+model roles {
+  id                   BigInt                 @id @default(autoincrement())
+  name                 String                 @db.VarChar(255)
+  guard_name           String                 @db.VarChar(255)
+  created_at           DateTime?              @db.Timestamp(0)
+  updated_at           DateTime?              @db.Timestamp(0)
+  model_has_roles      model_has_roles[]
+  role_has_permissions role_has_permissions[]
+
+  @@unique([name, guard_name], map: "roles_name_guard_name_unique")
+}
+
+model sessions {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt?
+  ip_address    String? @db.VarChar(45)
+  user_agent    String?
+  payload       String
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+}
+
+model sites {
+  id         BigInt     @id @default(autoincrement())
+  code       String     @unique(map: "sites_code_unique") @db.VarChar(255)
+  libelle    String     @db.VarChar(255)
+  actif      Boolean    @default(true)
+  created_at DateTime?  @db.Timestamp(0)
+  updated_at DateTime?  @db.Timestamp(0)
+  dossiers   dossiers[]
+  users      users[]
+}
+
+model sla_delais {
+  id                BigInt    @id @default(autoincrement())
+  parcours_id       BigInt
+  etape_code        String    @db.VarChar(255)
+  valeur            Int
+  unite             String    @db.VarChar(255)
+  est_valide_metier Boolean   @default(false)
+  notes             String?
+  created_at        DateTime? @db.Timestamp(0)
+  updated_at        DateTime? @db.Timestamp(0)
+  parcours          parcours  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "sla_delais_parcours_id_foreign")
+
+  @@unique([parcours_id, etape_code], map: "sla_delais_parcours_id_etape_code_unique")
+}
+
+model statistiques_mensuelles {
+  id                BigInt           @id @default(autoincrement())
+  periode           DateTime         @db.Date
+  parcours_id       BigInt?
+  categorie_id      BigInt?
+  niveau_gravite_id BigInt?
+  nb_declarations   Int              @default(0)
+  nb_resolues       Int              @default(0)
+  nb_cloturees      Int              @default(0)
+  delai_moyen_jours Decimal?         @db.Decimal(6, 2)
+  taux_resolution   Decimal?         @db.Decimal(5, 2)
+  taux_cloture      Decimal?         @db.Decimal(5, 2)
+  created_at        DateTime         @default(now()) @db.Timestamp(0)
+  categories        categories?      @relation(fields: [categorie_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_categorie_id_foreign")
+  niveaux_gravite   niveaux_gravite? @relation(fields: [niveau_gravite_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_niveau_gravite_id_foreign")
+  parcours          parcours?        @relation(fields: [parcours_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_parcours_id_foreign")
+}
+
+model statuts_dossier {
+  id                                                                         BigInt               @id @default(autoincrement())
+  code                                                                       String               @unique(map: "statuts_dossier_code_unique") @db.VarChar(255)
+  libelle_interne                                                            String               @db.VarChar(255)
+  libelle_affiche                                                            String               @db.VarChar(255)
+  is_terminal                                                                Boolean              @default(false)
+  ordre                                                                      Int                  @default(0) @db.SmallInt
+  created_at                                                                 DateTime?            @db.Timestamp(0)
+  updated_at                                                                 DateTime?            @db.Timestamp(0)
+  dossiers                                                                   dossiers[]
+  historique_statuts_historique_statuts_statut_precedent_idTostatuts_dossier historique_statuts[] @relation("historique_statuts_statut_precedent_idTostatuts_dossier")
+  historique_statuts_historique_statuts_statut_suivant_idTostatuts_dossier   historique_statuts[] @relation("historique_statuts_statut_suivant_idTostatuts_dossier")
+}
+
+model users {
+  id                                                           BigInt                 @id @default(autoincrement())
+  name                                                         String                 @db.VarChar(255)
+  email                                                        String                 @unique(map: "users_email_unique") @db.VarChar(255)
+  email_verified_at                                            DateTime?              @db.Timestamp(0)
+  password                                                     String?                @db.VarChar(255)
+  remember_token                                               String?                @db.VarChar(100)
+  created_at                                                   DateTime?              @db.Timestamp(0)
+  updated_at                                                   DateTime?              @db.Timestamp(0)
+  matricule                                                    String?                @db.VarChar(255)
+  poste                                                        String?                @db.VarChar(255)
+  direction_id                                                 BigInt?
+  site_id                                                      BigInt?
+  sso_subject_id                                               String?                @unique(map: "users_sso_subject_id_unique") @db.VarChar(255)
+  actif                                                        Boolean                @default(true)
+  responsable_hierarchique_id                                  BigInt?
+  actions_correctives                                          actions_correctives[]
+  audit_logs                                                   audit_logs[]
+  dossier_affectations_dossier_affectations_affecte_parTousers dossier_affectations[] @relation("dossier_affectations_affecte_parTousers")
+  dossier_affectations_dossier_affectations_user_idTousers     dossier_affectations[] @relation("dossier_affectations_user_idTousers")
+  dossiers                                                     dossiers[]
+  historique_statuts                                           historique_statuts[]
+  investigations_investigations_enqueteur_idTousers            investigations[]       @relation("investigations_enqueteur_idTousers")
+  investigations_investigations_valide_parTousers              investigations[]       @relation("investigations_valide_parTousers")
+  messages                                                     messages[]
+  pieces_jointes                                               pieces_jointes[]
+  qr_codes                                                     qr_codes[]
+  directions                                                   directions?            @relation(fields: [direction_id], references: [id], onUpdate: NoAction, map: "users_direction_id_foreign")
+  users                                                        users?                 @relation("usersTousers", fields: [responsable_hierarchique_id], references: [id], onUpdate: NoAction, map: "users_responsable_hierarchique_id_foreign")
+  other_users                                                  users[]                @relation("usersTousers")
+  sites                                                        sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "users_site_id_foreign")
+}
