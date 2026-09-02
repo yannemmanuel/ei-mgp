@@ -2,8 +2,15 @@ import { prisma } from '@/lib/prisma'
 import type { Permission } from './permissions'
 import type { Role } from './roles'
 
-/** `model_type` utilisé par spatie/laravel-permission pour les comptes utilisateurs. */
-const MODEL_TYPE_USER = 'App\Models\User'
+/**
+ * `model_type` utilisé par spatie/laravel-permission pour les comptes utilisateurs.
+ *
+ * `String.raw` est délibéré : en littéral classique, `'App\Models\User'` vaudrait
+ * « AppModelsUser », car `\M` et `\U` ne sont pas des séquences d'échappement valides et
+ * JavaScript supprime alors silencieusement les antislashs. Aucune erreur n'est levée — la
+ * comparaison échoue simplement toujours, et l'utilisateur se retrouve sans aucun rôle.
+ */
+const MODEL_TYPE_USER = String.raw`App\Models\User`
 
 const GUARD = 'web'
 

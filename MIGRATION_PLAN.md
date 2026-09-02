@@ -87,7 +87,7 @@ jobs/                                # 5 tâches planifiées (worker externe)
 | Service applicatif | `server/services/*` (portage direct) |
 | Policy | `server/authz/policies/*` |
 | Permission Spatie | `server/authz/permissions.ts` |
-| Middleware `auth`/`permission:` | `middleware.ts` + vérification serveur |
+| Middleware `auth`/`permission:` | `proxy.ts` (redirection seule) + vérification serveur dans chaque page/action |
 | Form Request / `$this->validate()` | Schéma Zod |
 | Eloquent | Prisma Client |
 | Migration Laravel | **Aucune** — schéma introspecté depuis la base existante |
@@ -199,6 +199,42 @@ délibérée par rapport à la baseline, consignée ici : reproduire un contourn
 sur un dispositif de signalement serait indéfendable. `UtilisateurAutorise` porte déjà le champ
 `actif` à cette fin ; l'application effective se fera à l'étape 3 (authentification).
 
+### ✅ Étape 3 — Authentification
+
+Auth.js v5 (Credentials + JWT), vérification bcrypt contre les hachages Laravel existants,
+limitation de débit, page de connexion, déconnexion, et pont session → autorisation.
+**31 tests verts.**
+
+Vérifié de bout en bout sur le serveur réel : trois comptes existants se connectent **sans
+réinitialisation de mot de passe**, et leurs droits sont résolus correctement —
+`administrateur_digital` obtient 4 permissions et **aucun parcours** (DT-02 respecté),
+`auditeur` les 4 parcours, `service_mgp` ses 23 permissions. Un mauvais mot de passe ne crée
+aucune session ; `/dashboard` et `/` redirigent vers `/login` sans session.
+
+| Point | Décision |
+|---|---|
+| `middleware.ts` **déprécié en Next.js 16** | Renommé `src/proxy.ts`. Il ne fait qu'une redirection de confort : **aucun accès base**, la doc précisant qu'il peut être déployé en CDN. L'autorisation réelle est refaite dans chaque page/action. |
+| `unauthorized()` / `forbidden()` | **Écartés** : encore expérimentaux en 16 (`experimental.authInterrupts`). La couche de sécurité ne doit pas dépendre d'une API instable. `redirect('/login')` (stable) reproduit d'ailleurs exactement le comportement Laravel pour un invité ; un 403 lève `ErreurAutorisation`, dont le rendu sera traité à l'étape 4. |
+| `AUTH_URL` obligatoire | Auth.js v5 rejette les hôtes non déclarés (`UntrustedHost`, protection contre l'injection d'en-tête `Host`). Configuré explicitement plutôt que de désactiver le contrôle via `trustHost`. |
+| Réinitialisation de mot de passe | **Non encore portée** — nécessite une décision sur l'envoi d'e-mails. La table `password_reset_tokens` existe déjà. À traiter avant la bascule (fonctionnalité Laravel existante, donc à ne pas perdre). |
+
+#### Défaut corrigé : les rôles n'étaient jamais résolus
+
+`const MODEL_TYPE_USER = 'App\Models\User'` (antislashs simples) vaut en réalité
+**`AppModelsUser`** en JavaScript : `\M` et `\U` ne sont pas des séquences d'échappement
+valides, et les antislashs sont supprimés **silencieusement**, sans la moindre erreur. La
+comparaison avec `model_has_roles.model_type` échouait donc toujours : **tout utilisateur se
+retrouvait sans aucun rôle ni permission** — l'application était intégralement verrouillée, de
+la façon la plus discrète possible.
+
+Les tests de policy ne l'avaient pas vu : ils utilisent une fabrique en mémoire et
+n'atteignent jamais la base. Seule la connexion réelle l'a révélé. Corrigé par `String.raw`, et
+couvert désormais par `chargement.test.ts`, qui charge un compte réel depuis la base.
+
+> Leçon retenue pour la suite : tout portage d'une valeur littérale contenant des antislashs
+> (noms de classes PHP, expressions régulières) doit passer par `String.raw` et être couvert par
+> un test touchant la base — un test en mémoire ne peut pas détecter ce type d'erreur.
+
 ---
 
 ## 7. Risques ouverts
@@ -213,6 +249,9 @@ sur un dispositif de signalement serait indéfendable. `UtilisateurAutorise` por
 | 6 | **Pas de scheduler dans Next.js.** 5 commandes planifiées exigent une infra externe. RG-08 impose en plus du synchrone. | 🟠 Moyen | Ouvert — étape 12 |
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Ouvert — étape 10 |
+| 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
+| 10 | **Réinitialisation de mot de passe non portée.** Fonctionnalité Laravel existante (Fortify) ; nécessite une décision sur l'envoi d'e-mails. `password_reset_tokens` existe déjà. | 🟠 Moyen | Ouvert — avant bascule |
+| 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
 
@@ -220,7 +259,6 @@ sur un dispositif de signalement serait indéfendable. `UtilisateurAutorise` por
 
 | # | Étape | Vérification |
 |---|---|---|
-| 3 | Auth (Auth.js, bcrypt, throttle, reset, refus si `actif = false`) | Comptes existants connectables |
 | 4 | Design system shadcn/ui + layouts | — |
 | 5 | Module 1 — Déclaration | RG-01/02/06, RGI-01→04 |
 | 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
