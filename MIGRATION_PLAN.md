@@ -274,6 +274,47 @@ développement et en production. `error.tsx` est recentré sur les pannes techni
 Cette version de shadcn/ui repose sur **Base UI**, pas Radix : la composition polymorphe s'écrit
 `render={<Link />}` et non `asChild`. Vérifié empiriquement plutôt que supposé.
 
+### 🔄 Étape 5a — Module Déclaration : services métier et validations
+
+Le module Déclaration est le plus vaste et le plus sensible du projet. Il est livré en deux
+temps : **5a les services métier et les validations** (où vivent les règles), **5b les
+formulaires** (4 parcours, wizard, page de suivi).
+
+Portés dans `web/src/server/services/declaration/` : génération de référence (RG-01), code
+d'accès (RG-02), pièces jointes (RGI-04), et l'orchestrateur `creerDeclaration()`. Schémas Zod
+dans `web/src/lib/validations/declaration.ts`. **55 tests verts** (24 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **RG-01** | Format `{PRÉFIXE}-{ANNÉE}-{NNNNNN}`, un préfixe par parcours, séquence incrémentée indépendamment par parcours. |
+| **RG-02** | Code à 6 chiffres vérifiable, **jamais stocké en clair** — seul le haché bcrypt est persisté. |
+| **RG-06** | Aucune ligne `declaration_identites` créée si anonyme, **même lorsqu'une identité est fournie** ; aucun compte rattaché même si le déclarant était connecté. |
+| **RG-04** | Entrée d'historique initiale systématique. |
+| **RG-08** | Gravité Critique signalée pour déclenchement synchrone du circuit accéléré. |
+| **RG-09** | Catégorie « Autre » orientée vers `service_mgp`, et **pas** vers les rôles de captage du parcours. |
+| **RGI-01/02** | Date des faits jamais postérieure à aujourd'hui (le jour même reste accepté) ; description ≥ 20 caractères. |
+| **RGI-04** | 5 fichiers / 50 Mo, type réel revérifié sur les octets d'en-tête. |
+| **RG-15** | Consentement RGPD bloquant pour le seul parcours Sous-traitant. |
+| **DT-14** | Champ piège et délai minimal de remplissage. |
+
+#### Points d'implémentation
+
+- **ULID en minuscules** : Laravel (`HasUlids`) produit des identifiants minuscules ; la
+  bibliothèque `ulid` génère en majuscules. Sans conversion, les identifiants des deux
+  applications auraient différé de casse dans la même colonne.
+- **Verrou `FOR UPDATE`** : Prisma ne l'expose pas, la génération de référence passe donc par une
+  requête brute. Sans ce verrou, deux déclarations simultanées sur un même parcours liraient la
+  même dernière référence et tenteraient d'écrire le même numéro.
+- **Type MIME réel** vérifié sur les octets d'en-tête (`file-type`), équivalent du `finfo` de PHP :
+  le type annoncé par le navigateur n'est jamais une preuve suffisante.
+- **Notifications non branchées** : `creerDeclaration()` retourne `estCritique` plutôt que
+  d'émettre un évènement. Le module Notifications arrive à l'étape 9 — c'est une dépendance
+  réelle, pas un raccourci.
+- **Tests écrivant réellement en base** : seule façon de vérifier la transaction, le verrou de
+  séquence et l'affectation automatique. Chaque dossier créé est supprimé en fin de test, et
+  l'état de la base a été vérifié identique avant/après. La suppression n'existe QUE dans ces
+  utilitaires de test — l'application n'expose aucune voie de suppression (RG-03).
+
 ---
 
 ## 7. Risques ouverts
@@ -298,7 +339,7 @@ Cette version de shadcn/ui repose sur **Base UI**, pas Radix : la composition po
 
 | # | Étape | Vérification |
 |---|---|---|
-| 5 | Module 1 — Déclaration | RG-01/02/06, RGI-01→04 |
+| 5b | Module 1 — Déclaration : 4 formulaires, wizard, page de suivi | RG-01/02/06, RGI-01→04 |
 | 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
 | 7 | Module 3 — Investigations | RGI-05/06 |
 | 8 | Module 4 — Actions correctives | RGI-07/08/09 |
