@@ -1,5 +1,5 @@
 <div class="card p-5">
-    <h2 class="mb-3 text-sm font-semibold text-slate-900">Messagerie sécurisée</h2>
+    <h2 class="mb-3 text-h3 text-slate-900">Messagerie sécurisée</h2>
 
     <div class="mb-4 max-h-96 space-y-3 overflow-y-auto">
         @forelse ($this->messages as $message)
@@ -14,7 +14,7 @@
                 </div>
             </div>
         @empty
-            <p class="text-sm text-slate-400">Aucun message pour ce dossier.</p>
+            <x-empty-state title="Aucun message pour ce dossier." />
         @endforelse
     </div>
 

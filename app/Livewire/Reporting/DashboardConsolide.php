@@ -3,19 +3,24 @@
 namespace App\Livewire\Reporting;
 
 use App\Exports\DossiersExport;
+use App\Models\ActionCorrective;
 use App\Models\Categorie;
 use App\Models\Direction;
 use App\Models\Dossier;
 use App\Models\DossierAffectation;
+use App\Models\Investigation;
 use App\Models\NiveauGravite;
 use App\Models\Parcours;
 use App\Models\Site;
 use App\Models\StatistiqueMensuelle;
 use App\Models\StatutDossier;
 use App\Services\Reporting\IndicateurService;
+use App\Support\LigneHistoriqueMensuel;
 use App\Support\ReportingFilter;
+use App\Support\RoleParcoursScope;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Url;
@@ -117,7 +122,7 @@ class DashboardConsolide extends Component
     }
 
     /** @return array<string, mixed>|null Null si l'utilisateur n'a pas reporting.view. */
-    public function getIndicateursProperty(): ?array
+    private function calculerIndicateurs(): ?array
     {
         if (! $this->utilisateurPeutVoirRapport()) {
             return null;
@@ -137,25 +142,123 @@ class DashboardConsolide extends Component
         ];
     }
 
-    /** @return Collection<int, StatistiqueMensuelle> EX-REP-05 : historique, 12 derniers mois archivés. */
-    public function getHistoriqueMensuelProperty(): Collection
+    /** @return array<string, mixed>|null Null si l'utilisateur n'a pas reporting.view. */
+    public function getIndicateursProperty(): ?array
+    {
+        return $this->calculerIndicateurs();
+    }
+
+    /**
+     * EX-REP-05 : historique des 12 derniers mois archivés, du plus récent au plus ancien.
+     *
+     * @return SupportCollection<int, LigneHistoriqueMensuel>
+     */
+    private function chargerHistoriqueMensuel(): SupportCollection
     {
         if (! $this->utilisateurPeutVoirRapport()) {
-            return new Collection;
+            return new SupportCollection;
         }
 
         return StatistiqueMensuelle::query()
-            ->selectRaw('periode, sum(nb_declarations) as total, sum(nb_cloturees) as cloturees')
+            ->selectRaw('periode, sum(nb_declarations) as total, sum(nb_cloturees) as cloturees, avg(delai_moyen_jours) as delai_moyen, avg(taux_resolution) as taux_resolution')
             ->groupBy('periode')
             ->orderByDesc('periode')
             ->limit(12)
-            ->get();
+            ->get()
+            ->map(LigneHistoriqueMensuel::depuisAgregat(...))
+            ->values();
+    }
+
+    /** @return SupportCollection<int, LigneHistoriqueMensuel> */
+    public function getHistoriqueMensuelProperty(): SupportCollection
+    {
+        return $this->chargerHistoriqueMensuel();
+    }
+
+    /**
+     * Repousse les séries vers Chart.js après chaque changement de filtre. Appelle les méthodes
+     * privées ci-dessus, jamais les "computed properties" magiques `$this->indicateurs` /
+     * `$this->historiqueMensuel` : celles-ci ne sont résolues que hors de cette classe (depuis la
+     * vue Blade), cf. le commentaire de utilisateurPeutVoirRapport() et DT-31.
+     */
+    public function updated(): void
+    {
+        $indicateurs = $this->calculerIndicateurs();
+
+        if ($indicateurs === null) {
+            return;
+        }
+
+        $parGravite = collect($indicateurs['parGravite'])
+            ->map(fn ($ligne) => ['libelle' => $ligne->libelle, 'total' => $ligne->total, 'couleur' => $ligne->couleur ?? null])
+            ->values()
+            ->toArray();
+
+        $historiqueMensuel = $this->chargerHistoriqueMensuel()
+            ->reverse()
+            ->values()
+            ->map(fn (LigneHistoriqueMensuel $ligne) => $ligne->jsonSerialize())
+            ->toArray();
+
+        $this->dispatch('graphiques-actualises', parGravite: $parGravite, historiqueMensuel: $historiqueMensuel);
     }
 
     /** Dossiers actuellement affectés à l'utilisateur courant — repli pour les rôles sans reporting.view. */
     public function getMesDossiersAffectesProperty(): int
     {
         return DossierAffectation::query()->where('user_id', Auth::id())->where('actif', true)->count();
+    }
+
+    /**
+     * Aperçu court des dossiers assignés (profil "Traitement de dossier",
+     * docs/page-redesign-map.md §1) — borné par construction (les affectations d'un seul
+     * utilisateur), donc sans le risque de N+1 qui interdit un calcul d'échéance agrégé sur
+     * l'ensemble du périmètre (cf. note sur getBlocATraiterProperty ci-dessous).
+     *
+     * @return Collection<int, Dossier>
+     */
+    public function getMesDossiersATraiterProperty(): Collection
+    {
+        return Dossier::query()
+            ->whereHas('affectations', fn ($q) => $q->where('user_id', Auth::id())->where('actif', true))
+            ->with(['parcours', 'categorie', 'statut'])
+            ->latest('updated_at')
+            ->limit(5)
+            ->get();
+    }
+
+    /**
+     * Bloc "à traiter" du tableau de bord consolidé (docs/page-redesign-map.md §1, réponse à
+     * l'audit UX "le dashboard répond à combien mais pas à quoi faire"). Volontairement limité
+     * à des compteurs déjà indexables en SQL : `actions_correctives.statut = 'en_retard'` est
+     * recalculé quotidiennement par App\Console\Commands\RecalculerRetardActionsCorrectives (le
+     * même mécanisme que consomme déjà ActionCorrectiveListPage), et
+     * `investigations.statut = 'en_attente_validation'` est une simple colonne. Un compteur
+     * "dossiers en retard" agrégé sur tout le périmètre n'a délibérément pas été ajouté ici :
+     * DelaiService::estEnRetard() interroge historique_statuts par dossier (pas une colonne
+     * SQL), l'exécuter sur potentiellement des centaines de dossiers à chaque chargement de la
+     * page d'atterrissage post-connexion créerait un vrai risque de N+1 sur l'écran le plus
+     * visité de l'application — à traiter via une colonne recalculée (sur le modèle
+     * d'ActionCorrective) si ce compteur est demandé, pas via un calcul à la volée ici.
+     */
+    public function getBlocATraiterProperty(): ?array
+    {
+        if (! $this->utilisateurPeutVoirRapport()) {
+            return null;
+        }
+
+        $codes = array_map(fn ($c) => $c->value, RoleParcoursScope::parcoursAutorises(Auth::user()));
+
+        return [
+            'actionsEnRetard' => ActionCorrective::query()
+                ->whereHas('dossier.parcours', fn ($q) => $q->whereIn('code', $codes))
+                ->where('statut', 'en_retard')
+                ->count(),
+            'investigationsEnAttente' => Investigation::query()
+                ->whereHas('dossier.parcours', fn ($q) => $q->whereIn('code', $codes))
+                ->where('statut', 'en_attente_validation')
+                ->count(),
+        ];
     }
 
     public function exporterExcel()
@@ -227,6 +330,7 @@ class DashboardConsolide extends Component
 
     public function render()
     {
-        return view('livewire.reporting.dashboard-consolide');
+        return view('livewire.reporting.dashboard-consolide')
+            ->layout('components.layouts.app', ['title' => 'Tableau de bord']);
     }
 }

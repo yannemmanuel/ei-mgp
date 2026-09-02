@@ -8,4 +8,234 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Réservée aux titres et aux moments "document officiel" du front-office public (accroche,
+       numéro de référence) — jamais sur les libellés de champs ou les tableaux, qui restent en
+       font-sans pour la lisibilité. */
+    --font-serif: 'Source Serif 4', ui-serif, Georgia, 'Times New Roman', serif;
+
+    /* Palette institutionnelle EI-MGP — vert + blanc (couleur de marque SODECI). Distincte des
+       couleurs sémantiques (badge et alert ci-dessous), qui encodent un statut ou une gravité et
+       ne doivent pas changer avec la marque. Les gris (slate-*) restent des neutres utilitaires
+       (bordures, texte, séparation de surfaces) — implicites dans toute palette "à 2 couleurs". */
+    --color-brand-green: #00a651;
+    --color-brand-bg: #f8fafc;
+
+    /* Design System V2 (docs/design-system-v2.md) — Option A validée : vert SODECI en primaire,
+       navy/orange en teintes de soutien. Échelles dérivées par conversion HSL, ancrées exactement
+       sur le hex de référence au palier 600. --color-brand-green ci-dessus reste l'alias historique
+       de --color-primary-600 (même valeur) : ne pas dupliquer, les deux pointent au même vert. */
+    --color-primary-50: #effaf5;
+    --color-primary-100: #dff6ea;
+    --color-primary-200: #c6ecd8;
+    --color-primary-300: #94dbb6;
+    --color-primary-400: #59cf92;
+    --color-primary-500: #11d46f;
+    --color-primary-600: #00a651;
+    --color-primary-700: #008a42;
+    --color-primary-800: #006b34;
+    --color-primary-900: #004d25;
+
+    --color-secondary-50: #f4f6fb;
+    --color-secondary-100: #e4ebf6;
+    --color-secondary-200: #c6d3ec;
+    --color-secondary-300: #94aedb;
+    --color-secondary-400: #537cc6;
+    --color-secondary-500: #30579c;
+    --color-secondary-600: #1f3864;
+    --color-secondary-700: #182c4e;
+    --color-secondary-800: #12213b;
+    --color-secondary-900: #0c1627;
+
+    --color-accent-50: #fcf3ee;
+    --color-accent-100: #f8e5d8;
+    --color-accent-200: #f2ceb5;
+    --color-accent-300: #edaa7e;
+    --color-accent-400: #e7813c;
+    --color-accent-500: #e86c17;
+    --color-accent-600: #c55a11;
+    --color-accent-700: #a44b0e;
+    --color-accent-800: #833c0b;
+    --color-accent-900: #5e2b08;
+
+    /* Échelle typographique nommée — remplace le motif ad hoc "text-sm font-semibold"
+       recopié sur ~15 titres de section différents (docs/uiux-redesign.md §3). */
+    --text-display: 2.25rem;
+    --text-display--line-height: 1.15;
+    --text-display--font-weight: 600;
+    --text-h1: 1.75rem;
+    --text-h1--line-height: 1.2;
+    --text-h1--font-weight: 600;
+    --text-h2: 1.25rem;
+    --text-h2--line-height: 1.3;
+    --text-h2--font-weight: 600;
+    --text-h3: 1rem;
+    --text-h3--line-height: 1.4;
+    --text-h3--font-weight: 600;
+    --text-h4: 0.875rem;
+    --text-h4--line-height: 1.4;
+    --text-h4--font-weight: 600;
+    --text-caption: 0.75rem;
+    --text-caption--line-height: 1.4;
+    --text-caption--font-weight: 500;
+    --text-label: 0.6875rem;
+    --text-label--line-height: 1.3;
+    --text-label--font-weight: 600;
+
+    /* Surface flottante (modales, panneau de notifications, command palette) — 4e palier de
+       profondeur, absent du système existant (docs/design-system-v2.md §Profondeur). */
+    --radius-floating: 1rem;
+    --shadow-floating: 0 12px 32px -8px rgba(15, 23, 42, 0.18), 0 4px 8px -2px rgba(15, 23, 42, 0.08);
+}
+
+@layer base {
+    ::selection {
+        @apply bg-brand-green text-white;
+    }
+
+    h1, h2, h3 {
+        @apply tracking-tight;
+    }
+
+    a,
+    button {
+        @apply transition-colors duration-150;
+    }
+
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+        @apply rounded-md border-slate-300 bg-white shadow-sm transition duration-150 ease-out placeholder:text-slate-400;
+    }
+
+    input[type='file'] {
+        @apply cursor-pointer;
+    }
+
+    input[type='checkbox'],
+    input[type='radio'] {
+        @apply border-slate-300 text-slate-900 transition duration-150;
+    }
+}
+
+/* Unlayered on purpose: Tailwind's cascade layers make anything in
+   @layer base lose to utility classes like shadow-sm regardless of
+   :focus specificity, so these focus rings must sit outside @layer. */
+input:not([type='checkbox']):not([type='radio']):focus,
+select:focus,
+textarea:focus {
+    border-color: #94a3b8;
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+    outline: none;
+}
+
+input[type='checkbox']:focus,
+input[type='radio']:focus {
+    box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
+    outline: none;
+}
+
+/* Also unlayered: an !important declaration always wins over a layered one
+   regardless of order, so this is safe anywhere — kept here alongside the
+   focus-ring exception above as the file's one spot for cascade-layer gotchas. */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Entrée douce du panneau de formulaire public (guest.blade.php) — un seul mouvement orchestré
+   au chargement, jamais répété ailleurs. Respecte prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+    .animate-rise-in {
+        animation: rise-in 0.5s ease-out both;
+    }
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@layer components {
+    .card {
+        @apply rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5;
+    }
+
+    .btn {
+        @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .btn-primary {
+        @apply bg-brand-green text-white shadow-sm hover:bg-brand-green/85 hover:shadow-md focus-visible:outline-brand-green;
+    }
+
+    .btn-secondary {
+        @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:outline-slate-400;
+    }
+
+    .btn-danger {
+        @apply bg-red-600 text-white shadow-sm hover:bg-red-500 hover:shadow-md focus-visible:outline-red-600;
+    }
+
+    .btn-warning {
+        @apply bg-amber-600 text-white shadow-sm hover:bg-amber-500 hover:shadow-md focus-visible:outline-amber-600;
+    }
+
+    .btn-block {
+        @apply w-full;
+    }
+
+    .badge {
+        @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset;
+    }
+
+    .badge-slate {
+        @apply bg-slate-100 text-slate-700 ring-slate-600/10;
+    }
+
+    .badge-emerald {
+        @apply bg-emerald-100 text-emerald-700 ring-emerald-600/10;
+    }
+
+    .badge-amber {
+        @apply bg-amber-100 text-amber-800 ring-amber-600/10;
+    }
+
+    .badge-orange {
+        @apply bg-orange-100 text-orange-800 ring-orange-600/10;
+    }
+
+    .badge-red {
+        @apply bg-red-100 text-red-700 ring-red-600/10;
+    }
+
+    .badge-sky {
+        @apply bg-sky-100 text-sky-700 ring-sky-600/10;
+    }
+
+    .badge-indigo {
+        @apply bg-indigo-100 text-indigo-700 ring-indigo-600/10;
+    }
+
+    .alert {
+        @apply rounded-md border px-3 py-2 text-sm;
+    }
+
+    .alert-success {
+        @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+    }
+
+    .alert-error {
+        @apply border-red-200 bg-red-50 text-red-700;
+    }
+
+    .alert-warning {
+        @apply border-amber-200 bg-amber-50 text-amber-800;
+    }
 }

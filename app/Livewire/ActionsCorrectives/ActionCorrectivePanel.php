@@ -78,21 +78,21 @@ class ActionCorrectivePanel extends Component
         }
 
         $this->reset(['investigationId', 'intitule', 'description', 'responsableId', 'echeance']);
-        session()->flash('status', 'Action corrective créée.');
+        $this->dispatch('toast', message: 'Action corrective créée.', type: 'success');
     }
 
     public function demarrer(string $actionId, ActionCorrectiveService $service): void
     {
         $action = $this->actionAutorisee($actionId, 'update');
         $service->changerStatut($action, StatutActionCorrective::EnCours);
-        session()->flash('status', 'Action corrective démarrée.');
+        $this->dispatch('toast', message: 'Action corrective démarrée.', type: 'success');
     }
 
     public function marquerRealisee(string $actionId, ActionCorrectiveService $service): void
     {
         $action = $this->actionAutorisee($actionId, 'update');
         $service->changerStatut($action, StatutActionCorrective::Realisee);
-        session()->flash('status', 'Action corrective marquée réalisée.');
+        $this->dispatch('toast', message: 'Action corrective marquée réalisée.', type: 'success');
     }
 
     public function ouvrirVerification(string $actionId): void
@@ -121,14 +121,14 @@ class ActionCorrectivePanel extends Component
 
         $this->actionEnVerificationId = null;
         $this->commentaireVerification = '';
-        session()->flash('status', 'Efficacité de l\'action corrective vérifiée.');
+        $this->dispatch('toast', message: 'Efficacité de l\'action corrective vérifiée.', type: 'success');
     }
 
     public function cloturerAction(string $actionId, ActionCorrectiveService $service): void
     {
         $action = $this->actionAutorisee($actionId, 'close');
         $service->cloturer($action, Auth::user());
-        session()->flash('status', 'Action corrective clôturée.');
+        $this->dispatch('toast', message: 'Action corrective clôturée.', type: 'success');
     }
 
     private function actionViergePourCreation(): ActionCorrective

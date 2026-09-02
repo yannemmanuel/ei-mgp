@@ -71,7 +71,7 @@ class InvestigationDetailPage extends Component
         ]);
 
         $this->investigation->refresh();
-        session()->flash('status', 'Investigation mise à jour.');
+        $this->dispatch('toast', message: 'Investigation mise à jour.', type: 'success');
     }
 
     public function soumettrePourValidation(InvestigationService $service): void
@@ -87,7 +87,7 @@ class InvestigationDetailPage extends Component
         }
 
         $this->investigation->refresh();
-        session()->flash('status', 'Investigation soumise pour validation hiérarchique.');
+        $this->dispatch('toast', message: 'Investigation soumise pour validation hiérarchique.', type: 'success');
     }
 
     public function valider(InvestigationService $service): void
@@ -97,11 +97,12 @@ class InvestigationDetailPage extends Component
         $service->valider($this->investigation, Auth::user());
 
         $this->investigation->refresh();
-        session()->flash('status', 'Investigation validée.');
+        $this->dispatch('toast', message: 'Investigation validée.', type: 'success');
     }
 
     public function render()
     {
-        return view('livewire.investigations.investigation-detail-page');
+        return view('livewire.investigations.investigation-detail-page')
+            ->layout('components.layouts.app', ['title' => 'Investigation — '.$this->dossier->reference]);
     }
 }

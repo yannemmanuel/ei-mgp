@@ -50,6 +50,7 @@ class NotificationTemplatesAdmin extends Component
         $this->corps = $template->corps;
         $this->destinatairesSupplementaires = implode(', ', $template->destinataires_email_supplementaires ?? []);
         $this->actif = $template->actif;
+        $this->dispatch('open-modal', name: 'notification-template-form');
     }
 
     public function annulerEdition(): void
@@ -57,6 +58,7 @@ class NotificationTemplatesAdmin extends Component
         $this->reset(['templateEnEditionId', 'evenementCode', 'parcoursId', 'objet', 'corps', 'destinatairesSupplementaires']);
         $this->canal = 'outil';
         $this->actif = true;
+        $this->dispatch('close-modal', name: 'notification-template-form');
     }
 
     public function enregistrer(): void
@@ -92,10 +94,10 @@ class NotificationTemplatesAdmin extends Component
 
         if ($this->templateEnEditionId !== null) {
             NotificationTemplate::findOrFail($this->templateEnEditionId)->update($donnees);
-            session()->flash('status', 'Gabarit mis à jour.');
+            $this->dispatch('toast', message: 'Gabarit mis à jour.', type: 'success');
         } else {
             NotificationTemplate::create($donnees);
-            session()->flash('status', 'Gabarit créé.');
+            $this->dispatch('toast', message: 'Gabarit créé.', type: 'success');
         }
 
         $this->annulerEdition();
@@ -121,6 +123,7 @@ class NotificationTemplatesAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.notification-templates-admin');
+        return view('livewire.administration.notification-templates-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Modèles de notification']);
     }
 }

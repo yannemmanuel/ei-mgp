@@ -4,8 +4,11 @@ namespace App\Livewire\Administration;
 
 use App\Models\Parcours;
 use App\Models\QrCode;
+use Endroid\QrCode\Builder\Builder;
+use Endroid\QrCode\Writer\SvgWriter;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -56,7 +59,7 @@ class QrCodesAdmin extends Component
             'genere_le' => now(),
         ]);
 
-        session()->flash('status', 'QR code généré.');
+        $this->dispatch('toast', message: 'QR code généré.', type: 'success');
         $this->reset(['parcoursId']);
     }
 
@@ -66,7 +69,7 @@ class QrCodesAdmin extends Component
 
         QrCode::findOrFail($this->qrCodeEnEditionId)->update(['url_cible' => $this->urlCible]);
 
-        session()->flash('status', 'URL cible mise à jour.');
+        $this->dispatch('toast', message: 'URL cible mise à jour.', type: 'success');
         $this->annulerEdition();
     }
 
@@ -77,6 +80,29 @@ class QrCodesAdmin extends Component
             'actif' => ! $qrCode->actif,
             'desactive_le' => $qrCode->actif ? now() : null,
         ]);
+    }
+
+    /**
+     * Rendu SVG à la volée (data URI) — aucune écriture disque, pas de nouvelle route. Mis en
+     * cache indéfiniment par token : le contenu encodé est la route de redirection
+     * `/q/{token}`, jamais `url_cible` (c'est tout l'intérêt de l'indirection — réorienter un QR
+     * physique déjà imprimé sans le régénérer, cf. docblock de classe) — donc un token donné
+     * produit TOUJOURS le même SVG, pas d'invalidation à prévoir. Sans ce cache, une page listant
+     * N QR codes relance N générations Endroid synchrones à chaque chargement ; sur cet
+     * environnement déjà sujet à des dépassements de "Maximum execution time" sous charge, c'est
+     * un vrai risque de fiabilité, pas seulement une micro-optimisation.
+     */
+    public function qrCodeDataUri(QrCode $qrCode): string
+    {
+        return Cache::rememberForever(
+            "qr-code-svg:{$qrCode->token}",
+            fn () => (new Builder(
+                writer: new SvgWriter,
+                data: route('qr.redirect', $qrCode->token),
+                size: 160,
+                margin: 4,
+            ))->build()->getDataUri()
+        );
     }
 
     /** @return Collection<int, QrCode> */
@@ -93,6 +119,7 @@ class QrCodesAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.qr-codes-admin');
+        return view('livewire.administration.qr-codes-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — QR codes']);
     }
 }

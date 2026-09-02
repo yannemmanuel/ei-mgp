@@ -93,8 +93,29 @@ class GriefSousTraitantForm extends DeclarationFormBase
         ];
     }
 
+    protected function champsIdentiteSpecifiques(): array
+    {
+        return ['nomPrenom', 'entreprise', 'fonction', 'contactEmail', 'contactTelephone', 'consentementRgpd'];
+    }
+
+    protected function champsContexteSpecifiques(): array
+    {
+        return [
+            'lieuSite', 'dateHeureFaits', 'personnesOuServicesImpliques',
+            'temoinsEventuels', 'souhaitEtreInforme', 'canalRetourSouhaite',
+        ];
+    }
+
     public function render()
     {
-        return view('livewire.declaration.grief-sous-traitant-form');
+        return view('livewire.declaration.grief-sous-traitant-form')
+            ->layout('components.layouts.guest', [
+                'title' => 'Grief / plainte — Sous-traitant',
+                'maxWidth' => 'max-w-2xl',
+                'heroTitle' => 'Un canal direct pour les entreprises sous-traitantes.',
+                'heroSubtitle' => 'Signalez une difficulté liée à votre contrat ou à vos conditions de travail sur site.',
+                'steps' => DeclarationFormBase::ETAPES,
+                ...$this->donneesProgressionLayout(),
+            ]);
     }
 }

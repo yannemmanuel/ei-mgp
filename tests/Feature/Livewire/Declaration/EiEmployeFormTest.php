@@ -32,7 +32,12 @@ it('renders successfully on the public route (EX-DEC-02)', function () {
 });
 
 it('caches categories/niveaux de gravité across page loads instead of re-querying (Phase 15, DT-34)', function () {
+    // Réchauffer EXPLICITEMENT les deux clés de cache : ne jamais dépendre du fait que le rendu
+    // initial du composant lise l'une ou l'autre en effet de bord. Le wizard en 4 étapes ne rend
+    // que l'étape courante — le sélecteur de gravité (étape 3) n'est pas rendu au montage, et un
+    // échauffement implicite laisserait ce test mesurer un premier chargement au lieu du cache.
     Livewire::test(EiEmployeForm::class)->get('categoriesDisponibles');
+    Livewire::test(EiEmployeForm::class)->get('niveauxGraviteDisponibles');
 
     DB::enableQueryLog();
     Livewire::test(EiEmployeForm::class)->get('categoriesDisponibles');

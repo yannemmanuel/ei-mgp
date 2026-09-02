@@ -33,12 +33,14 @@ class CanauxAdmin extends Component
         $this->canalEnEditionId = $canal->id;
         $this->libelle = $canal->libelle;
         $this->actif = $canal->actif;
+        $this->dispatch('open-modal', name: 'canal-form');
     }
 
     public function annulerEdition(): void
     {
         $this->reset(['canalEnEditionId', 'libelle']);
         $this->actif = true;
+        $this->dispatch('close-modal', name: 'canal-form');
     }
 
     public function enregistrer(): void
@@ -50,7 +52,7 @@ class CanauxAdmin extends Component
             'actif' => $this->actif,
         ]);
 
-        session()->flash('status', 'Canal mis à jour.');
+        $this->dispatch('toast', message: 'Canal mis à jour.', type: 'success');
         $this->annulerEdition();
     }
 
@@ -62,6 +64,7 @@ class CanauxAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.canaux-admin');
+        return view('livewire.administration.canaux-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Canaux de captage']);
     }
 }

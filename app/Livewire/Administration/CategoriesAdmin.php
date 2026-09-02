@@ -47,6 +47,7 @@ class CategoriesAdmin extends Component
         $this->isAutre = $categorie->is_autre;
         $this->actif = $categorie->actif;
         $this->ordre = (string) $categorie->ordre;
+        $this->dispatch('open-modal', name: 'categorie-form');
     }
 
     public function annulerEdition(): void
@@ -54,6 +55,7 @@ class CategoriesAdmin extends Component
         $this->reset(['categorieEnEditionId', 'parcoursId', 'code', 'libelle', 'isAutre', 'ordre']);
         $this->actif = true;
         $this->ordre = '1';
+        $this->dispatch('close-modal', name: 'categorie-form');
     }
 
     public function enregistrer(): void
@@ -76,10 +78,10 @@ class CategoriesAdmin extends Component
 
         if ($this->categorieEnEditionId !== null) {
             Categorie::findOrFail($this->categorieEnEditionId)->update($donnees);
-            session()->flash('status', 'Catégorie mise à jour.');
+            $this->dispatch('toast', message: 'Catégorie mise à jour.', type: 'success');
         } else {
             Categorie::create($donnees);
-            session()->flash('status', 'Catégorie créée.');
+            $this->dispatch('toast', message: 'Catégorie créée.', type: 'success');
         }
 
         $this->annulerEdition();
@@ -99,6 +101,7 @@ class CategoriesAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.categories-admin');
+        return view('livewire.administration.categories-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Catégories']);
     }
 }

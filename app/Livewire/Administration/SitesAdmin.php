@@ -32,12 +32,14 @@ class SitesAdmin extends Component
         $this->code = $site->code;
         $this->libelle = $site->libelle;
         $this->actif = $site->actif;
+        $this->dispatch('open-modal', name: 'site-form');
     }
 
     public function annulerEdition(): void
     {
         $this->reset(['siteEnEditionId', 'code', 'libelle']);
         $this->actif = true;
+        $this->dispatch('close-modal', name: 'site-form');
     }
 
     public function enregistrer(): void
@@ -51,10 +53,10 @@ class SitesAdmin extends Component
 
         if ($this->siteEnEditionId !== null) {
             Site::findOrFail($this->siteEnEditionId)->update($donnees);
-            session()->flash('status', 'Site mis à jour.');
+            $this->dispatch('toast', message: 'Site mis à jour.', type: 'success');
         } else {
             Site::create($donnees);
-            session()->flash('status', 'Site créé.');
+            $this->dispatch('toast', message: 'Site créé.', type: 'success');
         }
 
         $this->annulerEdition();
@@ -68,6 +70,7 @@ class SitesAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.sites-admin');
+        return view('livewire.administration.sites-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Sites']);
     }
 }

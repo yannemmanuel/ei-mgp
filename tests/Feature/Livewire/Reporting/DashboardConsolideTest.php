@@ -24,7 +24,7 @@ it('shows a personal summary, never a 403, to a user without reporting.view', fu
 
     $this->actingAs($rqse)->get(route('dashboard'))
         ->assertOk()
-        ->assertSee('Bienvenue')
+        ->assertSee('Bonjour')
         ->assertDontSee('Tableau de bord consolidé');
 });
 

@@ -38,12 +38,14 @@ class StatutsAdmin extends Component
         $this->libelleInterne = $statut->libelle_interne;
         $this->libelleAffiche = $statut->libelle_affiche;
         $this->ordre = (string) $statut->ordre;
+        $this->dispatch('open-modal', name: 'statut-form');
     }
 
     public function annulerEdition(): void
     {
         $this->reset(['statutEnEditionId', 'libelleInterne', 'libelleAffiche']);
         $this->ordre = '1';
+        $this->dispatch('close-modal', name: 'statut-form');
     }
 
     public function enregistrer(): void
@@ -60,7 +62,7 @@ class StatutsAdmin extends Component
             'ordre' => (int) $this->ordre,
         ]);
 
-        session()->flash('status', 'Statut mis à jour.');
+        $this->dispatch('toast', message: 'Statut mis à jour.', type: 'success');
         $this->annulerEdition();
     }
 
@@ -72,6 +74,7 @@ class StatutsAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.statuts-admin');
+        return view('livewire.administration.statuts-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Statuts affichés']);
     }
 }

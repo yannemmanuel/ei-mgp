@@ -98,8 +98,34 @@ class GriefEmployeForm extends DeclarationFormBase
         ];
     }
 
+    protected function champsIdentiteSpecifiques(): array
+    {
+        return ['nomPrenom', 'matricule', 'posteOccupe', 'ancienneteAnnees', 'contactEmail', 'contactTelephone'];
+    }
+
+    protected function champsContexteSpecifiques(): array
+    {
+        return [
+            'caractereRepetitif', 'dateHeureFaits', 'lieu',
+            'personnesImpliquees', 'temoinsEventuels', 'souhaitEtreRecontacte', 'preferenceCanalRetour',
+        ];
+    }
+
+    protected function champsNatureSpecifiques(): array
+    {
+        return ['resultatSouhaite'];
+    }
+
     public function render()
     {
-        return view('livewire.declaration.grief-employe-form');
+        return view('livewire.declaration.grief-employe-form')
+            ->layout('components.layouts.guest', [
+                'title' => 'Grief / plainte — Employé',
+                'maxWidth' => 'max-w-2xl',
+                'heroTitle' => 'Exprimer un désaccord, sans crainte de représailles.',
+                'heroSubtitle' => 'Ce canal est protégé : votre plainte est traitée avec discrétion, que vous choisissiez de vous identifier ou non.',
+                'steps' => DeclarationFormBase::ETAPES,
+                ...$this->donneesProgressionLayout(),
+            ]);
     }
 }

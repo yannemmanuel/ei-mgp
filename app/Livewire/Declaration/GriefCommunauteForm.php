@@ -83,8 +83,31 @@ class GriefCommunauteForm extends DeclarationFormBase
         ];
     }
 
+    protected function champsIdentiteSpecifiques(): array
+    {
+        return ['nomPrenom', 'contactEmail', 'contactTelephone', 'localite'];
+    }
+
+    protected function champsContexteSpecifiques(): array
+    {
+        return ['statutPlaignant', 'dateSurvenance', 'lieu', 'personnesBiensAffectes'];
+    }
+
+    protected function champsNatureSpecifiques(): array
+    {
+        return ['solutionSouhaitee'];
+    }
+
     public function render()
     {
-        return view('livewire.declaration.grief-communaute-form');
+        return view('livewire.declaration.grief-communaute-form')
+            ->layout('components.layouts.guest', [
+                'title' => 'Grief / plainte — Communauté',
+                'maxWidth' => 'max-w-2xl',
+                'heroTitle' => 'Une préoccupation liée au site ? Nous vous écoutons.',
+                'heroSubtitle' => 'Riverains, chefs coutumiers, associations : ce formulaire est ouvert à tous, sans compte à créer.',
+                'steps' => DeclarationFormBase::ETAPES,
+                ...$this->donneesProgressionLayout(),
+            ]);
     }
 }

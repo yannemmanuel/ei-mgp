@@ -1,5 +1,5 @@
-<x-layouts.guest title="Suivi de ma déclaration" max-width="max-w-lg">
-    <h1 class="mb-1 text-lg font-semibold text-slate-900">Suivi de ma déclaration</h1>
+<div>
+    <h1 class="mb-1 font-serif text-xl text-slate-900">Suivi de ma déclaration</h1>
 
     @if (! $this->dossier)
         <p class="mb-6 text-sm text-slate-500">
@@ -32,4 +32,4 @@
 
         <livewire:messagerie.messagerie-dossier :dossier="$this->dossier" :key="'messagerie-'.$this->dossier->id" />
     @endif
-</x-layouts.guest>
+</div>

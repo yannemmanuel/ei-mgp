@@ -75,7 +75,8 @@ class DossierDetailPage extends Component
         }
 
         $this->rafraichir();
-        session()->flash('status', 'Dossier réaffecté.');
+        $this->dispatch('toast', message: 'Dossier réaffecté.', type: 'success');
+        $this->dispatch('close-modal', name: 'reaffecter-dossier');
     }
 
     public function changerStatut(DossierWorkflowService $workflow): void
@@ -92,7 +93,8 @@ class DossierDetailPage extends Component
         );
 
         $this->rafraichir();
-        session()->flash('status', 'Statut mis à jour.');
+        $this->dispatch('toast', message: 'Statut mis à jour.', type: 'success');
+        $this->dispatch('close-modal', name: 'changer-statut');
     }
 
     public function rejeter(DossierWorkflowService $workflow): void
@@ -104,7 +106,8 @@ class DossierDetailPage extends Component
         $workflow->rejeter($this->dossier, Auth::user(), $this->motifRejet);
 
         $this->rafraichir();
-        session()->flash('status', 'Dossier rejeté (non recevable).');
+        $this->dispatch('toast', message: 'Dossier rejeté (non recevable).', type: 'success');
+        $this->dispatch('close-modal', name: 'rejeter-dossier');
     }
 
     public function cloturer(DossierWorkflowService $workflow): void
@@ -122,7 +125,8 @@ class DossierDetailPage extends Component
         }
 
         $this->rafraichir();
-        session()->flash('status', 'Dossier clôturé.');
+        $this->dispatch('toast', message: 'Dossier clôturé.', type: 'success');
+        $this->dispatch('close-modal', name: 'cloturer-dossier');
     }
 
     public function reouvrir(DossierWorkflowService $workflow): void
@@ -134,7 +138,8 @@ class DossierDetailPage extends Component
         $workflow->reouvrir($this->dossier, Auth::user(), $this->motifReouverture);
 
         $this->rafraichir();
-        session()->flash('status', 'Dossier réouvert.');
+        $this->dispatch('toast', message: 'Dossier réouvert.', type: 'success');
+        $this->dispatch('close-modal', name: 'reouvrir-dossier');
     }
 
     public function getTransitionsDisponiblesProperty()
@@ -203,11 +208,18 @@ class DossierDetailPage extends Component
 
         $this->dossier->update(['contentieux' => ! $this->dossier->contentieux]);
         $this->rafraichir();
-        session()->flash('status', $this->dossier->contentieux ? 'Dossier marqué en contentieux : anonymisation automatique bloquée.' : 'Blocage contentieux levé.');
+        $this->dispatch(
+            'toast',
+            message: $this->dossier->contentieux
+                ? 'Dossier marqué en contentieux : anonymisation automatique bloquée.'
+                : 'Blocage contentieux levé.',
+            type: 'success',
+        );
     }
 
     public function render()
     {
-        return view('livewire.dossiers.dossier-detail-page');
+        return view('livewire.dossiers.dossier-detail-page')
+            ->layout('components.layouts.app', ['title' => 'Dossier '.$this->dossier->reference]);
     }
 }

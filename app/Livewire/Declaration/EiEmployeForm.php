@@ -90,8 +90,31 @@ class EiEmployeForm extends DeclarationFormBase
         ];
     }
 
+    protected function champsIdentiteSpecifiques(): array
+    {
+        return ['matricule', 'nomPrenom', 'directionId', 'posteOccupe', 'contactEmail', 'contactTelephone'];
+    }
+
+    protected function champsContexteSpecifiques(): array
+    {
+        return ['dateSurvenance', 'lieu'];
+    }
+
+    protected function champsNatureSpecifiques(): array
+    {
+        return ['propositionMesureCorrective'];
+    }
+
     public function render()
     {
-        return view('livewire.declaration.ei-employe-form');
+        return view('livewire.declaration.ei-employe-form')
+            ->layout('components.layouts.guest', [
+                'title' => 'Événement indésirable — Employé',
+                'maxWidth' => 'max-w-2xl',
+                'heroTitle' => 'Signaler une situation à risque, en toute confidentialité.',
+                'heroSubtitle' => 'Un poste ou une pratique dangereuse ? Décrivez ce que vous avez constaté — avec ou sans votre nom.',
+                'steps' => DeclarationFormBase::ETAPES,
+                ...$this->donneesProgressionLayout(),
+            ]);
     }
 }

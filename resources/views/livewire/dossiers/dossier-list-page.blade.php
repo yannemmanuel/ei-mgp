@@ -1,15 +1,13 @@
-<x-layouts.app title="Dossiers">
+<div>
     <div class="mb-6 flex items-center justify-between">
-        <h1 class="text-lg font-semibold text-slate-900">Dossiers</h1>
+        <h1 class="text-h1 text-slate-900">Dossiers</h1>
+        <label class="flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" wire:model.live="assigneAMoi">
+            Mes dossiers uniquement
+        </label>
     </div>
 
-    @session('status')
-        <div class="mb-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            {{ $value }}
-        </div>
-    @endsession
-
-    <div class="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3 lg:grid-cols-6">
+<div class="card mb-6 grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
         <div>
             <label class="block text-xs font-medium text-slate-500">Parcours</label>
             <select wire:model.live="parcoursId" class="mt-1 block w-full rounded-md border-slate-300 text-sm">
@@ -60,7 +58,9 @@
         <button type="button" wire:click="resetFiltres" class="text-sm text-slate-500 hover:text-slate-900">Réinitialiser les filtres</button>
     </div>
 
-    <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    {{-- Desktop : tableau complet. En dessous de lg, un tableau large scrolle horizontalement --
+         moins lisible au doigt qu'une liste de cartes (docs/audit-frontend-2026-08-29.md §3). --}}
+    <div class="card hidden overflow-x-auto lg:block">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead class="bg-slate-50">
                 <tr>
@@ -76,31 +76,26 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 @forelse ($this->dossiers as $dossier)
-                    <tr wire:key="dossier-{{ $dossier->id }}" class="hover:bg-slate-50">
+                    <tr wire:key="dossier-{{ $dossier->id }}" class="transition-colors hover:bg-slate-50">
                         <td class="px-4 py-2 font-mono text-xs text-slate-700">{{ $dossier->reference }}</td>
                         <td class="px-4 py-2 text-slate-600">{{ $dossier->parcours->libelle }}</td>
                         <td class="px-4 py-2 text-slate-600">{{ $dossier->categorie->libelle }}</td>
                         <td class="px-4 py-2">
-                            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium text-white"
-                                  style="background-color: {{ $dossier->niveauGravite->couleur ?? '#64748b' }}">
-                                {{ $dossier->niveauGravite->libelle }}
-                            </span>
+                            <x-gravite-badge :niveau="$dossier->niveauGravite" />
                         </td>
                         <td class="px-4 py-2">
-                            <span class="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                                {{ $dossier->statut->libelle_interne }}
-                            </span>
+                            <x-statut-badge :statut="$dossier->statut" />
                         </td>
                         <td class="px-4 py-2">
                             @php $joursRestants = $this->joursRestants($dossier); @endphp
                             @if ($joursRestants === null)
                                 <span class="text-xs text-slate-400">—</span>
                             @elseif ($joursRestants < 0)
-                                <span class="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                <span class="badge badge-red">
                                     En retard ({{ abs($joursRestants) }} j)
                                 </span>
                             @elseif ($joursRestants <= 3)
-                                <span class="inline-flex items-center rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                <span class="badge badge-amber">
                                     J-{{ $joursRestants }}
                                 </span>
                             @else
@@ -109,21 +104,63 @@
                         </td>
                         <td class="px-4 py-2 text-slate-500">{{ $dossier->created_at->format('d/m/Y') }}</td>
                         <td class="px-4 py-2 text-right">
-                            <a href="{{ route('dossiers.show', $dossier) }}" class="font-medium text-slate-700 hover:text-slate-900">
+                            <a href="{{ route('dossiers.show', $dossier) }}" wire:navigate class="font-medium text-slate-700 hover:text-slate-900">
                                 Consulter →
                             </a>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-400">Aucun dossier ne correspond à ces critères.</td>
+                        <td colspan="8">
+                            <x-empty-state title="Aucun dossier ne correspond à ces critères.">
+                                <x-slot:icon><x-icons.inbox class="h-10 w-10" /></x-slot:icon>
+                            </x-empty-state>
+                        </td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 
+    {{-- Mobile/tablette : liste de cartes, une carte = une ligne, toute la carte cliquable
+         (cible tactile large plutôt qu'un lien "Consulter" isolé). --}}
+    <div class="card divide-y divide-slate-100 lg:hidden">
+        @forelse ($this->dossiers as $dossier)
+            @php $joursRestants = $this->joursRestants($dossier); @endphp
+            <a href="{{ route('dossiers.show', $dossier) }}" wire:navigate wire:key="dossier-card-{{ $dossier->id }}"
+               class="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50">
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="font-mono text-xs text-slate-500">{{ $dossier->reference }}</span>
+                        <x-gravite-badge :niveau="$dossier->niveauGravite" />
+                        <x-statut-badge :statut="$dossier->statut" />
+                    </div>
+                    <p class="mt-1 truncate text-sm font-medium text-slate-900">
+                        {{ $dossier->parcours->libelle }} · {{ $dossier->categorie->libelle }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-slate-500">
+                        Reçu le {{ $dossier->created_at->format('d/m/Y') }}
+                        @if ($joursRestants !== null)
+                            @if ($joursRestants < 0)
+                                · <span class="font-medium text-red-600">en retard ({{ abs($joursRestants) }} j)</span>
+                            @elseif ($joursRestants <= 3)
+                                · <span class="font-medium text-amber-600">J-{{ $joursRestants }}</span>
+                            @else
+                                · {{ $joursRestants }} j restants
+                            @endif
+                        @endif
+                    </p>
+                </div>
+                <x-icons.chevron-right class="h-4 w-4 shrink-0 text-slate-300" />
+            </a>
+        @empty
+            <x-empty-state title="Aucun dossier ne correspond à ces critères.">
+                <x-slot:icon><x-icons.inbox class="h-10 w-10" /></x-slot:icon>
+            </x-empty-state>
+        @endforelse
+    </div>
+
     <div class="mt-4">
         {{ $this->dossiers->links() }}
     </div>
-</x-layouts.app>
+</div>

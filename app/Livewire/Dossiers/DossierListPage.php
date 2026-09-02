@@ -44,6 +44,10 @@ class DossierListPage extends Component
     #[Url]
     public string $periodeFin = '';
 
+    /** Raccourci "Mes dossiers" (docs/page-redesign-map.md §3) — filtre additif, comportement par défaut inchangé. */
+    #[Url]
+    public bool $assigneAMoi = false;
+
     public function mount(): void
     {
         $this->authorize('viewAny', Dossier::class);
@@ -56,7 +60,7 @@ class DossierListPage extends Component
 
     public function resetFiltres(): void
     {
-        $this->reset(['parcoursId', 'categorieId', 'statutId', 'niveauGraviteId', 'periodeDebut', 'periodeFin']);
+        $this->reset(['parcoursId', 'categorieId', 'statutId', 'niveauGraviteId', 'periodeDebut', 'periodeFin', 'assigneAMoi']);
     }
 
     protected function perimetre(): Builder
@@ -91,6 +95,10 @@ class DossierListPage extends Component
             ->when($this->niveauGraviteId !== '', fn (Builder $q) => $q->where('niveau_gravite_id', $this->niveauGraviteId))
             ->when($this->periodeDebut !== '', fn (Builder $q) => $q->whereDate('created_at', '>=', $this->periodeDebut))
             ->when($this->periodeFin !== '', fn (Builder $q) => $q->whereDate('created_at', '<=', $this->periodeFin))
+            ->when($this->assigneAMoi, fn (Builder $q) => $q->whereHas(
+                'affectations',
+                fn (Builder $q2) => $q2->where('user_id', Auth::id())->where('actif', true)
+            ))
             ->orderByDesc('created_at')
             ->paginate(20);
     }
@@ -127,6 +135,7 @@ class DossierListPage extends Component
 
     public function render()
     {
-        return view('livewire.dossiers.dossier-list-page');
+        return view('livewire.dossiers.dossier-list-page')
+            ->layout('components.layouts.app', ['title' => 'Dossiers']);
     }
 }

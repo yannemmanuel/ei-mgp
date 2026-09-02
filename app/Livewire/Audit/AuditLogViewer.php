@@ -62,6 +62,7 @@ class AuditLogViewer extends Component
 
     public function render()
     {
-        return view('livewire.audit.audit-log-viewer');
+        return view('livewire.audit.audit-log-viewer')
+            ->layout('components.layouts.app', ['title' => "Journal d'audit"]);
     }
 }

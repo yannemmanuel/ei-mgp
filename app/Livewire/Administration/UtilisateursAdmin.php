@@ -66,6 +66,7 @@ class UtilisateursAdmin extends Component
         $this->actif = $utilisateur->actif;
         $this->rolesSelectionnes = $utilisateur->getRoleNames()->toArray();
         $this->motDePasseGenere = null;
+        $this->dispatch('open-modal', name: 'utilisateur-form');
     }
 
     public function annulerEdition(): void
@@ -76,6 +77,7 @@ class UtilisateursAdmin extends Component
         ]);
         $this->actif = true;
         $this->motDePasseGenere = null;
+        $this->dispatch('close-modal', name: 'utilisateur-form');
     }
 
     public function enregistrer(): void
@@ -115,7 +117,7 @@ class UtilisateursAdmin extends Component
             $utilisateur = User::findOrFail($this->utilisateurEnEditionId);
             $rolesAvant = $utilisateur->getRoleNames()->all();
             $utilisateur->update($donnees);
-            session()->flash('status', 'Utilisateur mis à jour.');
+            $this->dispatch('toast', message: 'Utilisateur mis à jour.', type: 'success');
         } else {
             $motDePasse = Str::password(12);
             $utilisateur = User::create([
@@ -125,7 +127,7 @@ class UtilisateursAdmin extends Component
             ]);
             $rolesAvant = [];
             $this->motDePasseGenere = $motDePasse;
-            session()->flash('status', 'Utilisateur créé.');
+            $this->dispatch('toast', message: 'Utilisateur créé.', type: 'success');
         }
 
         $utilisateur->syncRoles($this->rolesSelectionnes);
@@ -192,6 +194,7 @@ class UtilisateursAdmin extends Component
 
     public function render()
     {
-        return view('livewire.administration.utilisateurs-admin');
+        return view('livewire.administration.utilisateurs-admin')
+            ->layout('components.layouts.app', ['title' => 'Administration — Utilisateurs']);
     }
 }

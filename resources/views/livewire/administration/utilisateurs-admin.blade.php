@@ -1,25 +1,70 @@
-<x-layouts.app title="Administration — Utilisateurs">
-    <div class="mb-6">
-        <a href="{{ route('administration.index') }}" class="text-sm text-slate-500 hover:text-slate-900">← Administration</a>
-        <h1 class="mt-1 text-lg font-semibold text-slate-900">Utilisateurs</h1>
+<div>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <x-breadcrumb :items="[['label' => 'Administration', 'url' => route('administration.index')], ['label' => 'Utilisateurs']]" />
+            <h1 class="text-h1 text-slate-900">Utilisateurs</h1>
+        </div>
+        <button type="button" x-on:click="$dispatch('open-modal', { name: 'utilisateur-form' })" class="btn btn-primary">
+            + Nouvel utilisateur
+        </button>
     </div>
 
-    @session('status')
-        <div class="alert alert-success mb-4">{{ $value }}</div>
-    @endsession
-
-    @if ($motDePasseGenere)
+@if ($motDePasseGenere)
         <div class="alert alert-warning mb-4">
             Mot de passe initial généré : <span class="font-mono font-semibold">{{ $motDePasseGenere }}</span>
             — communiquez-le à l'utilisateur, il pourra le modifier via « Mot de passe oublié ».
         </div>
     @endif
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="card p-5 lg:col-span-1">
-            <h2 class="mb-3 text-sm font-semibold text-slate-900">
-                {{ $utilisateurEnEditionId ? 'Modifier l\'utilisateur' : 'Créer un utilisateur' }}
-            </h2>
+    <div class="card p-5">
+        <input type="text" wire:model.live.debounce.300ms="recherche" placeholder="Rechercher par nom ou email..."
+               class="mb-3 block w-full text-sm">
+
+        <table class="w-full text-left text-sm">
+            <thead>
+                <tr class="border-b border-slate-100 text-xs text-slate-500">
+                    <th class="pb-2">Nom</th>
+                    <th class="pb-2">Rôles</th>
+                    <th class="pb-2">Statut</th>
+                    <th class="pb-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($this->utilisateurs as $utilisateur)
+                    <tr class="border-b border-slate-50">
+                        <td class="py-2">
+                            <p class="font-medium text-slate-900">{{ $utilisateur->name }}</p>
+                            <p class="text-xs text-slate-500">{{ $utilisateur->email }}</p>
+                        </td>
+                        <td class="py-2">
+                            @foreach ($utilisateur->roles as $role)
+                                <span class="badge badge-slate">{{ $role->name }}</span>
+                            @endforeach
+                        </td>
+                        <td class="py-2">
+                            <x-actif-badge :actif="$utilisateur->actif" />
+                        </td>
+                        <td class="py-2 text-right">
+                            <button type="button" wire:click="modifier('{{ $utilisateur->id }}')" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+                                Modifier
+                            </button>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4">
+                            <x-empty-state title="Aucun utilisateur ne correspond à cette recherche.">
+                                <x-slot:icon><x-icons.inbox class="h-10 w-10" /></x-slot:icon>
+                            </x-empty-state>
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+
+    <div x-on:close-modal.window="if ($event.detail.name === 'utilisateur-form') $wire.annulerEdition()">
+        <x-modal name="utilisateur-form" :title="$utilisateurEnEditionId ? 'Modifier l\'utilisateur' : 'Créer un utilisateur'">
             <form wire:submit="enregistrer" class="space-y-2">
                 <label class="block text-xs font-medium text-slate-500">Nom *</label>
                 <input type="text" wire:model="name" class="block w-full text-sm">
@@ -75,56 +120,13 @@
                     @endforeach
                 </div>
 
-                <div class="flex gap-2 pt-2">
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" wire:click="annulerEdition" class="btn btn-secondary">Annuler</button>
                     <button type="submit" class="btn btn-primary">
                         {{ $utilisateurEnEditionId ? 'Enregistrer' : 'Créer' }}
                     </button>
-                    @if ($utilisateurEnEditionId)
-                        <button type="button" wire:click="annulerEdition" class="btn btn-secondary">Annuler</button>
-                    @endif
                 </div>
             </form>
-        </div>
-
-        <div class="card p-5 lg:col-span-2">
-            <input type="text" wire:model.live.debounce.300ms="recherche" placeholder="Rechercher par nom ou email..."
-                   class="mb-3 block w-full text-sm">
-
-            <table class="w-full text-left text-sm">
-                <thead>
-                    <tr class="border-b border-slate-100 text-xs text-slate-500">
-                        <th class="pb-2">Nom</th>
-                        <th class="pb-2">Rôles</th>
-                        <th class="pb-2">Statut</th>
-                        <th class="pb-2"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($this->utilisateurs as $utilisateur)
-                        <tr class="border-b border-slate-50">
-                            <td class="py-2">
-                                <p class="font-medium text-slate-900">{{ $utilisateur->name }}</p>
-                                <p class="text-xs text-slate-500">{{ $utilisateur->email }}</p>
-                            </td>
-                            <td class="py-2">
-                                @foreach ($utilisateur->roles as $role)
-                                    <span class="badge badge-slate">{{ $role->name }}</span>
-                                @endforeach
-                            </td>
-                            <td class="py-2">
-                                <span class="badge {{ $utilisateur->actif ? 'badge-emerald' : 'badge-red' }}">
-                                    {{ $utilisateur->actif ? 'Actif' : 'Inactif' }}
-                                </span>
-                            </td>
-                            <td class="py-2 text-right">
-                                <button type="button" wire:click="modifier('{{ $utilisateur->id }}')" class="text-sm font-medium text-slate-600 hover:text-slate-900">
-                                    Modifier
-                                </button>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+        </x-modal>
     </div>
-</x-layouts.app>
+</div>

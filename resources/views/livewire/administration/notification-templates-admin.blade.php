@@ -1,21 +1,60 @@
-<x-layouts.app title="Administration — Modèles de notification">
-    <div class="mb-6">
-        <a href="{{ route('administration.index') }}" class="text-sm text-slate-500 hover:text-slate-900">← Administration</a>
-        <h1 class="mt-1 text-lg font-semibold text-slate-900">Modèles de notification</h1>
-        <p class="mt-1 text-xs text-slate-500">
-            Jetons disponibles : <code>{reference}</code>, <code>{parcours}</code>, et selon l'évènement <code>{statut}</code>, <code>{jours_restants}</code>.
-        </p>
+<div>
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <x-breadcrumb :items="[['label' => 'Administration', 'url' => route('administration.index')], ['label' => 'Modèles de notification']]" />
+            <h1 class="text-h1 text-slate-900">Modèles de notification</h1>
+            <p class="mt-1 text-xs text-slate-500">
+                Jetons disponibles : <code>{reference}</code>, <code>{parcours}</code>, et selon l'évènement <code>{statut}</code>, <code>{jours_restants}</code>.
+            </p>
+        </div>
+        <button type="button" x-on:click="$dispatch('open-modal', { name: 'notification-template-form' })" class="btn btn-primary">
+            + Nouveau gabarit
+        </button>
     </div>
 
-    @session('status')
-        <div class="alert alert-success mb-4">{{ $value }}</div>
-    @endsession
+    <div class="card p-5">
+        <table class="w-full text-left text-sm">
+            <thead>
+                <tr class="border-b border-slate-100 text-xs text-slate-500">
+                    <th class="pb-2">Évènement</th>
+                    <th class="pb-2">Parcours</th>
+                    <th class="pb-2">Canal</th>
+                    <th class="pb-2">Statut</th>
+                    <th class="pb-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($this->templates as $template)
+                    <tr class="border-b border-slate-50">
+                        <td class="py-2 font-mono text-xs text-slate-700">{{ $template->evenement_code }}</td>
+                        <td class="py-2 text-slate-500">{{ $template->parcours->libelle ?? 'Tous' }}</td>
+                        <td class="py-2">
+                            <span class="badge badge-slate">{{ $template->canal->value }}</span>
+                        </td>
+                        <td class="py-2">
+                            <x-actif-badge :actif="$template->actif" />
+                        </td>
+                        <td class="py-2 text-right">
+                            <button type="button" wire:click="modifier({{ $template->id }})" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+                                Modifier
+                            </button>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="5">
+                            <x-empty-state title="Aucun gabarit configuré.">
+                                <x-slot:icon><x-icons.inbox class="h-10 w-10" /></x-slot:icon>
+                            </x-empty-state>
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="card p-5 lg:col-span-1">
-            <h2 class="mb-3 text-sm font-semibold text-slate-900">
-                {{ $templateEnEditionId ? 'Modifier le gabarit' : 'Créer un gabarit' }}
-            </h2>
+    <div x-on:close-modal.window="if ($event.detail.name === 'notification-template-form') $wire.annulerEdition()">
+        <x-modal name="notification-template-form" :title="$templateEnEditionId ? 'Modifier le gabarit' : 'Créer un gabarit'">
             <form wire:submit="enregistrer" class="space-y-2">
                 <label class="block text-xs font-medium text-slate-500">Code évènement *</label>
                 <input type="text" wire:model="evenementCode" class="block w-full text-sm">
@@ -52,50 +91,13 @@
                     <input type="checkbox" wire:model="actif"> Actif
                 </label>
 
-                <div class="flex gap-2 pt-2">
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" wire:click="annulerEdition" class="btn btn-secondary">Annuler</button>
                     <button type="submit" class="btn btn-primary">
                         {{ $templateEnEditionId ? 'Enregistrer' : 'Créer' }}
                     </button>
-                    @if ($templateEnEditionId)
-                        <button type="button" wire:click="annulerEdition" class="btn btn-secondary">Annuler</button>
-                    @endif
                 </div>
             </form>
-        </div>
-
-        <div class="card p-5 lg:col-span-2">
-            <table class="w-full text-left text-sm">
-                <thead>
-                    <tr class="border-b border-slate-100 text-xs text-slate-500">
-                        <th class="pb-2">Évènement</th>
-                        <th class="pb-2">Parcours</th>
-                        <th class="pb-2">Canal</th>
-                        <th class="pb-2">Statut</th>
-                        <th class="pb-2"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($this->templates as $template)
-                        <tr class="border-b border-slate-50">
-                            <td class="py-2 font-mono text-xs text-slate-700">{{ $template->evenement_code }}</td>
-                            <td class="py-2 text-slate-500">{{ $template->parcours->libelle ?? 'Tous' }}</td>
-                            <td class="py-2">
-                                <span class="badge badge-slate">{{ $template->canal->value }}</span>
-                            </td>
-                            <td class="py-2">
-                                <span class="badge {{ $template->actif ? 'badge-emerald' : 'badge-red' }}">
-                                    {{ $template->actif ? 'Actif' : 'Inactif' }}
-                                </span>
-                            </td>
-                            <td class="py-2 text-right">
-                                <button type="button" wire:click="modifier({{ $template->id }})" class="text-sm font-medium text-slate-600 hover:text-slate-900">
-                                    Modifier
-                                </button>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+        </x-modal>
     </div>
-</x-layouts.app>
+</div>

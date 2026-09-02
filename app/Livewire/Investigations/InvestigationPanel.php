@@ -73,7 +73,7 @@ class InvestigationPanel extends Component
         $this->reset(['faitsConstates', 'personnesRencontrees', 'causeImmediate', 'causesRacines', 'recommandations']);
         $this->dateOuverture = now()->toDateString();
 
-        session()->flash('status', 'Investigation ouverte.');
+        $this->dispatch('toast', message: 'Investigation ouverte.', type: 'success');
     }
 
     private function investigationVierge(): Investigation

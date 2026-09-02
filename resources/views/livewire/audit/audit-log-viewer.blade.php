@@ -1,5 +1,5 @@
-<x-layouts.app title="Journal d'audit">
-    <h1 class="mb-6 text-lg font-semibold text-slate-900">Journal d'audit</h1>
+<div>
+    <h1 class="mb-6 text-h1 text-slate-900">Journal d'audit</h1>
 
     <div class="card mb-6 flex flex-wrap items-end gap-3 p-5">
         <div>
@@ -51,7 +51,11 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="py-6 text-center text-sm text-slate-400">Aucune entrée pour ces filtres.</td>
+                        <td colspan="5">
+                            <x-empty-state title="Aucune entrée pour ces filtres.">
+                                <x-slot:icon><x-icons.shield-check class="h-8 w-8" /></x-slot:icon>
+                            </x-empty-state>
+                        </td>
                     </tr>
                 @endforelse
             </tbody>
@@ -61,4 +65,4 @@
             {{ $this->logs->links() }}
         </div>
     </div>
-</x-layouts.app>
+</div>

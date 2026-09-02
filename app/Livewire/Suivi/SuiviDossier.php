@@ -83,6 +83,12 @@ class SuiviDossier extends Component
 
     public function render()
     {
-        return view('livewire.suivi.suivi-dossier');
+        return view('livewire.suivi.suivi-dossier')
+            ->layout('components.layouts.guest', [
+                'title' => 'Suivi de ma déclaration',
+                'maxWidth' => 'max-w-lg',
+                'heroTitle' => 'Où en est votre dossier ?',
+                'heroSubtitle' => 'Entrez votre référence et votre code d\'accès pour consulter son état et échanger avec l\'équipe en charge.',
+            ]);
     }
 }
