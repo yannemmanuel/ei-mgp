@@ -160,6 +160,45 @@ Les plus critiques, à vérifier explicitement à chaque module :
 | `.env` plus chargé automatiquement | `process.loadEnvFile()` (natif Node ≥ 20.12) |
 | `PrismaClient` exige un *driver adapter* | `@prisma/adapter-pg` + `new PrismaPg({ connectionString })` |
 
+### ✅ Étape 2 — Couche d'autorisation
+
+Port de la couche d'autorisation en fonctions pures et testables, sous `web/src/server/authz/` :
+34 permissions, 15 rôles, cloisonnement par parcours (`RoleParcoursScope`) et les 6 policies.
+19 tests verts, dont un **test de parité qui compare le portage au contenu réel de la base**
+(permissions, rôles, associations rôle × permission).
+
+**Décision — authentification : Auth.js v5, Credentials + stratégie JWT.**
+Un adaptateur base de données exigerait des tables `Session`/`Account`/`VerificationToken`
+inexistantes, ce qu'interdit la règle « ne jamais migrer cette base » ; Lucia est abandonné
+depuis 2025. La stratégie JWT n'exige aucune table nouvelle.
+**Le jeton ne portera que l'identité** : rôles et permissions sont résolus depuis la base à
+chaque vérification (`chargerUtilisateurAutorise`), exactement comme spatie/laravel-permission.
+Un changement de rôle ou une désactivation prend donc effet immédiatement, sans attendre
+l'expiration du jeton.
+
+**Décision — les tests d'autorisation sont écrits à l'étape 2, pas reportés à l'étape 13.**
+L'authz est le chemin critique : tous les modules s'appuient dessus. Empiler du code non vérifié
+dessus reviendrait à propager une erreur d'autorisation dans toute l'application.
+
+#### Deux constats de sécurité
+
+**1. La base de dev avait dérivé du seeder (corrigé).** Le test de parité a détecté 84
+associations en base contre 86 dans `RolePermissionSeeder` : `service_mgp` n'avait pas
+`audit.view` (ajouté en Phase 11) et `auditeur` n'avait pas `dossiers.view.all`. Le seeder fait
+autorité (couvert par `RolePermissionSeedingTest`, vert) — la base n'avait simplement pas été
+re-seedée. Corrigé par `php artisan db:seed --class=RolePermissionSeeder` (idempotent :
+`firstOrCreate` + `syncPermissions`, n'affecte ni les dossiers ni `model_has_roles`).
+→ **Conséquence : dans l'application Laravel de dev, l'auditeur ne voyait pas tous les dossiers.**
+
+**2. `users.actif` ne bloque RIEN dans Laravel (divergence assumée).** Il n'existe aucune
+personnalisation d'authentification (`Fortify::authenticateUsing` absent) : `actif` ne sert qu'à
+filtrer les *destinataires* d'affectation et de notification. **Un utilisateur désactivé peut
+donc toujours se connecter et conserve l'intégralité de ses droits.**
+→ Le portage Next.js **refusera la connexion et l'autorisation** si `actif = false`. Divergence
+délibérée par rapport à la baseline, consignée ici : reproduire un contournement de désactivation
+sur un dispositif de signalement serait indéfendable. `UtilisateurAutorise` porte déjà le champ
+`actif` à cette fin ; l'application effective se fera à l'étape 3 (authentification).
+
 ---
 
 ## 7. Risques ouverts
@@ -181,8 +220,7 @@ Les plus critiques, à vérifier explicitement à chaque module :
 
 | # | Étape | Vérification |
 |---|---|---|
-| 2 | Couche authz (rôles, permissions, scope parcours, 6 policies) | Tests reproduisant `DossierPolicyTest` |
-| 3 | Auth (session, bcrypt, throttle, reset) | Comptes existants connectables |
+| 3 | Auth (Auth.js, bcrypt, throttle, reset, refus si `actif = false`) | Comptes existants connectables |
 | 4 | Design system shadcn/ui + layouts | — |
 | 5 | Module 1 — Déclaration | RG-01/02/06, RGI-01→04 |
 | 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
