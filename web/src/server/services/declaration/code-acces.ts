@@ -11,7 +11,13 @@ import bcrypt from 'bcryptjs'
  * par l'autre pendant toute la migration.
  */
 const LONGUEUR = 6
-const COUT_BCRYPT = 12
+
+/**
+ * Cout bcrypt, configurable comme le `BCRYPT_ROUNDS` de Laravel (dont le phpunit.xml le abaisse
+ * a 4 en test pour la meme raison). Le defaut 12 est celui de la production : il est volontairement
+ * couteux, et ne doit jamais etre abaisse ailleurs qu'en test.
+ */
+const COUT_BCRYPT = Number(process.env.BCRYPT_ROUNDS ?? 12)
 
 export function genererCodeAcces(): string {
   // `crypto.randomInt` est cryptographiquement sûr, contrairement à Math.random() : ce code

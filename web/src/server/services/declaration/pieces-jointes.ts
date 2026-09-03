@@ -101,7 +101,10 @@ export async function stockerFichiers(
   await verifierLot(fichiers)
 
   const dossierRelatif = path.posix.join('pieces-jointes', typeParent, idParent)
-  const dossierAbsolu = path.join(RACINE_STOCKAGE, dossierRelatif)
+  // `turbopackIgnore` : ce sont des chemins de STOCKAGE construits a l'execution, pas des
+  // modules a resoudre. Sans ce marqueur, Turbopack trace tout le projet a la recherche d'un
+  // import dynamique qui n'existe pas.
+  const dossierAbsolu = path.join(/*turbopackIgnore: true*/ RACINE_STOCKAGE, dossierRelatif)
   await mkdir(dossierAbsolu, { recursive: true })
 
   const preparees: PieceJointePreparee[] = []
@@ -111,7 +114,7 @@ export async function stockerFichiers(
     const nomGenere = `${ulid().toLowerCase()}.${extension}`
     const cheminRelatif = path.posix.join(dossierRelatif, nomGenere)
 
-    await writeFile(path.join(dossierAbsolu, nomGenere), fichier.octets)
+    await writeFile(path.join(/*turbopackIgnore: true*/ dossierAbsolu, nomGenere), fichier.octets)
 
     preparees.push({
       id: ulid().toLowerCase(),

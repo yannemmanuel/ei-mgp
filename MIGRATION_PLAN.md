@@ -274,7 +274,7 @@ développement et en production. `error.tsx` est recentré sur les pannes techni
 Cette version de shadcn/ui repose sur **Base UI**, pas Radix : la composition polymorphe s'écrit
 `render={<Link />}` et non `asChild`. Vérifié empiriquement plutôt que supposé.
 
-### 🔄 Étape 5a — Module Déclaration : services métier et validations
+### ✅ Étape 5a — Module Déclaration : services métier et validations
 
 Le module Déclaration est le plus vaste et le plus sensible du projet. Il est livré en deux
 temps : **5a les services métier et les validations** (où vivent les règles), **5b les
@@ -315,6 +315,52 @@ dans `web/src/lib/validations/declaration.ts`. **55 tests verts** (24 nouveaux).
   l'état de la base a été vérifié identique avant/après. La suppression n'existe QUE dans ces
   utilitaires de test — l'application n'expose aucune voie de suppression (RG-03).
 
+### ✅ Étape 5b — Module Déclaration : formulaires publics et suivi
+
+Les 4 formulaires publics (wizard en 4 étapes), le récépissé, la page de suivi `/suivi` et la
+redirection QR `/q/[token]`. **69 tests verts** (14 nouveaux).
+
+**Une configuration déclarative plutôt que 4 formulaires.** Les 4 parcours partagent la même
+mécanique (wizard, anonymat, anti-spam, téléversement) et ne diffèrent que par leurs champs.
+`parcours-config.ts` les décrit une seule fois, et cette même source alimente **le rendu ET la
+validation Zod** : décrire les champs deux fois garantirait qu'ils divergent. Le portage littéral
+des 4 composants Livewire aurait quadruplé la mécanique commune.
+
+Vérifié sur serveur réel — chaque parcours rend bien ses champs propres : `directionId` pour
+l'EI Employé, `ancienneteAnnees` pour le Grief Employé, `consentementRgpd` + `entreprise` pour le
+seul Sous-traitant (RG-15), `localite` + `statutPlaignant` pour la Communauté.
+
+**RGI-03** (masquage des champs d'identité en anonyme) est verrouillé par des tests couvrant les
+4 parcours, en complément de la garantie structurelle côté service. Seule exception documentée :
+`statutPlaignant` qualifie la plainte, pas la personne.
+
+**Page de suivi (EX-NOT-06, RGI-12)** : référence + code d'accès uniquement. Verrouillage sur
+l'IP **et** sur la référence visée — sans le second, un attaquant distribué contournerait la
+limite par IP. Message d'échec unique quel qu'en soit le motif, et chaque échec journalisé pour
+l'auditeur/DPO avec la seule référence tentée, jamais le code saisi. Le déclarant ne voit que le
+statut **affiché** (RGI-10/11), jamais le statut interne.
+
+#### Trois corrections en cours de route
+
+- **Pages pré-rendues en statique.** `generateStaticParams` figeait catégories et niveaux de
+  gravité — pourtant administrables — ainsi que l'horodatage anti-robot, à la compilation. Rendu
+  dynamique forcé, comme Laravel qui lit ces référentiels à chaque requête.
+- **Horodatage anti-robot impur.** `Date.now()` pendant le rendu d'un composant serveur viole la
+  règle de pureté React. Déplacé au montage côté client : cela mesure d'ailleurs plus fidèlement
+  le temps d'ouverture réel du formulaire. Contrepartie assumée — la valeur devient forgeable,
+  mais le champ piège et la limitation de débit restent vérifiés côté serveur.
+- **Coût bcrypt en test.** Un test créant 4 déclarations dépassait le délai imparti : bcrypt au
+  coût 12 est volontairement lent. `BCRYPT_ROUNDS` est désormais configurable et abaissé à 4 en
+  test **uniquement** — exactement ce que fait le `phpunit.xml` de Laravel. La suite est passée de
+  42 s à 6,6 s, sans rien affaiblir en production (défaut inchangé à 12).
+
+#### Contrôle ajouté par rapport à Laravel
+
+La Server Action vérifie que la **catégorie soumise appartient bien au parcours** de la
+déclaration. Sans ce contrôle, un identifiant forgé rattacherait une déclaration à la catégorie
+d'un autre parcours. Le formulaire Livewire ne présentait que les catégories du parcours, mais ne
+revalidait pas cette appartenance à la soumission.
+
 ---
 
 ## 7. Risques ouverts
@@ -339,7 +385,6 @@ dans `web/src/lib/validations/declaration.ts`. **55 tests verts** (24 nouveaux).
 
 | # | Étape | Vérification |
 |---|---|---|
-| 5b | Module 1 — Déclaration : 4 formulaires, wizard, page de suivi | RG-01/02/06, RGI-01→04 |
 | 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
 | 7 | Module 3 — Investigations | RGI-05/06 |
 | 8 | Module 4 — Actions correctives | RGI-07/08/09 |

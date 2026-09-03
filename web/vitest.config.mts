@@ -11,5 +11,8 @@ export default defineConfig({
     // Les tests de parité interrogent la base réelle en lecture seule : les exécuter en série
     // évite d'ouvrir plusieurs pools de connexions PostgreSQL simultanés.
     fileParallelism: false,
+    // Les tests de creation ecrivent reellement en base (transaction + verrou + bcrypt) :
+    // le defaut de 5 s est trop court pour un cas qui cree plusieurs declarations.
+    testTimeout: 30_000,
   },
 })
