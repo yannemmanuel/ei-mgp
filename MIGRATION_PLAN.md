@@ -361,7 +361,7 @@ déclaration. Sans ce contrôle, un identifiant forgé rattacherait une déclara
 d'un autre parcours. Le formulaire Livewire ne présentait que les catégories du parcours, mais ne
 revalidait pas cette appartenance à la soumission.
 
-### 🔄 Étape 6a — Module Dossiers : workflow, affectation et délais
+### ✅ Étape 6a — Module Dossiers : workflow, affectation et délais
 
 Portés dans `web/src/server/services/dossier/` : machine à états (`workflow.ts`), réaffectation
 (`affectation.ts`), suivi des délais (`delais.ts`). **80 tests verts** (11 nouveaux).
@@ -403,6 +403,43 @@ l'historique par cette seule colonne (ce que fait `DossierDetailPage` côté Lar
 arbitrairement des entrées créées dans la même seconde. Sans conséquence fonctionnelle, mais
 l'ordre d'affichage de la frise peut varier ; le portage trie par `id`, strictement croissant.
 
+### ✅ Étape 6b — Module Dossiers : liste filtrable et fiche
+
+Liste `/dossiers` (filtres, pagination), fiche `/dossiers/[id]` et ses 5 actions de gestion.
+**87 tests verts** (7 nouveaux).
+
+#### Le test qui compte : périmètre de liste ≡ policy
+
+Le périmètre de la liste (clause SQL) et `peutVoirDossier()` (prédicat) sont **deux
+implémentations de la même règle**. Rien ne les empêche structurellement de diverger — et une
+divergence signifierait qu'une liste affiche un dossier que la fiche refuse, ou l'inverse. Un
+test les croise donc sur des dossiers réels, pour six rôles différents.
+
+Vérifié en conditions réelles, sur le même dossier Grief Communauté :
+
+| Compte | Liste | Accès direct |
+|---|---|---|
+| `service_mgp` (transversal) | 10 dossiers, 4 parcours | **200** |
+| `secretaire_csst` (EI seul) | 7 dossiers, **EI uniquement** | **404** |
+| `administrateur_digital` | **redirigé** (DT-02) | **404** |
+
+**404 et non 403, délibérément** : sur un dispositif de signalement, distinguer « interdit » de
+« inexistant » révèle l'existence d'un dossier. `chargerFiche()` retourne `null` dans les deux
+cas.
+
+#### Autres points
+
+- **L'identité n'est pas chargée** pour un rôle qui n'y a pas droit (`comite_ethique`), elle
+  n'est pas seulement masquée à l'affichage : ce qui n'atteint jamais le composant ne peut pas
+  fuiter par un oubli de condition.
+- **Chaque Server Action revérifie l'autorisation** au moment de l'exécution, même quand
+  l'interface a déjà masqué la commande.
+- **Validation réelle du statut soumis** au lieu d'un cast : TypeScript a signalé qu'un
+  `as StatutCode` sur une valeur de formulaire était un mensonge — une chaîne forgée serait
+  passée jusqu'au service.
+- **État des filtres dans l'URL**, pas dans le composant : un filtre appliqué reste partageable
+  et survit à un rechargement.
+
 ---
 
 ## 7. Risques ouverts
@@ -427,7 +464,6 @@ l'ordre d'affichage de la frise peut varier ; le portage trie par `id`, strictem
 
 | # | Étape | Vérification |
 |---|---|---|
-| 6b | Module 2 — Dossiers : liste filtrable et fiche dossier | RG-03/04/07/10 |
 | 7 | Module 3 — Investigations | RGI-05/06 |
 | 8 | Module 4 — Actions correctives | RGI-07/08/09 |
 | 9 | Module 5 — Notifications | RG-08, EX-NOT-01→07 |
