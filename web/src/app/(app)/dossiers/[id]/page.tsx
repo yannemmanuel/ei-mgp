@@ -8,9 +8,14 @@ import { exigerUtilisateur } from '@/server/auth'
 import {
   peutChangerStatutDossier,
   peutCloturerDossier,
+  peutCreerInvestigation,
+  peutModifierInvestigation,
   peutReaffecterDossier,
   peutReouvrirDossier,
+  peutValiderInvestigation,
+  peutVoirInvestigation,
 } from '@/server/authz'
+import { investigationsDuDossier } from '@/server/services/investigation/investigation'
 import { utilisateursAffectables } from '@/server/services/dossier/affectation'
 import {
   affectationsActives,
@@ -21,6 +26,7 @@ import {
 import { joursRestants } from '@/server/services/dossier/delais'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { PanneauActions } from './panneau-actions'
+import { PanneauInvestigations } from './panneau-investigations'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -45,7 +51,8 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     declarantUserId: dossier.declarant_user_id,
   }
 
-  const [historique, affectations, pieces, transitions, restants, affectables] = await Promise.all([
+  const [historique, affectations, pieces, transitions, restants, affectables, investigations] =
+    await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
     piecesJointesDossier(id),
@@ -54,7 +61,39 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       : Promise.resolve([]),
     joursRestants({ id, statutCode: dossier.statutCode, parcoursId: dossier.parcours.id }),
     peutReaffecterDossier(utilisateur, pourPolicy) ? utilisateursAffectables(id) : Promise.resolve([]),
+    investigationsDuDossier(id),
   ])
+
+  // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
+  // deja calcules, jamais de quoi les recalculer lui-meme.
+  const contexteParcours = { parcoursCode: pourPolicy.parcoursCode }
+  const investigationsVues = peutVoirInvestigation(utilisateur, {
+    ...contexteParcours,
+    enqueteurId: 0n,
+  })
+    ? investigations.map((i) => ({
+        id: i.id,
+        dateOuverture: i.date_ouverture.toISOString(),
+        statut: i.statut,
+        faitsConstates: i.faits_constates,
+        personnesRencontrees: i.personnes_rencontrees,
+        causeImmediate: i.cause_immediate,
+        causesRacines: i.causes_racines,
+        recommandations: i.recommandations,
+        enqueteur: i.users_investigations_enqueteur_idTousers.name,
+        validateur: i.users_investigations_valide_parTousers?.name ?? null,
+        valideLe: i.valide_le?.toISOString() ?? null,
+        peutModifier: peutModifierInvestigation(utilisateur, {
+          ...contexteParcours,
+          enqueteurId: i.enqueteur_id,
+        }),
+        // RGI-06 : faux pour l'enqueteur lui-meme.
+        peutValider: peutValiderInvestigation(utilisateur, {
+          ...contexteParcours,
+          enqueteurId: i.enqueteur_id,
+        }),
+      }))
+    : []
 
   return (
     <div className="space-y-6">
@@ -189,6 +228,16 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               )}
             </CardContent>
           </Card>
+
+          <PanneauInvestigations
+            dossierId={id}
+            investigations={investigationsVues}
+            peutOuvrir={peutCreerInvestigation(utilisateur, {
+              ...contexteParcours,
+              enqueteurId: utilisateur.id,
+            })}
+            dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
+          />
 
           <Card>
             <CardHeader>

@@ -440,6 +440,33 @@ cas.
 - **État des filtres dans l'URL**, pas dans le composant : un filtre appliqué reste partageable
   et survit à un rechargement.
 
+### ✅ Étape 7 — Module Investigations
+
+Service `web/src/server/services/investigation/` (ouverture, mise à jour, soumission,
+validation) et panneau intégré à la fiche dossier. **95 tests verts** (8 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-INV-01** | Ouverture possible uniquement sur un dossier « En investigation ». |
+| **RGI-05** | Date d'ouverture jamais antérieure à la recevabilité du dossier. |
+| **EX-INV-02/03/04** | Constats, causes et recommandations, modifiables tant que « en cours ». |
+| **EX-INV-04** | Soumission refusée sans recommandations — elles sont la source des actions correctives. |
+| **RGI-06 / EX-INV-05** | La validation ne peut **jamais** être faite par l'enquêteur lui-même. |
+
+#### Deux points de conception
+
+- **La date de recevabilité réutilise `dateDebutEtape()`** du module Délais plutôt que d'être
+  recalculée. Deux définitions de la même date finiraient par diverger, et RGI-05 dépend
+  entièrement de cette définition.
+- **Les policies s'évaluent côté serveur**, et le composant client ne reçoit que des booléens
+  déjà calculés (`peutModifier`, `peutValider`). Il ne dispose jamais de quoi les recalculer —
+  en particulier RGI-06, dont la vérification exige de comparer l'enquêteur à l'utilisateur
+  courant.
+
+Le test d'ouverture amène le dossier à « En investigation » par de **vraies transitions** et non
+par un statut forcé en base : RGI-05 s'appuie sur `historique_statuts`, qu'un raccourci laisserait
+vide — le test passerait alors sans rien prouver.
+
 ---
 
 ## 7. Risques ouverts
@@ -464,7 +491,6 @@ cas.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 7 | Module 3 — Investigations | RGI-05/06 |
 | 8 | Module 4 — Actions correctives | RGI-07/08/09 |
 | 9 | Module 5 — Notifications | RG-08, EX-NOT-01→07 |
 | 10 | Module 6 — Reporting + exports | RG-14, EX-REP-01→06 |
