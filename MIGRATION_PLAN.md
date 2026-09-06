@@ -467,6 +467,37 @@ Le test d'ouverture amène le dossier à « En investigation » par de **vraies 
 par un statut forcé en base : RGI-05 s'appuie sur `historique_statuts`, qu'un raccourci laisserait
 vide — le test passerait alors sans rien prouver.
 
+### ✅ Étape 8 — Module Actions correctives
+
+Service `web/src/server/services/action-corrective/` et panneau intégré à la fiche dossier.
+**106 tests verts** (11 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-ACT-01** | Création seulement sur dossier « Action corrective en cours » ; rattachement possible aux seules investigations **validées**. |
+| **EX-ACT-02** | Responsable et échéance obligatoires. |
+| **EX-ACT-03** | Graphe d'avancement respecté ; recalcul des retards. |
+| **EX-ACT-04** | Vérification d'efficacité seulement une fois l'action réalisée. |
+| **RGI-07** | Échéance strictement postérieure à la date de création. |
+| **RGI-08** | Commentaire obligatoire pour une vérification **positive** — pas pour une négative. |
+| **RGI-09** | Clôture seulement après vérification positive. |
+| **EX-ACT-05 / DT-27** | Le dossier avance automatiquement à « Résolu » quand la **dernière** action est close — déclenché ici, jamais par une tâche planifiée. |
+
+#### Points de vigilance traités
+
+- **Le recalcul des retards ne touche jamais une action « réalisée »** : son échéance est
+  derrière elle, mais le travail est fait — la marquer en retard serait faux. Un test le vérifie
+  explicitement.
+- **Rattachement d'investigation filtré sur le dossier parent** : sans ce filtre, un identifiant
+  forgé rattacherait une action à l'investigation d'un autre dossier.
+- **Défaut évité à la relecture** : la liste des responsables réutilisait les utilisateurs
+  chargés pour la *réaffectation*, qui n'est peuplée que si l'utilisateur détient
+  `dossiers.reassign`. Un rôle pouvant créer une action sans ce droit aurait obtenu une liste
+  vide. Les deux listes sont désormais chargées indépendamment, chacune selon sa propre
+  permission.
+- La transition automatique vers « Résolu » est testée sur **deux** actions : la première
+  clôture ne doit rien déclencher, la seconde doit faire avancer le dossier.
+
 ---
 
 ## 7. Risques ouverts
@@ -491,7 +522,6 @@ vide — le test passerait alors sans rien prouver.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 8 | Module 4 — Actions correctives | RGI-07/08/09 |
 | 9 | Module 5 — Notifications | RG-08, EX-NOT-01→07 |
 | 10 | Module 6 — Reporting + exports | RG-14, EX-REP-01→06 |
 | 11 | Administration (7 référentiels) | — |

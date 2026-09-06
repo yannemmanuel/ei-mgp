@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
   peutChangerStatutDossier,
@@ -14,7 +15,16 @@ import {
   peutReouvrirDossier,
   peutValiderInvestigation,
   peutVoirInvestigation,
+  peutCloturerAction,
+  peutCreerAction,
+  peutModifierAction,
+  peutVerifierEfficacite,
+  peutVoirAction,
 } from '@/server/authz'
+import {
+  actionsDuDossier,
+  investigationsValidees,
+} from '@/server/services/action-corrective/action-corrective'
 import { investigationsDuDossier } from '@/server/services/investigation/investigation'
 import { utilisateursAffectables } from '@/server/services/dossier/affectation'
 import {
@@ -27,6 +37,7 @@ import { joursRestants } from '@/server/services/dossier/delais'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
+import { PanneauActionsCorrectives } from './panneau-actions-correctives'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -51,8 +62,18 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     declarantUserId: dossier.declarant_user_id,
   }
 
-  const [historique, affectations, pieces, transitions, restants, affectables, investigations] =
-    await Promise.all([
+  const [
+    historique,
+    affectations,
+    pieces,
+    transitions,
+    restants,
+    affectables,
+    investigations,
+    actions,
+    investigationsValidees_,
+    responsablesPossibles,
+  ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
     piecesJointesDossier(id),
@@ -62,6 +83,18 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     joursRestants({ id, statutCode: dossier.statutCode, parcoursId: dossier.parcours.id }),
     peutReaffecterDossier(utilisateur, pourPolicy) ? utilisateursAffectables(id) : Promise.resolve([]),
     investigationsDuDossier(id),
+    actionsDuDossier(id),
+    investigationsValidees(id),
+    // Liste des responsables possibles : conditionnee au droit de CREER une action, et non a
+    // celui de reaffecter — les deux permissions sont distinctes et portees par des roles
+    // differents.
+    peutCreerAction(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
+      ? prisma.users.findMany({
+          where: { actif: true },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -92,6 +125,27 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           ...contexteParcours,
           enqueteurId: i.enqueteur_id,
         }),
+      }))
+    : []
+
+  const droitsActions = {
+    creer: peutCreerAction(utilisateur, contexteParcours),
+    modifier: peutModifierAction(utilisateur, contexteParcours),
+    verifier: peutVerifierEfficacite(utilisateur, contexteParcours),
+    cloturer: peutCloturerAction(utilisateur, contexteParcours),
+  }
+
+  const actionsVues = peutVoirAction(utilisateur, contexteParcours)
+    ? actions.map((a) => ({
+        id: a.id,
+        intitule: a.intitule,
+        description: a.description,
+        echeance: a.echeance.toISOString(),
+        statut: a.statut,
+        verificationEfficacite: a.verification_efficacite,
+        verificationCommentaire: a.verification_commentaire,
+        dateCloture: a.date_cloture?.toISOString() ?? null,
+        responsable: a.users.name,
       }))
     : []
 
@@ -237,6 +291,18 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               enqueteurId: utilisateur.id,
             })}
             dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
+          />
+
+          <PanneauActionsCorrectives
+            dossierId={id}
+            actions={actionsVues}
+            investigationsValidees={investigationsValidees_.map((i) => ({
+              id: i.id,
+              libelle: `Investigation du ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(i.date_ouverture)}`,
+            }))}
+            responsables={responsablesPossibles.map((u) => ({ id: String(u.id), nom: u.name }))}
+            droits={droitsActions}
+            dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
           />
 
           <Card>
