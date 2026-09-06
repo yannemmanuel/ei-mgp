@@ -361,6 +361,48 @@ déclaration. Sans ce contrôle, un identifiant forgé rattacherait une déclara
 d'un autre parcours. Le formulaire Livewire ne présentait que les catégories du parcours, mais ne
 revalidait pas cette appartenance à la soumission.
 
+### 🔄 Étape 6a — Module Dossiers : workflow, affectation et délais
+
+Portés dans `web/src/server/services/dossier/` : machine à états (`workflow.ts`), réaffectation
+(`affectation.ts`), suivi des délais (`delais.ts`). **80 tests verts** (11 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-GES-04** | Graphe de transitions respecté ; toute transition hors graphe refusée. |
+| **RG-04** | Entrée d'historique pour chaque transition, avec son auteur et son commentaire. |
+| **RG-10** | Clôture bloquée tant qu'une action corrective est ouverte **ou** son efficacité non vérifiée ; possible dès que les deux conditions sont levées. |
+| **RG-07** | Réouverture possible uniquement depuis « Clôturé », motif obligatoire. |
+| **EX-GES-03** | Réaffectation : motif obligatoire, titulaire précédent désactivé, type tracé. |
+| **DT-06** | Le déclarant identifié ne peut pas être affecté à son propre dossier — et n'est pas proposé dans la liste. |
+| **DT-04** | Un délai non validé par le métier ne produit aucune échéance. |
+
+#### 🔴 Défaut majeur trouvé dans la baseline Laravel — corrigé (commit `d38368c`)
+
+`DossierWorkflowService::cloturer()` **ne renseignait jamais `dossiers.date_cloture`**, alors que
+DT-31 affirme explicitement le contraire. Trois fonctionnalités en dépendent et étaient donc
+silencieusement inopérantes :
+
+1. `IndicateurService::delaiMoyenJours()` — délai moyen de traitement toujours nul.
+2. `StatistiqueMensuelleService` — délais archivés toujours nuls.
+3. **`PolitiqueConservationService` (RG-11)** — archivage et anonymisation ne se seraient
+   **jamais** déclenchés : la politique de conservation des données personnelles était
+   entièrement inerte.
+
+Le défaut était latent (aucune clôture n'a encore eu lieu en base) et **invisible pour les 295
+tests** : chacun de ceux qui ont besoin de `date_cloture` la posait lui-même par `update()`,
+si bien qu'aucun n'exerçait le chemin de production. C'est l'angle mort classique d'un test qui
+fabrique son entrée au lieu de la faire produire par le code testé.
+
+> Leçon : lorsqu'un champ est écrit par un service et lu par un autre, au moins un test doit
+> traverser les deux — un test qui pose la valeur à la main ne prouve rien sur son producteur.
+
+#### Observation annexe
+
+`historique_statuts.created_at` est en `timestamp(0)` — précision à la seconde. Trier
+l'historique par cette seule colonne (ce que fait `DossierDetailPage` côté Laravel) départage
+arbitrairement des entrées créées dans la même seconde. Sans conséquence fonctionnelle, mais
+l'ordre d'affichage de la frise peut varier ; le portage trie par `id`, strictement croissant.
+
 ---
 
 ## 7. Risques ouverts
@@ -385,7 +427,7 @@ revalidait pas cette appartenance à la soumission.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 6 | Module 2 — Dossiers + workflow | RG-03/04/07/10 |
+| 6b | Module 2 — Dossiers : liste filtrable et fiche dossier | RG-03/04/07/10 |
 | 7 | Module 3 — Investigations | RGI-05/06 |
 | 8 | Module 4 — Actions correctives | RGI-07/08/09 |
 | 9 | Module 5 — Notifications | RG-08, EX-NOT-01→07 |
