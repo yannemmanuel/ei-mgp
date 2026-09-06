@@ -73,6 +73,28 @@ it('closes a dossier with no corrective actions (RG-10 is vacuously satisfied)',
     $dossier->refresh();
     expect($dossier->statut->code)->toBe(StatutDossierCode::Cloture);
     expect($dossier->synthese_resolution)->toBe('Mesures mises en œuvre, situation normalisée.');
+    expect($dossier->date_cloture)->not->toBeNull();
+});
+
+it('renseigne date_cloture à la clôture, et jamais au rejet (DT-31, EX-REP-05, RG-11)', function () {
+    // Ce champ conditionne le délai moyen de traitement (DT-31), les statistiques mensuelles
+    // (EX-REP-05) et toute la politique de conservation (RG-11) : sans lui, ces trois
+    // fonctionnalités restent silencieusement inopérantes — aucun dossier n'est jamais archivé
+    // ni anonymisé.
+    $cloture = dossierAuStatut(ParcoursCode::EiEmploye->value, StatutDossierCode::Resolu);
+    $acteur = User::factory()->create();
+
+    app(DossierWorkflowService::class)->cloturer($cloture, $acteur, 'Situation normalisée après intervention.');
+
+    expect($cloture->fresh()->date_cloture)->not->toBeNull();
+
+    // Un dossier rejeté n'est PAS un dossier mené à terme : il ne doit pas entrer dans la
+    // mesure des délais ni dans la politique de conservation.
+    $rejete = dossierAuStatut(ParcoursCode::EiEmploye->value, StatutDossierCode::EnAnalyse);
+
+    app(DossierWorkflowService::class)->rejeter($rejete, $acteur, 'Hors périmètre du dispositif.');
+
+    expect($rejete->fresh()->date_cloture)->toBeNull();
 });
 
 it('refuses to close a dossier with an open corrective action (RG-10)', function () {

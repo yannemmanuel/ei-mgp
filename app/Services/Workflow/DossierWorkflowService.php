@@ -84,7 +84,15 @@ class DossierWorkflowService
         }
 
         DB::transaction(function () use ($dossier, $acteur, $syntheseResolution) {
-            $dossier->update(['synthese_resolution' => $syntheseResolution]);
+            // date_cloture n'est renseignée QUE par cette méthode, jamais par rejeter() : DT-31
+            // (délai moyen de traitement), EX-REP-05 (statistiques mensuelles) et RG-11
+            // (politique de conservation) s'appuient tous les trois sur ce champ pour distinguer
+            // un dossier mené à terme d'un dossier rejeté. Son absence rendait ces trois
+            // fonctionnalités silencieusement inopérantes.
+            $dossier->update([
+                'synthese_resolution' => $syntheseResolution,
+                'date_cloture' => now(),
+            ]);
             $this->appliquerTransition($dossier, StatutDossierCode::Cloture, $acteur, 'Dossier clôturé.');
         });
     }
