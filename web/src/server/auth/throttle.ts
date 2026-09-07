@@ -9,8 +9,18 @@
  * sinon la limite est contournable en frappant une autre instance. Consigné dans
  * MIGRATION_PLAN.md.
  */
-const FENETRE_MS = 60_000
-const MAX_TENTATIVES = 5
+export type LimiteDebit = { readonly fenetreMs: number; readonly maxTentatives: number }
+
+/** `RateLimiter::for('login')` : 5 tentatives par minute. */
+const LIMITE_CONNEXION: LimiteDebit = { fenetreMs: 60_000, maxTentatives: 5 }
+
+/**
+ * Envoi de message par le canal PUBLIC (`MessagerieDossier`, branche non authentifiée) :
+ * 10 messages par tranche de 10 minutes. Un acteur interne authentifié n'y est pas soumis —
+ * seul le canal ouvert est exposé au flood (docs/exigences-securite.md §4, même principe que
+ * DT-14 sur la déclaration).
+ */
+export const LIMITE_MESSAGERIE: LimiteDebit = { fenetreMs: 600_000, maxTentatives: 10 }
 
 type Compteur = { tentatives: number; expireA: number }
 
@@ -31,17 +41,21 @@ export function cleThrottle(email: string, ip: string): string {
 }
 
 /** `true` si la tentative est autorisée (et la comptabilise), `false` si le seuil est atteint. */
-export function autoriserTentative(cle: string, maintenant: number = Date.now()): boolean {
+export function autoriserTentative(
+  cle: string,
+  maintenant: number = Date.now(),
+  limite: LimiteDebit = LIMITE_CONNEXION
+): boolean {
   purger(maintenant)
 
   const compteur = compteurs.get(cle)
 
   if (!compteur || compteur.expireA <= maintenant) {
-    compteurs.set(cle, { tentatives: 1, expireA: maintenant + FENETRE_MS })
+    compteurs.set(cle, { tentatives: 1, expireA: maintenant + limite.fenetreMs })
     return true
   }
 
-  if (compteur.tentatives >= MAX_TENTATIVES) {
+  if (compteur.tentatives >= limite.maxTentatives) {
     return false
   }
 

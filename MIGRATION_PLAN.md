@@ -498,7 +498,7 @@ Service `web/src/server/services/action-corrective/` et panneau intégré à la 
 - La transition automatique vers « Résolu » est testée sur **deux** actions : la première
   clôture ne doit rien déclencher, la seconde doit faire avancer le dossier.
 
-### 🔄 Étape 9a — Notifications : service, destinataires et évènements
+### ✅ Étape 9a — Notifications : service, destinataires et évènements
 
 Service piloté par gabarit, résolution des destinataires, et branchement des trois évènements
 métier. **114 tests verts** (8 nouveaux).
@@ -532,8 +532,104 @@ métier. **114 tests verts** (8 nouveaux).
 Les tests créent **leurs propres gabarits** : la base de développement n'en contient aucun, et
 dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
 
-**Reste à faire en 9b** : messagerie sécurisée (EX-NOT-07), relances J-3 et escalade
-(EX-NOT-03/04), centre de notifications.
+---
+
+### ✅ Étape 9b — Messagerie sécurisée, tâches planifiées et centre de notifications
+
+**Livré** — 133 tests, `typecheck`, `lint` et `build` au vert ; base de développement
+strictement identique avant/après (10 dossiers, 32 historique, 161 audit_logs, 0 notification,
+0 message ; séquence de références rétablie à `EI-2026-000007`).
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/messagerie/messagerie.ts` | Envoi, liste, marquage lu (EX-NOT-07) |
+| `server/services/notification/taches-planifiees.ts` | Relance J-3, escalade (EX-NOT-03/04) |
+| `server/services/notification/boite.ts` | Boîte de réception « outil » |
+| `server/auth/session-suivi.ts` | Authentification du déclarant par cookie signé |
+| `(public)/suivi/{messagerie-actions,panneau-messagerie}` | Messagerie déclarant |
+| `(app)/dossiers/[id]/{messagerie-actions,panneau-messagerie}` | Messagerie acteur |
+| `components/layout/cloche-notifications.tsx` | Centre de notifications (en-tête) |
+
+#### La session de suivi : ce qui remplace la session Laravel
+
+Laravel s'appuyait sur `session('suivi_verifie_'.$id)`. Next.js n'a pas de session serveur : le
+jeton est donc un **cookie signé HMAC** portant uniquement l'identifiant du dossier prouvé et une
+date d'expiration (30 min), `httpOnly`, jamais lu ni écrit par le client.
+
+Trois propriétés, chacune couverte par un test :
+
+- **Aucun compte n'y figure.** Un déclarant anonyme dialogue sans que son identité existe nulle
+  part (RG-06). Y attacher un `user_id` « par commodité » détruirait la garantie.
+- **Il est infalsifiable.** Sans signature, remplacer l'identifiant dans le cookie ouvrirait la
+  messagerie de n'importe quel dossier sans en connaître le code d'accès.
+- **Il ouvre UN dossier**, celui dont la référence et le code viennent d'être prouvés.
+
+Le portillon a été vérifié **en requête HTTP réelle** contre le serveur de développement, pas
+seulement en test unitaire : sans cookie, avec un cookie falsifié et avec un cookie expiré,
+l'accès est refusé ; avec un cookie légitime, la conversation est renvoyée.
+
+⚠️ **Non vérifié de bout en bout** : le chemin d'**envoi** d'un message déclarant n'a pas pu être
+appelé en HTTP direct (l'encodage multipart de `useActionState` embarque l'état précédent et
+n'est pas reproductible à la main sans navigateur). Il partage exactement le même portillon
+`dossierDeLaSessionSuivi()` que le chemin de lecture, qui lui est prouvé, et la propriété RG-06
+— `expediteur_user_id` forcé à NULL — est prouvée par test contre la base réelle. Une passe
+manuelle au navigateur reste à faire avant bascule.
+
+#### 🔴 Troisième défaut latent dans la baseline Laravel : `notification_templates` était VIDE
+
+Après `sla_delais` (étape 9a) et `date_cloture` (étape 6a), voici la troisième occurrence du même
+angle mort — et la plus grave. La table `notification_templates` ne contenait **aucune ligne**.
+
+Conséquence dans l'application Laravel en service : `NotificationService` ne trouvait jamais de
+gabarit actif, et **aucune notification n'était jamais émise**, sur aucun canal. Ni l'e-mail
+d'affectation, ni la mise à jour de statut au déclarant, ni la relance J-3, ni l'escalade, ni
+l'alerte du circuit critique (RG-08). Le centre de notifications de Laravel était par
+construction toujours vide. EX-NOT-01 à 05 étaient intégralement inopérants.
+
+`NotificationTemplateSeeder` n'utilise que `updateOrCreate` — aucune suppression, aucun
+`truncate` : il a été exécuté sans risque pour les données. **17 gabarits** (7 « outil »,
+10 « email »), 7 évènements couverts.
+
+#### Le même angle mort, trois fois : les tests qui fabriquent leurs propres données
+
+> *Un test qui fabrique son entrée ne teste jamais le producteur de cette entrée.*
+
+`date_cloture` (chaque test posait la date lui-même), `sla_delais` (`seedReferentiels()` par
+test), `notification_templates` (les tests créent leurs gabarits). À chaque fois, la suite est
+verte et la donnée de référence peut manquer indéfiniment en base sans que rien ne le signale.
+
+**Contre-mesure retenue** : `chargement.test.ts` et `parite-laravel.test.ts` valident déjà l'état
+réel de la base, pas seulement le comportement du code. À étendre à chaque table de référentiel
+à l'étape 11.
+
+#### Effet de bord du peuplement : hygiène des tests renforcée
+
+Une fois les gabarits présents, toute déclaration ou tout changement de statut effectué par un
+test émet de **vraies** notifications. Deux conséquences traitées :
+
+1. **Assertions rendues spécifiques.** Compter les lignes `notification.envoyee` d'un dossier ne
+   distinguait plus la relance des notifications d'affectation : les tests filtrent maintenant
+   par `evenement_code`.
+2. **Nettoyage global ajouté** (`vitest.setup.mts`). Les lignes `notifications` (non rattachées à
+   un dossier) et `audit_logs` (append-only, sans clé étrangère vers `dossiers`) survivaient à la
+   suppression des dossiers de test et désignaient des dossiers inexistants. Un repère pris avant
+   chaque fichier délimite ce que la campagne produit ; seul cela est supprimé — le journal
+   d'audit réel n'est jamais touché.
+
+   ⚠️ **10 lignes `notification.envoyee` orphelines** subsistent d'une exécution antérieure à ce
+   correctif. Elles référencent des dossiers de test supprimés. Non supprimées : effacer des
+   lignes d'audit relève d'une décision explicite.
+
+#### Test de relance J-3 : la prémisse était fausse, pas le code
+
+Le premier test affirmait qu'un dossier fraîchement affecté n'est pas relancé. Une fois
+`sla_delais` peuplée, il a échoué : `grief_employe`/`analyse_preliminaire` vaut **3 jours
+ouvrés**, donc un tel dossier est légitimement à J-3 et la relance part — correctement.
+
+Le délai étant en jours **ouvrés**, sa conversion en jours calendaires dépend du jour de la
+semaine : coder une valeur en dur rendrait le test vert ou rouge selon la date d'exécution. Le
+test mesure donc le reste réel puis assère l'**invariant** — `relance ⟺ restants === 3` — et un
+second cas couvre le sens inverse sur une échéance largement dépassée.
 
 ---
 
@@ -542,7 +638,7 @@ dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
 | # | Risque | Gravité | État |
 |---|---|---|---|
 | 1 | **Les 295 tests Pest ne se migrent pas.** Ils encodent 15 RG + 13 RGI + 34 DT, dont 6 lacunes réelles trouvées seulement aux phases 13-14. La réécriture refait simultanément le code et le filet qui le protège. | 🔴 Majeur | Ouvert — poste de coût principal |
-| 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — à vérifier explicitement à chaque module |
+| 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
 | 5 | **Livewire → React est une reconstruction**, pas une traduction. ~60 actions métier à recenser une par une (ce ne sont pas des routes). | 🔴 Majeur | Ouvert |
@@ -553,6 +649,8 @@ dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
 | 10 | **Réinitialisation de mot de passe non portée.** Fonctionnalité Laravel existante (Fortify) ; nécessite une décision sur l'envoi d'e-mails. `password_reset_tokens` existe déjà. | 🟠 Moyen | Ouvert — avant bascule |
 | 12 | **Aucun e-mail n'est réellement expédié.** Le transport par défaut journalise sans envoyer, comme le `MAIL_MAILER=log` de la baseline. Un transport réel doit être branché avant production, sinon EX-NOT-02/03/04 restent inopérants côté déclarant et hiérarchie. | 🟠 Moyen | Ouvert — avant bascule |
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
+| 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
+| 15 | **Référentiels manquants en base non détectés par la suite.** Trois occurrences (`date_cloture`, `sla_delais`, `notification_templates`). Les tests fabriquent leurs données de référence et ne signalent donc pas leur absence en production. | 🔴 Majeur | Partiellement traité — à étendre à chaque référentiel (étape 11) |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -561,7 +659,6 @@ dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 9b | Module 5 — Notifications : messagerie, relances, escalade | EX-NOT-03/04/07 |
 | 10 | Module 6 — Reporting + exports | RG-14, EX-REP-01→06 |
 | 11 | Administration (7 référentiels) | — |
 | 12 | Audit + RGPD + 5 tâches planifiées | RG-11/12, immuabilité |

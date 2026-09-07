@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { verifierCodeAcces } from '@/server/services/declaration/code-acces'
 import { autoriserTentative, cleThrottle, reinitialiserTentatives } from '@/server/auth/throttle'
+import { ouvrirSessionSuivi } from '@/server/auth/session-suivi'
 
 /**
  * EX-NOT-06 : consultation publique d'un dossier par référence + code d'accès.
@@ -24,6 +25,8 @@ export type EtatSuivi = {
     deposeLe: string
     misAJourLe: string
   }
+  /** Le panneau de messagerie ne reçoit jamais l'identifiant : il relit la session signée. */
+  messagerieOuverte?: boolean
 }
 
 /** Message unique quel que soit le motif : ne jamais révéler si la référence existe. */
@@ -94,6 +97,10 @@ export async function rechercherDossier(
 
   reinitialiserTentatives(cleReference)
 
+  // La référence ET le code viennent d'être prouvés : c'est le seul endroit du code autorisé à
+  // ouvrir une session de suivi. Elle donne accès à la messagerie de CE dossier (EX-NOT-07).
+  await ouvrirSessionSuivi(dossier.id)
+
   return {
     dossier: {
       reference: dossier.reference,
@@ -102,5 +109,6 @@ export async function rechercherDossier(
       deposeLe: (dossier.created_at ?? new Date()).toISOString(),
       misAJourLe: (dossier.updated_at ?? dossier.created_at ?? new Date()).toISOString(),
     },
+    messagerieOuverte: true,
   }
 }

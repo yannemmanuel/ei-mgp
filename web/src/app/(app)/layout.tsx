@@ -4,6 +4,7 @@ import { BarreLaterale } from '@/components/layout/barre-laterale'
 import { EnTete } from '@/components/layout/en-tete'
 import { navigationPour } from '@/components/layout/navigation'
 import { prisma } from '@/lib/prisma'
+import { nombreNonLues, notificationsRecentes } from '@/server/services/notification/boite'
 import { seDeconnecter } from './actions'
 
 /**
@@ -15,10 +16,11 @@ export default async function LayoutApplication({ children }: LayoutProps<'/'>) 
   const utilisateur = await exigerUtilisateur()
   const sections = navigationPour(utilisateur)
 
-  const profil = await prisma.users.findUnique({
-    where: { id: utilisateur.id },
-    select: { name: true },
-  })
+  const [profil, notifications, nonLues] = await Promise.all([
+    prisma.users.findUnique({ where: { id: utilisateur.id }, select: { name: true } }),
+    notificationsRecentes(utilisateur.id),
+    nombreNonLues(utilisateur.id),
+  ])
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -42,6 +44,8 @@ export default async function LayoutApplication({ children }: LayoutProps<'/'>) 
           roles={utilisateur.roles}
           sections={sections}
           actionDeconnexion={seDeconnecter}
+          notifications={notifications}
+          nonLues={nonLues}
         />
         <main className="flex-1 bg-muted/40 p-4 lg:p-6">{children}</main>
       </div>

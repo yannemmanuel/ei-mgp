@@ -4,17 +4,28 @@ import { Menu } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import type { NotificationVue } from '@/server/services/notification/boite'
 import type { SectionNavigation } from './navigation'
 import { BarreLaterale } from './barre-laterale'
+import { ClocheNotifications } from './cloche-notifications'
 
 type Props = {
   nom: string
   roles: readonly string[]
   sections: SectionNavigation[]
   actionDeconnexion: () => Promise<void>
+  notifications: NotificationVue[]
+  nonLues: number
 }
 
-export function EnTete({ nom, roles, sections, actionDeconnexion }: Props) {
+export function EnTete({
+  nom,
+  roles,
+  sections,
+  actionDeconnexion,
+  notifications,
+  nonLues,
+}: Props) {
   return (
     <header className="flex h-14 items-center justify-between gap-3 border-b border-border bg-background px-4">
       {/* Navigation repliée en tiroir sous le point de rupture lg. */}
@@ -33,6 +44,7 @@ export function EnTete({ nom, roles, sections, actionDeconnexion }: Props) {
       </Sheet>
 
       <div className="ml-auto flex items-center gap-3 text-sm">
+        <ClocheNotifications notifications={notifications} nonLues={nonLues} />
         <span className="hidden text-secondary-700 sm:inline">{nom}</span>
         {roles.map((role) => (
           <Badge key={role} variant="secondary" className="hidden font-normal sm:inline-flex">

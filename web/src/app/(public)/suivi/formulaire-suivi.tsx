@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { rechercherDossier, type EtatSuivi } from './actions'
+import { PanneauMessagerie } from './panneau-messagerie'
 
 const ETAT_INITIAL: EtatSuivi = {}
 
@@ -19,29 +20,33 @@ export function FormulaireSuivi() {
     const d = etat.dossier
 
     return (
-      <div className="mt-8 rounded-lg border border-border p-6">
-        <p className="text-label uppercase tracking-wide text-secondary-500">Référence</p>
-        <p className="mt-1 font-serif text-h2 text-secondary-900">{d.reference}</p>
+      <>
+        <div className="mt-8 rounded-lg border border-border p-6">
+          <p className="text-label uppercase tracking-wide text-secondary-500">Référence</p>
+          <p className="mt-1 font-serif text-h2 text-secondary-900">{d.reference}</p>
 
-        <dl className="mt-6 space-y-4 text-sm">
-          <div>
-            <dt className="text-caption text-muted-foreground">État</dt>
-            <dd className="text-secondary-900">{d.statutAffiche}</dd>
-          </div>
-          <div>
-            <dt className="text-caption text-muted-foreground">Type de déclaration</dt>
-            <dd className="text-secondary-900">{d.parcours}</dd>
-          </div>
-          <div>
-            <dt className="text-caption text-muted-foreground">Déposée le</dt>
-            <dd className="text-secondary-900">{dateFr(d.deposeLe)}</dd>
-          </div>
-          <div>
-            <dt className="text-caption text-muted-foreground">Dernière mise à jour</dt>
-            <dd className="text-secondary-900">{dateFr(d.misAJourLe)}</dd>
-          </div>
-        </dl>
-      </div>
+          <dl className="mt-6 space-y-4 text-sm">
+            <div>
+              <dt className="text-caption text-muted-foreground">État</dt>
+              <dd className="text-secondary-900">{d.statutAffiche}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-muted-foreground">Type de déclaration</dt>
+              <dd className="text-secondary-900">{d.parcours}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-muted-foreground">Déposée le</dt>
+              <dd className="text-secondary-900">{dateFr(d.deposeLe)}</dd>
+            </div>
+            <div>
+              <dt className="text-caption text-muted-foreground">Dernière mise à jour</dt>
+              <dd className="text-secondary-900">{dateFr(d.misAJourLe)}</dd>
+            </div>
+          </dl>
+        </div>
+
+        {etat.messagerieOuverte && <PanneauMessagerie />}
+      </>
     )
   }
 

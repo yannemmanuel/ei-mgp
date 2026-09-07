@@ -17,6 +17,8 @@ import {
   peutVoirInvestigation,
   peutCloturerAction,
   peutCreerAction,
+  peutEnvoyerMessage,
+  peutVoirMessagerie,
   peutModifierAction,
   peutVerifierEfficacite,
   peutVoirAction,
@@ -26,6 +28,7 @@ import {
   investigationsValidees,
 } from '@/server/services/action-corrective/action-corrective'
 import { investigationsDuDossier } from '@/server/services/investigation/investigation'
+import { marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
 import { utilisateursAffectables } from '@/server/services/dossier/affectation'
 import {
   affectationsActives,
@@ -38,6 +41,7 @@ import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
+import { PanneauMessagerie } from './panneau-messagerie'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -72,6 +76,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     investigations,
     actions,
     investigationsValidees_,
+    messages,
     responsablesPossibles,
   ] = await Promise.all([
     historiqueDossier(id),
@@ -85,6 +90,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     investigationsDuDossier(id),
     actionsDuDossier(id),
     investigationsValidees(id),
+    peutVoirMessagerie(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
+      ? messagesDuDossier(id)
+      : Promise.resolve([]),
     // Liste des responsables possibles : conditionnee au droit de CREER une action, et non a
     // celui de reaffecter — les deux permissions sont distinctes et portees par des roles
     // differents.
@@ -148,6 +156,21 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
         responsable: a.users.name,
       }))
     : []
+
+  // Parité avec `MessagerieDossier::mount()` : ouvrir le dossier vaut lecture des messages du
+  // déclarant. C'est une écriture pendant le rendu, assumée — la page est dynamique (elle lit la
+  // session) et l'opération est idempotente : la relire ne change plus rien.
+  if (messages.length > 0) {
+    await marquerMessagesLus(id, 'agent')
+  }
+
+  const messagesVus = messages.map((m) => ({
+    id: m.id,
+    cote: m.expediteur_type === 'agent' ? ('agent' as const) : ('declarant' as const),
+    auteur: m.expediteur_type === 'agent' ? (m.users?.name ?? 'Agent') : 'Déclarant',
+    corps: m.corps,
+    envoyeLe: (m.created_at ?? new Date()).toISOString(),
+  }))
 
   return (
     <div className="space-y-6">
@@ -304,6 +327,14 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             droits={droitsActions}
             dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
           />
+
+          {peutVoirMessagerie(utilisateur, contexteParcours) && (
+            <PanneauMessagerie
+              dossierId={id}
+              messages={messagesVus}
+              peutEnvoyer={peutEnvoyerMessage(utilisateur, contexteParcours)}
+            />
+          )}
 
           <Card>
             <CardHeader>
