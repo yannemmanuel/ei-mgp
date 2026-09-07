@@ -30,6 +30,8 @@ const PERMISSIONS_ADMINISTRATION = [
   'referentiels.categories.manage',
   'referentiels.statuts.manage',
   'referentiels.sites.manage',
+  'referentiels.delais.manage',
+  'referentiels.gravites.manage',
   'canaux.manage',
   'notifications.templates.manage',
   'qrcodes.manage',

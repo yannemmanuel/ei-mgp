@@ -1167,12 +1167,92 @@ Ce n'est plus une lacune de code mais un paramétrage. Deux détails ont été t
 | 5 | Sauvegardes et archivage WAL | ❌ Infrastructure |
 | 6 | Délais métier sur `ei_employe` | ❌ Décision métier |
 | 7 | Passe manuelle au navigateur | ❌ À faire |
-| 8 | Arbitrage `url_cible` des QR codes | ❌ Décision |
-| 9 | Niveaux de gravité administrables | ❌ Décision |
-| 10 | Validation des ajouts d'audit hors CDC | ❌ Décision |
+| 8 | Arbitrage `url_cible` des QR codes | ✅ Sans objet — point d'entrée unique (étape 15) |
+| 9 | Niveaux de gravité administrables | ✅ Fait (étape 15) |
+| 10 | Validation des ajouts d'audit hors CDC | ✅ Validés (étape 15) |
 
 Il ne reste **aucune condition relevant du code**. Les huit restantes appellent une décision
 d'infrastructure ou métier.
+
+---
+
+### ✅ Étape 15 — Décisions métier appliquées
+
+**Livré** — 255 tests, `typecheck`, `lint` et `build` au vert ; base cohérente avant/après.
+
+Quatre décisions ont été prises par le métier. Trois demandaient du code.
+
+#### 1. Délai EI arbitré à 5 jours, et délais rendus paramétrables
+
+`ei_employe / analyse_preliminaire` passe de **3 jours ouvrés « provisoire »** à **5 jours ouvrés
+« validé »**. Le parcours majoritaire produit donc désormais une échéance, et avec elle les
+relances J-3 et les escalades qui en dépendaient — elles étaient inertes jusqu'ici (risque n° 21,
+levé).
+
+La valeur est posée dans `SlaDelaiSeeder` (qui fait autorité) **et** appliquée en base : 17 délais
+validés sur 22.
+
+⚠️ **Les deux autres étapes d'EI Employé restent provisoires** — `traitement_enquete` (15 j) et
+`mise_en_oeuvre_mesures` (30 j). Seul le délai nommé a été arbitré ; je n'ai pas étendu la
+décision aux valeurs que vous n'avez pas citées. Elles se règlent maintenant depuis l'écran.
+
+**Nouvel écran `/administration/delais`** : valeur, unité, note, et surtout le commutateur
+« validé par le métier ». Un test vérifie le cycle complet — dévalider éteint l'échéance,
+revalider la rétablit — parce que c'est exactement ce que DT-04 promet, et que le cache des
+délais est purgé à l'enregistrement (sans quoi une correction resterait sans effet et
+l'administrateur croirait avoir agi).
+
+#### 2. Point d'entrée unique : un QR code, un lien, un choix
+
+`/declarer` devient l'écran de choix : **évènement indésirable** ou **plainte** ; si plainte, à
+quel titre (employé, sous-traitant, communauté). Tous les QR codes y mènent — `/q/{jeton}` ne
+consulte plus le parcours du support.
+
+Deux gains directs : un seul support à imprimer, et plus aucun risque qu'une affiche périmée
+envoie vers le mauvais formulaire. Les quatre routes `/declarer/{parcours}` restent atteignables :
+un lien déjà diffusé continue de fonctionner.
+
+Le vocabulaire de l'écran est celui du déclarant — « ce qui vous est arrivé », pas « parcours » —
+et il indique explicitement que le service réorientera un dossier mal classé sans qu'il faille le
+redéposer. Quelqu'un qui hésite entre un incident et une plainte ne connaît pas notre
+nomenclature.
+
+`qr_codes.parcours_id` reste obligatoire en base : il ne documente plus que le contexte
+d'émission du support, et l'écran d'administration le dit.
+
+#### 3. Niveaux de gravité paramétrables
+
+**Nouvel écran `/administration/gravites`** : libellé, couleur, effet de circuit, activation.
+Comble le manque relevé au risque n° 18 — `exigences-audit.md` §2 les citait parmi les
+référentiels administrables, sans écran dans la baseline.
+
+Trois garde-fous, parce que ce référentiel commande des comportements :
+
+- **`niveau` et `code` ne sont pas modifiables.** Ils ordonnent l'échelle et sont référencés par
+  les dossiers déjà classés ; en changer la valeur les déplacerait silencieusement.
+- **La couleur doit être hexadécimale.** Elle est injectée en style inline sur le tableau de
+  bord : une valeur libre y serait un vecteur d'injection.
+- **Le dernier niveau actif ne peut pas être désactivé.** Sans lui, plus aucune déclaration ne
+  pourrait être déposée.
+
+`effet_circuit` reste modifiable — c'est bien une décision métier — mais l'écran annonce ce qu'il
+déclenche : l'alerte immédiate de la Direction (RG-08).
+
+#### 4. Les trois ajouts d'audit sont validés
+
+`rapport.export_nominatif`, `tache.executee` / `tache.echouee` et `user.mot_de_passe_regenere`
+sont désormais inscrits dans `docs/exigences-audit.md` §2 comme évènements audités à part
+entière, avec leur justification. Ils ne sont plus des ajouts « hors CDC ».
+
+#### Deux permissions ajoutées, des deux côtés
+
+`referentiels.delais.manage` et `referentiels.gravites.manage`, portées par `service_mgp`
+(référentiels métier, DT-02). Ajoutées **au seeder Laravel** autant qu'au portage : le test de
+parité compare la liste du code au contenu réel de la table et échoue à la moindre divergence.
+36 permissions, 88 associations, les deux applications d'accord.
+
+Vérifié en HTTP : `service_mgp` accède aux deux écrans, `administrateur_digital` en est refusé —
+la séparation DT-02 tient sur les nouveaux écrans comme sur les anciens.
 
 ---
 
@@ -1194,12 +1274,12 @@ d'infrastructure ou métier.
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
 | 15 | **Référentiels manquants en base non détectés par la suite.** Trois occurrences (`date_cloture`, `sla_delais`, `notification_templates`). Les tests fabriquent leurs données de référence et ne signalent donc pas leur absence en production. | 🔴 Majeur | Partiellement traité — à étendre à chaque référentiel (étape 11) |
-| 16 | **Traçabilité de l'export nominatif ajoutée hors CDC.** `rapport.export_nominatif` n'est pas listé dans `docs/exigences-audit.md` §2 ; la baseline Laravel ne journalise aucun export. Ajout jugé nécessaire pour le DPO, à valider. | 🟢 Faible | Ouvert — à confirmer |
-| 17 | **QR codes : `url_cible` sans effet.** L'écran laisse croire à une réorientation possible ; la redirection est recalculée depuis le parcours. Rendre la colonne effective créerait une redirection ouverte pilotée depuis l'administration. | 🟠 Moyen | Ouvert — arbitrage requis |
-| 18 | **Niveaux de gravité non administrables.** Cités par `exigences-audit.md` §2, sans écran dans la baseline. Non inventé. | 🟢 Faible | Ouvert — arbitrage requis |
+| 16 | **Ajouts d'audit hors CDC.** | 🟢 Faible | ✅ Validés par le métier à l'étape 15 — inscrits dans `docs/exigences-audit.md` §2 |
+| 17 | **QR codes : `url_cible` sans effet.** L'écran l'annonce désormais explicitement. Avec le point d'entrée unique (étape 15), la question de la réorientation par support disparaît : tous mènent au même écran de choix. | 🟢 Faible | Traité — colonne documentaire assumée |
+| 18 | **Niveaux de gravité non administrables.** | 🟢 Faible | ✅ Résolu à l'étape 15 — écran `/administration/gravites` |
 | 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
-| 21 | **Délais non validés sur `ei_employe`.** Trois étapes sur quatre portent `est_valide_metier = false` (cellules « à valider » du CDC §1.8 point 4) : sur le parcours majoritaire, aucune relance ni escalade ne se déclenche. Décision métier en attente, pas un défaut technique. | 🟠 Moyen | Ouvert — arbitrage métier |
+| 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

@@ -225,7 +225,7 @@ describe('RG-05 / RGI-13 — délais suivis automatiquement', () => {
     expect(limite!.getTime()).toBeGreaterThan(Date.now())
   })
 
-  it('ne produit AUCUNE échéance tant que le délai n’est pas validé par le métier (DT-04)', async () => {
+  it('applique le délai arbitré par le métier pour EI Employé', async () => {
     const { dossierId } = await declaration({ parcours: 'ei_employe' })
     const acteur = await prisma.users.findFirstOrThrow({ where: { actif: true }, select: { id: true } })
 
@@ -242,11 +242,16 @@ describe('RG-05 / RGI-13 — délais suivis automatiquement', () => {
       parcoursId: initial.parcours_id,
     })
 
-    // `ei_employe / analyse_preliminaire` porte `est_valide_metier = false` : une valeur
-    // indicative ne doit pas déclencher d'escalade. Conséquence à connaître — sur ce parcours,
-    // le plus volumineux, aucune relance ni escalade ne partira tant que le métier n'aura pas
-    // arrêté ses délais (CDC §1.8 point 4).
-    expect(limite).toBeNull()
+    // Décision métier : 5 jours ouvrés, validés. Ce parcours produit donc désormais une
+    // échéance — et avec elle les relances et escalades qui en dépendent. La valeur elle-même
+    // se règle dans /administration/delais, ce test ne fige que le fait qu'elle s'applique.
+    const delai = await prisma.sla_delais.findFirstOrThrow({
+      where: { parcours_id: initial.parcours_id, etape_code: 'analyse_preliminaire' },
+    })
+
+    expect(delai.valeur).toBe(5)
+    expect(delai.est_valide_metier).toBe(true)
+    expect(limite).not.toBeNull()
   })
 
   it('applique au parcours d’origine le délai d’une catégorie « Autre » (RGI-13)', async () => {

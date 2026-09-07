@@ -34,6 +34,10 @@ class RolePermissionSeeder extends Seeder
         'notifications.templates.manage',
         // Référentiels métier
         'referentiels.categories.manage', 'referentiels.statuts.manage', 'referentiels.sites.manage',
+        // Délais SLA (CDC §11.2) et niveaux de gravité : rendus administrables sur décision du
+        // métier — les valeurs « à valider » du CDC §1.8 point 4 se règlent désormais sans
+        // déploiement, comme les autres référentiels métier.
+        'referentiels.delais.manage', 'referentiels.gravites.manage',
         // Référentiels techniques
         'qrcodes.manage', 'users.manage', 'roles.manage', 'canaux.manage',
         // Reporting
@@ -90,6 +94,7 @@ class RolePermissionSeeder extends Seeder
             'messagerie.view', 'messagerie.send',
             'notifications.templates.manage',
             'referentiels.categories.manage', 'referentiels.statuts.manage', 'referentiels.sites.manage',
+            'referentiels.delais.manage', 'referentiels.gravites.manage',
             'reporting.view', 'reporting.export', 'reporting.export.nominatif',
             // docs/exigences-audit.md §4 : service_mgp a accès en lecture seule à audit_logs
             // ("pilotage"), au même titre qu'auditeur/dpo — omis par erreur en Phase 2, corrigé

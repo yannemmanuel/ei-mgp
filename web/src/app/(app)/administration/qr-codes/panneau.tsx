@@ -45,9 +45,14 @@ export function PanneauQrCodes({
       <div>
         <h1 className="text-h1 text-secondary-900">QR codes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Chaque code encode l’adresse de redirection <code>/q/&#123;jeton&#125;</code>, jamais
-          l’adresse du formulaire : c’est cette indirection qui permet de retirer un support de la
-          circulation sans le remplacer.
+          Tous les codes mènent au <strong>même écran de choix</strong> : le déclarant y indique
+          lui-même s’il signale un évènement indésirable ou dépose une plainte. Un seul support à
+          imprimer, et aucun risque qu’une affiche envoie vers le mauvais formulaire.
+        </p>
+        <p className="mt-2 text-caption text-muted-foreground">
+          Le code encode <code>/q/&#123;jeton&#125;</code> et non l’adresse du formulaire : c’est
+          cette indirection qui permet de retirer un support déjà imprimé de la circulation. Le
+          parcours choisi ci-dessous ne sert qu’à documenter où le support est posé.
         </p>
       </div>
 
@@ -59,7 +64,7 @@ export function PanneauQrCodes({
           <form action={generer} className="flex flex-wrap items-end gap-3">
             <div className="min-w-56">
               <Label htmlFor="parcoursId" className="text-caption text-muted-foreground">
-                Parcours
+                Parcours de rattachement (documentaire)
               </Label>
               <select
                 id="parcoursId"
@@ -170,7 +175,7 @@ function FicheQrCode({ code }: { code: QrCodeVue }) {
           {/* Voir MIGRATION_PLAN.md : la baisse de confiance vient de la baseline, où cet écran
               laisse croire à une réorientation qui n'a jamais lieu. */}
           <p className="text-caption text-muted-foreground">
-            Valeur documentaire : la redirection est recalculée à partir du parcours, cette adresse
+            Valeur documentaire : la redirection mène toujours à l’écran de choix, cette adresse
             n’est lue par aucun traitement.
           </p>
 

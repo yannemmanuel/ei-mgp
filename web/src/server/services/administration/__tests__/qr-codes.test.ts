@@ -112,17 +112,31 @@ describe('URL cible', () => {
 
     const code = await prisma.qr_codes.findUniqueOrThrow({
       where: { id },
-      select: { url_cible: true, parcours: { select: { code: true } } },
+      select: { url_cible: true },
     })
 
     // La colonne est bien écrite…
     expect(code.url_cible).toBe('https://exemple.test/ailleurs')
 
-    // …mais `/q/[token]` recalcule sa destination à partir du parcours, exactement comme le
-    // contrôleur Laravel. Ce test fige le constat documenté dans MIGRATION_PLAN.md : l'écran
-    // d'administration de la baseline laisse croire à une réorientation qui n'a jamais lieu.
-    const destinationReelle = `/declarer/${code.parcours.code}`
-    expect(destinationReelle).not.toContain('exemple.test')
+    // …mais `/q/[token]` mène toujours à l'écran de choix : la destination n'est pas lue en base.
+    // La honorer ferait de cette colonne une redirection ouverte pilotée depuis l'administration.
+    const route = await import('node:fs/promises').then((fs) =>
+      fs.readFile('src/app/(public)/q/[token]/route.ts', 'utf8')
+    )
+    expect(route).toContain("redirect('/declarer')")
+    expect(route).not.toContain('url_cible')
+  })
+
+  it('enregistre le point d’entrée unique comme destination', async () => {
+    const id = await nouveauCode()
+
+    const code = await prisma.qr_codes.findUniqueOrThrow({
+      where: { id },
+      select: { url_cible: true },
+    })
+
+    // Un seul support, une seule destination : l'écran de choix.
+    expect(code.url_cible.endsWith('/declarer')).toBe(true)
   })
 })
 

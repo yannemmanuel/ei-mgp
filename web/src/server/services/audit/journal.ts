@@ -24,6 +24,8 @@ export const MODELES = {
   canalCaptage: String.raw`App\Models\CanalCaptage`,
   notificationTemplate: String.raw`App\Models\NotificationTemplate`,
   qrCode: String.raw`App\Models\QrCode`,
+  slaDelai: String.raw`App\Models\SlaDelai`,
+  niveauGravite: String.raw`App\Models\NiveauGravite`,
   utilisateur: String.raw`App\Models\User`,
   dossier: String.raw`App\Models\Dossier`,
 } as const

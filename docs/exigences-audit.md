@@ -33,6 +33,18 @@ Source : CDC §15 (Exigences de traçabilité et d'audit), §24 du prompt utilis
   gérant des données sensibles, même si non explicitement listé au mot près dans le CDC — cf.
   `decisions-techniques.md` DT-08 pour la justification de cet ajout raisonnable).
 
+Trois évènements supplémentaires, proposés lors de la migration Next.js et **validés par le
+métier** (cf. `MIGRATION_PLAN.md`) :
+
+- **Export de données nominatives** (`rapport.export_nominatif`) : c'est la seule voie par
+  laquelle des données personnelles quittent le système. Le DPO doit pouvoir savoir qui a extrait
+  quoi. Seul l'export réellement nominatif est journalisé — un export anonyme ne sort aucune
+  identité. Les paramètres reçus sont consignés en entier, y compris ceux qui ont été refusés.
+- **Exécution des tâches planifiées** (`tache.executee`, `tache.echouee`) : sans trace, une tâche
+  qui échoue chaque nuit est indiscernable d'une tâche qui n'a rien à faire.
+- **Réattribution d'un mot de passe** (`user.mot_de_passe_regenere`) : ni la valeur ni son
+  empreinte ne sont consignées, seulement le fait que l'opération a eu lieu et par qui.
+
 ## 3. Garantie d'immuabilité — mesures en profondeur (defense in depth)
 
 Le prompt utilisateur est explicite : *« Ne jamais permettre un CRUD classique sur audit_logs »*.

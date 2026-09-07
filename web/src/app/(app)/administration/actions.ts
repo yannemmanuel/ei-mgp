@@ -13,6 +13,16 @@ import {
   modifierStatut,
   type CanalNotification,
 } from '@/server/services/administration/referentiels'
+import {
+  modifierDelai,
+  UNITES_DELAI,
+  type UniteDelai,
+} from '@/server/services/administration/delais'
+import {
+  EFFETS_CIRCUIT,
+  modifierGravite,
+  type EffetCircuit,
+} from '@/server/services/administration/gravites'
 import type { EtatFormulaire } from './editeur-referentiel'
 
 /**
@@ -235,4 +245,66 @@ export async function actionEnregistrerGabarit(
 
   revalidatePath('/administration/notifications')
   return { succes: 'Gabarit enregistré.' }
+}
+
+export async function actionModifierDelai(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.delais.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const delaiId = identifiant(donnees)
+  if (delaiId === undefined) return { erreur: 'Délai introuvable.' }
+
+  const unite = texte(donnees, 'unite')
+
+  if (!UNITES_DELAI.includes(unite as UniteDelai)) {
+    return { erreur: 'Unité de délai inconnue.' }
+  }
+
+  try {
+    await modifierDelai(acteur, delaiId, {
+      valeur: entier(donnees, 'valeur', 0),
+      unite: unite as UniteDelai,
+      estValideMetier: coche(donnees, 'estValideMetier'),
+      notes: texte(donnees, 'notes') || null,
+    })
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/delais')
+  return { succes: 'Délai enregistré.' }
+}
+
+export async function actionModifierGravite(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.gravites.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const graviteId = identifiant(donnees)
+  if (graviteId === undefined) return { erreur: 'Niveau de gravité introuvable.' }
+
+  const effet = texte(donnees, 'effetCircuit')
+
+  if (!EFFETS_CIRCUIT.includes(effet as EffetCircuit)) {
+    return { erreur: 'Effet de circuit inconnu.' }
+  }
+
+  try {
+    await modifierGravite(acteur, graviteId, {
+      libelle: texte(donnees, 'libelle'),
+      couleur: texte(donnees, 'couleur') || null,
+      effetCircuit: effet as EffetCircuit,
+      actif: coche(donnees, 'actif'),
+    })
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/gravites')
+  return { succes: 'Niveau de gravité enregistré.' }
 }

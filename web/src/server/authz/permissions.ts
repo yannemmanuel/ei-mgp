@@ -39,6 +39,10 @@ export const PERMISSIONS = [
   'referentiels.categories.manage',
   'referentiels.statuts.manage',
   'referentiels.sites.manage',
+  // Délais SLA et niveaux de gravité — rendus administrables sur décision du métier : les
+  // valeurs « à valider » du CDC §1.8 point 4 se règlent sans déploiement.
+  'referentiels.delais.manage',
+  'referentiels.gravites.manage',
   // Référentiels techniques
   'qrcodes.manage',
   'users.manage',

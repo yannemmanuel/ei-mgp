@@ -48,6 +48,7 @@ export const ROLES = {
     'messagerie.view', 'messagerie.send',
     'notifications.templates.manage',
     'referentiels.categories.manage', 'referentiels.statuts.manage', 'referentiels.sites.manage',
+    'referentiels.delais.manage', 'referentiels.gravites.manage',
     'reporting.view', 'reporting.export', 'reporting.export.nominatif',
     'audit.view',
   ],

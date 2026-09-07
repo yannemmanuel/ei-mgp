@@ -11,10 +11,14 @@ import { MODELES, attributsCrees, difference, journaliser, sansChangement } from
  * Le QR encode `/q/{token}`, jamais l'URL du formulaire : c'est cette indirection qui permet de
  * désactiver un support déjà imprimé sans le remplacer.
  *
- * ⚠️ `url_cible` n'est LU par rien — ni ici, ni dans `/q/[token]`, ni dans le contrôleur Laravel
- * équivalent, qui recalcule tous deux la destination à partir du parcours. La colonne est donc
- * documentaire. Voir MIGRATION_PLAN.md : l'écran d'administration de la baseline laisse croire
- * qu'on peut réorienter un QR code en la modifiant, ce qui est faux.
+ * Depuis la décision de passer à un **support unique**, tous les codes mènent au même écran de
+ * choix. `parcours_id` reste renseigné — la colonne est obligatoire en base — mais ne documente
+ * plus que le contexte d'émission du support (où il a été posé, pour qui).
+ *
+ * ⚠️ `url_cible` n'est LU par rien : `/q/[token]` mène à l'écran de choix sans consulter la
+ * colonne. Elle reste écrite à la génération pour documenter la destination, mais la modifier ne
+ * réoriente aucun support — l'honorer ferait de cette colonne une redirection ouverte pilotée
+ * depuis l'administration. Voir MIGRATION_PLAN.md, risque n° 17.
  */
 
 type Acteur = { id: bigint }
@@ -54,16 +58,15 @@ export async function listerQrCodes() {
 }
 
 export async function genererQrCode(acteur: Acteur, parcoursId: bigint): Promise<string> {
-  const parcours = await prisma.parcours.findUniqueOrThrow({
-    where: { id: parcoursId },
-    select: { code: true },
-  })
+  // Vérifie l'existence du parcours de rattachement, sans plus s'en servir pour la destination.
+  await prisma.parcours.findUniqueOrThrow({ where: { id: parcoursId }, select: { id: true } })
 
   const valeurs = {
     id: ulid().toLowerCase(),
     parcours_id: parcoursId,
     token: jeton(),
-    url_cible: `${baseUrl()}/declarer/${parcours.code}`,
+    // Destination réelle : l'écran de choix, identique pour tous les supports.
+    url_cible: `${baseUrl()}/declarer`,
     actif: true,
     genere_par: acteur.id,
     genere_le: new Date(),

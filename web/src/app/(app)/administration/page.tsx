@@ -49,6 +49,22 @@ const ENTREES: Entree[] = [
     unite: 'statut(s)',
   },
   {
+    libelle: 'Délais de traitement',
+    href: '/administration/delais',
+    permission: 'referentiels.delais.manage',
+    description: 'Délais par étape et par parcours, et leur validation métier.',
+    compter: () => prisma.sla_delais.count({ where: { est_valide_metier: true } }),
+    unite: 'délai(s) validé(s)',
+  },
+  {
+    libelle: 'Niveaux de gravité',
+    href: '/administration/gravites',
+    permission: 'referentiels.gravites.manage',
+    description: 'Échelle de gravité et déclenchement du circuit accéléré.',
+    compter: () => prisma.niveaux_gravite.count({ where: { actif: true } }),
+    unite: 'niveau(x) actif(s)',
+  },
+  {
     libelle: 'Sites',
     href: '/administration/sites',
     permission: 'referentiels.sites.manage',

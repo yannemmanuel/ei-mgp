@@ -29,7 +29,10 @@ class SlaDelaiSeeder extends Seeder
      */
     private const DELAIS = [
         ParcoursCode::EiEmploye->value => [
-            EtapeDelai::AnalysePreliminaire->value => [3, UniteDelai::JoursOuvres, false],
+            // Arbitré par le métier : 5 jours ouvrés, validé (levait la cellule « à valider » du
+            // CDC §1.8 point 4). Modifiable désormais sans déploiement, depuis
+            // /administration/delais.
+            EtapeDelai::AnalysePreliminaire->value => [5, UniteDelai::JoursOuvres, true],
             EtapeDelai::TraitementEnquete->value => [15, UniteDelai::JoursOuvres, false],
             EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, false],
             EtapeDelai::Cloture->value => [6, UniteDelai::Mois, true],
