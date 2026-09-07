@@ -633,6 +633,108 @@ second cas couvre le sens inverse sur une échéance largement dépassée.
 
 ---
 
+### ✅ Étape 10 — Reporting, indicateurs et exports
+
+**Livré** — 159 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après.
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/reporting/filtre.ts` | Filtre unique du module (EX-REP-02) |
+| `server/services/reporting/indicateurs.ts` | 7 indicateurs agrégés en SQL (EX-REP-03) |
+| `server/services/reporting/statistiques-mensuelles.ts` | Archivage mensuel + historique (EX-REP-05) |
+| `server/services/reporting/export.ts` | Lignes d'export et colonnes (EX-REP-04/06) |
+| `server/services/reporting/classeur.ts` | Classeur `.xlsx` (exceljs) |
+| `server/services/reporting/document-pdf.tsx` | Rapport PDF (@react-pdf/renderer) |
+| `app/api/exports/dossiers/route.ts` | Téléchargement, autorisations revérifiées |
+| `(app)/dashboard/{page,filtres,boutons-export}` | Tableau de bord consolidé (EX-REP-01) |
+
+#### Parité vérifiée chiffre par chiffre contre Laravel
+
+Les deux implémentations ont été exécutées sur la **même base**, et comparées :
+
+```
+total 10 · résolution 10 % · clôture 0 % · délai —
+parcours  EI(7) Communauté(1) Employé(1) Sous-traitant(1)
+statut    Affecté(6) En investigation(1) En attente(2) Résolu(1)
+gravité   Faible(3) Modéré(2) Élevé(2) Critique(3)
+```
+
+Sortie **identique** des deux côtés sur les 7 indicateurs. C'est la vérification la plus directe
+possible d'un port de calcul : pas une relecture du code, une confrontation des résultats.
+
+`délai moyen = —` parce qu'aucun dossier de la base ne porte de `date_cloture` : conséquence
+directe du défaut corrigé à l'étape 6a, aucun dossier n'ayant été clôturé depuis.
+
+#### RG-14 / EX-REP-06 vérifié en HTTP réel, pas seulement en test
+
+`docs/exigences-securite.md` §6 exige qu'« aucun paramètre d'URL ne permette de forcer
+l'inclusion de données nominatives sans revérification côté serveur ». Vérifié avec trois comptes
+réels contre le serveur de développement :
+
+| Compte | Requête | Résultat |
+|---|---|---|
+| aucun | `?format=xlsx` | 307 vers `/login` (proxy) |
+| cookie de session contrefait | `?format=xlsx` | **401** — la garde de la route, que le proxy ne peut pas rendre |
+| `correspondant_mgp` | `?format=xlsx` | **403** |
+| `service_mgp` | `?format=xlsx` | 200, 8 colonnes |
+| `service_mgp` | `?nominatif=1` | 200, **11 colonnes** |
+| `dg` | `?nominatif=1` | 200, **8 colonnes** — le paramètre est ignoré |
+
+Le fichier du DG est **strictement identique** à un export non nominatif : ni colonne, ni valeur.
+La donnée n'est même pas lue — la jointure `declaration_identites` est conditionnée à
+l'autorisation, si bien qu'un oubli d'affichage ne pourrait pas la divulguer.
+
+#### Ajout par rapport à Laravel : traçabilité de l'export nominatif
+
+La baseline ne journalise aucun export. Or c'est la seule voie par laquelle des données
+personnelles quittent le système, et le DPO doit pouvoir savoir qui a extrait quoi.
+`rapport.export_nominatif` est donc écrit dans `audit_logs` — **uniquement** pour un export
+réellement nominatif : un export anonyme ne sort aucune identité. Les paramètres reçus y sont
+consignés en entier, y compris ceux qui ont été refusés.
+
+Non listé dans `docs/exigences-audit.md` §2 : ajout assumé, à valider.
+
+#### Remplacements de bibliothèques
+
+| Laravel | Next.js | Note |
+|---|---|---|
+| `maatwebsite/excel` | `exceljs` 4.4.0 | Vrai `.xlsx` (signature ZIP vérifiée en test), pas un CSV renommé |
+| `barryvdh/laravel-dompdf` | `@react-pdf/renderer` 4.9.0 | Mise en page **réécrite** : dompdf part d'un gabarit Blade, react-pdf compose en React |
+| Chart.js | CSS pur | Barres proportionnelles rendues côté serveur — même lecture, sans dépendance de graphique, lisible sans JavaScript et à l'impression |
+
+`exceljs` introduit `uuid < 11.1.1` (avis modéré : contrôle de bornes manquant sur `buf` en
+v3/v5/v6). **Non atteignable** : exceljs n'appelle que `uuid.v4()`, sans argument `buf`, dans un
+seul module d'extension de mise en forme conditionnelle. Vérifié dans le code installé, pas
+supposé. Même traitement que `mysql2` (risque n° 7).
+
+#### Points d'implémentation
+
+- **Le filtre est unique.** Tableau de bord, indicateurs et exports partagent le même objet : si
+  l'export traduisait les filtres à sa façon, un rapport pourrait ne pas correspondre à l'écran
+  et l'écart serait indétectable. Les liens d'export recopient les paramètres d'URL courants.
+- **Borne de fin inclusive.** `whereDate(..., '<=', fin)` de Laravel compare des DATES : un `lte`
+  sur un timestamp exclurait tout ce qui a été soumis après minuit. La borne est portée à
+  23:59:59.999.
+- **`Prisma.sql` pour la seule requête brute.** Aucune API d'agrégat de Prisma ne sait soustraire
+  deux dates. Les valeurs du filtre passent en paramètres liés ; seuls les noms de colonnes sont
+  des littéraux écrits dans le code.
+- **Archivage mensuel non réinscriptible.** Un mois déjà archivé n'est jamais recalculé — un test
+  ajoute un dossier après coup et vérifie que la valeur publiée ne bouge pas.
+- **Pas de compteur « dossiers en retard » global** sur le tableau de bord : le calcul d'échéance
+  interroge `historique_statuts` dossier par dossier, et l'exécuter sur tout le périmètre à
+  chaque chargement de la page la plus visitée créerait un vrai N+1. Il faudrait une colonne
+  recalculée, sur le modèle de `actions_correctives.statut`.
+
+#### Observation : `statistiques_mensuelles` est vide
+
+Zéro ligne en base. Contrairement aux trois cas précédents, ce n'est **pas** un défaut : cette
+table est alimentée par une commande planifiée (`CalculerStatistiquesMensuelles`), et aucun
+ordonnanceur n'a jamais été mis en place. L'historique mensuel du tableau de bord est donc
+légitimement vide tant que l'étape 12 n'a pas branché les tâches planifiées.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -644,13 +746,14 @@ second cas couvre le sens inverse sur une échéance largement dépassée.
 | 5 | **Livewire → React est une reconstruction**, pas une traduction. ~60 actions métier à recenser une par une (ce ne sont pas des routes). | 🔴 Majeur | Ouvert |
 | 6 | **Pas de scheduler dans Next.js.** 5 commandes planifiées exigent une infra externe. RG-08 impose en plus du synchrone. | 🟠 Moyen | Ouvert — étape 12 |
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
-| 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Ouvert — étape 10 |
+| 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Traité à l'étape 10 (@react-pdf/renderer, mise en page réécrite) |
 | 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
 | 10 | **Réinitialisation de mot de passe non portée.** Fonctionnalité Laravel existante (Fortify) ; nécessite une décision sur l'envoi d'e-mails. `password_reset_tokens` existe déjà. | 🟠 Moyen | Ouvert — avant bascule |
 | 12 | **Aucun e-mail n'est réellement expédié.** Le transport par défaut journalise sans envoyer, comme le `MAIL_MAILER=log` de la baseline. Un transport réel doit être branché avant production, sinon EX-NOT-02/03/04 restent inopérants côté déclarant et hiérarchie. | 🟠 Moyen | Ouvert — avant bascule |
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
 | 15 | **Référentiels manquants en base non détectés par la suite.** Trois occurrences (`date_cloture`, `sla_delais`, `notification_templates`). Les tests fabriquent leurs données de référence et ne signalent donc pas leur absence en production. | 🔴 Majeur | Partiellement traité — à étendre à chaque référentiel (étape 11) |
+| 16 | **Traçabilité de l'export nominatif ajoutée hors CDC.** `rapport.export_nominatif` n'est pas listé dans `docs/exigences-audit.md` §2 ; la baseline Laravel ne journalise aucun export. Ajout jugé nécessaire pour le DPO, à valider. | 🟢 Faible | Ouvert — à confirmer |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -659,7 +762,6 @@ second cas couvre le sens inverse sur une échéance largement dépassée.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 10 | Module 6 — Reporting + exports | RG-14, EX-REP-01→06 |
 | 11 | Administration (7 référentiels) | — |
 | 12 | Audit + RGPD + 5 tâches planifiées | RG-11/12, immuabilité |
 | 13 | Tests de non-régression complets | 39 EX + 15 RG + 13 RGI |
