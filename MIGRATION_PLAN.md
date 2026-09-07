@@ -937,11 +937,90 @@ n'a rien à faire. Comme `rapport.export_nominatif` (risque n° 16), cet ajout n
 
 ---
 
+### ✅ Étape 13 — Non-régression : les 67 exigences
+
+**Livré** — 232 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après.
+
+Méthode reprise de DT-32, que le projet a lui-même documentée : extraction des identifiants
+`EX-*` / `RG-*` / `RGI-*` des documents d'exigences, recoupement automatique avec ce que citent
+les tests et le code du portage, puis **tri manuel** de chaque absence.
+
+**Point de départ : 25 identifiants sans test citant.** Point d'arrivée : **0**.
+
+| Catégorie | Nombre | Traitement |
+|---|---|---|
+| Faux négatifs — comportement couvert, notation qui échappe à la recherche | 9 | Titre de test corrigé |
+| Réellement non testés | 15 | Tests ajoutés |
+| Réellement non implémentés | 1 | **Fonctionnalité portée** |
+
+#### 🔴 Une fonctionnalité manquait au portage : la saisie relais
+
+`EX-DEC-10` et `RG-13` ne référençaient rien, ni dans les tests ni dans le code : la route
+`/relais/{parcours}` de Laravel n'avait **pas été portée**. C'est exactement ce que la consigne
+« aucune fonctionnalité existante ne doit disparaître » interdit, et cela n'aurait été visible
+qu'à l'usage — un agent relais n'aurait eu aucune entrée dans l'application.
+
+Portée à l'identique : accès réservé à `dossiers.create`, canal d'origine obligatoire parmi
+`ligne_verte` / `boite_suggestions` / `agent_local`, et l'agent tracé comme **téléverseur**,
+jamais comme déclarant.
+
+Le cœur de la soumission a été extrait dans `server/services/declaration/soumission.ts`, partagé
+par les deux voies. Ce n'est pas une commodité : RG-13 exige que la déclaration relayée suive
+**exactement** le même workflow. Deux implémentations finiraient par diverger, et la divergence
+porterait sur des règles de sûreté. Seules deux choses diffèrent, et elles sont explicites — le
+canal, et le fait que les protections anti-robot ne s'appliquent qu'au canal public (un agent
+authentifié saisit parfois plusieurs déclarations d'affilée).
+
+Vérifié en HTTP réel : sans session → `/login` ; `service_mgp` et `auditeur` → `/acces-refuse`
+(aucun compte de démo ne porte `dossiers.create`) ; avec le rôle `agent_relais` attribué
+temporairement → 200, sélecteur de canal rendu avec ses 3 options. Le rôle a été retiré ensuite,
+`model_has_roles` revenu à 6.
+
+#### Deux tests dont la prémisse était fausse
+
+Même schéma qu'à l'étape 9b — le code avait raison, mon test avait tort :
+
+- **EX-NOT-02** : j'attendais une notification de changement de statut sur un dossier anonyme.
+  Il n'y a personne à qui écrire — `declarantIdentifie()` renvoie une liste vide. Le test assère
+  désormais les deux sens, et le cas anonyme devient une **garantie d'anonymat vérifiée** plutôt
+  qu'un échec.
+- **EX-GES-05** : j'utilisais « trop court » comme synthèse invalide. La chaîne fait exactement
+  10 caractères, soit la borne du service — le test aurait été vert sans rien prouver.
+
+#### Un constat opérationnel : les délais d'EI Employé ne sont pas validés
+
+Sur `ei_employe` — le parcours majoritaire (7 des 10 dossiers) — trois étapes sur quatre portent
+`est_valide_metier = false` : `analyse_preliminaire`, `traitement_enquete`,
+`mise_en_oeuvre_mesures`. Seule la clôture (6 mois) est validée.
+
+Ce n'est **pas un défaut** : ce sont les cellules « à valider » du CDC (§1.8 point 4), et DT-04
+prescrit qu'un délai provisoire ne déclenche aucune escalade. Mais la conséquence mérite d'être
+dite : **sur ce parcours, aucune échéance n'est calculée, aucune relance J-3 ne part et aucune
+escalade ne se produit** tant que le métier n'a pas arrêté ses valeurs. Un test fige désormais ce
+comportement dans les deux sens, pour qu'il reste un choix et non une surprise.
+
+#### Ce que « 0 identifiant restant » signifie — et ce que cela ne signifie pas
+
+Les 67 exigences sont désormais citées par un test. C'est une traçabilité, **pas une preuve de
+couverture fonctionnelle exhaustive** : 9 des identifiants ont été résolus en corrigeant un titre
+de test, sans nouvelle assertion — parce que le comportement était réellement couvert sous un
+autre nom, ce qui a été vérifié cas par cas avant d'annoter.
+
+Trois exigences restent couvertes de façon **structurelle** plutôt que comportementale, faute de
+pouvoir exécuter une Server Action hors requête HTTP : `EX-NOT-06` et `RGI-12` (la page de suivi
+n'interroge que la référence, jamais l'e-mail ni le téléphone) et `EX-DEC-05` (liste des routes
+publiques). Ces tests lisent le source plutôt que d'exercer le comportement — ils détectent une
+régression d'écriture, pas une régression d'exécution. La passe manuelle au navigateur avant
+bascule reste nécessaire (risque n° 14).
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** Ils encodent 15 RG + 13 RGI + 34 DT, dont 6 lacunes réelles trouvées seulement aux phases 13-14. La réécriture refait simultanément le code et le filet qui le protège. | 🔴 Majeur | Ouvert — poste de coût principal |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 232 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -960,6 +1039,7 @@ n'a rien à faire. Comme `rapport.export_nominatif` (risque n° 16), cet ajout n
 | 18 | **Niveaux de gravité non administrables.** Cités par `exigences-audit.md` §2, sans écran dans la baseline. Non inventé. | 🟢 Faible | Ouvert — arbitrage requis |
 | 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
+| 21 | **Délais non validés sur `ei_employe`.** Trois étapes sur quatre portent `est_valide_metier = false` (cellules « à valider » du CDC §1.8 point 4) : sur le parcours majoritaire, aucune relance ni escalade ne se déclenche. Décision métier en attente, pas un défaut technique. | 🟠 Moyen | Ouvert — arbitrage métier |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -968,7 +1048,6 @@ n'a rien à faire. Comme `rapport.export_nominatif` (risque n° 16), cet ajout n
 
 | # | Étape | Vérification |
 |---|---|---|
-| 13 | Tests de non-régression complets | 39 EX + 15 RG + 13 RGI |
 | 14 | Bascule, puis retrait de Laravel | **Après validation explicite** |
 
 Chemin critique : `authz → Déclaration → Dossiers/workflow → Notifications`.

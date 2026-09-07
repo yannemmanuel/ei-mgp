@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest'
+
+/**
+ * EX-DEC-02 : chaque parcours est atteignable par son propre lien `/declarer/{code}`, sans
+ * dépendance à un QR code. EX-DEC-03 : la bascule d'anonymat conditionne les champs rendus.
+ */
 import { schemaParcours } from '@/lib/validations/formulaire-parcours'
 import { CODES_PARCOURS, PARCOURS, champsVisibles } from '../parcours-config'
 

@@ -122,7 +122,7 @@ describe('Création de déclaration', () => {
     expect(identite.nom_prenom).toBe('Awa Koffi')
   })
 
-  it('génère un code d’accès vérifiable et jamais stocké en clair (RG-02)', async () => {
+  it('génère un code d’accès vérifiable et jamais stocké en clair (RG-02, EX-DEC-09)', async () => {
     const { dossierId, codeAcces } = await declarer({})
 
     expect(codeAcces).toMatch(/^\d{6}$/)

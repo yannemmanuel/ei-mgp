@@ -54,7 +54,11 @@ const SECTIONS: readonly SectionNavigation[] = [
   },
   {
     titre: 'Dossiers',
-    liens: [{ libelle: 'Dossiers', href: '/dossiers', icone: 'folder', permissions: PERMISSIONS_DOSSIERS }],
+    liens: [
+      { libelle: 'Dossiers', href: '/dossiers', icone: 'folder', permissions: PERMISSIONS_DOSSIERS },
+      // EX-DEC-10 : `agent_relais` ne porte QUE `dossiers.create` — c'est son unique entrée.
+      { libelle: 'Saisie relais', href: '/relais', icone: 'folder', permissions: ['dossiers.create'] },
+    ],
   },
   {
     titre: 'Analyse',

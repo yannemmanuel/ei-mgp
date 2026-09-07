@@ -17,6 +17,13 @@ type Props = {
   categoriesAutre: string[]
   niveauxGravite: Option[]
   directions: Option[]
+  /**
+   * Action de soumission. Injectée plutôt qu'importée en dur : la saisie relais (EX-DEC-10)
+   * réutilise ce formulaire avec sa propre action, authentifiée.
+   */
+  soumettre?: (etat: EtatSoumission, donnees: FormData) => Promise<EtatSoumission>
+  /** Canaux d'origine proposés à l'agent relais. Vide en saisie publique. */
+  canauxRelais?: Option[]
 }
 
 const LIBELLES_ETAPES = ['Votre identité', 'Contexte', 'Nature de l’évènement', 'Pièces jointes']
@@ -29,8 +36,11 @@ export function FormulaireDeclaration({
   categoriesAutre,
   niveauxGravite,
   directions,
+  soumettre = soumettreDeclaration,
+  canauxRelais = [],
 }: Props) {
-  const [etat, action, enCours] = useActionState(soumettreDeclaration, ETAT_INITIAL)
+  const [etat, action, enCours] = useActionState(soumettre, ETAT_INITIAL)
+  const viaRelais = canauxRelais.length > 0
   const [etape, setEtape] = useState(1)
   /**
    * Anti-robot par delai minimal de remplissage (DT-14) : pose au MONTAGE, cote client.
@@ -66,6 +76,36 @@ export function FormulaireDeclaration({
   return (
     <form action={action} className="mx-auto max-w-2xl">
       <input type="hidden" name="parcours" value={config.code} />
+
+      {viaRelais && (
+        <div className="mb-6 rounded-lg border border-border bg-muted/40 p-4">
+          <Label htmlFor="canalRelais" className="text-sm font-medium">
+            Canal d’origine de la déclaration *
+          </Label>
+          <select
+            id="canalRelais"
+            name="canalRelais"
+            required
+            defaultValue=""
+            className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          >
+            <option value="">— Sélectionner —</option>
+            {canauxRelais.map((canal) => (
+              <option key={canal.valeur} value={canal.valeur}>
+                {canal.libelle}
+              </option>
+            ))}
+          </select>
+          {etat.erreurs?.canalRelais && (
+            <p className="mt-1 text-sm text-destructive">{etat.erreurs.canalRelais}</p>
+          )}
+          <p className="mt-2 text-caption text-muted-foreground">
+            RG-13 : la déclaration suit ensuite exactement le même circuit qu’une déclaration
+            déposée directement. Vous êtes tracé comme personne ayant saisi, jamais comme
+            déclarant.
+          </p>
+        </div>
+      )}
       <input type="hidden" name="horodatageAffichage" value={horodatageAffichage} />
       {/* Champ piège (DT-14) : invisible pour un humain, rempli par un robot. */}
       <div aria-hidden className="absolute left-[-9999px]">

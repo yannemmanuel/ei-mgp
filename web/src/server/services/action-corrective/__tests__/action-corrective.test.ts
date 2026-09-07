@@ -89,7 +89,7 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-describe('Création (EX-ACT-01/02, RGI-07)', () => {
+describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
   it('crée une action sur un dossier « Action corrective en cours »', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)

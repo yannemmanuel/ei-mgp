@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+
+/**
+ * EX-DEC-07 : champs obligatoires validés et message d'erreur explicite pour chacun.
+ */
 import {
   DELAI_MINIMAL_REMPLISSAGE_SECONDES,
   identiteSousTraitant,

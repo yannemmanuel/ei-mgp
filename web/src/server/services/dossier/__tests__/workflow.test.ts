@@ -123,7 +123,7 @@ describe('Rejet', () => {
   })
 })
 
-describe('Clôture (RG-10)', () => {
+describe('Clôture (RG-10, EX-GES-05)', () => {
   it('refuse la clôture d’un dossier qui n’est pas « Résolu »', async () => {
     const id = await nouveauDossier()
     await placerAuStatut(id, 'en_analyse')
@@ -198,7 +198,7 @@ describe('Clôture (RG-10)', () => {
   })
 })
 
-describe('Réouverture (RG-07)', () => {
+describe('Réouverture (RG-07, EX-GES-06)', () => {
   it('n’est possible que depuis « Clôturé » et conserve le motif', async () => {
     const id = await nouveauDossier()
     await placerAuStatut(id, 'resolu')
@@ -291,5 +291,30 @@ describe('Réaffectation (EX-GES-03, DT-06)', () => {
         motif: 'Prise en charge.',
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+})
+
+describe('EX-GES-05 — synthèse de résolution obligatoire à la clôture', () => {
+  it('refuse une clôture sans synthèse, ou avec une synthèse indigente', async () => {
+    const dossierId = await nouveauDossier()
+    await placerAuStatut(dossierId, 'resolu')
+    const acteurId = await acteur()
+
+    // La borne est à 10 caractères après élagage : « trop court » en fait exactement 10 et
+    // passerait, ce qui rendrait le test faussement rassurant.
+    for (const synthese of ['', '   ', 'court', 'a'.repeat(9)]) {
+      await expect(
+        cloturer({ dossierId, acteurId, syntheseResolution: synthese })
+      ).rejects.toBeInstanceOf(ErreurWorkflow)
+    }
+
+    // Le dossier n'a pas bougé : un refus de validation ne doit rien laisser derrière lui.
+    const apres = await prisma.dossiers.findUniqueOrThrow({
+      where: { id: dossierId },
+      select: { date_cloture: true, synthese_resolution: true },
+    })
+
+    expect(apres.date_cloture).toBeNull()
+    expect(apres.synthese_resolution).toBeNull()
   })
 })

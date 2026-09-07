@@ -132,7 +132,7 @@ describe('Délai moyen', () => {
   })
 })
 
-describe('Répartitions', () => {
+describe('Répartitions (EX-REP-01)', () => {
   it('ventile par parcours, statut et gravité', async () => {
     await dossierEn2020({ statutCode: 'en_analyse' })
     await dossierEn2020({ statutCode: 'en_analyse' })
@@ -147,7 +147,7 @@ describe('Répartitions', () => {
   })
 })
 
-describe('Lecture du filtre', () => {
+describe('Lecture du filtre (EX-REP-02)', () => {
   it('inclut toute la journée de la borne de fin', () => {
     const clause = clauseFiltre({ periodeFin: new Date(2026, 0, 15) })
     const fin = (clause.created_at as { lte: Date }).lte

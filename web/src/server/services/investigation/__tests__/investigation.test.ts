@@ -132,7 +132,7 @@ describe('Ouverture d’une investigation (EX-INV-01, RGI-05)', () => {
   })
 })
 
-describe('Mise à jour et soumission', () => {
+describe('Mise à jour et soumission (EX-INV-02, EX-INV-03)', () => {
   it('refuse la modification d’une investigation qui n’est plus « en cours »', async () => {
     const [enqueteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnInvestigation(enqueteur)
