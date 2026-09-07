@@ -19,11 +19,20 @@ import { MODELES, difference, journaliser, sansChangement, type ValeursAudit } f
 
 type Acteur = { id: bigint }
 
-export const EFFETS_CIRCUIT = ['standard', 'accelere'] as const
+/**
+ * Port de `App\Enums\EffetCircuit` (CDC §11.1) — les TROIS valeurs.
+ *
+ * `priorisation` avait été oubliée d'une première rédaction : l'écran refusait alors
+ * d'enregistrer le niveau « Élevé », seul porteur de cette valeur en base. Un test tirant une
+ * ligne au hasard l'a révélé de façon intermittente — d'où l'ordre explicite ajouté depuis à
+ * toutes les lectures de test.
+ */
+export const EFFETS_CIRCUIT = ['standard', 'priorisation', 'accelere'] as const
 export type EffetCircuit = (typeof EFFETS_CIRCUIT)[number]
 
 export const LIBELLES_EFFET: Record<EffetCircuit, string> = {
   standard: 'Circuit standard',
+  priorisation: 'Traitement priorisé',
   accelere: 'Circuit accéléré (RG-08) — alerte immédiate de la Direction',
 }
 

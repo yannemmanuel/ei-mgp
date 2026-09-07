@@ -32,5 +32,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  // `netlify/functions` est une AUTRE cible de compilation : ces fichiers sont empaquetés par
+  // Netlify, qui exige des chemins d'import avec extension explicite (`./x.mts`) — ce que le
+  // résolveur « bundler » de Next refuse. Les exclure évite d'assouplir la configuration du
+  // projet entier pour six fichiers qu'il ne compile pas.
+  "exclude": ["node_modules", "netlify"]
 }

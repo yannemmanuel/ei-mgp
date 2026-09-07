@@ -14,10 +14,13 @@ import {
   type CanalNotification,
 } from '@/server/services/administration/referentiels'
 import {
+  creerDelai,
+  ETAPES_DELAI,
   modifierDelai,
   UNITES_DELAI,
   type UniteDelai,
 } from '@/server/services/administration/delais'
+import type { EtapeDelai } from '@/server/services/dossier/delais'
 import {
   EFFETS_CIRCUIT,
   modifierGravite,
@@ -254,22 +257,35 @@ export async function actionModifierDelai(
   const acteur = await acteurAutorise('referentiels.delais.manage')
   if (!acteur) return { erreur: REFUS }
 
-  const delaiId = identifiant(donnees)
-  if (delaiId === undefined) return { erreur: 'Délai introuvable.' }
-
   const unite = texte(donnees, 'unite')
 
   if (!UNITES_DELAI.includes(unite as UniteDelai)) {
     return { erreur: 'Unité de délai inconnue.' }
   }
 
+  const valeurs = {
+    valeur: entier(donnees, 'valeur', 0),
+    unite: unite as UniteDelai,
+    estValideMetier: coche(donnees, 'estValideMetier'),
+    notes: texte(donnees, 'notes') || null,
+  }
+
+  const delaiId = identifiant(donnees)
+
   try {
-    await modifierDelai(acteur, delaiId, {
-      valeur: entier(donnees, 'valeur', 0),
-      unite: unite as UniteDelai,
-      estValideMetier: coche(donnees, 'estValideMetier'),
-      notes: texte(donnees, 'notes') || null,
-    })
+    if (delaiId === undefined) {
+      // Création : comble un couple (parcours, étape) que le seeder n'avait pas prévu.
+      const parcoursId = texte(donnees, 'parcoursId')
+      const etape = texte(donnees, 'etapeCode')
+
+      if (parcoursId === '' || !ETAPES_DELAI.includes(etape as EtapeDelai)) {
+        return { erreur: 'Merci de choisir un parcours et une étape.' }
+      }
+
+      await creerDelai(acteur, BigInt(parcoursId), etape as EtapeDelai, valeurs)
+    } else {
+      await modifierDelai(acteur, delaiId, valeurs)
+    }
   } catch (erreur) {
     return { erreur: messageErreur(erreur) }
   }

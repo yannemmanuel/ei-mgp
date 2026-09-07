@@ -28,10 +28,7 @@ export default async function PageGravites() {
           g.code,
           g.libelle,
           g.couleur ?? '—',
-          {
-            badge: g.effet_circuit === 'accelere' ? 'Accéléré' : 'Standard',
-            variant: g.effet_circuit === 'accelere' ? 'destructive' : 'secondary',
-          },
+          badgeCircuit(g.effet_circuit),
           { badge: g.actif ? 'Actif' : 'Inactif', variant: g.actif ? 'default' : 'secondary' },
         ],
         valeurs: {
@@ -64,4 +61,12 @@ export default async function PageGravites() {
       creationPossible={false}
     />
   )
+}
+
+/** Trois effets possibles : les confondre masquerait le déclencheur du circuit accéléré. */
+function badgeCircuit(effet: string) {
+  if (effet === 'accelere') return { badge: 'Accéléré', variant: 'destructive' as const }
+  if (effet === 'priorisation') return { badge: 'Priorisé', variant: 'default' as const }
+
+  return { badge: 'Standard', variant: 'secondary' as const }
 }

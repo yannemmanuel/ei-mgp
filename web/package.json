@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "db:pull": "prisma db pull",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sauvegarde": "node scripts/sauvegarde.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

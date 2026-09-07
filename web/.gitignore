@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Secrets de production générés localement — ne doivent jamais être versionnés.
+secrets-production.txt
+
+# Sauvegardes locales produites par `npm run sauvegarde` : contiennent des données
+# personnelles, ne doivent jamais être versionnées.
+/sauvegardes/

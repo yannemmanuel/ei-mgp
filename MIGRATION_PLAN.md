@@ -1160,11 +1160,11 @@ Ce n'est plus une lacune de code mais un paramétrage. Deux détails ont été t
 
 | # | Condition | État |
 |---|---|---|
-| 1 | Ordonnanceur externe câblé | ❌ Infrastructure |
-| 2 | `TACHES_SECRET` en production | ❌ Infrastructure |
+| 1 | Ordonnanceur externe câblé | ✅ Fonctions programmées Netlify livrées (étape 16) |
+| 2 | `TACHES_SECRET` en production | ✅ Généré (`web/secrets-production.txt`) ; reste à saisir dans Netlify |
 | 3 | Transport e-mail | ✅ **Branché** — reste à renseigner `MAIL_HOST` / `MAIL_FROM` |
 | 4 | Limitation de débit partagée | ✅ **Fait** |
-| 5 | Sauvegardes et archivage WAL | ❌ Infrastructure |
+| 5 | Sauvegardes | ✅ Script de vidage livré (étape 16) ; reste à activer la rétention Neon et à planifier le vidage |
 | 6 | Délais métier sur `ei_employe` | ❌ Décision métier |
 | 7 | Passe manuelle au navigateur | ❌ À faire |
 | 8 | Arbitrage `url_cible` des QR codes | ✅ Sans objet — point d'entrée unique (étape 15) |
@@ -1256,6 +1256,80 @@ la séparation DT-02 tient sur les nouveaux écrans comme sur les anciens.
 
 ---
 
+### ✅ Étape 16 — Cible Netlify + Neon, tous les délais paramétrables
+
+**Livré** — 258 tests (stables sur deux exécutions consécutives), `typecheck`, `lint` et `build`
+au vert.
+
+#### 🔴 Bloquant de déploiement : les pièces jointes s'écrivent sur le disque
+
+`services/declaration/pieces-jointes.ts` fait `mkdir` + `writeFile` sous `process.cwd()`. Sur
+Netlify le système de fichiers est **en lecture seule** hors `/tmp`, lui-même éphémère :
+**toute déclaration comportant une pièce jointe échouera en production**.
+
+Ce n'est pas une dégradation, c'est un arrêt. Il faut un stockage objet — Netlify Blobs ou S3 —
+en remplacement de `writeFile`. Le point de bascule est unique (`stockerFichiers`), donc
+l'adaptation est circonscrite ; elle n'est pas faite ici parce qu'elle demande de choisir le
+fournisseur et de porter aussi la lecture, aujourd'hui absente (aucune route de téléchargement
+n'existe : les pièces sont écrites, jamais relues).
+
+#### 🔴 Défaut trouvé par un test intermittent : `priorisation` manquait
+
+Deux cas de l'écran des gravités échouaient une fois sur trois. La cause n'était pas le test mais
+mon code : `EFFETS_CIRCUIT` ne listait que `standard` et `accelere`, alors que
+`App\Enums\EffetCircuit` en compte **trois** — `priorisation`, que porte le niveau « Élevé ».
+
+Conséquence : **l'écran refusait d'enregistrer ce niveau**, et un administrateur qui aurait choisi
+l'une des deux valeurs proposées en aurait changé le comportement sans le vouloir.
+
+L'intermittence venait d'un `findFirst` sans ordre : PostgreSQL renvoyait tantôt le niveau
+« Élevé », tantôt un autre. Deux corrections, pas une :
+
+- toutes les lectures de test portent désormais un `orderBy` explicite — une ligne arbitraire
+  masque un défaut au lieu de le signaler ;
+- trois tests de parité comparent les énumérations du code aux valeurs **réellement présentes en
+  base** (effets de circuit, unités et étapes de délai). Une liste incomplète ne se voit pas tant
+  qu'on ne tombe pas sur la bonne ligne : c'est la base qui doit trancher, pas la mémoire.
+
+#### Tous les délais sont paramétrables
+
+- **Les 5 derniers délais « provisoires » sont activés** : les 15 délais rattachés à un statut
+  sont désormais suivis (contre 10). Plus aucune valeur volontairement inerte — puisqu'elles se
+  règlent depuis l'application, la distinction n'avait plus d'objet.
+- **Création possible** depuis l'écran : certains couples (parcours, étape) n'avaient aucune
+  ligne. EI Employé n'a par exemple pas de délai pour « Retour après résolution » — un dossier EI
+  passé à « Résolu » n'a donc aucune échéance. Cela se comble maintenant sans toucher à la base.
+
+**7 délais sur 22 restent structurellement sans effet**, et l'écran le dit désormais par un badge
+« Sans effet » :
+
+| Étape | Lignes | Pourquoi |
+|---|---|---|
+| `retour_information` | 3 | Aucun statut ne s'y rattache dans `STATUT_VERS_ETAPE` |
+| `cloture` | 4 | Porte le délai GLOBAL, lu par `estEnRetardGlobalement` — fonction que **rien n'appelle**, ni ici ni dans Laravel |
+
+Les afficher comme réglables sans le dire aurait laissé croire à un suivi qui n'existe pas.
+
+#### Déploiement Netlify + Neon
+
+| Élément | Contenu |
+|---|---|
+| `netlify.toml` | Construction du seul dossier `web/`, six fonctions programmées avec leurs horaires |
+| `web/netlify/functions/*.mts` | Chaque fonction appelle `/api/taches/{nom}` avec `TACHES_SECRET` — l'autorisation reste dans la route, un seul endroit à auditer |
+| `tsconfig.json` | `netlify/` exclu : autre cible de compilation, qui exige des imports avec extension |
+| `web/scripts/sauvegarde.mjs` | `pg_dump` avec rotation à 30 jours et garde-fou sur un vidage anormalement petit |
+| `web/secrets-production.txt` | `TACHES_SECRET` et `AUTH_SECRET` générés, **ignoré par git** |
+
+**Neon** : chaîne *pooled* obligatoire (hôte en `-pooler`) — chaque fonction serverless ouvre sa
+propre connexion et le point d'entrée direct s'épuiserait. La rétention d'historique de Neon fait
+office de sauvegarde continue ; le vidage logique protège de ce qu'elle ne couvre pas (perte du
+compte, changement de fournisseur).
+
+⚠️ Un vidage **contient des données personnelles** : mêmes obligations que la base, et surtout pas
+dans un artefact de CI.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1280,6 +1354,8 @@ la séparation DT-02 tient sur les nouveaux écrans comme sur les anciens.
 | 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
 | 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
+| 22 | **Pièces jointes incompatibles avec Netlify.** Écriture sur le disque local, impossible en serverless : toute déclaration avec pièce jointe échouera. Un stockage objet doit remplacer `writeFile`, et la lecture reste à écrire (aucune route de téléchargement n'existe). | 🔴 Majeur | Ouvert — bloquant de déploiement |
+| 23 | **7 délais sur 22 sans effet structurel.** `retour_information` n'est rattachée à aucun statut ; `cloture` porte le délai global, lu par une fonction que rien n'appelle (dans les deux applications). Signalé dans l'écran, mais la question de fond reste : faut-il câbler ces étapes ou retirer leurs lignes ? | 🟠 Moyen | Ouvert — arbitrage |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

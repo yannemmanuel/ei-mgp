@@ -23,7 +23,14 @@ export type EtapeDelai =
   | 'retour_resolution'
   | 'cloture'
 
-/** Statut interne → étape suivie dont il fait partie. */
+/**
+ * Statut interne → étape suivie dont il fait partie.
+ *
+ * ⚠️ Deux étapes n'y figurent pas, et c'est structurel : `retour_information` n'est rattachée à
+ * aucun statut, et `cloture` sert au délai GLOBAL, mesuré depuis la création. Un délai réglé sur
+ * ces deux étapes ne produit donc aucune échéance par ce chemin — `etapesSuivies()` l'expose,
+ * pour que l'écran d'administration ne laisse pas régler un paramètre sans effet.
+ */
 const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
   affecte: 'analyse_preliminaire',
   en_analyse: 'analyse_preliminaire',
@@ -51,10 +58,9 @@ type SlaDelai = {
 /**
  * Cache mémoire de `sla_delais` (DT-34).
  *
- * Cette table n'est modifiable par aucune interface d'administration : elle est semée une fois
- * et figée. Sans ce cache, afficher une liste de 20 dossiers déclencherait 20 requêtes
- * identiques. TTL court malgré tout, pour qu'une modification manuelle en base finisse par être
- * prise en compte sans redémarrage.
+ * Sans ce cache, afficher une liste de 20 dossiers déclencherait 20 requêtes identiques. Le TTL
+ * reste court, et `/administration/delais` purge explicitement le cache à l'enregistrement : une
+ * valeur corrigée prend effet immédiatement, sans attendre l'expiration ni un redémarrage.
  */
 const TTL_CACHE_MS = 5 * 60 * 1000
 let cacheDelais: { valeurs: SlaDelai[]; expireA: number } | null = null
@@ -80,6 +86,16 @@ export function viderCacheDelais(): void {
 
 export function etapeActuelle(statut: StatutCode): EtapeDelai | null {
   return STATUT_VERS_ETAPE[statut] ?? null
+}
+
+/**
+ * Étapes qui produisent réellement une échéance par statut.
+ *
+ * Une étape absente de cette liste peut porter un délai en base sans qu'aucune relance ni
+ * escalade n'en découle : c'est l'information qui manque à qui règle ces valeurs.
+ */
+export function etapesSuivies(): ReadonlySet<EtapeDelai> {
+  return new Set(Object.values(STATUT_VERS_ETAPE))
 }
 
 /**

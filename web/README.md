@@ -94,9 +94,21 @@ Le journal complet — étapes livrées, défauts trouvés dans la baseline, ris
 
 **Ce qui reste bloquant avant une mise en service :**
 
-1. Aucun ordonnanceur externe câblé (voir ci-dessus).
-2. Transport SMTP **à configurer** : sans `MAIL_HOST` et `MAIL_FROM`, les envois sont
-   journalisés. Le démarrage annonce lequel des deux modes est actif.
-3. Aucune sauvegarde ni archivage WAL sur la base de développement.
+1. **Pièces jointes** — écriture sur disque local, incompatible avec Netlify (voir ci-dessus).
+2. **Transport SMTP** — sans `MAIL_HOST` et `MAIL_FROM`, les envois sont journalisés. Le
+   démarrage annonce lequel des deux modes est actif.
+
+## Sauvegardes
+
+Deux niveaux, complémentaires :
+
+- **Rétention Neon** (console) : restauration à un instant donné, continue. C'est la protection
+  principale.
+- **`npm run sauvegarde`** : vidage logique `pg_dump`, à planifier quotidiennement sur une
+  machine disposant de `pg_dump`. Rotation à 30 jours. Protège de ce que Neon ne couvre pas —
+  perte du compte, changement de fournisseur.
+
+⚠️ Un vidage **contient des données personnelles**. Mêmes obligations que la base : stockage
+restreint, purge à échéance (RG-11). Ne le déposez pas dans un artefact de CI.
 
 Voir `ARCHITECTURE.md` pour les conventions de code et le modèle d'autorisation.

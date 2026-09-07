@@ -1,0 +1,44 @@
+# Déploiement Netlify — application Next.js du dossier `web/`.
+#
+# Le dépôt contient aussi l'application Laravel d'origine, conservée comme référence pendant la
+# migration : `base` isole la construction au seul sous-dossier Next.js.
+
+[build]
+  base = "web"
+  command = "npx prisma generate && npm run build"
+  publish = ".next"
+
+[build.environment]
+  # Prisma 7 exige un adaptateur de pilote ; la génération du client doit précéder le build.
+  NODE_VERSION = "22"
+
+# Le runtime Next.js est détecté automatiquement par Netlify. Aucune redirection manuelle n'est
+# déclarée ici : les routes sont celles de l'App Router, y compris `/api/taches/*` et
+# `/api/exports/dossiers`.
+
+# --- Tâches planifiées -------------------------------------------------------------------------
+#
+# Next.js n'a pas d'ordonnanceur. Ces fonctions programmées remplacent le `php artisan
+# schedule:run` du cron système : chacune appelle la route protégée correspondante avec
+# `TACHES_SECRET`. Une seule chaîne d'autorisation, donc un seul endroit à auditer.
+#
+# Les horaires sont en UTC. Décalés de quinze minutes pour ne pas ouvrir six connexions à la base
+# au même instant — Neon limite les connexions simultanées.
+
+[functions."recalculer-retard-actions"]
+  schedule = "0 1 * * *"
+
+[functions."relancer-echeances"]
+  schedule = "15 1 * * *"
+
+[functions."detecter-retards"]
+  schedule = "30 1 * * *"
+
+[functions."purger-compteurs-debit"]
+  schedule = "45 1 * * *"
+
+[functions."calculer-statistiques-mensuelles"]
+  schedule = "30 2 1 * *"
+
+[functions."appliquer-politique-conservation"]
+  schedule = "0 3 1 * *"

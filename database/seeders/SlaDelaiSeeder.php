@@ -21,6 +21,11 @@ use Illuminate\Database\Seeder;
  * le CDC : aucune ligne n'est créée pour ces deux étapes sur ce parcours (rien à surveiller).
  * Pour "Clôture, suivi et évaluation", le CDC donne une plage (ex. "3 à 6 mois") : la borne
  * maximale est retenue, cohérente avec le titre de la section 11.2 ("délais maximaux").
+ *
+ * Décision métier (migration Next.js) : tous les délais rattachés à un statut sont désormais
+ * ACTIFS. Le drapeau est_valide_metier reste le commutateur de suspension, mais il n'y a plus de
+ * valeur volontairement inerte — les valeurs se règlent depuis /administration/delais, sans
+ * déploiement, ce qui rendait la distinction "provisoire" sans objet.
  */
 class SlaDelaiSeeder extends Seeder
 {
@@ -33,15 +38,15 @@ class SlaDelaiSeeder extends Seeder
             // CDC §1.8 point 4). Modifiable désormais sans déploiement, depuis
             // /administration/delais.
             EtapeDelai::AnalysePreliminaire->value => [5, UniteDelai::JoursOuvres, true],
-            EtapeDelai::TraitementEnquete->value => [15, UniteDelai::JoursOuvres, false],
-            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, false],
+            EtapeDelai::TraitementEnquete->value => [15, UniteDelai::JoursOuvres, true],
+            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, true],
             EtapeDelai::Cloture->value => [6, UniteDelai::Mois, true],
         ],
         ParcoursCode::GriefEmploye->value => [
             EtapeDelai::AnalysePreliminaire->value => [3, UniteDelai::JoursOuvres, true],
             EtapeDelai::TraitementEnquete->value => [1, UniteDelai::Mois, true],
             EtapeDelai::RetourInformation->value => [3, UniteDelai::JoursOuvres, true],
-            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, false],
+            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, true],
             EtapeDelai::RetourResolution->value => [2, UniteDelai::JoursOuvres, true],
             EtapeDelai::Cloture->value => [6, UniteDelai::Mois, true],
         ],
@@ -49,7 +54,7 @@ class SlaDelaiSeeder extends Seeder
             EtapeDelai::AnalysePreliminaire->value => [3, UniteDelai::JoursOuvres, true],
             EtapeDelai::TraitementEnquete->value => [2, UniteDelai::Semaines, true],
             EtapeDelai::RetourInformation->value => [3, UniteDelai::JoursOuvres, true],
-            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, false],
+            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, true],
             EtapeDelai::RetourResolution->value => [2, UniteDelai::JoursOuvres, true],
             EtapeDelai::Cloture->value => [6, UniteDelai::Mois, true],
         ],
@@ -57,7 +62,7 @@ class SlaDelaiSeeder extends Seeder
             EtapeDelai::AnalysePreliminaire->value => [3, UniteDelai::JoursOuvres, true],
             EtapeDelai::TraitementEnquete->value => [2, UniteDelai::Semaines, true],
             EtapeDelai::RetourInformation->value => [3, UniteDelai::JoursOuvres, true],
-            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, false],
+            EtapeDelai::MiseEnOeuvreMesures->value => [30, UniteDelai::JoursOuvres, true],
             EtapeDelai::RetourResolution->value => [2, UniteDelai::JoursOuvres, true],
             EtapeDelai::Cloture->value => [6, UniteDelai::Mois, true],
         ],

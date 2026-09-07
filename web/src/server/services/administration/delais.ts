@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { ErreurWorkflow } from '../dossier/workflow'
-import { viderCacheDelais, type EtapeDelai } from '../dossier/delais'
+import { etapesSuivies, viderCacheDelais, type EtapeDelai } from '../dossier/delais'
 import { MODELES, difference, journaliser, sansChangement, type ValeursAudit } from '../audit/journal'
 
 /**
@@ -37,6 +37,26 @@ export const LIBELLES_ETAPE: Record<EtapeDelai, string> = {
   cloture: 'Clôture, suivi et évaluation',
 }
 
+/** Toutes les étapes réglables, y compris celles sans effet — l'écran signale lesquelles. */
+export const ETAPES_DELAI = [
+  'analyse_preliminaire',
+  'traitement_enquete',
+  'retour_information',
+  'mise_en_oeuvre_mesures',
+  'retour_resolution',
+  'cloture',
+] as const satisfies readonly EtapeDelai[]
+
+/**
+ * `true` si un délai réglé sur cette étape produit réellement une échéance.
+ *
+ * `retour_information` n'est rattachée à aucun statut, et `cloture` porte le délai global, que
+ * rien n'évalue aujourd'hui. Régler ces valeurs sans le savoir donnerait l'illusion d'un suivi.
+ */
+export function etapeProduitUneEcheance(etape: string): boolean {
+  return etapesSuivies().has(etape as EtapeDelai)
+}
+
 export type DonneesDelai = {
   valeur: number
   unite: UniteDelai
@@ -60,15 +80,67 @@ export async function listerDelais() {
 }
 
 /**
- * Modification seule : chaque couple (parcours, étape) est créé par le seeder, et le jeu d'étapes
- * est fixé par le graphe de statuts. En ajouter un ne produirait aucun effet — aucun statut ne
- * s'y rattacherait.
+ * Crée le délai d'un couple (parcours, étape) qui n'en a pas encore.
+ *
+ * Toutes les combinaisons ne sont pas semées : EI Employé n'a par exemple aucune ligne pour
+ * « Retour après résolution », si bien qu'un dossier EI passé à « Résolu » n'a aucune échéance.
+ * Cette création comble ces trous sans qu'il faille toucher à la base.
  */
-export async function modifierDelai(
+export async function creerDelai(
   acteur: Acteur,
-  delaiId: bigint,
+  parcoursId: bigint,
+  etape: EtapeDelai,
   donnees: DonneesDelai
-): Promise<void> {
+): Promise<bigint> {
+  if (!ETAPES_DELAI.includes(etape)) {
+    throw new ErreurWorkflow('Étape inconnue.')
+  }
+
+  const existant = await prisma.sla_delais.findFirst({
+    where: { parcours_id: parcoursId, etape_code: etape },
+    select: { id: true },
+  })
+
+  if (existant) {
+    throw new ErreurWorkflow('Ce parcours a déjà un délai pour cette étape ; modifiez-le.')
+  }
+
+  valider(donnees)
+
+  const cree = await prisma.sla_delais.create({
+    data: {
+      parcours_id: parcoursId,
+      etape_code: etape,
+      valeur: donnees.valeur,
+      unite: donnees.unite,
+      est_valide_metier: donnees.estValideMetier,
+      notes: donnees.notes,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    select: { id: true },
+  })
+
+  viderCacheDelais()
+
+  await journaliser({
+    action: 'sla_delai.cree',
+    acteurId: acteur.id,
+    auditableType: MODELES.slaDelai,
+    auditableId: String(cree.id),
+    nouvelles: {
+      parcours_id: String(parcoursId),
+      etape_code: etape,
+      valeur: donnees.valeur,
+      unite: donnees.unite,
+      est_valide_metier: donnees.estValideMetier,
+    },
+  })
+
+  return cree.id
+}
+
+function valider(donnees: DonneesDelai): void {
   if (!Number.isInteger(donnees.valeur) || donnees.valeur < 1) {
     throw new ErreurWorkflow('Le délai doit être un nombre entier d’au moins 1.')
   }
@@ -76,6 +148,14 @@ export async function modifierDelai(
   if (!UNITES_DELAI.includes(donnees.unite)) {
     throw new ErreurWorkflow('Unité de délai inconnue.')
   }
+}
+
+export async function modifierDelai(
+  acteur: Acteur,
+  delaiId: bigint,
+  donnees: DonneesDelai
+): Promise<void> {
+  valider(donnees)
 
   const avant = await prisma.sla_delais.findUniqueOrThrow({ where: { id: delaiId } })
 

@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { nettoyerAudit } from '../../declaration/__tests__/aide-base'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import { dateLimite, viderCacheDelais } from '../../dossier/delais'
-import { listerDelais, modifierDelai } from '../delais'
-import { listerGravites, modifierGravite } from '../gravites'
+import { ETAPES_DELAI, UNITES_DELAI, listerDelais, modifierDelai } from '../delais'
+import { EFFETS_CIRCUIT, listerGravites, modifierGravite } from '../gravites'
 
 /**
  * Délais et niveaux de gravité paramétrables.
@@ -50,7 +50,7 @@ describe('Délais paramétrables', () => {
 
   it('refuse une valeur ou une unité qui rendraient le calcul absurde', async () => {
     const qui = await acteur()
-    const delai = await prisma.sla_delais.findFirstOrThrow()
+    const delai = await prisma.sla_delais.findFirstOrThrow({ orderBy: { id: 'asc' } })
 
     for (const valeur of [0, -3, 1.5]) {
       await expect(
@@ -131,7 +131,7 @@ describe('Délais paramétrables', () => {
 
   it('n’écrit aucune trace quand rien ne change', async () => {
     const qui = await acteur()
-    const delai = await prisma.sla_delais.findFirstOrThrow()
+    const delai = await prisma.sla_delais.findFirstOrThrow({ orderBy: { id: 'asc' } })
     delaisTouches.push(delai.id)
 
     await modifierDelai(qui, delai.id, {
@@ -158,7 +158,9 @@ describe('Niveaux de gravité paramétrables', () => {
 
   it('refuse une couleur qui n’est pas hexadécimale', async () => {
     const qui = await acteur()
-    const gravite = await prisma.niveaux_gravite.findFirstOrThrow()
+    // Ligne déterminée : un `findFirst` sans ordre renvoie une ligne arbitraire, et c'est ce qui
+    // rendait ces cas intermittents — masquant le défaut au lieu de le signaler.
+    const gravite = await prisma.niveaux_gravite.findFirstOrThrow({ orderBy: { niveau: 'asc' } })
 
     for (const couleur of ['rouge', 'red; background:url(x)', '#12345', 'javascript:1']) {
       await expect(
@@ -174,7 +176,10 @@ describe('Niveaux de gravité paramétrables', () => {
 
   it('refuse de désactiver le dernier niveau actif', async () => {
     const qui = await acteur()
-    const actifs = await prisma.niveaux_gravite.findMany({ where: { actif: true } })
+    const actifs = await prisma.niveaux_gravite.findMany({
+      where: { actif: true },
+      orderBy: { niveau: 'asc' },
+    })
 
     // Sans niveau actif, le formulaire de déclaration n'a plus rien à proposer : aucune
     // déclaration ne pourrait plus être déposée.
@@ -204,7 +209,9 @@ describe('Niveaux de gravité paramétrables', () => {
 
   it('modifie le libellé et l’audite', async () => {
     const qui = await acteur()
-    const gravite = await prisma.niveaux_gravite.findFirstOrThrow()
+    // Ligne déterminée : un `findFirst` sans ordre renvoie une ligne arbitraire, et c'est ce qui
+    // rendait ces cas intermittents — masquant le défaut au lieu de le signaler.
+    const gravite = await prisma.niveaux_gravite.findFirstOrThrow({ orderBy: { niveau: 'asc' } })
     gravitesTouchees.push(gravite.id)
 
     try {
@@ -244,5 +251,34 @@ describe('Niveaux de gravité paramétrables', () => {
     expect(source).not.toMatch(/data:\s*\{[^}]*\bniveau:/)
     expect(source).not.toMatch(/data:\s*\{[^}]*\bcode:/)
     expect(Object.keys(exportes).filter((n) => /supprimer|delete/i.test(n))).toEqual([])
+  })
+})
+
+describe('Parité des énumérations avec la base', () => {
+  it('couvre TOUS les effets de circuit présents en base', async () => {
+    const utilises = await prisma.niveaux_gravite.groupBy({ by: ['effet_circuit'] })
+
+    // C'est le défaut qu'a révélé l'intermittence : `priorisation` manquait, et l'écran refusait
+    // d'enregistrer le seul niveau qui la porte. Une liste incomplète ne se voit pas tant qu'on
+    // ne tombe pas sur la bonne ligne.
+    for (const { effet_circuit } of utilises) {
+      expect(EFFETS_CIRCUIT).toContain(effet_circuit)
+    }
+  })
+
+  it('couvre TOUTES les unités de délai présentes en base', async () => {
+    const utilisees = await prisma.sla_delais.groupBy({ by: ['unite'] })
+
+    for (const { unite } of utilisees) {
+      expect(UNITES_DELAI).toContain(unite)
+    }
+  })
+
+  it('couvre TOUTES les étapes de délai présentes en base', async () => {
+    const utilisees = await prisma.sla_delais.groupBy({ by: ['etape_code'] })
+
+    for (const { etape_code } of utilisees) {
+      expect(ETAPES_DELAI).toContain(etape_code)
+    }
   })
 })
