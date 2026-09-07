@@ -1,0 +1,3849 @@
+{
+  "parcours": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "ei_employe",
+      "libelle": "Événement Indésirable (Employé)",
+      "actif": true,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "grief_employe",
+      "libelle": "Grief / plainte (Employé)",
+      "actif": true,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "grief_sous_traitant",
+      "libelle": "Grief / plainte (Sous-traitant)",
+      "actif": true,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "grief_communaute",
+      "libelle": "Grief / plainte (Communauté)",
+      "actif": true,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    }
+  ],
+  "categories": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "situation-dangereuse",
+      "libelle": "Situation dangereuse",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "condition-dangereuse",
+      "libelle": "Condition dangereuse",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "incident-environnemental",
+      "libelle": "Incident environnemental",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "incident-materiel",
+      "libelle": "Incident matériel",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "presque-accident",
+      "libelle": "Presque-accident",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 5,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "autre",
+      "libelle": "Autre",
+      "is_autre": true,
+      "actif": true,
+      "ordre": 6,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "conditions-de-travail",
+      "libelle": "Conditions de travail",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "remuneration",
+      "libelle": "Rémunération",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "relations-hierarchie",
+      "libelle": "Relations hiérarchie",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "harcelement",
+      "libelle": "Harcèlement",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "discrimination",
+      "libelle": "Discrimination",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 5,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "conflit-collegues",
+      "libelle": "Conflit collègues",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 6,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "charge-de-travail",
+      "libelle": "Charge de travail",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 7,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "non-respect-de-procedures",
+      "libelle": "Non-respect de procédures",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 8,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "autre",
+      "libelle": "Autre",
+      "is_autre": true,
+      "actif": true,
+      "ordre": 9,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "conditions-de-travail",
+      "libelle": "Conditions de travail",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "17"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "paiement",
+      "libelle": "Paiement",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "18"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "securite-hse",
+      "libelle": "Sécurité HSE",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "harcelementdiscrimination",
+      "libelle": "Harcèlement/discrimination",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "environnement",
+      "libelle": "Environnement",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 5,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "21"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "relation-contractuelle",
+      "libelle": "Relation contractuelle",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 6,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "22"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "corruptionethique",
+      "libelle": "Corruption/éthique",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 7,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "23"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "autre",
+      "libelle": "Autre",
+      "is_autre": true,
+      "actif": true,
+      "ordre": 8,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "24"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "environnement",
+      "libelle": "Environnement",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "25"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "foncier",
+      "libelle": "Foncier",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "26"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "emploi-local",
+      "libelle": "Emploi local",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "27"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "nuisances",
+      "libelle": "Nuisances",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "28"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "dommages-aux-biens",
+      "libelle": "Dommages aux biens",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 5,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "29"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "comportement-du-personnel",
+      "libelle": "Comportement du personnel",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 6,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "30"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "securite",
+      "libelle": "Sécurité",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 7,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "31"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "indemnisation",
+      "libelle": "Indemnisation",
+      "is_autre": false,
+      "actif": true,
+      "ordre": 8,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "32"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "autre",
+      "libelle": "Autre",
+      "is_autre": true,
+      "actif": true,
+      "ordre": 9,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    }
+  ],
+  "statuts_dossier": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "affecte",
+      "libelle_interne": "Affecté",
+      "libelle_affiche": "Reçu",
+      "is_terminal": false,
+      "ordre": 2,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "en_analyse",
+      "libelle_interne": "En analyse",
+      "libelle_affiche": "En cours d'analyse",
+      "is_terminal": false,
+      "ordre": 3,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "en_investigation",
+      "libelle_interne": "En investigation",
+      "libelle_affiche": "En traitement",
+      "is_terminal": false,
+      "ordre": 4,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "code": "en_attente_information",
+      "libelle_interne": "En attente d'information complémentaire",
+      "libelle_affiche": "En traitement",
+      "is_terminal": false,
+      "ordre": 5,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "code": "action_corrective_en_cours",
+      "libelle_interne": "Action corrective en cours",
+      "libelle_affiche": "En traitement",
+      "is_terminal": false,
+      "ordre": 6,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "code": "resolu",
+      "libelle_interne": "Résolu",
+      "libelle_affiche": "Résolu",
+      "is_terminal": false,
+      "ordre": 7,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "code": "cloture",
+      "libelle_interne": "Clôturé",
+      "libelle_affiche": "Clôturé",
+      "is_terminal": true,
+      "ordre": 8,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "code": "reouvert",
+      "libelle_interne": "Réouvert",
+      "libelle_affiche": "En traitement",
+      "is_terminal": false,
+      "ordre": 9,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "code": "rejete",
+      "libelle_interne": "Rejeté (non recevable)",
+      "libelle_affiche": "Clôturé",
+      "is_terminal": true,
+      "ordre": 10,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "recu",
+      "libelle_interne": "Reçu",
+      "libelle_affiche": "Reçu",
+      "is_terminal": false,
+      "ordre": 1,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:31:54.000Z"
+      }
+    }
+  ],
+  "niveaux_gravite": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "niveau": 2,
+      "code": "modere",
+      "libelle": "Modéré",
+      "effet_circuit": "standard",
+      "couleur": "#eab308",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:06:40.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "niveau": 3,
+      "code": "eleve",
+      "libelle": "Élevé",
+      "effet_circuit": "priorisation",
+      "couleur": "#f97316",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "niveau": 4,
+      "code": "critique",
+      "libelle": "Critique",
+      "effet_circuit": "accelere",
+      "couleur": "#dc2626",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:54:36.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "niveau": 1,
+      "code": "faible",
+      "libelle": "Faible",
+      "effet_circuit": "standard",
+      "couleur": "#22c55e",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:31:53.000Z"
+      }
+    }
+  ],
+  "canaux_captage": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "boite_suggestions",
+      "libelle": "Boîte à suggestions",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:11:32.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "code": "agent_local",
+      "libelle": "Agent local",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:12:21.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "qr_code",
+      "libelle": "QR code",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:25:20.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "ligne_verte",
+      "libelle": "Ligne verte",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:31:54.000Z"
+      }
+    }
+  ],
+  "sites": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "SITE-YOP",
+      "libelle": "Site de Yopougon",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "SITE-SIEGE",
+      "libelle": "Siège",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "SITE-KOKOTI",
+      "libelle": "Zone de Kokoti",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    }
+  ],
+  "directions": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "code": "DIR-OPS",
+      "libelle": "Direction des Opérations",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "code": "DIR-RH",
+      "libelle": "Direction des Ressources Humaines",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "code": "DIR-QHSE",
+      "libelle": "Direction QHSE",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    }
+  ],
+  "sla_delais": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "retour_resolution",
+      "valeur": 2,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "cloture",
+      "valeur": 6,
+      "unite": "mois",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "17"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "analyse_preliminaire",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "18"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "traitement_enquete",
+      "valeur": 2,
+      "unite": "semaines",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "retour_information",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "21"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "retour_resolution",
+      "valeur": 2,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "22"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "cloture",
+      "valeur": 6,
+      "unite": "mois",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "analyse_preliminaire",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:06:40.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "traitement_enquete",
+      "valeur": 2,
+      "unite": "semaines",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:06:50.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "etape_code": "traitement_enquete",
+      "valeur": 15,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:43:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "etape_code": "mise_en_oeuvre_mesures",
+      "valeur": 30,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:43:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "mise_en_oeuvre_mesures",
+      "valeur": 30,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:43:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "mise_en_oeuvre_mesures",
+      "valeur": 30,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:43:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "etape_code": "mise_en_oeuvre_mesures",
+      "valeur": 30,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:43:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "etape_code": "retour_information",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:07:01.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "etape_code": "cloture",
+      "valeur": 6,
+      "unite": "mois",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:53:40.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "analyse_preliminaire",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:54:36.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "traitement_enquete",
+      "valeur": 1,
+      "unite": "mois",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T18:59:34.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "retour_information",
+      "valeur": 3,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:01:27.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "retour_resolution",
+      "valeur": 2,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:03:28.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "etape_code": "cloture",
+      "valeur": 6,
+      "unite": "mois",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:48.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:04:16.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "etape_code": "analyse_preliminaire",
+      "valeur": 5,
+      "unite": "jours_ouvres",
+      "est_valide_metier": true,
+      "notes": null,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T09:52:47.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T19:31:53.000Z"
+      }
+    }
+  ],
+  "notification_templates": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "46"
+      },
+      "evenement_code": "dossier_affecte",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Dossier {reference} affecté",
+      "corps": "Le dossier {reference} ({parcours}) vous a été affecté. Merci de le prendre en charge.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:34.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:34.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "47"
+      },
+      "evenement_code": "dossier_affecte",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Dossier {reference} affecté",
+      "corps": "Le dossier {reference} ({parcours}) vous a été affecté. Merci de le prendre en charge.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:35.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:35.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "48"
+      },
+      "evenement_code": "statut_change",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Mise à jour de votre déclaration {reference}",
+      "corps": "Le statut de votre déclaration {reference} a évolué : {statut}.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:35.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:35.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "49"
+      },
+      "evenement_code": "statut_change",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Mise à jour de votre déclaration {reference}",
+      "corps": "Le statut de votre déclaration {reference} a évolué : {statut}. Vous pouvez suivre son avancement via la page de suivi.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "50"
+      },
+      "evenement_code": "relance_echeance",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Échéance proche : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}) arrive à échéance dans {jours_restants} jour(s). Merci de le traiter avant cette date.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "51"
+      },
+      "evenement_code": "relance_echeance",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Échéance proche : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}) arrive à échéance dans {jours_restants} jour(s). Merci de le traiter avant cette date.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "52"
+      },
+      "evenement_code": "alerte_retard_n1",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Retard signalé : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}), sous la responsabilité d'un de vos collaborateurs, a dépassé son délai de traitement.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "53"
+      },
+      "evenement_code": "alerte_retard_n1",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Retard signalé : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}), sous la responsabilité d'un de vos collaborateurs, a dépassé son délai de traitement.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "54"
+      },
+      "evenement_code": "alerte_retard_service_mgp",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Alerte retard : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}) a dépassé son délai de traitement. Une action est requise.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "55"
+      },
+      "evenement_code": "alerte_retard_service_mgp",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Alerte retard : dossier {reference}",
+      "corps": "Le dossier {reference} ({parcours}) a dépassé son délai de traitement. Une action est requise.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "56"
+      },
+      "evenement_code": "alerte_retard_direction",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "Alerte direction : dossier {reference} très en retard",
+      "corps": "Le dossier {reference} ({parcours}) dépasse son délai de traitement de plus de 50 %. Votre attention est requise.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "57"
+      },
+      "evenement_code": "alerte_retard_direction",
+      "parcours_id": null,
+      "canal": "email",
+      "objet": "Alerte direction : dossier {reference} très en retard",
+      "corps": "Le dossier {reference} ({parcours}) dépasse son délai de traitement de plus de 50 %. Votre attention est requise.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "58"
+      },
+      "evenement_code": "circuit_critique",
+      "parcours_id": null,
+      "canal": "outil",
+      "objet": "🚨 Déclaration critique — {reference}",
+      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, {parcours}). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "59"
+      },
+      "evenement_code": "circuit_critique",
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "canal": "email",
+      "objet": "🚨 Déclaration critique EI Employé — {reference}",
+      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, EI Employé). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": [
+        "prevention@example.test"
+      ]
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "60"
+      },
+      "evenement_code": "circuit_critique",
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "canal": "email",
+      "objet": "🚨 Déclaration critique Grief Employé — {reference}",
+      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Employé). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "61"
+      },
+      "evenement_code": "circuit_critique",
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "canal": "email",
+      "objet": "🚨 Déclaration critique Grief Sous-traitant — {reference}",
+      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Sous-traitant). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": null
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "62"
+      },
+      "evenement_code": "circuit_critique",
+      "parcours_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "canal": "email",
+      "objet": "🚨 Déclaration critique Grief Communauté — {reference}",
+      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Communauté). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "actif": true,
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T10:07:36.000Z"
+      },
+      "destinataires_email_supplementaires": [
+        "directions@example.test"
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "name": "dossiers.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "name": "dossiers.view.own",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "name": "dossiers.view.all",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "name": "dossiers.create",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "name": "dossiers.assign",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "name": "dossiers.reassign",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "name": "dossiers.status.update",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "name": "dossiers.close",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "name": "dossiers.reopen",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "name": "investigations.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "name": "investigations.create",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "name": "investigations.update",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "name": "investigations.validate",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "name": "actions.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "name": "actions.create",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "name": "actions.update",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "17"
+      },
+      "name": "actions.verify_efficacite",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "18"
+      },
+      "name": "actions.close",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "name": "messagerie.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "name": "messagerie.send",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "21"
+      },
+      "name": "notifications.templates.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "22"
+      },
+      "name": "referentiels.categories.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "23"
+      },
+      "name": "referentiels.statuts.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "24"
+      },
+      "name": "referentiels.sites.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "25"
+      },
+      "name": "qrcodes.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "26"
+      },
+      "name": "users.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "27"
+      },
+      "name": "roles.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "28"
+      },
+      "name": "canaux.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "29"
+      },
+      "name": "reporting.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "30"
+      },
+      "name": "reporting.export",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "31"
+      },
+      "name": "reporting.export.nominatif",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "32"
+      },
+      "name": "audit.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "33"
+      },
+      "name": "rgpd.conservation.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "34"
+      },
+      "name": "rgpd.acces.view",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "35"
+      },
+      "name": "referentiels.delais.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T17:20:10.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T17:20:10.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "36"
+      },
+      "name": "referentiels.gravites.manage",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T17:20:10.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-09-07T17:20:10.000Z"
+      }
+    }
+  ],
+  "roles": [
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "name": "employe_declarant",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "name": "agent_relais",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "name": "secretaire_csst",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "name": "rqse",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "name": "rgp",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "name": "responsable_grief_employe",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "name": "correspondant_mgp",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "name": "service_mgp",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "name": "comite_ethique",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "name": "captage_grief_communaute",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "name": "captage_grief_soustraitant",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "name": "dg",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "name": "dpo",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "name": "administrateur_digital",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    },
+    {
+      "id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "name": "auditeur",
+      "guard_name": "web",
+      "created_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      },
+      "updated_at": {
+        "__type": "date",
+        "valeur": "2026-08-27T21:51:08.000Z"
+      }
+    }
+  ],
+  "role_has_permissions": [
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "17"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "18"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "5"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "5"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "11"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "5"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "6"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "16"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "17"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "18"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "19"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "20"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "21"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "22"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "23"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "24"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "35"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "36"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "29"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "30"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "31"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "32"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "8"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "1"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "9"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "10"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "4"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "11"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "2"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "11"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "7"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "9"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "29"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "30"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "12"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "33"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "34"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "32"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "13"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "25"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "26"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "27"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "28"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "14"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "3"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "32"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "29"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      }
+    },
+    {
+      "permission_id": {
+        "__type": "bigint",
+        "valeur": "30"
+      },
+      "role_id": {
+        "__type": "bigint",
+        "valeur": "15"
+      }
+    }
+  ]
+}

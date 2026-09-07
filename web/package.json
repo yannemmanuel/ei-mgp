@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sauvegarde": "node scripts/sauvegarde.mjs",
-    "migrer-pieces-jointes": "node scripts/migrer-pieces-jointes.mjs"
+    "migrer-pieces-jointes": "node scripts/migrer-pieces-jointes.mjs",
+    "seed": "tsx prisma/seed.mts",
+    "exporter-referentiels": "node scripts/exporter-referentiels.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -52,6 +54,7 @@
     "eslint-config-next": "16.3.4",
     "prisma": "7.10.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5",
     "vitest": "^4.1.11"
   },
