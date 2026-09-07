@@ -4,7 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { utilisateurCourant } from '@/server/auth'
 import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
-import { enregistrerUtilisateur } from '@/server/services/administration/utilisateurs'
+import {
+  enregistrerUtilisateur,
+  regenererMotDePasse,
+} from '@/server/services/administration/utilisateurs'
 
 /**
  * Console des comptes.
@@ -82,5 +85,39 @@ export async function actionEnregistrerCompte(
 
     console.error('Enregistrement de compte en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
+  }
+}
+
+/**
+ * Réattribue un mot de passe à un compte dont l'utilisateur a perdu le sien.
+ *
+ * Seule voie de récupération opérationnelle aujourd'hui : le parcours en libre-service de
+ * Laravel est inatteignable (aucune vue enregistrée) et exigerait de toute façon un transport
+ * e-mail, qui n'est pas branché.
+ */
+export async function actionRegenererMotDePasse(
+  _precedent: EtatCompte,
+  donnees: FormData
+): Promise<EtatCompte> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'users.manage')) {
+    return { erreur: REFUS }
+  }
+
+  const cible = identifiant(donnees, 'id')
+  if (cible === null) return { erreur: 'Compte introuvable.' }
+
+  try {
+    const motDePasse = await regenererMotDePasse(acteur, cible)
+
+    revalidatePath('/administration/utilisateurs')
+
+    return { succes: 'Nouveau mot de passe attribué.', motDePasseInitial: motDePasse }
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Régénération de mot de passe en échec', erreur)
+    return { erreur: "L'opération n'a pas abouti. Vous pouvez réessayer." }
   }
 }

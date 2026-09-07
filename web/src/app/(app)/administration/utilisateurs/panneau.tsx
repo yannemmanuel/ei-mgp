@@ -8,7 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { actionEnregistrerCompte, type EtatCompte } from './actions'
+import {
+  actionEnregistrerCompte,
+  actionRegenererMotDePasse,
+  type EtatCompte,
+} from './actions'
 
 export type CompteVue = {
   id: string
@@ -330,7 +334,48 @@ function FormulaireCompte({
             </Button>
           </div>
         </form>
+
+        {compte && <RegenerationMotDePasse compte={compte} />}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Seule voie de récupération opérationnelle aujourd'hui : le parcours « mot de passe oublié » en
+ * libre-service n'est pas atteignable dans la baseline, et exigerait de toute façon un transport
+ * e-mail qui n'est pas branché.
+ */
+function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
+  const [etat, envoyer, enCours] = useActionState(actionRegenererMotDePasse, ETAT)
+
+  return (
+    <form action={envoyer} className="mt-6 space-y-2 border-t border-border pt-4">
+      <input type="hidden" name="id" value={compte.id} />
+
+      <p className="text-caption text-muted-foreground">
+        Si {compte.name} a perdu son mot de passe, attribuez-lui-en un nouveau. Il ne s’affichera
+        qu’une fois — transmettez-le par un canal sûr.
+      </p>
+
+      {etat.motDePasseInitial && (
+        <Alert>
+          <AlertDescription>
+            <p className="font-medium">Nouveau mot de passe : </p>
+            <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {etat.erreur && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{etat.erreur}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" size="sm" variant="outline" disabled={enCours}>
+        {enCours ? 'Attribution…' : 'Réattribuer un mot de passe'}
+      </Button>
+    </form>
   )
 }

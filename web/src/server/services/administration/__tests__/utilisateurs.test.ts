@@ -3,7 +3,12 @@ import { prisma } from '@/lib/prisma'
 import { verifier } from '@/server/auth/hachage'
 import { nettoyerAudit } from '../../declaration/__tests__/aide-base'
 import { ErreurWorkflow } from '../../dossier/workflow'
-import { enregistrerUtilisateur, listerUtilisateurs, rolesDisponibles } from '../utilisateurs'
+import {
+  enregistrerUtilisateur,
+  listerUtilisateurs,
+  regenererMotDePasse,
+  rolesDisponibles,
+} from '../utilisateurs'
 
 /**
  * Console des comptes — port de `App\Livewire\Administration\UtilisateursAdmin`.
@@ -203,5 +208,67 @@ describe('Garde-fous', () => {
     // Et rien ne doit avoir été écrit malgré le refus.
     const apres = await prisma.users.findUniqueOrThrow({ where: { id: qui.id } })
     expect(apres.actif).toBe(true)
+  })
+})
+
+describe('Réattribution de mot de passe', () => {
+  it('produit un mot de passe utilisable et remplace l’ancien', async () => {
+    const resultat = await creerCompte()
+    const qui = await acteur()
+
+    const avant = await prisma.users.findUniqueOrThrow({
+      where: { id: resultat.utilisateurId },
+      select: { password: true },
+    })
+
+    const nouveau = await regenererMotDePasse(qui, resultat.utilisateurId)
+
+    const apres = await prisma.users.findUniqueOrThrow({
+      where: { id: resultat.utilisateurId },
+      select: { password: true },
+    })
+
+    expect(apres.password).not.toBe(avant.password)
+    expect(apres.password?.startsWith('$2y$')).toBe(true)
+    expect(await verifier(nouveau, apres.password as string)).toBe(true)
+
+    // L'ancien mot de passe ne doit plus ouvrir la session.
+    expect(await verifier(resultat.motDePasseInitial as string, apres.password as string)).toBe(false)
+  })
+
+  it('ne laisse ni la valeur ni son empreinte dans l’audit', async () => {
+    const resultat = await creerCompte()
+    const qui = await acteur()
+
+    const nouveau = await regenererMotDePasse(qui, resultat.utilisateurId)
+
+    const traces = await prisma.audit_logs.findMany({
+      where: {
+        action: 'user.mot_de_passe_regenere',
+        auditable_type: MODEL_TYPE_USER,
+        auditable_id: String(resultat.utilisateurId),
+      },
+      select: { new_values: true, user_id: true },
+    })
+
+    expect(traces).toHaveLength(1)
+    expect(traces[0].user_id).toBe(qui.id)
+
+    // `user_id` est un BigInt, que JSON.stringify refuse : seul le contenu audité est inspecté.
+    const serialise = JSON.stringify(traces.map((t) => t.new_values))
+    expect(serialise).not.toContain(nouveau)
+    expect(serialise).not.toContain('$2y$')
+  })
+
+  it('refuse d’en attribuer un à un compte désactivé', async () => {
+    const resultat = await creerCompte()
+    const qui = await acteur()
+
+    await prisma.users.update({ where: { id: resultat.utilisateurId }, data: { actif: false } })
+
+    // Réattribuer un mot de passe à un compte coupé donnerait l'illusion d'un accès rétabli.
+    await expect(regenererMotDePasse(qui, resultat.utilisateurId)).rejects.toBeInstanceOf(
+      ErreurWorkflow
+    )
   })
 })

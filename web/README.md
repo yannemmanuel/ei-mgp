@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EI-MGP — application Next.js
 
-## Getting Started
+Digitalisation du **Mécanisme de Gestion des Plaintes** : déclaration et suivi d'évènements
+indésirables et de griefs sur 4 parcours (EI Employé, Grief Employé, Grief Sous-traitant, Grief
+Communauté).
 
-First, run the development server:
+Ce dossier est le portage Next.js de l'application Laravel qui vit à la racine du dépôt. Les deux
+**partagent la même base PostgreSQL** pendant toute la durée de la migration.
+
+---
+
+## ⚠️ À lire avant toute commande
+
+- **La base est partagée avec l'application Laravel en service.** Aucune commande de migration
+  Prisma ne doit être exécutée ici. `prisma migrate dev`, `migrate reset` et `db push` sont
+  interdits : le schéma appartient aux migrations Laravel. Seul `prisma db pull` (lecture) est
+  autorisé pour resynchroniser `schema.prisma` après une migration Laravel.
+- **Les tests écrivent dans la vraie base.** Ils créent puis suppriment leurs propres données, et
+  `vitest.setup.mts` retire les lignes `notifications` et `audit_logs` produites pendant la
+  campagne. Ne les lancez pas contre une base de production.
+- **`web/.env` n'est pas versionné** : il contient l'URL de connexion avec son mot de passe.
+
+---
+
+## Démarrer
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env      # puis renseigner les valeurs ci-dessous
+npx prisma generate
+npm run dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Variables d'environnement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Rôle | Sans elle |
+|---|---|---|
+| `DATABASE_URL` | Connexion PostgreSQL, partagée avec Laravel | L'application ne démarre pas |
+| `AUTH_SECRET` | Signature des sessions Auth.js **et** du jeton de suivi déclarant | Connexion et suivi impossibles |
+| `AUTH_URL` | URL publique de l'application | Auth.js refuse l'hôte (`UntrustedHost`) |
+| `TACHES_SECRET` | Secret du déclencheur de tâches planifiées, **32 caractères minimum** | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
+| `BCRYPT_ROUNDS` | Coût bcrypt, `12` par défaut | — (abaissé à `4` en test uniquement) |
+| `STOCKAGE_RACINE` | Racine de stockage des pièces jointes, hors du dossier public | `./storage/private` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Comptes de démonstration (seedés par Laravel) : `admin@`, `gestionnaire@`, `superviseur@`,
+`enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe `password`.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Commande | Effet |
+|---|---|
+| `npm run dev` | Serveur de développement |
+| `npm run build` | Compilation de production (inclut la vérification TypeScript) |
+| `npm start` | Serveur de production |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Suite Vitest (232 tests, contre la base réelle) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Tâches planifiées — à câbler
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Next.js n'a pas d'ordonnanceur.** Là où Laravel déclare `Schedule::command(...)` et s'appuie sur
+un `php artisan schedule:run` lancé par le cron système, les 5 tâches sont ici exposées par une
+route appelée depuis un ordonnanceur externe.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+curl -X POST -H "Authorization: Bearer $TACHES_SECRET" \
+  https://<hote>/api/taches/<nom>
+```
+
+| Tâche | Cadence attendue | Effet |
+|---|---|---|
+| `recalculer-retard-actions` | quotidienne | Bascule en retard les actions correctives échues |
+| `relancer-echeances` | quotidienne | Relance J-3 des acteurs de traitement |
+| `detecter-retards` | quotidienne | Escalade N+1 / Service MGP / Direction |
+| `calculer-statistiques-mensuelles` | le 1er, 01h30 | Archive le mois écoulé |
+| `appliquer-politique-conservation` | le 1er, 02h00 | Archivage 24 mois, anonymisation 10 ans |
+
+**Sans ce câblage, aucune de ces cinq opérations n'a jamais lieu** — y compris l'anonymisation
+exigée par le RGPD. C'est le point d'exploitation le plus important de ce portage.
+
+---
+
+## État de la migration
+
+Le journal complet — étapes livrées, défauts trouvés dans la baseline, risques ouverts — vit dans
+[`../MIGRATION_PLAN.md`](../MIGRATION_PLAN.md). Il fait autorité sur ce fichier en cas d'écart.
+
+**Ce qui reste bloquant avant une mise en service :**
+
+1. Aucun ordonnanceur externe câblé (voir ci-dessus).
+2. Aucun transport e-mail réel : les envois sont journalisés, pas expédiés.
+3. Limitation de débit en mémoire — contournable sur un déploiement multi-instances.
+4. Aucune sauvegarde ni archivage WAL sur la base de développement.
+
+Voir `ARCHITECTURE.md` pour les conventions de code et le modèle d'autorisation.

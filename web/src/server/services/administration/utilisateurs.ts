@@ -251,3 +251,47 @@ export async function referentielsComptes() {
 
   return { directions, sites }
 }
+
+/**
+ * Régénère le mot de passe d'un compte et renvoie la valeur en clair UNE fois.
+ *
+ * Comble un manque de la baseline : les routes Fortify de réinitialisation y sont bien
+ * enregistrées, mais aucune vue ne l'est (`Fortify::requestPasswordResetLinkView` absent) et la
+ * page de connexion n'y renvoie pas — la fonctionnalité est donc inatteignable. Sans transport
+ * e-mail branché, un envoi de lien serait de toute façon inopérant : la remise en main propre par
+ * un administrateur est la seule voie qui fonctionne aujourd'hui.
+ *
+ * Le mot de passe n'est jamais persisté en clair, ni journalisé. L'audit consigne l'évènement,
+ * pas la valeur.
+ */
+export async function regenererMotDePasse(
+  acteur: Acteur,
+  utilisateurId: bigint
+): Promise<string> {
+  const cible = await prisma.users.findUniqueOrThrow({
+    where: { id: utilisateurId },
+    select: { id: true, actif: true },
+  })
+
+  if (!cible.actif) {
+    throw new ErreurWorkflow('Réactivez le compte avant de lui attribuer un nouveau mot de passe.')
+  }
+
+  const motDePasse = motDePasseInitial()
+
+  await prisma.users.update({
+    where: { id: utilisateurId },
+    data: { password: await hacherMotDePasse(motDePasse), updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: 'user.mot_de_passe_regenere',
+    acteurId: acteur.id,
+    auditableType: MODELES.utilisateur,
+    auditableId: String(utilisateurId),
+    // Ni la valeur, ni son empreinte : seul le fait que l'opération a eu lieu, et par qui.
+    nouvelles: { mot_de_passe_regenere: true },
+  })
+
+  return motDePasse
+}

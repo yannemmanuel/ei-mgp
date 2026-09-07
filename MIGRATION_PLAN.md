@@ -1016,6 +1016,91 @@ bascule reste nécessaire (risque n° 14).
 
 ---
 
+### 🟡 Étape 14 — Préparation de la bascule (le retrait de Laravel n'est PAS fait)
+
+**Livré** — 235 tests, `typecheck`, `lint` et `build` au vert. Tout le pré-requis non destructif
+de la bascule est en place. **Aucun fichier Laravel n'a été supprimé** : cela demande votre
+validation explicite, et l'inventaire ci-dessous existe pour que vous puissiez la donner en
+connaissance de cause.
+
+#### 🔴 Cinquième défaut latent : la réinitialisation de mot de passe est inatteignable
+
+`config/fortify.php` active `Features::resetPasswords()`, et `php artisan route:list` confirme les
+quatre routes (`forgot-password`, `reset-password`). Mais :
+
+- `FortifyServiceProvider` n'enregistre que `Fortify::loginView()` — ni
+  `requestPasswordResetLinkView`, ni `resetPasswordView`. Les routes rendraient une vue nulle.
+- `resources/views/auth/` ne contient que `login.blade.php`.
+- La page de connexion ne comporte **aucun lien** « mot de passe oublié ».
+
+La fonctionnalité est donc déclarée mais inutilisable. Il n'y avait rien à « ne pas faire
+disparaître ».
+
+**Traitement retenu.** Un parcours en libre-service serait de toute façon inopérant sans transport
+e-mail (risque n° 12). Le manque est comblé là où il fonctionne aujourd'hui : la console des
+comptes permet de **réattribuer un mot de passe**, affiché une seule fois, jamais persisté en
+clair ni journalisé — même schéma que la création de compte. Refusé sur un compte désactivé :
+réattribuer un mot de passe à un accès coupé donnerait l'illusion d'un accès rétabli.
+
+Le parcours en libre-service reste ouvert (risque n° 10), désormais conditionné au seul transport
+e-mail.
+
+#### Documentation livrée
+
+`web/README.md` et `web/ARCHITECTURE.md`, demandés au §19 du cahier de migration et jamais écrits
+jusqu'ici. Le README porte les avertissements d'exploitation (base partagée, tests écrivant en
+base, tâches à câbler) ; ARCHITECTURE explique les principes — l'autorisation refaite côté
+serveur, la donnée non autorisée jamais chargée, les contraintes héritées du schéma Laravel, et
+les trois règles de test nées des défauts trouvés en chemin.
+
+#### Ce que le retrait de Laravel supprimerait
+
+| Dossier | Fichiers | Lignes PHP |
+|---|---|---|
+| `app/` | 113 | 7 608 |
+| `resources/` | 63 | 3 647 |
+| `tests/` (61 fichiers Pest) | 63 | 4 808 |
+| `database/` | 65 | 2 543 |
+| `config/` | 15 | 2 635 |
+| `routes/`, `bootstrap/`, `public/` | 17 | 589 |
+| `vendor/` | 66 paquets | — |
+
+**Trois éléments méritent une décision séparée du reste :**
+
+1. **`database/migrations/` (31 fichiers) est la SOURCE du schéma.** Prisma ne fait qu'introspecter
+   la base ; il n'existe aujourd'hui aucune autre définition du schéma. Les supprimer laisserait
+   une base sans historique de structure et sans moyen de la recréer. **Recommandation : les
+   conserver, même après retrait du reste**, ou porter les migrations vers Prisma avant.
+2. **`database/seeders/` (12 fichiers) est la SOURCE des référentiels.** Trois d'entre eux ont
+   déjà servi à réparer des tables vides pendant cette migration. Aucun équivalent n'existe côté
+   Next.
+3. **`tests/` (61 fichiers, 4 808 lignes) encode des cas limites que les 235 tests du portage ne
+   reproduisent pas tous.** Tant que Laravel tourne, ils restent exécutables et constituent un
+   filet indépendant.
+
+Le reste — `app/`, `resources/`, `config/`, `routes/`, `bootstrap/`, `public/`, `vendor/` — peut
+être retiré une fois la bascule validée en production.
+
+#### Conditions à remplir AVANT la bascule
+
+| # | Condition | État |
+|---|---|---|
+| 1 | Ordonnanceur externe câblé sur `/api/taches/*` | ❌ Non fait — sans lui, aucune relance, aucune escalade, aucune anonymisation |
+| 2 | `TACHES_SECRET` provisionné (32 caractères minimum) | ❌ À faire en production |
+| 3 | Transport e-mail réel branché | ❌ Non fait — les envois sont journalisés, pas expédiés |
+| 4 | Limitation de débit sur magasin partagé | ❌ En mémoire — contournable en multi-instances |
+| 5 | Sauvegardes et archivage WAL | ❌ `archive_mode = off`, aucune sauvegarde |
+| 6 | Délais métier arrêtés sur `ei_employe` | ❌ Trois étapes sur quatre non validées |
+| 7 | Passe manuelle au navigateur (envoi de message déclarant, saisie relais complète) | ❌ À faire |
+| 8 | Arbitrage sur `url_cible` des QR codes | ❌ En attente |
+| 9 | Décision sur les niveaux de gravité administrables | ❌ En attente |
+| 10 | Validation des trois ajouts d'audit hors CDC | ❌ En attente |
+
+**Aucune de ces dix conditions n'est remplie à ce jour.** Les six premières sont bloquantes au
+sens strict : sans elles, le portage fonctionne en démonstration mais pas en service.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1029,7 +1114,7 @@ bascule reste nécessaire (risque n° 14).
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Traité à l'étape 10 (@react-pdf/renderer, mise en page réécrite) |
 | 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
-| 10 | **Réinitialisation de mot de passe non portée.** Fonctionnalité Laravel existante (Fortify) ; nécessite une décision sur l'envoi d'e-mails. `password_reset_tokens` existe déjà. | 🟠 Moyen | Ouvert — avant bascule |
+| 10 | **Pas de réinitialisation en libre-service.** La baseline la déclare sans la rendre atteignable (aucune vue Fortify enregistrée, aucun lien depuis la connexion). Comblé côté administration (réattribution par un administrateur) ; le libre-service reste conditionné au transport e-mail. | 🟠 Moyen | Partiellement traité à l'étape 14 |
 | 12 | **Aucun e-mail n'est réellement expédié.** Le transport par défaut journalise sans envoyer, comme le `MAIL_MAILER=log` de la baseline. Un transport réel doit être branché avant production, sinon EX-NOT-02/03/04 restent inopérants côté déclarant et hiérarchie. | 🟠 Moyen | Ouvert — avant bascule |
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
@@ -1048,7 +1133,7 @@ bascule reste nécessaire (risque n° 14).
 
 | # | Étape | Vérification |
 |---|---|---|
-| 14 | Bascule, puis retrait de Laravel | **Après validation explicite** |
+| 14 | Bascule, puis retrait de Laravel | **Bloqué : 10 conditions à remplir, aucune n'est remplie. Retrait soumis à validation explicite.** |
 
 Chemin critique : `authz → Déclaration → Dossiers/workflow → Notifications`.
 
