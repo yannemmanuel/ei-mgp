@@ -12,10 +12,12 @@
     "db:pull": "prisma db pull",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sauvegarde": "node scripts/sauvegarde.mjs"
+    "sauvegarde": "node scripts/sauvegarde.mjs",
+    "migrer-pieces-jointes": "node scripts/migrer-pieces-jointes.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@netlify/blobs": "^11.0.3",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@react-pdf/renderer": "^4.9.0",

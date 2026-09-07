@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { magasinCourant } from '../stockage/magasin'
 import { fileTypeFromBuffer } from 'file-type'
 import { ulid } from 'ulid'
 
@@ -26,9 +26,6 @@ const TYPES_AUTORISES: Record<string, string> = {
   mov: 'video/quicktime',
   pdf: 'application/pdf',
 }
-
-/** Racine de stockage, HORS du dossier public : aucun fichier n'est servi en direct. */
-const RACINE_STOCKAGE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 'storage', 'private')
 
 export class ErreurPieceJointe extends Error {
   constructor(message: string) {
@@ -88,10 +85,13 @@ async function verifierTypeReel(fichier: FichierAValider): Promise<void> {
 }
 
 /**
- * Écrit les fichiers sur le disque privé et retourne les métadonnées à persister.
+ * Écrit les fichiers dans le magasin courant et retourne les métadonnées à persister.
  *
  * Les noms de fichiers sont générés (ULID) et jamais dérivés du nom fourni par l'utilisateur :
  * un nom d'origine peut contenir des séparateurs de chemin ou une extension trompeuse.
+ *
+ * Le magasin retenu est enregistré sur chaque ligne (`disque`) : une pièce écrite sur disque
+ * reste lisible après un basculement vers le stockage objet.
  */
 export async function stockerFichiers(
   fichiers: readonly FichierAValider[],
@@ -101,11 +101,7 @@ export async function stockerFichiers(
   await verifierLot(fichiers)
 
   const dossierRelatif = path.posix.join('pieces-jointes', typeParent, idParent)
-  // `turbopackIgnore` : ce sont des chemins de STOCKAGE construits a l'execution, pas des
-  // modules a resoudre. Sans ce marqueur, Turbopack trace tout le projet a la recherche d'un
-  // import dynamique qui n'existe pas.
-  const dossierAbsolu = path.join(/*turbopackIgnore: true*/ RACINE_STOCKAGE, dossierRelatif)
-  await mkdir(dossierAbsolu, { recursive: true })
+  const magasin = magasinCourant()
 
   const preparees: PieceJointePreparee[] = []
 
@@ -114,11 +110,11 @@ export async function stockerFichiers(
     const nomGenere = `${ulid().toLowerCase()}.${extension}`
     const cheminRelatif = path.posix.join(dossierRelatif, nomGenere)
 
-    await writeFile(path.join(/*turbopackIgnore: true*/ dossierAbsolu, nomGenere), fichier.octets)
+    await magasin.ecrire(cheminRelatif, fichier.octets)
 
     preparees.push({
       id: ulid().toLowerCase(),
-      disque: 'local',
+      disque: magasin.nom,
       chemin: cheminRelatif,
       nomOriginal: fichier.nom,
       mimeType: TYPES_AUTORISES[extension],

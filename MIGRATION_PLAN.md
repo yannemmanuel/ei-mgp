@@ -1330,6 +1330,58 @@ dans un artefact de CI.
 
 ---
 
+### ✅ Étape 17 — Pièces jointes : le dernier bloquant technique est levé
+
+**Livré** — 267 tests, `typecheck`, `lint` et `build` au vert ; base inchangée.
+
+#### Une fonctionnalité manquait, en plus du bloquant
+
+En traitant le stockage, j'ai découvert que **le portage n'avait aucune route de téléchargement**.
+Laravel en a une (`PieceJointeDownloadController`, protégée par la Policy du dossier) : les pièces
+étaient donc écrites et jamais relues côté Next. Deuxième fonctionnalité absente après la saisie
+relais — et invisible du recoupement de l'étape 13, qui ne vérifiait qu'EX-DEC-06 (les limites de
+dépôt).
+
+`/api/pieces-jointes/{id}` la rétablit. Elle remonte au dossier parent — la pièce peut être
+attachée au dossier, à une investigation ou à une action corrective — et revérifie
+`peutVoirDossier`. Une pièce hors périmètre et une pièce inexistante répondent **la même chose** :
+distinguer les deux confirmerait l'existence du dossier à qui n'y a pas droit.
+
+#### Stockage abstrait : disque ou objet, selon l'hébergement
+
+`services/stockage/magasin.ts` remplace l'écriture directe. Netlify Blobs en serverless, disque
+ailleurs ; `STOCKAGE_MAGASIN` tranche explicitement. Le magasin retenu est enregistré sur chaque
+ligne (`pieces_jointes.disque`, colonne qui existait déjà pour cet usage) : **une pièce écrite
+hier reste lisible même si le magasin par défaut change demain**.
+
+#### Deux pièges de bascule trouvés en vérifiant
+
+Le premier téléchargement d'une pièce réelle a répondu **500**. Deux causes distinctes, toutes
+deux fatales en production et invisibles en lecture de code :
+
+1. **Racine différente.** Laravel écrit dans `storage/app/private`, le portage attendait
+   `web/storage/private`. `STOCKAGE_RACINE` pointe désormais sur le stockage de Laravel pendant
+   la cohabitation.
+2. **Antislashs dans les chemins.** Laravel enregistre `pieces-jointes/App\Models\Dossier/...`,
+   son dossier dérivant du nom de classe PHP. Windows les interprète comme des séparateurs,
+   **Linux non** : sur Netlify, toute pièce d'avant la bascule aurait été introuvable. Les chemins
+   sont normalisés à la lecture comme à l'écriture.
+
+Après correction : téléchargement en 200, `Content-Disposition` correct, et la signature PNG du
+fichier réellement écrit par Laravel.
+
+#### Transfert vers le stockage objet
+
+`npm run migrer-pieces-jointes` copie les pièces du disque vers le magasin d'objets et met à jour
+`disque`. Idempotent, n'efface rien, et **vérifie l'empreinte SHA-256** de chaque fichier avant
+transfert — transférer un fichier altéré propagerait la corruption. La ligne n'est marquée
+qu'APRÈS l'écriture : une interruption laisse la pièce lisible sur le disque.
+
+Simulation exécutée sur les 6 pièces existantes : **toutes lisibles, toutes conformes à leur
+empreinte**. L'intégrité des données déjà déposées est donc vérifiée, pas supposée.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1354,7 +1406,7 @@ dans un artefact de CI.
 | 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
 | 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
-| 22 | **Pièces jointes incompatibles avec Netlify.** Écriture sur le disque local, impossible en serverless : toute déclaration avec pièce jointe échouera. Un stockage objet doit remplacer `writeFile`, et la lecture reste à écrire (aucune route de téléchargement n'existe). | 🔴 Majeur | Ouvert — bloquant de déploiement |
+| 22 | **Pièces jointes incompatibles avec Netlify.** | 🔴 Majeur | ✅ Résolu à l'étape 17 — stockage objet, route de téléchargement, script de transfert |
 | 23 | **7 délais sur 22 sans effet structurel.** `retour_information` n'est rattachée à aucun statut ; `cloture` porte le délai global, lu par une fonction que rien n'appelle (dans les deux applications). Signalé dans l'écran, mais la question de fond reste : faut-il câbler ces étapes ou retirer leurs lignes ? | 🟠 Moyen | Ouvert — arbitrage |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 

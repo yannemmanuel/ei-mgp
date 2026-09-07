@@ -40,7 +40,8 @@ npm run dev               # http://localhost:3000
 | `AUTH_URL` | URL publique de l'application | Auth.js refuse l'hôte (`UntrustedHost`) |
 | `TACHES_SECRET` | Secret du déclencheur de tâches planifiées, **32 caractères minimum** | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
 | `BCRYPT_ROUNDS` | Coût bcrypt, `12` par défaut | — (abaissé à `4` en test uniquement) |
-| `STOCKAGE_RACINE` | Racine de stockage des pièces jointes, hors du dossier public | `./storage/private` |
+| `STOCKAGE_RACINE` | Racine du magasin local, hors du dossier public | `./storage/private` |
+| `STOCKAGE_MAGASIN` | `local` ou `blobs` | Détecté d'après l'hébergement |
 | `MAIL_HOST`, `MAIL_FROM` | Transport SMTP — **les deux sont requis** pour expédier | Les e-mails sont journalisés, pas envoyés |
 | `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires | Port 587 en STARTTLS, sans authentification |
 
@@ -94,8 +95,7 @@ Le journal complet — étapes livrées, défauts trouvés dans la baseline, ris
 
 **Ce qui reste bloquant avant une mise en service :**
 
-1. **Pièces jointes** — écriture sur disque local, incompatible avec Netlify (voir ci-dessus).
-2. **Transport SMTP** — sans `MAIL_HOST` et `MAIL_FROM`, les envois sont journalisés. Le
+1. **Transport SMTP** — sans `MAIL_HOST` et `MAIL_FROM`, les envois sont journalisés. Le
    démarrage annonce lequel des deux modes est actif.
 
 ## Sauvegardes

@@ -295,8 +295,16 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               ) : (
                 <ul className="space-y-1 text-sm">
                   {pieces.map((p) => (
-                    <li key={p.id} className="text-secondary-800">
-                      {p.nom_original}{' '}
+                    <li key={p.id}>
+                      {/* Le fichier transite par une route qui revérifie la Policy du dossier :
+                          jamais par une URL de stockage directe (exigences-securite.md §3). */}
+                      <a
+                        href={`/api/pieces-jointes/${p.id}`}
+                        className="text-secondary-800 underline underline-offset-2 hover:text-primary-700"
+                        download={p.nom_original}
+                      >
+                        {p.nom_original}
+                      </a>{' '}
                       <span className="text-caption text-muted-foreground">
                         ({Math.round(Number(p.taille_octets) / 1024)} Ko)
                       </span>
