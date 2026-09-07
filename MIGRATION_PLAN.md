@@ -1382,6 +1382,60 @@ empreinte**. L'intégrité des données déjà déposées est donc vérifiée, p
 
 ---
 
+### ✅ Étape 18 — Bascule : Laravel est retiré
+
+**Fait sur validation explicite, réitérée.** 267 tests, `typecheck`, `lint` et `build` au vert
+**après** le retrait — le portage ne dépendait de rien du côté supprimé.
+
+#### Ce qui a été extrait AVANT de supprimer
+
+Ma recommandation initiale était de conserver `database/migrations` et `database/seeders`, seules
+définitions du schéma et des référentiels. En préparant le retrait, j'ai vu que cette
+recommandation ne tenait pas : **une fois le framework parti, ni les migrations ni les seeders ne
+sont exécutables** — ils dépendent de `vendor/`, d'`artisan` et des modèles de `app/`. Les garder
+n'aurait conservé que des documents, pas une capacité à recréer un environnement.
+
+Le prérequis réel était donc de les porter :
+
+| Fichier | Contenu | Vérification |
+|---|---|---|
+| `web/prisma/schema-initial.sql` | 35 tables, 38 index, 41 clés étrangères | Généré par `prisma migrate diff` |
+| — complété à la main | contrainte `niveaux_gravite_niveau_check` | Prisma ne modélise pas les CHECK : sans cet ajout, une base recréée accepterait une gravité hors de l'échelle 1-4 |
+| `web/prisma/referentiels.json` | 12 tables, 238 lignes | Aucune donnée métier ni personnelle |
+| `web/prisma/seed.mts` | Rejeu par `upsert` | Exécuté sur la base existante : ni doublon, ni perte |
+
+#### Deux données qui n'étaient dans aucun dépôt
+
+- **Les 6 pièces jointes** vivaient dans `storage/app/private`, non versionné. Supprimer
+  `storage/` les aurait détruites. Elles ont été déplacées dans `web/storage/private`, puis
+  vérifiées : les six empreintes SHA-256 correspondent toujours à ce que la base enregistre.
+- **`web/storage/` n'était pas ignoré par git.** Un commit y aurait fait entrer des pièces
+  jointes — donc des données personnelles — dans un historique qui ne se purge pas. Corrigé avant
+  toute écriture.
+
+#### Ce qui a été retiré, ce qui reste
+
+Retiré : `app/`, `bootstrap/`, `config/`, `database/`, `public/`, `resources/`, `routes/`,
+`stubs/`, `tests/`, `vendor/`, `node_modules/`, `artisan`, `composer.*`, `phpstan.neon`,
+`phpunit.xml`, `vite.config.js`, et les `package.json`/`package-lock.json` de la racine.
+
+Conservé : `web/`, `docs/` — **une vingtaine de fichiers du portage y renvoient explicitement**
+pour justifier une règle, ce n'est pas une archive —, `MIGRATION_PLAN.md`, `netlify.toml`, et
+`storage/` (non versionné, seconde copie des pièces jointes ; supprimable une fois la bascule
+confirmée).
+
+Deux étiquettes rendent l'opération réversible : `baseline-laravel` (l'application d'origine) et
+`avant-retrait-laravel` (l'état juste avant suppression, commit `f780b84`).
+
+#### Ce que la bascule ne règle pas
+
+Le retrait de Laravel ne met pas l'application en service. **Aucun e-mail ne partira** tant que
+`MAIL_HOST` et `MAIL_FROM` ne sont pas renseignés — le démarrage l'annonce, mais il faut le lire.
+Et la passe manuelle au navigateur (message déclarant, saisie relais complète) reste à faire :
+aucun test ne l'a exercée de bout en bout.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1416,7 +1470,6 @@ empreinte**. L'intégrité des données déjà déposées est donc vérifiée, p
 
 | # | Étape | Vérification |
 |---|---|---|
-| 14 | Bascule, puis retrait de Laravel | **Bloqué : 10 conditions à remplir, aucune n'est remplie. Retrait soumis à validation explicite.** |
 
 Chemin critique : `authz → Déclaration → Dossiers/workflow → Notifications`.
 

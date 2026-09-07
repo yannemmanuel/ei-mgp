@@ -1,59 +1,46 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# EI-MGP — Digitalisation du Mécanisme de Gestion des Plaintes
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Déclaration et suivi d'**évènements indésirables** et de **griefs**, sur quatre parcours : EI
+Employé, Grief Employé, Grief Sous-traitant, Grief Communauté.
 
-## About Laravel
+L'application vit dans [`web/`](web/) — Next.js, TypeScript, Prisma, PostgreSQL.
+**Commencez par [`web/README.md`](web/README.md)** : installation, variables d'environnement,
+déploiement, sauvegardes.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+```
+web/            l'application
+docs/           le corpus d'exigences — cité par le code, il fait autorité
+MIGRATION_PLAN.md   journal de la migration : décisions, défauts trouvés, risques ouverts
+netlify.toml    déploiement et tâches planifiées
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Un point d'histoire qui compte encore
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Ce dépôt a d'abord hébergé une application **Laravel**, remplacée par le portage Next.js. Le
+framework a été retiré ; le schéma de base et les données de référence, qui n'existaient que dans
+ses migrations et ses seeders, ont été extraits sous une forme qui vit sans lui :
 
-## Learning Laravel
+| Fichier | Rôle |
+|---|---|
+| `web/prisma/schema-initial.sql` | Structure complète — 35 tables, contraintes comprises |
+| `web/prisma/referentiels.json` | Parcours, catégories, statuts, gravités, délais, permissions… |
+| `web/prisma/seed.mts` | Rejoue les référentiels (`npm run seed`), idempotent |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+L'état antérieur reste intégralement récupérable :
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+```bash
+git show avant-retrait-laravel   # juste avant le retrait
+git show baseline-laravel        # l'application Laravel d'origine
+```
 
-## Laravel Sponsors
+## Où lire quoi
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- **Faire tourner l'application, la déployer** → [`web/README.md`](web/README.md)
+- **Comprendre les choix de structure** → [`web/ARCHITECTURE.md`](web/ARCHITECTURE.md)
+- **Ce que le produit doit faire** → [`docs/`](docs/) — exigences fonctionnelles, règles métier,
+  sécurité, audit, décisions techniques
+- **Ce qui a été migré, trouvé, et ce qui reste ouvert** →
+  [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md)
 
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+`docs/` n'est pas une archive : une vingtaine de fichiers du code y renvoient explicitement pour
+justifier une règle. Il fait autorité en cas de doute.

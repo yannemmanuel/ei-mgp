@@ -46,3 +46,7 @@ secrets-production.txt
 # Sauvegardes locales produites par `npm run sauvegarde` : contiennent des données
 # personnelles, ne doivent jamais être versionnées.
 /sauvegardes/
+
+# Pièces jointes déposées : DONNÉES PERSONNELLES. Ne doivent jamais entrer dans git —
+# un historique ne se purge pas.
+/storage/

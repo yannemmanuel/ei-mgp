@@ -64,8 +64,10 @@ implémentations finiraient par diverger — et la divergence porterait sur des 
 
 ## 3. Base de données — contraintes héritées
 
-La base appartient aux migrations Laravel. `schema.prisma` en est une **introspection**
-(`prisma db pull`), jamais une source.
+`schema.prisma` est une **introspection** (`prisma db pull`), jamais une source. La structure de
+référence est `prisma/schema-initial.sql`, extraite au retrait de Laravel — les contraintes que
+Prisma ne modélise pas, les CHECK, y ont été rajoutées à la main. C'est donc ce fichier qui fait
+autorité, et non le schéma Prisma.
 
 | Contrainte | Conséquence dans le code |
 |---|---|

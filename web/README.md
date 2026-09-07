@@ -4,21 +4,24 @@ Digitalisation du **Mécanisme de Gestion des Plaintes** : déclaration et suivi
 indésirables et de griefs sur 4 parcours (EI Employé, Grief Employé, Grief Sous-traitant, Grief
 Communauté).
 
-Ce dossier est le portage Next.js de l'application Laravel qui vit à la racine du dépôt. Les deux
-**partagent la même base PostgreSQL** pendant toute la durée de la migration.
+Cette application a remplacé un portage Laravel, retiré depuis. Le schéma et les référentiels,
+qui n'existaient que dans ses migrations et ses seeders, sont préservés ici (voir *Recréer un
+environnement*).
 
 ---
 
 ## ⚠️ À lire avant toute commande
 
-- **La base est partagée avec l'application Laravel en service.** Aucune commande de migration
-  Prisma ne doit être exécutée ici. `prisma migrate dev`, `migrate reset` et `db push` sont
-  interdits : le schéma appartient aux migrations Laravel. Seul `prisma db pull` (lecture) est
-  autorisé pour resynchroniser `schema.prisma` après une migration Laravel.
+- **`schema.prisma` est une INTROSPECTION**, pas une source. La structure de référence est
+  `prisma/schema-initial.sql`. Une évolution du schéma s'écrit là, s'applique, puis se reprend
+  par `prisma db pull` — jamais l'inverse. `prisma migrate dev`, `migrate reset` et `db push`
+  restent à proscrire tant qu'aucun outil de migration n'a été mis en place.
 - **Les tests écrivent dans la vraie base.** Ils créent puis suppriment leurs propres données, et
   `vitest.setup.mts` retire les lignes `notifications` et `audit_logs` produites pendant la
   campagne. Ne les lancez pas contre une base de production.
 - **`web/.env` n'est pas versionné** : il contient l'URL de connexion avec son mot de passe.
+- **`web/storage/` ne l'est pas non plus** : il contient les pièces jointes déposées, donc des
+  données personnelles. Un historique git ne se purge pas.
 
 ---
 
@@ -30,6 +33,21 @@ cp .env.example .env      # puis renseigner les valeurs ci-dessous
 npx prisma generate
 npm run dev               # http://localhost:3000
 ```
+
+### Recréer un environnement
+
+Sur une base vierge :
+
+```bash
+psql "$DATABASE_URL" -f prisma/schema-initial.sql   # 35 tables et leurs contraintes
+npm run seed                                        # parcours, catégories, délais, permissions…
+```
+
+Le seed est idempotent : il peut être rejoué sur une base déjà peuplée. Il ne crée **aucun
+compte** — les comptes se créent depuis `/administration/utilisateurs`.
+
+`npm run exporter-referentiels` régénère `prisma/referentiels.json` depuis la base courante,
+lorsqu'un référentiel modifié depuis l'application doit être versionné.
 
 ### Variables d'environnement
 
@@ -45,8 +63,9 @@ npm run dev               # http://localhost:3000
 | `MAIL_HOST`, `MAIL_FROM` | Transport SMTP — **les deux sont requis** pour expédier | Les e-mails sont journalisés, pas envoyés |
 | `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires | Port 587 en STARTTLS, sans authentification |
 
-Comptes de démonstration (seedés par Laravel) : `admin@`, `gestionnaire@`, `superviseur@`,
-`enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe `password`.
+Comptes de démonstration présents dans la base de développement : `admin@`, `gestionnaire@`,
+`superviseur@`, `enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe
+`password`. **À supprimer avant toute mise en service.**
 
 ---
 
