@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs'
+import { hacher, verifier } from '@/server/auth/hachage'
 
 /**
  * RG-02 : code d'accès secondaire à 6 chiffres, remis au déclarant à la soumission. Avec la
@@ -12,13 +12,6 @@ import bcrypt from 'bcryptjs'
  */
 const LONGUEUR = 6
 
-/**
- * Cout bcrypt, configurable comme le `BCRYPT_ROUNDS` de Laravel (dont le phpunit.xml le abaisse
- * a 4 en test pour la meme raison). Le defaut 12 est celui de la production : il est volontairement
- * couteux, et ne doit jamais etre abaisse ailleurs qu'en test.
- */
-const COUT_BCRYPT = Number(process.env.BCRYPT_ROUNDS ?? 12)
-
 export function genererCodeAcces(): string {
   // `crypto.randomInt` est cryptographiquement sûr, contrairement à Math.random() : ce code
   // protège l'accès à un dossier de signalement, un générateur prédictible le rendrait
@@ -30,9 +23,9 @@ export function genererCodeAcces(): string {
 }
 
 export function hacherCodeAcces(code: string): Promise<string> {
-  return bcrypt.hash(code, COUT_BCRYPT)
+  return hacher(code)
 }
 
 export function verifierCodeAcces(code: string, hache: string): Promise<boolean> {
-  return bcrypt.compare(code, hache)
+  return verifier(code, hache)
 }

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
+import { hacher } from './hachage'
 
 /**
  * Vérification des identifiants contre les comptes Laravel existants.
@@ -43,4 +44,14 @@ export async function verifierIdentifiants(
   }
 
   return { statut: 'ok', userId: utilisateur.id }
+}
+
+/**
+ * Hachage d'un mot de passe, pour les comptes créés depuis la console d'administration.
+ *
+ * Passe par `@/server/auth/hachage`, qui normalise le préfixe en `$2y$` : sans cela, Laravel
+ * refuserait le compte à la connexion (cf. le docblock de ce module).
+ */
+export function hacherMotDePasse(motDePasse: string): Promise<string> {
+  return hacher(motDePasse)
 }

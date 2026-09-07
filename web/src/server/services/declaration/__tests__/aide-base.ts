@@ -40,3 +40,24 @@ export async function nettoyerDossiers(ids: readonly string[]): Promise<void> {
   await prisma.messages.deleteMany({ where: dossierIn })
   await prisma.dossiers.deleteMany({ where: { id: { in: [...ids] } } })
 }
+
+/**
+ * Supprime des lignes d'audit produites par un test.
+ *
+ * ⚠️ `auditable_type` est OBLIGATOIRE, et ce n'est pas une commodité de typage. `auditable_id`
+ * est une colonne texte partagée par tous les modèles : un identifiant numérique comme « 34 »
+ * désigne aussi bien une catégorie qu'une investigation ou un compte. Un nettoyage qui ne
+ * filtrerait que sur l'identifiant effacerait des lignes d'audit sans rapport — c'est
+ * exactement ce qui s'est produit à l'étape 11 (17 lignes de la baseline perdues), et la
+ * signature de cette fonction existe pour que cela ne puisse pas se reproduire.
+ */
+export async function nettoyerAudit(
+  auditableType: string,
+  ids: readonly (string | bigint)[]
+): Promise<void> {
+  if (ids.length === 0) return
+
+  await prisma.audit_logs.deleteMany({
+    where: { auditable_type: auditableType, auditable_id: { in: ids.map((id) => String(id)) } },
+  })
+}

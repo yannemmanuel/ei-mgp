@@ -735,6 +735,122 @@ légitimement vide tant que l'étape 12 n'a pas branché les tâches planifiées
 
 ---
 
+### ✅ Étape 11 — Administration des référentiels
+
+**Livré** — 186 tests, `typecheck`, `lint` et `build` au vert. Les 7 consoles de la baseline sont
+portées : comptes, catégories, statuts, sites, canaux, gabarits de notification, QR codes.
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/audit/journal.ts` | Écriture d'audit, format Laravel (`modele.verbe` + différentiel) |
+| `server/services/administration/referentiels.ts` | Catégories, statuts, sites, canaux, gabarits |
+| `server/services/administration/qr-codes.ts` | Génération, retrait, rendu SVG |
+| `server/services/administration/utilisateurs.ts` | Comptes, rôles, mot de passe initial |
+| `(app)/administration/*` | 7 écrans + éditeur de référentiel commun |
+| `server/auth/hachage.ts` | Hachage bcrypt compatible PHP |
+
+#### 🔴 Défaut que j'avais introduit à l'étape 5a : le hachage bcrypt était illisible par Laravel
+
+En voulant documenter que `bcryptjs` et PHP sont interchangeables, je l'ai vérifié — et c'était
+**faux**.
+
+```
+Hash::check('...', '$2b$04$...')
+→ RuntimeException: This password does not use the Bcrypt algorithm.
+```
+
+`bcryptjs` écrit `$2b$` ; PHP ne reconnaît que `$2y$`, et Laravel refuse tout le reste. Or
+`AccessCodeService::verifier()` utilise `Hash::check`. Conséquence, tant que les deux
+applications cohabitent :
+
+- **tout code d'accès** produit par Next aurait été définitivement invérifiable côté Laravel —
+  un déclarant n'aurait plus pu consulter son propre dossier depuis l'application en service ;
+- **tout compte** créé depuis la console d'administration n'aurait pas pu s'y connecter.
+
+L'algorithme et le coût sont pourtant identiques : seul l'en-tête de format diffère. Le hachage
+passe désormais par `server/auth/hachage.ts`, qui réécrit le préfixe en `$2y$` — vérifié dans les
+deux sens contre le PHP du projet, et figé par un test.
+
+**Aucune donnée n'était corrompue** : les 10 dossiers et les 6 comptes de la base portent tous des
+empreintes `$2y$` produites par Laravel. Le défaut était latent, il se serait manifesté à la
+première déclaration réellement déposée via Next.
+
+Ce que cet épisode montre : mes tests hachent et vérifient **du même côté**. Ils ne pouvaient pas
+détecter une incompatibilité qui n'existe qu'au passage de la frontière entre les deux
+applications. Même famille d'angle mort que les référentiels manquants (risque n° 15).
+
+#### 🔴 Quatrième défaut latent de la baseline : `url_cible` n'est lu par rien
+
+`QrCodesAdmin` propose de modifier l'URL cible d'un QR code, affiche « URL cible mise à jour », et
+son docblock annonce que cela « permet de réorienter un QR physique déjà imprimé sans le
+régénérer ».
+
+Or `QrCodeRedirectController` ne lit jamais cette colonne : il recalcule la destination à partir
+de `parcours.code`. **Modifier l'URL cible n'a donc aucun effet.** Le test Pest existant
+(`QrCodesAdminTest`) n'assère que l'écriture en base, jamais la redirection — encore une fois, le
+test vérifie l'écriture, pas le comportement.
+
+Le portage **reproduit le comportement** (rien ne disparaît) mais **cesse de mentir** : l'écran
+indique que la valeur est documentaire. Rendre la redirection effective serait un changement de
+sémantique à part entière — et créerait une redirection ouverte pilotée depuis
+l'administration : à décider explicitement, pas à glisser dans une migration.
+
+#### ⚠️ Ma propre erreur : 17 lignes d'audit détruites
+
+Le nettoyage de mes nouveaux tests supprimait des lignes d'`audit_logs` en filtrant sur le seul
+`auditable_id`. Cette colonne est un texte **partagé par tous les modèles** : « 34 » y désigne
+aussi bien une catégorie qu'une investigation. Les identifiants de mes catégories et comptes de
+test ont donc collisionné avec de vraies lignes.
+
+**17 lignes d'audit de la baseline ont été supprimées** (`audit_logs` : 161 → 144). Elles sont
+**irrécupérables** : ni sauvegarde dans le projet, ni archivage WAL (`archive_mode = off`).
+
+C'est une atteinte à une table que le cahier des charges désigne comme strictement en ajout seul,
+causée par mon propre code de test — pas par l'application, dont aucun chemin ne supprime d'audit.
+
+**Correctif structurel** : `nettoyerAudit(auditableType, ids)` dans `aide-base.ts` rend le type
+obligatoire dans la signature ; un nettoyage non typé n'est plus exprimable. Vérifié : la suite
+complète laisse désormais `audit_logs` à 144 avant et après.
+
+#### Décisions de portage
+
+- **Aucune suppression, nulle part.** Un test structurel échoue si une fonction dont le nom
+  évoque une suppression apparaît un jour dans le module des référentiels.
+- **Statuts et canaux en modification seule.** `code` est la colonne pivot du graphe de
+  transitions (statuts) et une énumération du CDC §6.7 (canaux).
+- **Éditeur de référentiel commun** aux cinq écrans de même forme : les écrire cinq fois
+  multiplierait les endroits où l'absence de suppression peut diverger.
+- **Journal d'audit au format Laravel** — `auditable_type` porte le nom de classe PHP, l'action
+  suit `modele.verbe`, et seuls les champs réellement modifiés sont consignés. La console d'audit
+  de Laravel lit donc ces lignes à l'identique.
+- **`password` exclu de l'audit** au même titre que `remember_token` et `access_code_hash` :
+  jamais d'empreinte dans un champ JSON, même hachée.
+- **Mot de passe initial** généré aléatoirement, renvoyé une seule fois dans l'état de l'action,
+  jamais persisté en clair ni journalisé.
+
+#### DT-02 vérifié en HTTP réel
+
+La séparation « paramétrage technique » / « référentiel métier » n'est pas seulement documentée :
+
+| Compte | `/administration/utilisateurs` | `/administration/categories` |
+|---|---|---|
+| `administrateur_digital` | **200** | **307 → /acces-refuse** |
+| `service_mgp` | **307 → /acces-refuse** | **200** |
+| `correspondant_mgp` | 307 → /acces-refuse | 307 → /acces-refuse |
+
+Le sommaire n'affiche que les entrées accessibles : comptes, canaux et QR codes pour
+l'administrateur ; catégories, statuts, sites et gabarits pour le Service MGP ; aucune pour un
+rôle de traitement.
+
+#### Non porté, volontairement
+
+`docs/exigences-audit.md` §2 cite les **niveaux de gravité** parmi les référentiels administrables,
+mais la baseline n'a **aucun écran** pour eux (`NiveauGravite` est bien observé pour l'audit, sans
+console associée). Rien n'est donc porté : inventer un écran absent du CDC sortirait du périmètre
+d'une migration. À arbitrer.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -754,6 +870,9 @@ légitimement vide tant que l'étape 12 n'a pas branché les tâches planifiées
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
 | 15 | **Référentiels manquants en base non détectés par la suite.** Trois occurrences (`date_cloture`, `sla_delais`, `notification_templates`). Les tests fabriquent leurs données de référence et ne signalent donc pas leur absence en production. | 🔴 Majeur | Partiellement traité — à étendre à chaque référentiel (étape 11) |
 | 16 | **Traçabilité de l'export nominatif ajoutée hors CDC.** `rapport.export_nominatif` n'est pas listé dans `docs/exigences-audit.md` §2 ; la baseline Laravel ne journalise aucun export. Ajout jugé nécessaire pour le DPO, à valider. | 🟢 Faible | Ouvert — à confirmer |
+| 17 | **QR codes : `url_cible` sans effet.** L'écran laisse croire à une réorientation possible ; la redirection est recalculée depuis le parcours. Rendre la colonne effective créerait une redirection ouverte pilotée depuis l'administration. | 🟠 Moyen | Ouvert — arbitrage requis |
+| 18 | **Niveaux de gravité non administrables.** Cités par `exigences-audit.md` §2, sans écran dans la baseline. Non inventé. | 🟢 Faible | Ouvert — arbitrage requis |
+| 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -762,7 +881,6 @@ légitimement vide tant que l'étape 12 n'a pas branché les tâches planifiées
 
 | # | Étape | Vérification |
 |---|---|---|
-| 11 | Administration (7 référentiels) | — |
 | 12 | Audit + RGPD + 5 tâches planifiées | RG-11/12, immuabilité |
 | 13 | Tests de non-régression complets | 39 EX + 15 RG + 13 RGI |
 | 14 | Bascule, puis retrait de Laravel | **Après validation explicite** |
