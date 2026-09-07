@@ -75,7 +75,7 @@ export async function envoyerMessageDeclarant(
 
   const cle = cleThrottle('messagerie-envoi', await adresseIp())
 
-  if (!autoriserTentative(cle, Date.now(), LIMITE_MESSAGERIE)) {
+  if (!(await autoriserTentative(cle, Date.now(), LIMITE_MESSAGERIE))) {
     return { erreur: TROP_DE_MESSAGES, messages: await conversation(dossierId) }
   }
 

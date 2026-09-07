@@ -1,13 +1,20 @@
+import { prisma } from '@/lib/prisma'
+
 /**
- * Limitation de débit des tentatives de connexion — équivalent de
- * `RateLimiter::for('login')` (Laravel, `FortifyServiceProvider`) : 5 tentatives par minute,
- * par couple e-mail + adresse IP.
+ * Limitation de débit — équivalent de `RateLimiter` (Laravel).
  *
- * ⚠️ Implémentation EN MÉMOIRE, donc valable pour un seul processus. Elle est suffisante en
- * développement et sur un déploiement mono-instance, mais devra passer par un magasin partagé
- * (Redis, ou la table `cache` déjà présente) avant une mise en production multi-instances,
- * sinon la limite est contournable en frappant une autre instance. Consigné dans
- * MIGRATION_PLAN.md.
+ * **Le compteur vit en base**, dans la table `cache`, et non en mémoire de processus. C'est ce
+ * qui rend la limite effective sur un déploiement multi-instances : un compteur local se
+ * contourne en frappant une autre instance, ce qui annule toute la protection contre
+ * l'énumération d'un code d'accès à 6 chiffres (docs/exigences-securite.md §4).
+ *
+ * L'incrément est fait par un **unique ordre SQL** avec `ON CONFLICT` : deux requêtes simultanées
+ * ne peuvent pas lire la même valeur et écrire le même compte. Un `SELECT` suivi d'un `UPDATE`
+ * laisserait précisément la fenêtre qu'un attaquant cherche.
+ *
+ * ⚠️ Le format n'est PAS celui du `RateLimiter` de Laravel (qui sérialise en PHP et préfixe ses
+ * clés) : les deux applications tiennent donc des compteurs distincts pendant la cohabitation.
+ * L'objectif ici est le partage entre instances Next, pas l'interopérabilité.
  */
 export type LimiteDebit = { readonly fenetreMs: number; readonly maxTentatives: number }
 
@@ -22,53 +29,74 @@ const LIMITE_CONNEXION: LimiteDebit = { fenetreMs: 60_000, maxTentatives: 5 }
  */
 export const LIMITE_MESSAGERIE: LimiteDebit = { fenetreMs: 600_000, maxTentatives: 10 }
 
-type Compteur = { tentatives: number; expireA: number }
+/** Préfixe distinctif : la table `cache` est partagée avec Laravel. */
+const PREFIXE = 'next:debit:'
 
-const compteurs = new Map<string, Compteur>()
+/**
+ * Les DEUX parties sont normalisées.
+ *
+ * Les appels existants n'ont pas tous le même ordre : `cleThrottle(email, ip)` à la connexion,
+ * `cleThrottle('suivi-ref', reference)` au suivi. Ne normaliser qu'une position laisserait
+ * l'autre exploitable — une simple variation de casse de l'e-mail suffirait à repartir de zéro.
+ */
+export function cleThrottle(portee: string, valeur: string): string {
+  const normaliser = (v: string) => v.trim().toLowerCase()
 
-function purger(maintenant: number): void {
-  for (const [cle, compteur] of compteurs) {
-    if (compteur.expireA <= maintenant) {
-      compteurs.delete(cle)
-    }
-  }
+  return `${PREFIXE}${normaliser(portee)}|${normaliser(valeur)}`
 }
 
-export function cleThrottle(email: string, ip: string): string {
-  // Laravel applique Str::lower + transliteration ; la casse est la seule part qui compte ici
-  // pour éviter qu'une variation de casse ne réinitialise le compteur.
-  return `${email.trim().toLowerCase()}|${ip}`
-}
-
-/** `true` si la tentative est autorisée (et la comptabilise), `false` si le seuil est atteint. */
-export function autoriserTentative(
+/**
+ * `true` si la tentative est autorisée — et la comptabilise.
+ *
+ * @param maintenant Injectable pour les tests ; jamais fourni par un appelant réel.
+ */
+export async function autoriserTentative(
   cle: string,
   maintenant: number = Date.now(),
   limite: LimiteDebit = LIMITE_CONNEXION
-): boolean {
-  purger(maintenant)
+): Promise<boolean> {
+  const secondes = Math.floor(maintenant / 1000)
+  const expiration = secondes + Math.ceil(limite.fenetreMs / 1000)
 
-  const compteur = compteurs.get(cle)
+  // Un seul ordre : incrémente si la fenêtre court encore, repart à 1 si elle est close.
+  const lignes = await prisma.$queryRaw<{ tentatives: number }[]>`
+    INSERT INTO cache (key, value, expiration)
+    VALUES (${cle}, '1', ${expiration})
+    ON CONFLICT (key) DO UPDATE SET
+      value = CASE
+        WHEN cache.expiration <= ${secondes} THEN '1'
+        ELSE (cache.value::int + 1)::text
+      END,
+      expiration = CASE
+        WHEN cache.expiration <= ${secondes} THEN ${expiration}
+        ELSE cache.expiration
+      END
+    RETURNING value::int AS tentatives
+  `
 
-  if (!compteur || compteur.expireA <= maintenant) {
-    compteurs.set(cle, { tentatives: 1, expireA: maintenant + limite.fenetreMs })
-    return true
-  }
-
-  if (compteur.tentatives >= limite.maxTentatives) {
-    return false
-  }
-
-  compteur.tentatives += 1
-  return true
+  return (lignes[0]?.tentatives ?? 1) <= limite.maxTentatives
 }
 
-/** Remet le compteur à zéro après une connexion réussie (comportement de Laravel). */
-export function reinitialiserTentatives(cle: string): void {
-  compteurs.delete(cle)
+/** Remet le compteur à zéro après une opération réussie (comportement de Laravel). */
+export async function reinitialiserTentatives(cle: string): Promise<void> {
+  await prisma.cache.deleteMany({ where: { key: cle } })
 }
 
-/** Réservé aux tests : vide entièrement l'état. */
-export function viderThrottle(): void {
-  compteurs.clear()
+/**
+ * Purge les compteurs expirés.
+ *
+ * Les lignes expirées ne faussent aucun calcul — l'ordre d'incrément les traite comme absentes —
+ * mais elles s'accumuleraient indéfiniment. Appelée par les tâches planifiées.
+ */
+export async function purgerDebits(maintenant: number = Date.now()): Promise<number> {
+  const resultat = await prisma.cache.deleteMany({
+    where: { key: { startsWith: PREFIXE }, expiration: { lte: Math.floor(maintenant / 1000) } },
+  })
+
+  return resultat.count
+}
+
+/** Réservé aux tests : retire tous les compteurs de débit. */
+export async function viderThrottle(): Promise<void> {
+  await prisma.cache.deleteMany({ where: { key: { startsWith: PREFIXE } } })
 }

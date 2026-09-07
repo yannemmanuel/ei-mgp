@@ -56,7 +56,7 @@ export async function rechercherDossier(
   // limite par IP en frappant une même référence depuis plusieurs adresses.
   const cleReference = cleThrottle('suivi-ref', reference)
 
-  if (!autoriserTentative(cleIp) || !autoriserTentative(cleReference)) {
+  if (!(await autoriserTentative(cleIp)) || !(await autoriserTentative(cleReference))) {
     return { erreur: MESSAGE_BLOQUE }
   }
 
@@ -95,7 +95,7 @@ export async function rechercherDossier(
     return { erreur: MESSAGE_ECHEC }
   }
 
-  reinitialiserTentatives(cleReference)
+  await reinitialiserTentatives(cleReference)
 
   // La référence ET le code viennent d'être prouvés : c'est le seul endroit du code autorisé à
   // ouvrir une session de suivi. Elle donne accès à la messagerie de CE dossier (EX-NOT-07).

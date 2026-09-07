@@ -225,7 +225,7 @@ async function controlesAntiRobot(donnees: FormData): Promise<EtatSoumission | n
   }
 
   // Débit contrôlé par IP : 5 soumissions par fenêtre (docs/exigences-securite.md §4).
-  if (!autoriserTentative(cleThrottle('declaration', await adresseIp()))) {
+  if (!(await autoriserTentative(cleThrottle('declaration', await adresseIp())))) {
     return {
       erreurGenerale:
         'Trop de déclarations envoyées depuis cette connexion. Merci de réessayer plus tard.',

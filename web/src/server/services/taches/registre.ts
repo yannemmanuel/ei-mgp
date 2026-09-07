@@ -1,3 +1,4 @@
+import { purgerDebits } from '@/server/auth/throttle'
 import { recalculerRetards } from '../action-corrective/action-corrective'
 import { detecterRetards, relancerEcheances } from '../notification/taches-planifiees'
 import { calculerPour } from '../reporting/statistiques-mensuelles'
@@ -76,6 +77,17 @@ export const TACHES = {
         resume: `${resultat.creees} ligne(s) archivée(s), ${resultat.ignorees} déjà présente(s).`,
         details: { creees: resultat.creees, ignorees: resultat.ignorees },
       }
+    },
+  },
+  'purger-compteurs-debit': {
+    libelle: 'Purge des compteurs de limitation de débit expirés',
+    // Tâche d'entretien, sans équivalent Laravel : le `RateLimiter` s'appuie là-bas sur le cache
+    // applicatif, purgé par Laravel lui-même. Ici les compteurs vivent dans la table `cache`
+    // sous un préfixe propre, que rien d'autre ne nettoie.
+    cadence: 'quotidienne',
+    executer: async () => {
+      const nombre = await purgerDebits()
+      return { resume: `${nombre} compteur(s) expiré(s) purgé(s).`, details: { compteurs: nombre } }
     },
   },
   'appliquer-politique-conservation': {

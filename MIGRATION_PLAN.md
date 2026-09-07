@@ -1101,6 +1101,81 @@ sens strict : sans elles, le portage fonctionne en démonstration mais pas en se
 
 ---
 
+### ✅ Étape 14b — Deux conditions de bascule levées
+
+**Livré** — 245 tests, `typecheck`, `lint` et `build` au vert ; base identique avant/après.
+
+Les six conditions bloquantes relevaient soit de l'infrastructure, soit du métier — sauf deux,
+qui étaient du code. Elles sont traitées.
+
+#### Condition n° 4 — la limitation de débit vit désormais en base
+
+Le compteur était en mémoire de processus : sur un déploiement multi-instances, il suffisait de
+frapper une autre instance pour repartir de zéro. Cela annulait la seule protection contre
+l'énumération d'un code d'accès à 6 chiffres — un million de combinaisons, sans limite effective.
+
+Les compteurs vivent maintenant dans la table `cache`, sous le préfixe `next:debit:` (Laravel
+utilise `ei-mgp-cache-`, aucun croisement possible). L'incrément est fait par **un unique ordre
+SQL** avec `ON CONFLICT` : un `SELECT` suivi d'un `UPDATE` laisserait exactement la fenêtre de
+concurrence qu'un attaquant cherche.
+
+Prouvé par un test : **dix incréments lancés simultanément, exactement cinq autorisés**, et le
+compteur en base à 10.
+
+⚠️ Les deux applications tiennent des compteurs **distincts** pendant la cohabitation : le
+`RateLimiter` de Laravel sérialise en PHP et préfixe ses clés autrement. L'objectif était le
+partage entre instances Next, pas l'interopérabilité — et la base contient bien, côté Laravel,
+ses propres entrées `declaration-submit:127.0.0.1`.
+
+**Régression que j'ai introduite au passage, et corrigée.** L'ancienne signature normalisait la
+casse du PREMIER argument (l'e-mail) ; ma réécriture normalisait le second. Or les appels
+existants n'ont pas tous le même ordre — `cleThrottle(email, ip)` à la connexion,
+`cleThrottle('suivi-ref', reference)` au suivi. Une variation de casse de l'e-mail aurait suffi à
+repartir de zéro. Les deux parties sont désormais normalisées, et le test couvre les deux
+positions.
+
+Une sixième tâche planifiée (`purger-compteurs-debit`) entretient la table : sans équivalent
+Laravel, où le framework purge lui-même son cache.
+
+#### Condition n° 3 — le transport e-mail est branché, il reste à le configurer
+
+`TransportSmtp` (nodemailer) s'active dès que `MAIL_HOST` et `MAIL_FROM` sont renseignés ; sinon
+le repli journalise, comme `MAIL_MAILER=log`. **Le démarrage annonce lequel des deux est actif** :
+un environnement de production qui croit expédier alors qu'il journalise est aussi dangereux
+qu'un fournisseur imposé dans le code.
+
+Ce n'est plus une lacune de code mais un paramétrage. Deux détails ont été traités en chemin :
+
+- **Isolation des échecs d'envoi.** Un serveur SMTP injoignable interrompait la boucle : les
+  tâches planifiées parcourant tous les dossiers actifs, une seule adresse en erreur aurait privé
+  tous les suivants de leur relance. Chaque envoi est désormais isolé, et **l'audit n'est écrit
+  qu'en cas de succès** — consigner un envoi qui n'a pas eu lieu tromperait l'auditeur.
+- **Avis GHSA-p6gq-j5cr-w38f** (haute gravité, nodemailer ≤ 9) introduit par l'installation.
+  `next-auth` déclare une dépendance de pair `^7 || ^8`, mais ne charge nodemailer que pour son
+  fournisseur Email — nous utilisons `Credentials`. Un `override` npm épingle donc la **10.0.1**,
+  corrigée. L'audit revient aux 6 vulnérabilités préexistantes, sans nouvelle.
+  `disableFileAccess` et `disableUrlAccess` sont activés en complément.
+
+#### État des dix conditions
+
+| # | Condition | État |
+|---|---|---|
+| 1 | Ordonnanceur externe câblé | ❌ Infrastructure |
+| 2 | `TACHES_SECRET` en production | ❌ Infrastructure |
+| 3 | Transport e-mail | ✅ **Branché** — reste à renseigner `MAIL_HOST` / `MAIL_FROM` |
+| 4 | Limitation de débit partagée | ✅ **Fait** |
+| 5 | Sauvegardes et archivage WAL | ❌ Infrastructure |
+| 6 | Délais métier sur `ei_employe` | ❌ Décision métier |
+| 7 | Passe manuelle au navigateur | ❌ À faire |
+| 8 | Arbitrage `url_cible` des QR codes | ❌ Décision |
+| 9 | Niveaux de gravité administrables | ❌ Décision |
+| 10 | Validation des ajouts d'audit hors CDC | ❌ Décision |
+
+Il ne reste **aucune condition relevant du code**. Les huit restantes appellent une décision
+d'infrastructure ou métier.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1113,9 +1188,9 @@ sens strict : sans elles, le portage fonctionne en démonstration mais pas en se
 | 6 | **Pas de scheduler dans Next.js.** Les 5 tâches sont exposées par `POST /api/taches/{nom}`, protégé par secret partagé. **L'ordonnanceur externe reste à câbler** : sans lui, rien ne s'exécute. | 🔴 Majeur | Traité à l'étape 12 — câblage à faire avant bascule |
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Traité à l'étape 10 (@react-pdf/renderer, mise en page réécrite) |
-| 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
+| 9 | **Limitation de débit en mémoire.** | 🟠 Moyen | ✅ Résolu à l'étape 14b — compteurs en base, incrément atomique, concurrence testée |
 | 10 | **Pas de réinitialisation en libre-service.** La baseline la déclare sans la rendre atteignable (aucune vue Fortify enregistrée, aucun lien depuis la connexion). Comblé côté administration (réattribution par un administrateur) ; le libre-service reste conditionné au transport e-mail. | 🟠 Moyen | Partiellement traité à l'étape 14 |
-| 12 | **Aucun e-mail n'est réellement expédié.** Le transport par défaut journalise sans envoyer, comme le `MAIL_MAILER=log` de la baseline. Un transport réel doit être branché avant production, sinon EX-NOT-02/03/04 restent inopérants côté déclarant et hiérarchie. | 🟠 Moyen | Ouvert — avant bascule |
+| 12 | **Transport e-mail à configurer.** `TransportSmtp` s'active dès que `MAIL_HOST` et `MAIL_FROM` sont renseignés ; sinon repli journalisé, annoncé au démarrage. Ce n'est plus une lacune de code. | 🟠 Moyen | Traité à l'étape 14b — paramétrage à faire |
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |
 | 15 | **Référentiels manquants en base non détectés par la suite.** Trois occurrences (`date_cloture`, `sla_delais`, `notification_templates`). Les tests fabriquent leurs données de référence et ne signalent donc pas leur absence en production. | 🔴 Majeur | Partiellement traité — à étendre à chaque référentiel (étape 11) |

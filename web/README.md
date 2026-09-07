@@ -41,6 +41,8 @@ npm run dev               # http://localhost:3000
 | `TACHES_SECRET` | Secret du déclencheur de tâches planifiées, **32 caractères minimum** | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
 | `BCRYPT_ROUNDS` | Coût bcrypt, `12` par défaut | — (abaissé à `4` en test uniquement) |
 | `STOCKAGE_RACINE` | Racine de stockage des pièces jointes, hors du dossier public | `./storage/private` |
+| `MAIL_HOST`, `MAIL_FROM` | Transport SMTP — **les deux sont requis** pour expédier | Les e-mails sont journalisés, pas envoyés |
+| `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires | Port 587 en STARTTLS, sans authentification |
 
 Comptes de démonstration (seedés par Laravel) : `admin@`, `gestionnaire@`, `superviseur@`,
 `enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe `password`.
@@ -56,14 +58,14 @@ Comptes de démonstration (seedés par Laravel) : `admin@`, `gestionnaire@`, `su
 | `npm start` | Serveur de production |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Suite Vitest (232 tests, contre la base réelle) |
+| `npm test` | Suite Vitest (245 tests, contre la base réelle) |
 
 ---
 
 ## Tâches planifiées — à câbler
 
 **Next.js n'a pas d'ordonnanceur.** Là où Laravel déclare `Schedule::command(...)` et s'appuie sur
-un `php artisan schedule:run` lancé par le cron système, les 5 tâches sont ici exposées par une
+un `php artisan schedule:run` lancé par le cron système, les tâches sont ici exposées par une
 route appelée depuis un ordonnanceur externe.
 
 ```bash
@@ -78,8 +80,9 @@ curl -X POST -H "Authorization: Bearer $TACHES_SECRET" \
 | `detecter-retards` | quotidienne | Escalade N+1 / Service MGP / Direction |
 | `calculer-statistiques-mensuelles` | le 1er, 01h30 | Archive le mois écoulé |
 | `appliquer-politique-conservation` | le 1er, 02h00 | Archivage 24 mois, anonymisation 10 ans |
+| `purger-compteurs-debit` | quotidienne | Entretien des compteurs de limitation de débit |
 
-**Sans ce câblage, aucune de ces cinq opérations n'a jamais lieu** — y compris l'anonymisation
+**Sans ce câblage, aucune de ces opérations n'a jamais lieu** — y compris l'anonymisation
 exigée par le RGPD. C'est le point d'exploitation le plus important de ce portage.
 
 ---
@@ -92,8 +95,8 @@ Le journal complet — étapes livrées, défauts trouvés dans la baseline, ris
 **Ce qui reste bloquant avant une mise en service :**
 
 1. Aucun ordonnanceur externe câblé (voir ci-dessus).
-2. Aucun transport e-mail réel : les envois sont journalisés, pas expédiés.
-3. Limitation de débit en mémoire — contournable sur un déploiement multi-instances.
-4. Aucune sauvegarde ni archivage WAL sur la base de développement.
+2. Transport SMTP **à configurer** : sans `MAIL_HOST` et `MAIL_FROM`, les envois sont
+   journalisés. Le démarrage annonce lequel des deux modes est actif.
+3. Aucune sauvegarde ni archivage WAL sur la base de développement.
 
 Voir `ARCHITECTURE.md` pour les conventions de code et le modèle d'autorisation.

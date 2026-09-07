@@ -43,7 +43,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const cle = cleThrottle(email, ip)
 
-        if (!autoriserTentative(cle)) {
+        if (!(await autoriserTentative(cle))) {
           throw new Error('TROP_DE_TENTATIVES')
         }
 
@@ -55,7 +55,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        reinitialiserTentatives(cle)
+        await reinitialiserTentatives(cle)
 
         // `id` doit être une chaîne pour Auth.js ; les identifiants sont des bigint en base.
         return { id: resultat.userId.toString() }

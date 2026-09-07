@@ -30,12 +30,14 @@ afterEach(() => {
 })
 
 describe('Registre', () => {
-  it('couvre les 5 tâches planifiées de `routes/console.php`', () => {
+  it('couvre les 5 tâches de `routes/console.php`, plus l’entretien propre au portage', () => {
     expect(Object.keys(TACHES)).toEqual([
       'recalculer-retard-actions',
       'relancer-echeances',
       'detecter-retards',
       'calculer-statistiques-mensuelles',
+      // Sans équivalent Laravel : là-bas le cache applicatif est purgé par le framework.
+      'purger-compteurs-debit',
       'appliquer-politique-conservation',
     ])
   })

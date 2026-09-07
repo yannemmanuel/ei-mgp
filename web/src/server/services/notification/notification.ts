@@ -127,20 +127,47 @@ export async function envoyerNotification(params: {
 
     for (const d of params.destinataires) {
       const adresse = d.type === 'utilisateur' ? d.email : d.adresse
-      await transportEmail().envoyer({ destinataire: adresse, objet, corps })
-      await auditerEnvoi(dossier, params.evenementCode, 'email', adresse, objet)
-      envoyees += 1
+      if (await expedier(dossier, params.evenementCode, adresse, objet, corps)) envoyees += 1
     }
 
     // DT-28 : destinataires hors RBAC déclarés sur le gabarit (Service Prévention, Directions…).
     for (const adresse of adressesSupplementaires(gabarit)) {
-      await transportEmail().envoyer({ destinataire: adresse, objet, corps })
-      await auditerEnvoi(dossier, params.evenementCode, 'email', adresse, objet)
-      envoyees += 1
+      if (await expedier(dossier, params.evenementCode, adresse, objet, corps)) envoyees += 1
     }
   }
 
   return envoyees
+}
+
+/**
+ * Expédie un message et l'audite, en isolant l'échec.
+ *
+ * Un serveur SMTP injoignable ne doit pas interrompre la boucle : les tâches planifiées
+ * parcourent tous les dossiers actifs, et une seule adresse en erreur priverait tous les
+ * suivants de leur relance ou de leur escalade.
+ *
+ * L'audit n'est écrit qu'en cas de succès : consigner un envoi qui n'a pas eu lieu tromperait
+ * l'auditeur sur ce que le système a réellement fait.
+ */
+async function expedier(
+  dossier: { id: string; is_anonymous: boolean },
+  evenementCode: string,
+  adresse: string,
+  objet: string,
+  corps: string
+): Promise<boolean> {
+  try {
+    await transportEmail().envoyer({ destinataire: adresse, objet, corps })
+  } catch (erreur) {
+    console.error(
+      `Envoi e-mail en échec (évènement « ${evenementCode} », dossier ${dossier.id})`,
+      erreur
+    )
+    return false
+  }
+
+  await auditerEnvoi(dossier, evenementCode, 'email', adresse, objet)
+  return true
 }
 
 function adressesSupplementaires(gabarit: Gabarit): string[] {
