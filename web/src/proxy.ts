@@ -18,6 +18,11 @@ const ROUTES_PUBLIQUES = [
   '/declarer',
   '/suivi',
   '/q', // redirection QR code
+  // Déclencheur des tâches planifiées : appelé par un cron EXTERNE, qui n'a évidemment pas de
+  // cookie de session. Il n'est pas « public » pour autant — il porte sa propre authentification,
+  // plus stricte que celle-ci : secret partagé de 32 caractères comparé à temps constant, POST
+  // exigé, et refus par défaut si le secret n'est pas configuré.
+  '/api/taches',
 ]
 
 function estPublique(chemin: string): boolean {

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import {
   actionChangerStatut,
   actionCloturer,
+  actionBasculerContentieux,
   actionReaffecter,
   actionRejeter,
   actionReouvrir,
@@ -27,7 +28,10 @@ type Props = {
     changerStatut: boolean
     cloturer: boolean
     reouvrir: boolean
+    /** RG-11 : réservé au DPO (`rgpd.conservation.manage`). */
+    gererContentieux: boolean
   }
+  contentieux: boolean
 }
 
 const ETAT: EtatAction = {}
@@ -47,6 +51,7 @@ export function PanneauActions({
   affectables,
   transitions,
   droits,
+  contentieux,
 }: Props) {
   return (
     <div className="space-y-6">
@@ -195,6 +200,31 @@ export function PanneauActions({
                 placeholder="Motif de réouverture *"
                 className={champ}
               />
+            </FormulaireAction>
+          </CardContent>
+        </Card>
+      )}
+
+      {droits.gererContentieux && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h3">Conservation des données</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-secondary-700">
+              {contentieux
+                ? 'Ce dossier est marqué en contentieux : son anonymisation automatique est suspendue.'
+                : 'Ce dossier suit le cycle ordinaire : archivage à 24 mois, anonymisation à 10 ans après clôture.'}
+            </p>
+
+            <FormulaireAction
+              action={actionBasculerContentieux}
+              dossierId={dossierId}
+              libelleBouton={contentieux ? 'Lever le blocage' : 'Marquer en contentieux'}
+            >
+              <p className="text-caption text-muted-foreground">
+                Seul le DPO peut poser ou lever ce blocage (RG-11).
+              </p>
             </FormulaireAction>
           </CardContent>
         </Card>

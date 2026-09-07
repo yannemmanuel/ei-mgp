@@ -13,6 +13,8 @@ import {
 import { reaffecter } from '@/server/services/dossier/affectation'
 import { changerStatut, cloturer, rejeter, reouvrir, ErreurWorkflow } from '@/server/services/dossier/workflow'
 import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
+import { basculerContentieux } from '@/server/services/rgpd/conservation'
+import { aPermission } from '@/server/authz'
 
 /**
  * Actions de gestion d'un dossier.
@@ -201,4 +203,43 @@ export async function actionReouvrir(
 
   revalidatePath(`/dossiers/${dossierId}`)
   return { succes: 'Dossier réouvert.' }
+}
+
+
+/**
+ * RG-11 : pose ou lève le blocage « contentieux », qui empêche l'anonymisation automatique.
+ *
+ * Réservé au DPO. C'est la seule exception prévue au cycle de conservation : un dossier ainsi
+ * marqué est compté, jamais traité, par la tâche planifiée.
+ */
+export async function actionBasculerContentieux(
+  _precedent: EtatAction,
+  donnees: FormData
+): Promise<EtatAction> {
+  const utilisateur = await exigerUtilisateur()
+  const dossierId = String(donnees.get('dossierId') ?? '')
+
+  if (!aPermission(utilisateur, 'rgpd.conservation.manage')) {
+    return { erreur: REFUS }
+  }
+
+  const pourPolicy = await dossierPourAutorisation(dossierId)
+  if (!pourPolicy) return { erreur: REFUS }
+
+  let contentieux: boolean
+
+  try {
+    contentieux = await basculerContentieux(dossierId)
+  } catch (erreur) {
+    console.error('Bascule du blocage contentieux en échec', erreur)
+    return { erreur: "L'opération n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revalidatePath(`/dossiers/${dossierId}`)
+
+  return {
+    succes: contentieux
+      ? 'Dossier marqué en contentieux : anonymisation automatique bloquée.'
+      : 'Blocage contentieux levé.',
+  }
 }

@@ -851,6 +851,92 @@ d'une migration. À arbitrer.
 
 ---
 
+### ✅ Étape 12 — Audit, RGPD et tâches planifiées
+
+**Livré** — 204 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après (`audit_logs` : 144 → 144).
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/audit/consultation.ts` | Lecture du journal, pagination, filtres |
+| `(app)/audit/{page,filtres}` | Console d'audit, lecture seule |
+| `server/services/rgpd/conservation.ts` | Archivage, anonymisation, blocage contentieux (RG-11) |
+| `server/services/taches/registre.ts` | Les 5 tâches planifiées |
+| `app/api/taches/[tache]/route.ts` | Déclencheur externe protégé |
+
+#### Le point dur : Next.js n'a pas d'ordonnanceur
+
+Laravel déclare `Schedule::command(...)->daily()` dans `routes/console.php` et s'appuie sur un
+`php artisan schedule:run` lancé par le cron système. Rien d'équivalent ici.
+
+Les 5 tâches sont donc exposées par `POST /api/taches/{nom}`, appelé par un ordonnanceur
+**externe** (cron système, Vercel Cron, ordonnanceur d'entreprise). C'est une différence
+d'exploitation, pas de comportement — mais elle est structurante : **sans ce déclencheur câblé,
+aucune relance ne part, aucun retard n'est détecté, aucune donnée n'est anonymisée.** À faire
+avant la bascule.
+
+RG-08 n'est pas concerné : le circuit critique est synchrone à la soumission.
+
+#### Sécurité du déclencheur — vérifiée en HTTP réel
+
+Cette route exécute des traitements de masse, dont l'anonymisation définitive de données
+personnelles. Elle n'a pas de session utilisateur : sa seule protection est un secret partagé.
+
+| Requête | Résultat |
+|---|---|
+| `GET` | **405** — un GET serait déclenchable par un préchargement ou un robot |
+| `POST` sans jeton | **401** |
+| `POST` jeton erroné | **401** |
+| `POST` jeton correct, tâche inconnue | **404** |
+| `POST` jeton correct | **200**, exécutée, tracée |
+
+Et en test, les configurations dégradées : `TACHES_SECRET` absent → **503**, secret de moins de
+32 caractères → **503**. La route **échoue fermée**, jamais ouverte. Un préfixe correct du secret
+est refusé comme n'importe quel jeton faux (comparaison à temps constant).
+
+`src/proxy.ts` a dû être ajusté : sans cela il redirigeait le cron vers `/login` avant que la
+route ne soit atteinte. `/api/taches` y figure désormais — non parce qu'il serait public, mais
+parce qu'il porte une authentification **plus stricte** que la présence d'un cookie.
+
+#### RG-11 — ce que fait exactement l'anonymisation
+
+- **La ligne `dossiers` n'est jamais supprimée.** Seule `declaration_identites` disparaît. RG-03
+  interdit la suppression, RG-12 exige que les statistiques agrégées restent calculables sans
+  limite de durée.
+- **Périmètre `date_cloture IS NOT NULL`.** Un dossier rejeté n'y entre jamais (DT-32).
+- **Le blocage « contentieux » n'expire pas.** Testé à vingt ans : le dossier reste intact, il est
+  compté, jamais traité. Seul le DPO peut le lever.
+- **Le journal ne recopie pas l'identité au moment de l'effacer** — seul le NOMBRE de lignes
+  retirées y figure. Consigner la valeur reviendrait à la déplacer dans l'audit plutôt qu'à la
+  supprimer, et l'audit se conserve plus longtemps que la donnée.
+
+Le verrou « contentieux » manquait au portage : `fiche.ts` lisait la colonne, mais aucune commande
+ne permettait de la basculer. Sans lui, la tâche RG-11 aurait anonymisé des dossiers que le DPO
+entendait protéger. Ajouté sur la fiche dossier, réservé à `rgpd.conservation.manage`.
+
+#### Audit §5 — restriction d'origine vérifiée dans le rendu
+
+L'IP et le user-agent peuvent réidentifier un déclarant anonyme. `service_mgp` a `audit.view`
+sans avoir droit à ces colonnes.
+
+| Rôle | `/audit` | Colonne « Origine » | Adresse dans le HTML |
+|---|---|---|---|
+| `auditeur` | 200 | présente | présente |
+| `service_mgp` | 200 | **absente** | **absente** |
+| `correspondant_mgp` | 307 → /acces-refuse | — | — |
+
+La donnée n'est pas masquée à l'affichage : elle n'est **pas lue** — le `select` Prisma est
+conditionné à l'autorisation. Un oubli de rendu ne pourrait donc pas la divulguer.
+
+#### Ajout par rapport à Laravel : traçabilité des exécutions
+
+`tache.executee` et `tache.echouee` sont écrits dans `audit_logs` à chaque passage. La baseline
+n'en garde aucune trace : une tâche qui échoue chaque nuit y est indiscernable d'une tâche qui
+n'a rien à faire. Comme `rapport.export_nominatif` (risque n° 16), cet ajout n'est pas listé dans
+`docs/exigences-audit.md` §2 — à valider.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -860,7 +946,7 @@ d'une migration. À arbitrer.
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
 | 5 | **Livewire → React est une reconstruction**, pas une traduction. ~60 actions métier à recenser une par une (ce ne sont pas des routes). | 🔴 Majeur | Ouvert |
-| 6 | **Pas de scheduler dans Next.js.** 5 commandes planifiées exigent une infra externe. RG-08 impose en plus du synchrone. | 🟠 Moyen | Ouvert — étape 12 |
+| 6 | **Pas de scheduler dans Next.js.** Les 5 tâches sont exposées par `POST /api/taches/{nom}`, protégé par secret partagé. **L'ordonnanceur externe reste à câbler** : sans lui, rien ne s'exécute. | 🔴 Majeur | Traité à l'étape 12 — câblage à faire avant bascule |
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Traité à l'étape 10 (@react-pdf/renderer, mise en page réécrite) |
 | 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
@@ -873,6 +959,7 @@ d'une migration. À arbitrer.
 | 17 | **QR codes : `url_cible` sans effet.** L'écran laisse croire à une réorientation possible ; la redirection est recalculée depuis le parcours. Rendre la colonne effective créerait une redirection ouverte pilotée depuis l'administration. | 🟠 Moyen | Ouvert — arbitrage requis |
 | 18 | **Niveaux de gravité non administrables.** Cités par `exigences-audit.md` §2, sans écran dans la baseline. Non inventé. | 🟢 Faible | Ouvert — arbitrage requis |
 | 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
+| 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -881,7 +968,6 @@ d'une migration. À arbitrer.
 
 | # | Étape | Vérification |
 |---|---|---|
-| 12 | Audit + RGPD + 5 tâches planifiées | RG-11/12, immuabilité |
 | 13 | Tests de non-régression complets | 39 EX + 15 RG + 13 RGI |
 | 14 | Bascule, puis retrait de Laravel | **Après validation explicite** |
 

@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
+  aPermission,
   peutChangerStatutDossier,
   peutCloturerDossier,
   peutCreerInvestigation,
@@ -375,7 +376,11 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
             cloturer: peutCloturerDossier(utilisateur, pourPolicy),
             reouvrir: peutReouvrirDossier(utilisateur, pourPolicy),
+            // RG-11 : le blocage contentieux relève du seul DPO, indépendamment des droits
+            // détenus sur le dossier lui-même.
+            gererContentieux: aPermission(utilisateur, 'rgpd.conservation.manage'),
           }}
+          contentieux={dossier.contentieux}
         />
       </div>
     </div>
