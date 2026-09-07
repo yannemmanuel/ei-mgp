@@ -498,6 +498,43 @@ Service `web/src/server/services/action-corrective/` et panneau intégré à la 
 - La transition automatique vers « Résolu » est testée sur **deux** actions : la première
   clôture ne doit rien déclencher, la seconde doit faire avancer le dossier.
 
+### 🔄 Étape 9a — Notifications : service, destinataires et évènements
+
+Service piloté par gabarit, résolution des destinataires, et branchement des trois évènements
+métier. **114 tests verts** (8 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-NOT-01** | Notification aux titulaires à l'affectation. |
+| **EX-NOT-02 / RGI-10** | Notification au déclarant **identifié** à chaque changement de statut, avec le libellé **affiché** — jamais le libellé interne. |
+| **RG-08 / EX-NOT-05** | Circuit accéléré déclenché **en synchrone** à la soumission d'une déclaration Critique, avec la matrice de destinataires du CDC §6.5. |
+| **audit §2** | Chaque envoi audité : évènement, canal, destinataire. |
+| **audit §5 / RG-06** | Le **contenu n'est jamais journalisé** pour un dossier anonyme — le journal ne doit pas devenir une voie de réidentification. |
+| **DT-28** | Destinataires e-mail supplémentaires du gabarit (hors RBAC). |
+
+#### Décisions de portage
+
+- **Le déclenchement vit dans les SERVICES, pas dans les Server Actions.** Une notification
+  oubliée dans une action passerait inaperçue ; RG-08 exige une garantie, pas une convention.
+  C'est l'équivalent des évènements Eloquent émis dans les services Laravel.
+- **Notification après commit, jamais dedans.** Notifier à l'intérieur de la transaction
+  enverrait des messages pour une opération qui peut encore être annulée. `appliquerTransition()`
+  **retourne** le libellé affiché plutôt que de le stocker dans un état de module — première
+  version écartée car un état mutable partagé est fragile en concurrence.
+- **Envoi « best effort »** : un échec de notification ne doit jamais annuler l'opération métier.
+  Perdre une notification est regrettable ; perdre une déclaration ne l'est pas.
+- **Lignes `notifications` au format Laravel** (`type`, `notifiable_type`, `data` JSON) : les deux
+  applications restent capables de lire la même boîte pendant la migration.
+- **Transport e-mail abstrait, journal par défaut** — la baseline Laravel tourne en
+  `MAIL_MAILER=log`. ⚠️ Aucun e-mail ne quitte le serveur tant qu'un transport réel n'est pas
+  branché (risque ouvert n° 12).
+
+Les tests créent **leurs propres gabarits** : la base de développement n'en contient aucun, et
+dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
+
+**Reste à faire en 9b** : messagerie sécurisée (EX-NOT-07), relances J-3 et escalade
+(EX-NOT-03/04), centre de notifications.
+
 ---
 
 ## 7. Risques ouverts
@@ -514,6 +551,8 @@ Service `web/src/server/services/action-corrective/` et panneau intégré à la 
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Ouvert — étape 10 |
 | 9 | **Limitation de débit en mémoire.** Le throttle de connexion ne vaut que pour un processus : sur un déploiement multi-instances, la limite est contournable en frappant une autre instance. Doit passer par un magasin partagé (Redis, ou la table `cache` existante) avant mise en production. | 🟠 Moyen | Ouvert |
 | 10 | **Réinitialisation de mot de passe non portée.** Fonctionnalité Laravel existante (Fortify) ; nécessite une décision sur l'envoi d'e-mails. `password_reset_tokens` existe déjà. | 🟠 Moyen | Ouvert — avant bascule |
+| 12 | **Aucun e-mail n'est réellement expédié.** Le transport par défaut journalise sans envoyer, comme le `MAIL_MAILER=log` de la baseline. Un transport réel doit être branché avant production, sinon EX-NOT-02/03/04 restent inopérants côté déclarant et hiérarchie. | 🟠 Moyen | Ouvert — avant bascule |
+| 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
@@ -522,7 +561,7 @@ Service `web/src/server/services/action-corrective/` et panneau intégré à la 
 
 | # | Étape | Vérification |
 |---|---|---|
-| 9 | Module 5 — Notifications | RG-08, EX-NOT-01→07 |
+| 9b | Module 5 — Notifications : messagerie, relances, escalade | EX-NOT-03/04/07 |
 | 10 | Module 6 — Reporting + exports | RG-14, EX-REP-01→06 |
 | 11 | Administration (7 référentiels) | — |
 | 12 | Audit + RGPD + 5 tâches planifiées | RG-11/12, immuabilité |

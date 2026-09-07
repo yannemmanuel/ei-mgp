@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { ErreurWorkflow } from './workflow'
+import { surAffectation } from '../notification/evenements'
 
 /**
  * EX-GES-03 : réaffectation manuelle, motif obligatoire, tracée — port de
@@ -88,6 +89,9 @@ export async function reaffecter(params: {
       })
     }
   })
+
+  // EX-NOT-01 : notification du nouveau titulaire, apres commit.
+  await surAffectation(params.dossierId)
 }
 
 /**

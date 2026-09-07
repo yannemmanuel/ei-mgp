@@ -4,6 +4,7 @@ import type { ParcoursCode } from '@/server/authz'
 import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
 import { referenceSuivante } from './reference'
+import { surDeclarationCritique } from '../notification/evenements'
 
 /**
  * Orchestration de la création d'un dossier de bout en bout — port de
@@ -224,6 +225,12 @@ export async function creerDeclaration(params: {
       estCritique: gravite.effet_circuit === 'accelere',
     }
   })
+
+  // RG-08 : circuit accéléré déclenché EN SYNCHRONE, après commit — notifier depuis l'intérieur
+  // de la transaction enverrait des messages pour un dossier qui pourrait encore être annulé.
+  if (resultat.estCritique) {
+    await surDeclarationCritique(resultat.dossierId, params.parcours)
+  }
 
   return { ...resultat, codeAcces: codeAccesClair }
 }

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { transitionAutorisee, transitionsDepuis, type StatutCode } from './statuts'
+import { surChangementStatut } from '../notification/evenements'
 
 /**
  * Machine à états des dossiers (CDC §7.1) — port de `App\Services\Workflow\DossierWorkflowService`.
@@ -53,7 +54,7 @@ async function appliquerTransition(
   vers: StatutCode,
   acteurId: bigint | null,
   commentaire: string | null
-): Promise<void> {
+): Promise<string> {
   const statutSuivant = await tx.statuts_dossier.findFirstOrThrow({ where: { code: vers } })
 
   await tx.dossiers.update({
@@ -78,6 +79,11 @@ async function appliquerTransition(
       created_at: new Date(),
     },
   })
+
+  // RGI-10 : le declarant ne recoit que le libelle AFFICHE, jamais le libelle interne.
+  // Retourne plutot que notifie ici : notifier dans la transaction enverrait des messages pour
+  // une transition qui pourrait encore etre annulee.
+  return statutSuivant.libelle_affiche
 }
 
 /** Transition manuelle ordinaire, contrainte par le graphe (docs/workflows.md §1). */
@@ -87,14 +93,14 @@ export async function changerStatut(params: {
   acteurId: bigint
   commentaire?: string | null
 }): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const libelleAffiche = await prisma.$transaction(async (tx) => {
     const actuel = await statutCourant(tx, params.dossierId)
 
     if (!transitionAutorisee(actuel.code, params.vers)) {
       throw new ErreurWorkflow(`Transition non autorisée : ${actuel.code} → ${params.vers}.`)
     }
 
-    await appliquerTransition(
+    return appliquerTransition(
       tx,
       params.dossierId,
       actuel.statut_id,
@@ -103,6 +109,9 @@ export async function changerStatut(params: {
       params.commentaire ?? null
     )
   })
+
+  // EX-NOT-02 : notification du declarant identifie, apres commit.
+  await surChangementStatut(params.dossierId, libelleAffiche)
 }
 
 /**
@@ -119,7 +128,7 @@ export async function cloturer(params: {
     throw new ErreurWorkflow('La synthèse de résolution est obligatoire (10 caractères minimum).')
   }
 
-  await prisma.$transaction(async (tx) => {
+  const libelleAffiche = await prisma.$transaction(async (tx) => {
     const actuel = await statutCourant(tx, params.dossierId)
 
     if (actuel.code !== 'resolu') {
@@ -144,7 +153,7 @@ export async function cloturer(params: {
       data: { synthese_resolution: params.syntheseResolution },
     })
 
-    await appliquerTransition(
+    return appliquerTransition(
       tx,
       params.dossierId,
       actuel.statut_id,
@@ -153,6 +162,8 @@ export async function cloturer(params: {
       'Dossier clôturé.'
     )
   })
+
+  await surChangementStatut(params.dossierId, libelleAffiche)
 }
 
 /** RG-07 : réservé aux porteurs de `dossiers.reopen` (vérifié par la policy), motif obligatoire. */
@@ -165,7 +176,7 @@ export async function reouvrir(params: {
     throw new ErreurWorkflow('Le motif de réouverture est obligatoire (RG-07).')
   }
 
-  await prisma.$transaction(async (tx) => {
+  const libelleAffiche = await prisma.$transaction(async (tx) => {
     const actuel = await statutCourant(tx, params.dossierId)
 
     if (actuel.code !== 'cloture') {
@@ -177,7 +188,7 @@ export async function reouvrir(params: {
       data: { motif_reouverture: params.motif },
     })
 
-    await appliquerTransition(
+    return appliquerTransition(
       tx,
       params.dossierId,
       actuel.statut_id,
@@ -186,6 +197,8 @@ export async function reouvrir(params: {
       `Dossier réouvert : ${params.motif}`
     )
   })
+
+  await surChangementStatut(params.dossierId, libelleAffiche)
 }
 
 /** Rejet pour non-recevabilité, possible uniquement depuis « En analyse », motif obligatoire. */
@@ -198,7 +211,7 @@ export async function rejeter(params: {
     throw new ErreurWorkflow('Le motif de rejet est obligatoire.')
   }
 
-  await prisma.$transaction(async (tx) => {
+  const libelleAffiche = await prisma.$transaction(async (tx) => {
     const actuel = await statutCourant(tx, params.dossierId)
 
     if (actuel.code !== 'en_analyse') {
@@ -210,7 +223,7 @@ export async function rejeter(params: {
       data: { motif_rejet: params.motif },
     })
 
-    await appliquerTransition(
+    return appliquerTransition(
       tx,
       params.dossierId,
       actuel.statut_id,
@@ -219,4 +232,8 @@ export async function rejeter(params: {
       `Dossier jugé non recevable : ${params.motif}`
     )
   })
+
+  // RGI-11 : côté déclarant, un dossier rejeté s'affiche comme « Clôturé » — c'est le libellé
+  // affiché qui est notifié, jamais le libellé interne.
+  await surChangementStatut(params.dossierId, libelleAffiche)
 }
