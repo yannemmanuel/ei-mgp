@@ -186,7 +186,7 @@ corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jam
 
 ## 6. Tests
 
-329 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+333 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :
@@ -211,3 +211,10 @@ Quatre règles nées de défauts trouvés en chemin :
 Les 67 exigences (39 EX, 15 RG, 13 RGI) sont citées par au moins un test. Trois d'entre elles sont
 couvertes **structurellement** (lecture du source) plutôt que par exécution, faute de pouvoir
 appeler une Server Action hors requête HTTP.
+
+**Une seule exception à l'environnement `node`** : `declarer/[parcours]/__tests__/formulaire.test.tsx`
+s'exécute dans un DOM (jsdom). Deux défauts s'y sont succédé — des étapes démontées qui effaçaient
+les saisies, puis un double-clic sur « Continuer » qui envoyait la déclaration en sautant les
+pièces jointes — et aucun n'était visible en lisant le source ni en inspectant le HTML servi : ils
+vivent dans l'interaction. Le module de Server Action y est le seul remplacé, parce qu'il franchit
+la frontière serveur ; rien de la logique du formulaire ne l'est.

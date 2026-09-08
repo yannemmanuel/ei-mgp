@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./vitest.setup.mts'],
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     // Les tests de parité interrogent la base réelle en lecture seule : les exécuter en série
     // évite d'ouvrir plusieurs pools de connexions PostgreSQL simultanés.
     fileParallelism: false,

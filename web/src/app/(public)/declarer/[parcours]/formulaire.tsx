@@ -393,6 +393,24 @@ export function FormulaireDeclaration({
             type="submit"
             disabled={enCours}
             onClick={(e) => {
+              /*
+               * Un envoi ne peut pas être déclenché par le geste qui vient de le faire apparaître.
+               *
+               * « Continuer » et « Envoyer ma déclaration » occupent la même place : à la dernière
+               * étape, le premier est remplacé SUR PLACE par le second. Un double-clic sur
+               * « Continuer » à l'étape 3 fait donc partir la déclaration — le second clic atteint
+               * un bouton qui n'existait pas au premier, et l'étape des pièces jointes est sautée
+               * sans avoir été vue. C'est le défaut signalé, reproduit puis figé par un test.
+               *
+               * `detail` compte les clics d'une même rafale : au-delà de 1, le clic appartient au
+               * geste précédent et ne vaut pas décision d'envoyer. Un critère de temps aurait fait
+               * dépendre la correction du réglage du système ; celui-ci non.
+               */
+              if (e.detail > 1) {
+                e.preventDefault()
+                return
+              }
+
               // Dernier filet : une étape précédente a pu être vidée après coup, en revenant en
               // arrière. On les revérifie toutes, et l'envoi est annulé si l'une manque.
               const etapes = Array.from({ length: NB_ETAPES }, (_, i) => i + 1)
