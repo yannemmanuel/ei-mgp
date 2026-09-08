@@ -5,7 +5,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { actionModifierHabilitations, type EtatHabilitation } from './actions'
+import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  actionChangerActivationRole,
+  actionModifierHabilitations,
+  actionModifierIdentiteRole,
+  type EtatHabilitation,
+} from './actions'
 
 export type PermissionVue = {
   nom: string
@@ -24,6 +32,8 @@ export type DomaineVue = {
 export type RoleVue = {
   role: string
   libelle: string
+  description: string | null
+  actif: boolean
   permissions: string[]
   comptes: number
   retirees: string[]
@@ -39,10 +49,12 @@ const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> =
 }
 
 /**
- * Édition des habilitations, rôle par rôle.
+ * Édition des rôles : leur nom lisible, leurs habilitations, leur activation.
  *
- * Un formulaire distinct par rôle : soumettre l'ensemble en un seul geste rendrait impossible de
- * dire, dans le journal d'audit, quel changement a été voulu et lequel a suivi par inadvertance.
+ * Trois formulaires distincts par rôle, et non un seul. Ce n'est pas un détail de mise en page :
+ * le journal d'audit doit pouvoir dire quel changement a été voulu. Renommer un rôle et lui
+ * retirer un droit dans la même soumission produirait une seule ligne où l'on ne saurait plus
+ * lequel des deux gestes était l'intention et lequel a suivi par inadvertance.
  */
 export function EditeurHabilitations({
   roles,
@@ -62,16 +74,25 @@ export function EditeurHabilitations({
     )
   }, [roles, recherche])
 
+  const inactifs = roles.filter((r) => !r.actif).length
+
   return (
     <div className="space-y-4">
-      <input
-        type="search"
-        value={recherche}
-        onChange={(e) => setRecherche(e.target.value)}
-        placeholder="Filtrer les rôles…"
-        aria-label="Filtrer les rôles"
-        className="w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Filtrer les rôles…"
+          aria-label="Filtrer les rôles"
+          className="w-full max-w-sm rounded-md border border-input bg-background px-3 py-2 text-sm"
+        />
+        {inactifs > 0 && (
+          <p className="text-caption text-muted-foreground">
+            {inactifs} rôle{inactifs > 1 ? 's' : ''} désactivé{inactifs > 1 ? 's' : ''}.
+          </p>
+        )}
+      </div>
 
       {filtres.length === 0 && (
         <p className="text-sm text-muted-foreground">Aucun rôle ne correspond.</p>
@@ -85,9 +106,7 @@ export function EditeurHabilitations({
 }
 
 function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierHabilitations, ETAT)
   const [ouvert, setOuvert] = useState(false)
-  const [cochees, setCochees] = useState<string[]>(role.permissions)
 
   const detenues = new Set(role.permissions)
   const modifie = role.retirees.length > 0 || role.ajoutees.length > 0
@@ -105,23 +124,21 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
     .flatMap((d) => d.permissions)
     .filter((p) => detenues.has(p.nom) && p.sensibilite !== 'ordinaire')
 
-  function basculerDomaine(domaine: DomaineVue, tout: boolean) {
-    const noms = domaine.permissions.map((p) => p.nom)
-
-    setCochees((actuelles) =>
-      tout
-        ? [...new Set([...actuelles, ...noms])]
-        : actuelles.filter((p) => !noms.includes(p))
-    )
-  }
-
   return (
-    <Card>
+    <Card className={role.actif ? undefined : 'border-dashed bg-muted/30'}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-h3 text-secondary-900">{role.libelle}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`text-h3 ${role.actif ? 'text-secondary-900' : 'text-secondary-500'}`}>
+                {role.libelle}
+              </p>
+              {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+            </div>
             <p className="mt-0.5 font-mono text-caption text-muted-foreground">{role.role}</p>
+            {role.description && (
+              <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -131,14 +148,7 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                 : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
             </Badge>
             {modifie && <Badge variant="destructive">Ajusté</Badge>}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setCochees(role.permissions)
-                setOuvert((v) => !v)
-              }}
-            >
+            <Button size="sm" variant="outline" onClick={() => setOuvert((v) => !v)}>
               {ouvert ? 'Replier' : 'Modifier'}
             </Button>
           </div>
@@ -146,7 +156,18 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
 
         {!ouvert && (
           <div className="mt-3 space-y-2">
-            {resume.length === 0 ? (
+            {!role.actif ? (
+              <p className="text-sm text-secondary-600">
+                Ce rôle ne confère plus aucun droit.
+                {role.comptes > 0 && (
+                  <>
+                    {' '}
+                    {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore et{' '}
+                    {role.comptes > 1 ? 'retrouveront' : 'retrouvera'} ses droits à la réactivation.
+                  </>
+                )}
+              </p>
+            ) : resume.length === 0 ? (
               <p className="text-sm text-muted-foreground">Ce rôle ne permet rien pour l’instant.</p>
             ) : (
               <p className="text-sm text-secondary-700">
@@ -159,7 +180,7 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
               </p>
             )}
 
-            {sensibles.length > 0 && (
+            {role.actif && sensibles.length > 0 && (
               <p className="text-caption text-destructive">
                 Dont : {sensibles.map((p) => p.libelle.toLowerCase()).join(', ')}.
               </p>
@@ -176,83 +197,265 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
         )}
 
         {ouvert && (
-          <form action={envoyer} className="mt-4 space-y-6 border-t border-border pt-4">
-            <input type="hidden" name="role" value={role.role} />
-            {cochees.map((permission) => (
-              <input key={permission} type="hidden" name="permissions" value={permission} />
-            ))}
-
-            {domaines.map((domaine) => {
-              const total = domaine.permissions.length
-              const actives = domaine.permissions.filter((p) => cochees.includes(p.nom)).length
-
-              return (
-                <fieldset key={domaine.cle}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <legend className="text-sm font-medium text-secondary-900">
-                      {domaine.titre}{' '}
-                      <span className="font-normal text-muted-foreground">
-                        ({actives}/{total})
-                      </span>
-                    </legend>
-                    <button
-                      type="button"
-                      onClick={() => basculerDomaine(domaine, actives < total)}
-                      className="text-caption text-primary-700 underline underline-offset-2"
-                    >
-                      {actives < total ? 'Tout accorder' : 'Tout retirer'}
-                    </button>
-                  </div>
-
-                  <p className="mt-0.5 text-caption text-muted-foreground">{domaine.description}</p>
-
-                  <div className="mt-3 space-y-2">
-                    {domaine.permissions.map((permission) => (
-                      <Droit
-                        key={permission.nom}
-                        permission={permission}
-                        coche={cochees.includes(permission.nom)}
-                        onChange={(actif) =>
-                          setCochees((actuelles) =>
-                            actif
-                              ? [...actuelles, permission.nom]
-                              : actuelles.filter((p) => p !== permission.nom)
-                          )
-                        }
-                      />
-                    ))}
-                  </div>
-                </fieldset>
-              )
-            })}
-
-            {etat.erreur && (
-              <Alert variant="destructive" role="alert">
-                <AlertDescription>{etat.erreur}</AlertDescription>
-              </Alert>
-            )}
-            {etat.succes && (
-              <Alert role="status">
-                <AlertDescription>{etat.succes}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-              <Button type="submit" size="sm" disabled={enCours}>
-                {enCours ? 'Enregistrement…' : 'Enregistrer'}
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setOuvert(false)}>
-                Annuler
-              </Button>
-              <span className="text-caption text-muted-foreground">
-                Prend effet immédiatement pour les {role.comptes} personne(s) portant ce rôle.
-              </span>
-            </div>
-          </form>
+          <div className="mt-4 space-y-6 border-t border-border pt-4">
+            <FormulaireIdentite role={role} />
+            <FormulairePermissions role={role} domaines={domaines} onAnnuler={() => setOuvert(false)} />
+            <FormulaireActivation role={role} />
+          </div>
         )}
       </CardContent>
     </Card>
   )
+}
+
+/** Nom lisible et description. L'identifiant technique est affiché, jamais éditable. */
+function FormulaireIdentite({ role }: { role: RoleVue }) {
+  const [etat, envoyer, enCours] = useActionState(actionModifierIdentiteRole, ETAT)
+
+  return (
+    <form action={envoyer} className="space-y-3">
+      <input type="hidden" name="role" value={role.role} />
+
+      <p className="text-sm font-medium text-secondary-900">Identité</p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`libelle-${role.role}`} className="text-caption text-muted-foreground">
+            Nom affiché
+          </Label>
+          <Input
+            id={`libelle-${role.role}`}
+            name="libelle"
+            defaultValue={role.libelle}
+            maxLength={255}
+            required
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label
+            htmlFor={`description-${role.role}`}
+            className="text-caption text-muted-foreground"
+          >
+            Description (facultative)
+          </Label>
+          <Input
+            id={`description-${role.role}`}
+            name="description"
+            defaultValue={role.description ?? ''}
+            maxLength={1000}
+            placeholder="À quoi sert ce rôle, pour qui"
+            className="mt-1"
+          />
+        </div>
+      </div>
+
+      <p className="text-caption text-muted-foreground">
+        L’identifiant technique <code className="font-mono">{role.role}</code> n’est pas
+        modifiable : le cloisonnement par parcours s’y réfère, et le renommer retirerait
+        silencieusement leur périmètre aux comptes concernés.
+      </p>
+
+      <Retour etat={etat} />
+
+      <Button type="submit" size="sm" variant="outline" disabled={enCours}>
+        {enCours ? 'Enregistrement…' : 'Enregistrer le nom'}
+      </Button>
+    </form>
+  )
+}
+
+function FormulairePermissions({
+  role,
+  domaines,
+  onAnnuler,
+}: {
+  role: RoleVue
+  domaines: DomaineVue[]
+  onAnnuler: () => void
+}) {
+  const [etat, envoyer, enCours] = useActionState(actionModifierHabilitations, ETAT)
+  const [cochees, setCochees] = useState<string[]>(role.permissions)
+
+  function basculerDomaine(domaine: DomaineVue, tout: boolean) {
+    const noms = domaine.permissions.map((p) => p.nom)
+
+    setCochees((actuelles) =>
+      tout ? [...new Set([...actuelles, ...noms])] : actuelles.filter((p) => !noms.includes(p))
+    )
+  }
+
+  return (
+    <form action={envoyer} className="space-y-6 border-t border-border pt-4">
+      <input type="hidden" name="role" value={role.role} />
+      {cochees.map((permission) => (
+        <input key={permission} type="hidden" name="permissions" value={permission} />
+      ))}
+
+      <div>
+        <p className="text-sm font-medium text-secondary-900">Habilitations</p>
+        {!role.actif && (
+          <p className="mt-1 text-caption text-muted-foreground">
+            Ce rôle est désactivé : ces droits sont enregistrés mais ne s’appliquent pas tant qu’il
+            ne l’est pas de nouveau.
+          </p>
+        )}
+      </div>
+
+      {domaines.map((domaine) => {
+        const total = domaine.permissions.length
+        const actives = domaine.permissions.filter((p) => cochees.includes(p.nom)).length
+
+        return (
+          <fieldset key={domaine.cle}>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <legend className="text-sm font-medium text-secondary-900">
+                {domaine.titre}{' '}
+                <span className="font-normal text-muted-foreground">
+                  ({actives}/{total})
+                </span>
+              </legend>
+              <button
+                type="button"
+                onClick={() => basculerDomaine(domaine, actives < total)}
+                className="text-caption text-primary-700 underline underline-offset-2"
+              >
+                {actives < total ? 'Tout accorder' : 'Tout retirer'}
+              </button>
+            </div>
+
+            <p className="mt-0.5 text-caption text-muted-foreground">{domaine.description}</p>
+
+            <div className="mt-3 space-y-2">
+              {domaine.permissions.map((permission) => (
+                <Droit
+                  key={permission.nom}
+                  permission={permission}
+                  coche={cochees.includes(permission.nom)}
+                  onChange={(actif) =>
+                    setCochees((actuelles) =>
+                      actif
+                        ? [...actuelles, permission.nom]
+                        : actuelles.filter((p) => p !== permission.nom)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </fieldset>
+        )
+      })}
+
+      <Retour etat={etat} />
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <Button type="submit" size="sm" disabled={enCours}>
+          {enCours ? 'Enregistrement…' : 'Enregistrer les habilitations'}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={onAnnuler}>
+          Annuler
+        </Button>
+        {role.actif && (
+          <span className="text-caption text-muted-foreground">
+            Prend effet immédiatement pour les {role.comptes} personne(s) portant ce rôle.
+          </span>
+        )}
+      </div>
+    </form>
+  )
+}
+
+/**
+ * Activation.
+ *
+ * La désactivation retire ses droits à tout le monde d'un coup : elle demande une confirmation,
+ * qui énonce combien de personnes sont concernées. Un bouton unique rendrait le geste trop léger
+ * pour ce qu'il fait.
+ */
+function FormulaireActivation({ role }: { role: RoleVue }) {
+  const [etat, envoyer, enCours] = useActionState(actionChangerActivationRole, ETAT)
+  const [confirme, setConfirme] = useState(false)
+
+  return (
+    <form action={envoyer} className="space-y-3 border-t border-border pt-4">
+      <input type="hidden" name="role" value={role.role} />
+      <input type="hidden" name="actif" value={role.actif ? '0' : '1'} />
+
+      <p className="text-sm font-medium text-secondary-900">
+        {role.actif ? 'Désactiver ce rôle' : 'Réactiver ce rôle'}
+      </p>
+
+      <p className="text-caption text-muted-foreground">
+        {role.actif ? (
+          <>
+            Un rôle désactivé cesse de conférer ses permissions et son périmètre de parcours, dès
+            la requête suivante. Les rattachements sont conservés : réactiver le rôle rend leurs
+            droits aux comptes concernés, sans avoir à les réattribuer.
+          </>
+        ) : (
+          <>
+            La réactivation rétablit les droits enregistrés ci-dessus pour les{' '}
+            {role.comptes} personne(s) qui portent encore ce rôle.
+          </>
+        )}
+      </p>
+
+      <Retour etat={etat} />
+
+      {role.actif && !confirme ? (
+        <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(true)}>
+          Désactiver…
+        </Button>
+      ) : role.actif ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-sm text-secondary-900">
+            {role.comptes === 0 ? (
+              <>Aucun compte actif ne porte ce rôle : personne ne perdra d’accès.</>
+            ) : (
+              <>
+                <strong>
+                  {role.comptes} personne{role.comptes > 1 ? 's' : ''}
+                </strong>{' '}
+                perdr{role.comptes > 1 ? 'ont' : 'a'} immédiatement les droits de ce rôle.
+              </>
+            )}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="submit" size="sm" variant="destructive" disabled={enCours}>
+              {enCours ? 'Désactivation…' : 'Confirmer la désactivation'}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button type="submit" size="sm" disabled={enCours}>
+          {enCours ? 'Réactivation…' : 'Réactiver'}
+        </Button>
+      )}
+    </form>
+  )
+}
+
+function Retour({ etat }: { etat: EtatHabilitation }) {
+  if (etat.erreur) {
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertDescription>{etat.erreur}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  if (etat.succes) {
+    return (
+      <Alert role="status">
+        <AlertDescription>{etat.succes}</AlertDescription>
+      </Alert>
+    )
+  }
+
+  return null
 }
 
 function Droit({

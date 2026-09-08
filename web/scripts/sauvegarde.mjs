@@ -41,8 +41,17 @@ async function principal() {
   const horodatage = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const fichier = path.join(destination, `ei-mgp-${horodatage}.dump`)
 
+  const { connexion, schemas } = pourPgDump(url)
+
   // Format personnalisé (-Fc) : compressé, et restaurable table par table avec pg_restore.
-  const code = await executer('pg_dump', ['--format=custom', '--no-owner', '--file', fichier, url])
+  const code = await executer('pg_dump', [
+    '--format=custom',
+    '--no-owner',
+    ...schemas,
+    '--file',
+    fichier,
+    connexion,
+  ])
 
   if (code !== 0) {
     console.error(`pg_dump a échoué (code ${code}). Aucune sauvegarde produite.`)
@@ -66,6 +75,53 @@ async function principal() {
   if (supprimees > 0) {
     console.info(`${supprimees} sauvegarde(s) de plus de ${JOURS_RETENTION} jours supprimée(s).`)
   }
+}
+
+/**
+ * Paramètres de connexion compris par libpq — donc par `pg_dump`.
+ *
+ * Liste blanche et non liste noire : `DATABASE_URL` est écrite pour Prisma, dont les paramètres
+ * propres (`schema`, `connection_limit`, `pgbouncer`, `sslaccept`…) font échouer libpq avec
+ * « paramètre de la requête URI invalide ». Une liste noire laisserait passer le prochain
+ * paramètre que Prisma inventera, et la sauvegarde échouerait de nouveau — au pire moment, celui
+ * où l'on découvre qu'il n'y en a pas.
+ */
+const PARAMETRES_LIBPQ = new Set([
+  'application_name',
+  'channel_binding',
+  'connect_timeout',
+  'gssencmode',
+  'options',
+  'sslcert',
+  'sslkey',
+  'sslmode',
+  'sslrootcert',
+  'target_session_attrs',
+])
+
+/**
+ * Traduit l'URL Prisma en une URL acceptée par `pg_dump`.
+ *
+ * `schema` n'est pas simplement retiré : il porte une intention — la sauvegarde doit couvrir le
+ * schéma que l'application utilise. Il devient donc `--schema`, plutôt que d'être perdu.
+ */
+function pourPgDump(url) {
+  const analysee = new URL(url)
+  const schemas = []
+
+  for (const [cle, valeur] of [...analysee.searchParams.entries()]) {
+    if (cle === 'schema') {
+      schemas.push(`--schema=${valeur}`)
+      analysee.searchParams.delete(cle)
+      continue
+    }
+
+    if (!PARAMETRES_LIBPQ.has(cle)) {
+      analysee.searchParams.delete(cle)
+    }
+  }
+
+  return { connexion: analysee.toString(), schemas }
 }
 
 function executer(commande, arguments_) {

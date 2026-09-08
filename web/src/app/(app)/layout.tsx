@@ -21,11 +21,19 @@ export default async function LayoutApplication({ children }: LayoutProps<'/'>) 
   const utilisateur = await exigerUtilisateur()
   const sections = navigationPour(utilisateur)
 
-  const [profil, notifications, nonLues] = await Promise.all([
+  const [profil, notifications, nonLues, libellesRoles] = await Promise.all([
     prisma.users.findUnique({ where: { id: utilisateur.id }, select: { name: true } }),
     notificationsRecentes(utilisateur.id),
     nombreNonLues(utilisateur.id),
+    // Les libellés viennent de la base, où ils sont administrables : renommer un rôle dans
+    // `/administration/habilitations` doit se voir ici sans redéploiement.
+    prisma.roles.findMany({
+      where: { name: { in: [...utilisateur.roles] } },
+      select: { name: true, libelle: true },
+    }),
   ])
+
+  const libelleDuRole = new Map(libellesRoles.map((r) => [r.name, r.libelle]))
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
@@ -55,8 +63,11 @@ export default async function LayoutApplication({ children }: LayoutProps<'/'>) 
         <EnTete
           nom={profil?.name ?? ''}
           // Les identifiants techniques restent côté serveur : la barre affiche « Administrateur
-          // digital », pas `admin_digital`.
-          roles={utilisateur.roles.map((role) => LIBELLES_ROLE[role] ?? role)}
+          // digital », pas `administrateur_digital`. Le catalogue du code sert de repli si le
+          // rôle manque en base.
+          roles={utilisateur.roles.map(
+            (role) => libelleDuRole.get(role) ?? LIBELLES_ROLE[role] ?? role
+          )}
           sections={sections}
           actionDeconnexion={seDeconnecter}
           notifications={notifications}

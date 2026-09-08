@@ -428,6 +428,9 @@ model roles {
   guard_name           String                 @db.VarChar(255)
   created_at           DateTime?              @db.Timestamp(0)
   updated_at           DateTime?              @db.Timestamp(0)
+  libelle              String                 @db.VarChar(255)
+  description          String?
+  actif                Boolean                @default(true)
   model_has_roles      model_has_roles[]
   role_has_permissions role_has_permissions[]
 

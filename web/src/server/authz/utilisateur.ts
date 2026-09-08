@@ -52,6 +52,10 @@ export function aUnePermissionParmi(u: UtilisateurAutorise, permissions: readonl
  * vide aujourd'hui, mais le schéma l'autorise — l'ignorer ferait diverger silencieusement les
  * deux applications le jour où une permission directe serait accordée.
  *
+ * ⚠️ Une permission accordée DIRECTEMENT à un compte ne transite par aucun rôle : désactiver un
+ * rôle ne la retire donc pas. C'est cohérent — elle n'a jamais été conférée par lui — mais il
+ * faut le savoir avant de compter sur la désactivation pour couper un accès.
+ *
  * Retourne `null` si l'utilisateur n'existe pas.
  */
 export async function chargerUtilisateurAutorise(userId: bigint): Promise<UtilisateurAutorise | null> {
@@ -72,6 +76,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
           select: {
             name: true,
             guard_name: true,
+            actif: true,
             role_has_permissions: { select: { permissions: { select: { name: true, guard_name: true } } } },
           },
         },
@@ -88,6 +93,18 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
 
   for (const lien of liensRoles) {
     if (lien.roles.guard_name !== GUARD) continue
+
+    // Un rôle désactivé ne confère RIEN — ni permission, ni parcours.
+    //
+    // C'est ici que la désactivation prend son sens, et nulle part ailleurs : masquer le rôle
+    // dans les écrans d'administration n'en retirerait aucun droit, et un compte qui le porte
+    // continuerait d'accéder à tout. L'association `model_has_roles` est conservée : réactiver
+    // le rôle rend leurs droits à ceux qui le portaient, sans avoir à les réattribuer un par un.
+    //
+    // Le rôle est aussi retiré de `roles`, pas seulement ses permissions : `parcoursAutorises()`
+    // et `aRole()` s'appuient dessus, et un rôle éteint qui continuerait d'ouvrir un parcours
+    // serait le pire des deux mondes.
+    if (!lien.roles.actif) continue
 
     roles.push(lien.roles.name as Role)
 

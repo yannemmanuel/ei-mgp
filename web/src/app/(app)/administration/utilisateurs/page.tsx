@@ -40,7 +40,7 @@ export default async function PageComptes({
           c.responsable_hierarchique_id === null ? '' : String(c.responsable_hierarchique_id),
         roles: c.roles,
       }))}
-      roles={roles.map((r) => r.name)}
+      roles={roles.map((r) => ({ nom: r.name, libelle: r.libelle, actif: r.actif }))}
       directions={referentiels.directions.map((d) => ({ id: String(d.id), libelle: d.libelle }))}
       sites={referentiels.sites.map((s) => ({ id: String(s.id), libelle: s.libelle }))}
       recherche={recherche}

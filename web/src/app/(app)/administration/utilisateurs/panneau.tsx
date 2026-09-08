@@ -30,6 +30,9 @@ export type CompteVue = {
 
 type Option = { id: string; libelle: string }
 
+/** Un rôle proposé à l'attribution : son identifiant technique, son nom lisible, son activation. */
+export type RoleOption = { nom: string; libelle: string; actif: boolean }
+
 const ETAT: EtatCompte = {}
 const champ = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
 
@@ -41,13 +44,16 @@ export function PanneauComptes({
   recherche,
 }: {
   comptes: CompteVue[]
-  roles: string[]
+  roles: RoleOption[]
   directions: Option[]
   sites: Option[]
   recherche: string
 }) {
   const router = useRouter()
   const params = useSearchParams()
+
+  // Les comptes portent des identifiants techniques ; le tableau affiche des noms.
+  const libelleDuRole = new Map(roles.map((r) => [r.nom, r.libelle]))
   const [edition, setEdition] = useState<CompteVue | null>(null)
   const [creation, setCreation] = useState(false)
 
@@ -132,7 +138,7 @@ export function PanneauComptes({
                           ) : (
                             compte.roles.map((role) => (
                               <Badge key={role} variant="secondary" className="font-normal">
-                                {role}
+                                {libelleDuRole.get(role) ?? role}
                               </Badge>
                             ))
                           )}
@@ -176,7 +182,7 @@ function FormulaireCompte({
   onFermer,
 }: {
   compte: CompteVue | null
-  roles: string[]
+  roles: RoleOption[]
   directions: Option[]
   sites: Option[]
   comptes: CompteVue[]
@@ -298,18 +304,38 @@ function FormulaireCompte({
 
           <fieldset>
             <legend className="text-caption text-muted-foreground">Rôles</legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {roles.map((role) => (
-                <label key={role} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    name="roles"
-                    value={role}
-                    defaultChecked={compte?.roles.includes(role) ?? false}
-                  />
-                  {role}
-                </label>
-              ))}
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {roles.map((role) => {
+                const detenu = compte?.roles.includes(role.nom) ?? false
+
+                // Un rôle désactivé reste affiché s'il est déjà porté : le décocher doit être une
+                // décision, pas la conséquence d'un enregistrement où l'on venait corriger un
+                // numéro de téléphone.
+                if (!role.actif && !detenu) return null
+
+                return (
+                  <label key={role.nom} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="roles"
+                      value={role.nom}
+                      defaultChecked={detenu}
+                      className="mt-1"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-secondary-900">
+                        {role.libelle}
+                        {!role.actif && (
+                          <span className="ml-1.5 text-caption text-destructive">désactivé</span>
+                        )}
+                      </span>
+                      <span className="block font-mono text-[11px] text-muted-foreground">
+                        {role.nom}
+                      </span>
+                    </span>
+                  </label>
+                )
+              })}
             </div>
           </fieldset>
 

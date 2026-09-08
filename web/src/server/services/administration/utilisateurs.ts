@@ -81,8 +81,20 @@ async function rolesParUtilisateur(ids: bigint[]): Promise<Map<bigint, string[]>
   return parUtilisateur
 }
 
+/**
+ * Tous les rôles, actifs ou non.
+ *
+ * ⚠️ La liste n'est PAS filtrée sur `actif`, et ce n'est pas un oubli : elle sert aussi à valider
+ * les rôles reçus du formulaire (`enregistrerUtilisateur`). La filtrer ici ferait silencieusement
+ * tomber, à la première modification d'un compte, l'association vers un rôle désactivé — une
+ * perte de donnée provoquée par l'enregistrement d'un champ sans rapport. L'écran, lui, distingue
+ * les deux à l'affichage.
+ */
 export async function rolesDisponibles() {
-  return prisma.roles.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } })
+  return prisma.roles.findMany({
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, libelle: true, actif: true },
+  })
 }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%'

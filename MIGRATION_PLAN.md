@@ -1583,11 +1583,92 @@ réel avec session. Base inchangée : ces écrans ne font que lire.
 
 ---
 
+### ✅ Étape 21 — Rôles administrables : renommer, décrire, désactiver
+
+**Demande** : « On doit pouvoir modifier et désactiver un rôle. »
+
+#### Ce qu'on peut modifier, et ce qu'on ne peut pas
+
+Les permissions d'un rôle étaient déjà modifiables (étape 20). Restaient son nom lisible et son
+existence. Trois colonnes ajoutées à `roles` :
+
+| Colonne | Modifiable | Pourquoi |
+|---|---|---|
+| `libelle` | oui | Ce que les gens lisent. Vivait dans `authz/libelles.ts`, donc figé au déploiement |
+| `description` | oui | À quoi sert ce rôle, pour qui — la question que pose tout nouvel arrivant |
+| `actif` | oui | La seule forme de retrait : un rôle ne se supprime pas (RG-03) |
+| `name` | **non, et jamais** | Identifiant technique |
+
+`name` reste hors d'atteinte et aucune interface ne l'expose. Il est référencé par
+`model_has_roles`, par le catalogue `authz/roles.ts` et par le cloisonnement `authz/parcours.ts` :
+un rôle renommé disparaîtrait de `ROLES_PAR_PARCOURS` et n'ouvrirait plus aucun parcours — **sans
+lever la moindre erreur**. Le rôle continuerait d'exister, ses porteurs ne verraient simplement
+plus rien. C'est exactement le genre de panne qu'on met des semaines à imputer.
+
+#### Ce que « désactiver » veut dire
+
+Rien, si la désactivation se contentait de griser une ligne dans un écran d'administration. Elle
+se joue dans `chargerUtilisateurAutorise()`, relu à chaque requête : un rôle inactif ne confère
+**ni permission ni parcours**, dès l'appel suivant, pour tous ses porteurs.
+
+Le rôle est retiré de `roles` et pas seulement ses permissions : `parcoursAutorises()` et `aRole()`
+s'appuient dessus, et un rôle éteint qui continuerait d'ouvrir un parcours serait le pire des deux
+mondes.
+
+Les rattachements `model_has_roles` sont **conservés**. C'est la différence entre suspendre un rôle
+et le vider : réactiver rend leurs droits aux comptes concernés sans avoir à les réattribuer un par
+un. La console des comptes affiche d'ailleurs toujours un rôle désactivé déjà porté, décochable
+seulement à dessein — sans quoi enregistrer un numéro de téléphone aurait suffi à rompre le
+rattachement.
+
+#### Le garde-fou, réécrit
+
+Le contrôle du « dernier administrateur » ne regardait que le retrait de `roles.manage`. Désactiver
+le rôle qui la porte produit exactement le même effet, par un chemin qu'il ne voyait pas.
+
+Il raisonne désormais sur l'**état résultant** plutôt que sur l'opération demandée : les deux
+chemins convergent vers le même calcul, et un troisième, s'il apparaît, y tombera aussi.
+
+#### Deux défauts trouvés en route
+
+**La sauvegarde ne fonctionnait pas.** `scripts/sauvegarde.mjs` passait `DATABASE_URL` telle quelle
+à `pg_dump`, qui refuse les paramètres propres à Prisma : `paramètre de la requête URI invalide :
+« schema »`. Aucune sauvegarde n'avait donc jamais été produite — sur une base que le risque 19
+signale déjà comme dépourvue de reprise. Corrigé par une liste blanche des paramètres libpq (une
+liste noire laisserait passer le prochain paramètre que Prisma inventera), `schema` étant traduit
+en `--schema` plutôt que perdu. Sauvegarde prise avant la migration : 123 Ko.
+
+**Le statut HTTP ne dit pas si l'accès est refusé.** En vérifiant la désactivation sur des requêtes
+réelles, `/audit` répondait 200 alors que le rôle était éteint — j'ai d'abord conclu à un défaut.
+La coquille `(app)/layout.tsx` commence à diffuser avant que la page n'appelle
+`exigerPermission()` : l'en-tête est déjà parti en 200, et la redirection voyage dans la charge RSC
+sous la forme `acces-refuse;307`. L'accès était bel et bien bloqué ; c'est ma mesure qui était
+fausse. Consigné dans `ARCHITECTURE.md` §5 — un contrôle d'autorisation qui lit le code de retour
+conclut à l'inverse de la réalité.
+
+#### Migration
+
+`prisma/evolutions/2026-09-08-roles-administrables.sql`, appliquée à la main puis réintrospectée
+par `prisma db pull`. Purement additive : trois colonnes, aucune donnée touchée, réversible par
+trois `DROP COLUMN`. `prisma migrate` reste exclu — la base vient de Laravel et ne porte aucun
+historique de migration Prisma, qui proposerait de la réinitialiser.
+
+`next.config.ts` accepte désormais `NEXT_DIST_DIR` : après un `prisma generate`, le serveur de
+développement en cours garde son ancien client et répond 500 jusqu'à son redémarrage. Une seconde
+instance sur un répertoire de build distinct permet de vérifier sans interrompre celle de la
+personne qui travaille.
+
+**Livré** — 310 tests (40 fichiers), `typecheck` et `lint` au vert. Propriété de sûreté vérifiée
+sur requêtes HTTP réelles : rôle `auditeur` désactivé → `/audit` et `/dossiers` refusés,
+`/dashboard` toujours ouvert (DT-31), rôle restauré → accès rétabli.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 303 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 310 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -1604,12 +1685,13 @@ réel avec session. Base inchangée : ces écrans ne font que lire.
 | 16 | **Ajouts d'audit hors CDC.** | 🟢 Faible | ✅ Validés par le métier à l'étape 15 — inscrits dans `docs/exigences-audit.md` §2 |
 | 17 | **QR codes : `url_cible` sans effet.** L'écran l'annonce désormais explicitement. Avec le point d'entrée unique (étape 15), la question de la réorientation par support disparaît : tous mènent au même écran de choix. | 🟢 Faible | Traité — colonne documentaire assumée |
 | 18 | **Niveaux de gravité non administrables.** | 🟢 Faible | ✅ Résolu à l'étape 15 — écran `/administration/gravites` |
-| 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. À corriger avant production — une base sans sauvegarde ni archivage WAL n'offre aucune reprise. | 🔴 Majeur | Ouvert — politique de sauvegarde à définir |
+| 19 | **17 lignes d'audit perdues** en développement, par un nettoyage de test non typé (corrigé structurellement). Irrécupérable : aucune sauvegarde, `archive_mode = off`. Aggravé : `scripts/sauvegarde.mjs` échouait à chaque exécution (paramètres Prisma refusés par `pg_dump`) — aucune sauvegarde n'avait jamais été produite. Corrigé à l'étape 21, première sauvegarde réelle prise. | 🔴 Majeur | Ouvert — planification et archivage WAL restent à câbler |
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
 | 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
 | 22 | **Pièces jointes incompatibles avec Netlify.** | 🔴 Majeur | ✅ Résolu à l'étape 17 — stockage objet, route de téléchargement, script de transfert |
 | 23 | **7 délais sans échéance par étape.** Caractérisation corrigée à l'étape 19 : les 3 lignes `retour_information` relèvent d'une décision documentée (DT-23), pas d'un oubli ; les 4 lignes `cloture` portent le délai global, désormais câblé dans l'escalade et affiché sur la fiche. | 🟢 Faible | ✅ Résolu |
 | 24 | **Deux écrans de la baseline jamais portés.** `/investigations` et `/actions-correctives` (vues transverses, `InvestigationListPage` / `ActionCorrectiveListPage`) répondaient 404 alors que la barre latérale y menait par quatre liens. Découvert à l'étape 20 en revoyant la navigation, pas par un test. | 🔴 Majeur | ✅ Résolu à l'étape 20 — écrans portés, et un test relie désormais chaque destination annoncée à une page existante |
+| 25 | **Les permissions directes échappent à la désactivation d'un rôle.** `model_has_permissions` accorde une permission à un compte sans passer par aucun rôle : désactiver un rôle ne la retire donc pas. La table est vide et aucune interface ne l'alimente, mais le schéma l'autorise et `chargerUtilisateurAutorise()` la lit. | 🟢 Faible | Accepté et documenté — à revoir si une interface d'attribution directe est ouverte |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

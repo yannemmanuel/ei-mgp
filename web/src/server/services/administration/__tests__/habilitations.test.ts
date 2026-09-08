@@ -201,7 +201,10 @@ describe('Modification des habilitations', () => {
         'administrateur_digital',
         avant.filter((p) => p !== 'roles.manage')
       )
-    ).rejects.toThrow(/dernier rôle habilité|aucun compte actif/i)
+      // Le message dit « dernier rôle ACTIF habilité » depuis que la désactivation d'un rôle
+      // produit le même effet que le retrait de la permission : les deux chemins passent par le
+      // même contrôle, qui raisonne sur l'état résultant.
+    ).rejects.toThrow(/dernier rôle actif habilité|aucun compte actif/i)
 
     expect(await permissionsDe('administrateur_digital')).toEqual(avant)
   })

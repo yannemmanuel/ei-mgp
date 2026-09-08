@@ -39,11 +39,21 @@ Les droits sont **relus en base à chaque requête**, jamais portés par le jeto
 révocation d'un compte est ainsi effective à l'appel suivant, sans attendre l'expiration.
 
 Le partage des responsabilités est explicite : le **code** décide ce qui EXISTE — le catalogue
-fermé des 36 permissions et des 15 rôles —, la **base** décide qui obtient quoi. Les associations
-se règlent depuis `/administration/habilitations` et prennent effet immédiatement. Trois contrôles
-remplacent la comparaison automatique qui protégeait ces associations tant qu'elles étaient
-figées : validation contre le catalogue, invariant du dernier administrateur actif, et
-journalisation de chaque changement.
+fermé des 36 permissions et des 15 rôles —, la **base** décide qui obtient quoi, comment cela
+s'appelle et si cela s'applique. Tout se règle depuis `/administration/habilitations` et prend
+effet immédiatement. Trois contrôles remplacent la comparaison automatique qui protégeait ces
+associations tant qu'elles étaient figées : validation contre le catalogue, invariant du dernier
+administrateur actif, et journalisation de chaque changement.
+
+| Colonne de `roles` | Qui décide | Effet |
+|---|---|---|
+| `name` | le code, définitivement | Identifiant technique. Référencé par `model_has_roles`, `authz/roles.ts` et le cloisonnement `authz/parcours.ts` — le renommer retirerait son périmètre à un rôle **sans aucune erreur**. Aucune interface ne l'expose. |
+| `libelle`, `description` | l'administration | Ce que les gens lisent. `LIBELLES_ROLE` n'est plus que la référence livrée et le repli. |
+| `actif` | l'administration | Un rôle inactif ne confère plus **ni permission ni parcours**, dès la requête suivante. Les rattachements `model_has_roles` sont conservés : réactiver rend leurs droits aux comptes sans réattribution. |
+
+La désactivation d'un rôle n'atteint pas les permissions accordées **directement** à un compte
+(`model_has_permissions`) : elles ne transitent par aucun rôle. La table est vide aujourd'hui,
+mais s'en souvenir avant de compter sur la désactivation pour couper un accès.
 
 ---
 
@@ -147,11 +157,18 @@ désactivé ne peut plus se connecter (Laravel l'autorisait), un refus d'autoris
 `/acces-refuse` au lieu d'un 403, les exports nominatifs et les exécutions de tâches sont
 journalisés.
 
+⚠️ **Le statut HTTP ne dit pas si l'accès a été refusé.** La coquille `(app)/layout.tsx` commence
+à diffuser avant que la page n'appelle `exigerPermission()` : quand celle-ci redirige, l'en-tête
+est déjà parti en **200**, et la redirection voyage dans la charge RSC sous la forme
+`acces-refuse;307`. Un contrôle qui lit le code de retour conclura à un accès autorisé alors qu'il
+ne l'est pas — c'est arrivé en vérifiant la désactivation des rôles. Chercher le marqueur dans le
+corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jamais d'une policy.
+
 ---
 
 ## 6. Tests
 
-303 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+310 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :

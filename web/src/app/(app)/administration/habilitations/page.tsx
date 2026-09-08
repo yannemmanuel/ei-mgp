@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
-import { DOMAINES, LIBELLES, LIBELLES_ROLE } from '@/server/authz'
+import { DOMAINES, LIBELLES } from '@/server/authz'
 import { chargerHabilitations } from '@/server/services/administration/habilitations'
 import { EditeurHabilitations } from './editeur'
 
@@ -42,7 +42,7 @@ export default async function PageHabilitations() {
           { libelle: 'Administration', href: '/administration' },
           { libelle: 'Habilitations' },
         ]}
-        compteur={`${lignes.length} rôles · ${permissions.length} droits`}
+        compteur={`${lignes.filter((l) => l.actif).length} rôles actifs sur ${lignes.length} · ${permissions.length} droits`}
       />
 
       <Alert>
@@ -55,8 +55,9 @@ export default async function PageHabilitations() {
             </li>
             <li>
               Le dernier accès administrateur ne peut pas être retiré : au moins un compte actif
-              doit conserver la gestion des habilitations, sans quoi plus personne ne pourrait
-              revenir en arrière.
+              doit conserver la gestion des habilitations — que l’on retire le droit ou que l’on
+              désactive le rôle qui le porte. Sans cela, plus personne ne pourrait revenir en
+              arrière.
             </li>
             <li>
               Chaque changement est journalisé avec son auteur, son avant et son après —
@@ -87,7 +88,9 @@ export default async function PageHabilitations() {
       <EditeurHabilitations
         roles={lignes.map((ligne) => ({
           role: ligne.role,
-          libelle: LIBELLES_ROLE[ligne.role],
+          libelle: ligne.libelle,
+          description: ligne.description,
+          actif: ligne.actif,
           permissions: [...ligne.permissions],
           comptes: ligne.comptes,
           retirees: ecartParRole.get(ligne.role)?.retirees ?? [],
@@ -114,10 +117,11 @@ export default async function PageHabilitations() {
           </p>
           <p>
             <strong>Aucun droit de suppression n’existe</strong>, et ce n’est pas un oubli : ni un
-            dossier, ni un compte, ni un référentiel ne peut être supprimé. Ce qui n’a plus lieu
-            d’être se <em>désactive</em>, pour que l’historique reste lisible et qu’un dossier
-            gênant ne puisse pas disparaître. Seule exception, encadrée par la loi : l’effacement
-            des données d’identité au terme du délai de conservation.
+            dossier, ni un compte, ni un rôle, ni un référentiel ne peut être supprimé. Ce qui n’a
+            plus lieu d’être se <em>désactive</em> — un rôle désactivé cesse de conférer quoi que
+            ce soit, mais reste cité dans le journal d’audit et dans l’historique des comptes.
+            Seule exception, encadrée par la loi : l’effacement des données d’identité au terme du
+            délai de conservation.
           </p>
           <p className="text-caption text-muted-foreground">
             Le cloisonnement par parcours — qui limite un rôle aux dossiers qui le concernent — est

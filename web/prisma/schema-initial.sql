@@ -410,6 +410,12 @@ CREATE TABLE "roles" (
     "guard_name" VARCHAR(255) NOT NULL,
     "created_at" TIMESTAMP(0),
     "updated_at" TIMESTAMP(0),
+    -- Ajoutées le 08/09/2026 (prisma/evolutions/2026-09-08-roles-administrables.sql).
+    -- `name` reste l'identifiant technique, jamais modifiable : il est référencé par
+    -- `model_has_roles`, par `authz/roles.ts` et par le cloisonnement `authz/parcours.ts`.
+    "libelle" VARCHAR(255) NOT NULL,
+    "description" TEXT,
+    "actif" BOOLEAN NOT NULL DEFAULT TRUE,
 
     CONSTRAINT "roles_pkey" PRIMARY KEY ("id")
 );

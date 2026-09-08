@@ -91,6 +91,10 @@ describe('Parité avec la base Laravel', () => {
     const porteurs = await prisma.roles.findMany({
       where: {
         guard_name: GUARD,
+        // `actif` compte autant que la permission : depuis que les rôles se désactivent, un rôle
+        // éteint ne confère plus rien (`chargerUtilisateurAutorise`). L'omettre ici ferait passer
+        // l'invariant au vert alors que plus personne ne peut ouvrir l'écran.
+        actif: true,
         role_has_permissions: { some: { permissions: { name: 'roles.manage', guard_name: GUARD } } },
       },
       select: { name: true },

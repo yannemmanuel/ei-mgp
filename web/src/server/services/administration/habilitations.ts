@@ -1,5 +1,12 @@
 import { prisma } from '@/lib/prisma'
-import { PERMISSIONS, ROLES, ROLE_NAMES, type Permission, type Role } from '@/server/authz'
+import {
+  LIBELLES_ROLE,
+  PERMISSIONS,
+  ROLES,
+  ROLE_NAMES,
+  type Permission,
+  type Role,
+} from '@/server/authz'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser } from '../audit/journal'
 
@@ -21,6 +28,11 @@ const GUARD = 'web'
 
 export type LigneHabilitation = {
   readonly role: Role
+  /** Nom lisible, administrable. Le `role` technique, lui, ne change jamais. */
+  readonly libelle: string
+  readonly description: string | null
+  /** Un rôle désactivé ne confère plus rien — voir `chargerUtilisateurAutorise()`. */
+  readonly actif: boolean
   /** Ce qui S'APPLIQUE : lu en base, pas dans le code. */
   readonly permissions: readonly Permission[]
   /** Ce qui a été LIVRÉ : la configuration de référence, pour situer les ajustements. */
@@ -50,6 +62,9 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     prisma.roles.findMany({
       select: {
         name: true,
+        libelle: true,
+        description: true,
+        actif: true,
         role_has_permissions: { select: { permissions: { select: { name: true } } } },
       },
     }),
@@ -72,19 +87,24 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     effectifs.set(nom, (effectifs.get(nom) ?? 0) + 1)
   }
 
-  const enBaseParRole = new Map(
-    rolesEnBase.map((r) => [
-      r.name,
-      r.role_has_permissions.map((rhp) => rhp.permissions.name as Permission).sort(),
-    ])
-  )
+  const enBaseParRole = new Map(rolesEnBase.map((r) => [r.name, r]))
 
-  const lignes = ROLE_NAMES.map((role) => ({
-    role,
-    permissions: enBaseParRole.get(role) ?? [],
-    reference: ROLES[role],
-    comptes: effectifs.get(role) ?? 0,
-  }))
+  const lignes = ROLE_NAMES.map((role) => {
+    const enBase = enBaseParRole.get(role)
+
+    return {
+      role,
+      // Un rôle décidé par le code mais absent de la base n'a ni libellé ni activation : il est
+      // présenté comme inactif, ce qu'il est de fait — il ne confère rien.
+      libelle: enBase?.libelle ?? LIBELLES_ROLE[role],
+      description: enBase?.description ?? null,
+      actif: enBase?.actif ?? false,
+      permissions:
+        enBase?.role_has_permissions.map((rhp) => rhp.permissions.name as Permission).sort() ?? [],
+      reference: ROLES[role],
+      comptes: effectifs.get(role) ?? 0,
+    }
+  })
 
   return { lignes, permissions: PERMISSIONS, ecarts: comparer(rolesEnBase) }
 }
@@ -97,7 +117,10 @@ export async function chargerHabilitations(): Promise<Habilitations> {
  * les deux méritent d'être vus, et le journal d'audit dit qui les a décidés.
  */
 function comparer(
-  rolesEnBase: { name: string; role_has_permissions: { permissions: { name: string } }[] }[]
+  rolesEnBase: readonly {
+    name: string
+    role_has_permissions: { permissions: { name: string } }[]
+  }[]
 ): EcartHabilitation[] {
   const ecarts: EcartHabilitation[] = []
 
@@ -169,7 +192,7 @@ export async function modifierPermissionsRole(
 
   if (aRetirer.length === 0 && aAjouter.length === 0) return
 
-  await verifierQuUnAdministrateurSubsiste(role, voulues)
+  await verifierQuUnAdministrateurSubsiste({ role, permissions: voulues })
 
   if (aRetirer.length > 0) {
     await prisma.role_has_permissions.deleteMany({
@@ -199,38 +222,166 @@ export async function modifierPermissionsRole(
 }
 
 /**
- * Refuse une modification qui priverait le dispositif de tout administrateur.
+ * Modifie l'identité lisible d'un rôle : son libellé et sa description.
  *
- * Sans application Laravel ni commande en ligne, retirer `roles.manage` au dernier rôle qui le
- * porte rendrait la situation irréversible depuis l'application : personne ne pourrait plus le
- * rétablir.
+ * ⚠️ `name` — l'identifiant technique — n'est PAS modifiable, et cette fonction ne l'expose pas.
+ * Il est référencé par `model_has_roles`, par le catalogue `authz/roles.ts` et par le
+ * cloisonnement `authz/parcours.ts` : le renommer romprait le périmètre des parcours **sans
+ * aucune erreur**, un rôle inconnu de `ROLES_PAR_PARCOURS` n'ouvrant simplement plus rien. Ce
+ * qu'on renomme ici, c'est ce que les gens lisent ; ce que le code utilise ne bouge pas.
  */
-async function verifierQuUnAdministrateurSubsiste(
-  roleModifie: string,
-  permissionsVoulues: ReadonlySet<string>
+export async function modifierIdentiteRole(
+  acteur: { id: bigint },
+  role: string,
+  identite: { libelle: string; description: string | null }
 ): Promise<void> {
-  const CLE = 'roles.manage'
+  if (!ROLE_NAMES.includes(role as Role)) {
+    throw new ErreurWorkflow('Rôle inconnu.')
+  }
 
-  // Le rôle modifié conserve la clé : rien ne peut être perdu.
-  if (permissionsVoulues.has(CLE)) return
+  const libelle = identite.libelle.trim()
+  const description = identite.description?.trim() || null
 
-  const autresPorteurs = await prisma.roles.findMany({
-    where: {
-      guard_name: GUARD,
-      NOT: { name: roleModifie },
-      role_has_permissions: { some: { permissions: { name: CLE, guard_name: GUARD } } },
-    },
-    select: { name: true },
+  if (libelle.length < 3) {
+    throw new ErreurWorkflow('Le libellé doit compter au moins 3 caractères.')
+  }
+
+  if (libelle.length > 255) {
+    throw new ErreurWorkflow('Le libellé ne peut pas dépasser 255 caractères.')
+  }
+
+  if (description !== null && description.length > 1000) {
+    throw new ErreurWorkflow('La description ne peut pas dépasser 1000 caractères.')
+  }
+
+  const ligne = await prisma.roles.findFirstOrThrow({
+    where: { name: role, guard_name: GUARD },
+    select: { id: true, libelle: true, description: true },
   })
 
-  if (autresPorteurs.length === 0) {
+  if (ligne.libelle === libelle && ligne.description === description) return
+
+  await prisma.roles.update({
+    where: { id: ligne.id },
+    data: { libelle, description, updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: 'role.identite_modifiee',
+    acteurId: acteur.id,
+    auditableType: MODELES.role,
+    auditableId: String(ligne.id),
+    anciennes: { role, libelle: ligne.libelle, description: ligne.description },
+    nouvelles: { role, libelle, description },
+  })
+}
+
+/**
+ * Active ou désactive un rôle.
+ *
+ * La désactivation est la seule forme de retrait prévue : un rôle ne se supprime pas (RG-03), car
+ * il reste cité dans le journal d'audit et dans l'historique des comptes. Ce qu'elle fait vraiment
+ * se joue dans `chargerUtilisateurAutorise()` — un rôle inactif ne confère plus ni permission ni
+ * parcours, dès la requête suivante et pour tous ceux qui le portent.
+ *
+ * Les associations `model_has_roles` sont CONSERVÉES : la réactivation rend leurs droits aux
+ * comptes concernés sans qu'il faille les réattribuer un par un. C'est la différence entre
+ * suspendre un rôle et le vider.
+ */
+export async function changerActivationRole(
+  acteur: { id: bigint },
+  role: string,
+  actif: boolean
+): Promise<void> {
+  if (!ROLE_NAMES.includes(role as Role)) {
+    throw new ErreurWorkflow('Rôle inconnu.')
+  }
+
+  const ligne = await prisma.roles.findFirstOrThrow({
+    where: { name: role, guard_name: GUARD },
+    select: { id: true, actif: true },
+  })
+
+  if (ligne.actif === actif) return
+
+  if (!actif) {
+    await verifierQuUnAdministrateurSubsiste({ role, actif: false })
+  }
+
+  await prisma.roles.update({
+    where: { id: ligne.id },
+    data: { actif, updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: actif ? 'role.active' : 'role.desactive',
+    acteurId: acteur.id,
+    auditableType: MODELES.role,
+    auditableId: String(ligne.id),
+    anciennes: { role, actif: ligne.actif },
+    nouvelles: { role, actif },
+  })
+}
+
+/** Permission qui donne accès à cet écran — donc la seule dont la perte soit irréversible. */
+const CLE_ADMINISTRATION = 'roles.manage'
+
+/**
+ * Refuse une modification qui priverait le dispositif de tout administrateur.
+ *
+ * Sans application Laravel ni commande en ligne, plus personne ne pourrait rétablir la situation :
+ * l'écran des habilitations deviendrait inaccessible à tous, définitivement.
+ *
+ * Deux chemins y mènent, et il faut les couvrir tous les deux — c'est pourquoi le contrôle
+ * raisonne sur l'ÉTAT RÉSULTANT plutôt que sur l'opération demandée :
+ *
+ * - retirer `roles.manage` au dernier rôle qui le porte ;
+ * - désactiver ce rôle, ce qui produit exactement le même effet sans toucher à ses permissions.
+ *
+ * Un contrôle écrit par opération aurait attrapé le premier cas et laissé passer le second.
+ */
+async function verifierQuUnAdministrateurSubsiste(hypothese: {
+  role: string
+  permissions?: ReadonlySet<string>
+  actif?: boolean
+}): Promise<void> {
+  const roles = await prisma.roles.findMany({
+    where: { guard_name: GUARD },
+    select: {
+      name: true,
+      actif: true,
+      role_has_permissions: { select: { permissions: { select: { name: true, guard_name: true } } } },
+    },
+  })
+
+  // État tel qu'il SERA une fois la modification appliquée.
+  const porteurs = roles
+    .map((r) => {
+      const concerne = r.name === hypothese.role
+
+      const actif = concerne && hypothese.actif !== undefined ? hypothese.actif : r.actif
+      const detient =
+        concerne && hypothese.permissions !== undefined
+          ? hypothese.permissions.has(CLE_ADMINISTRATION)
+          : r.role_has_permissions.some(
+              (rhp) =>
+                rhp.permissions.name === CLE_ADMINISTRATION && rhp.permissions.guard_name === GUARD
+            )
+
+      return { name: r.name, conserve: actif && detient }
+    })
+    .filter((r) => r.conserve)
+    .map((r) => r.name)
+
+  if (porteurs.length === 0) {
     throw new ErreurWorkflow(
-      `Impossible : « ${roleModifie} » est le dernier rôle habilité à gérer les habilitations. Le retirer rendrait cet écran inaccessible à tous, définitivement.`
+      `Impossible : « ${hypothese.role} » est le dernier rôle actif habilité à gérer les habilitations. Le retirer rendrait cet écran inaccessible à tous, définitivement.`
     )
   }
 
+  // Un rôle habilité que personne ne porte ne sauve personne : il faut un compte ACTIF derrière.
   const associations = await prisma.model_has_roles.findMany({
-    where: { model_type: MODEL_TYPE_USER, roles: { name: { in: autresPorteurs.map((r) => r.name) } } },
+    where: { model_type: MODEL_TYPE_USER, roles: { name: { in: porteurs } } },
     select: { model_id: true },
   })
 
@@ -240,7 +391,7 @@ async function verifierQuUnAdministrateurSubsiste(
 
   if (comptesActifs === 0) {
     throw new ErreurWorkflow(
-      `Impossible : aucun compte actif ne porterait plus la gestion des habilitations. Attribuez d'abord un rôle habilité à un compte actif.`
+      'Impossible : aucun compte actif ne porterait plus la gestion des habilitations. Attribuez d’abord un rôle habilité à un compte actif.'
     )
   }
 }

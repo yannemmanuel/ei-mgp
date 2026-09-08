@@ -338,6 +338,12 @@ export function permissionsSansDomaine(): Permission[] {
  * Les identifiants techniques (`secretaire_csst`, `rqse`) sont des abréviations internes : les
  * afficher seuls suppose de connaître l'organisation. Le nom complet est donné en premier,
  * l'identifiant reste visible en dessous pour qui doit le rapprocher d'un document.
+ *
+ * ⚠️ Ce ne sont plus les valeurs AFFICHÉES : depuis que les rôles sont administrables, le libellé
+ * vit dans `roles.libelle` et s'édite depuis `/administration/habilitations`. Ce catalogue reste
+ * la RÉFÉRENCE livrée — celle qui a alimenté la base au départ — et le repli si un rôle du code
+ * manquait en base. Même partage que pour les permissions : le code dit ce qui existe, la base
+ * dit comment cela s'appelle et à qui cela sert.
  */
 export const LIBELLES_ROLE: Record<Role, string> = {
   employe_declarant: 'Employé déclarant',
