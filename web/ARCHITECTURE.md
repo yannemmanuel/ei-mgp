@@ -143,6 +143,13 @@ autorité, et non le schéma Prisma.
 | Contraintes CHECK | Invisibles du client : doublées par une validation Zod |
 | Hachages bcrypt | Préfixe normalisé en `$2y$` — PHP rejette `$2b$` |
 
+**Après tout changement de schéma, redémarrer `next dev`.** `prisma generate` réécrit le client
+dans `node_modules`, que Next ne surveille pas : le serveur en cours garde l'ancien en mémoire,
+ignore les colonnes qui viennent d'apparaître et répond 500 — avec un message qui accuse la
+requête, jamais le client. `predev` régénère le client à chaque démarrage, et `npm run db:pull`
+enchaîne l'introspection et la génération ; il reste à relancer le serveur. `NEXT_DIST_DIR` permet
+d'ouvrir une seconde instance pour vérifier sans interrompre la première.
+
 **Tables en ajout seul** : `audit_logs` (CDC §15) et `historique_statuts` (RG-04). Aucun module
 n'expose de modification ou de suppression pour elles, et un test structurel échoue si une telle
 fonction apparaît.
