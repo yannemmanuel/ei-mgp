@@ -107,8 +107,8 @@ export function EnTete({
             {/* Le bouton vit dans le menu, le formulaire en dehors : Base UI place le contenu du
                 menu dans un portail et le referme au clic. Un formulaire imbriqué serait démonté
                 avant d'avoir soumis. L'attribut `form` fait le lien par identifiant, à travers
-                l'arbre — et la déconnexion reste un vrai POST, donc fonctionnelle sans
-                JavaScript. */}
+                l'arbre, et la déconnexion reste une vraie soumission — donc une navigation, pas
+                un appel dont il faudrait gérer l'échec à la main. */}
             <DropdownMenuItem
               render={<button type="submit" form="deconnexion" className="w-full" />}
             >

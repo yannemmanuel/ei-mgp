@@ -4,6 +4,7 @@ import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@/lib/utils"
+import { renduEstUnBouton } from "./rendu"
 import { ChevronRightIcon, CheckIcon } from "lucide-react"
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
@@ -77,6 +78,8 @@ function DropdownMenuItem({
   className,
   inset,
   variant = "default",
+  nativeButton,
+  render,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean
@@ -87,6 +90,11 @@ function DropdownMenuItem({
       data-slot="dropdown-menu-item"
       data-inset={inset}
       data-variant={variant}
+      // Balise par défaut : `<div>`. Le défaut est donc l'inverse de celui du bouton — la
+      // propriété ne bascule que pour un `<button>` explicitement fourni, sans quoi Base UI
+      // poserait `role` et `aria-disabled` en double sur un élément qui les porte déjà.
+      nativeButton={nativeButton ?? (renduEstUnBouton(render) ?? false)}
+      render={render}
       className={cn(
         "group/dropdown-menu-item relative flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         className

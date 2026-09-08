@@ -1,8 +1,8 @@
-import { isValidElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { renduEstUnBouton } from "./rendu"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -41,22 +41,6 @@ const buttonVariants = cva(
   }
 )
 
-/**
- * Base UI part du principe qu'un bouton est un `<button>` natif. Quand `render` fournit autre
- * chose — un lien, presque toujours — il faut le lui dire : sans cela il avertit, et surtout il
- * n'installe pas le clavier ni le rôle ARIA qui rendent l'élément utilisable comme un bouton.
- *
- * Déduit ici plutôt qu'à chaque appel : la règle est la même partout, et l'oublier une seule fois
- * produit un élément qui a l'air d'un bouton sans en avoir le comportement.
- *
- * Le doute profite au défaut : seul un élément dont on VOIT qu'il n'est pas un `<button>` bascule
- * la propriété. Un `render` sous forme de fonction n'est pas inspectable — la valeur de Base UI
- * s'applique alors, et l'appelant reste libre de la fixer lui-même.
- */
-function estRenduNonNatif(render: ButtonPrimitive.Props["render"]): boolean {
-  return isValidElement(render) && render.type !== "button"
-}
-
 function Button({
   className,
   variant = "default",
@@ -69,7 +53,9 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      nativeButton={nativeButton ?? !estRenduNonNatif(render)}
+      // Balise par défaut : `<button>`. Le doute profite donc au natif — seul un élément dont on
+      // VOIT qu'il n'en est pas un bascule la propriété.
+      nativeButton={nativeButton ?? (renduEstUnBouton(render) ?? true)}
       render={render}
       {...props}
     />
