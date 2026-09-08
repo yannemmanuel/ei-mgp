@@ -122,8 +122,7 @@ export function PanneauActions({
               Cette étape revient à : <strong>{acteursDeLEtape.join(', ')}</strong>.
             </p>
             <p className="mt-1 text-caption text-muted-foreground">
-              Vous pouvez consulter le dossier et échanger par la messagerie, mais son passage à
-              l’étape suivante ne vous appartient pas.
+              Vous pouvez le consulter et échanger par la messagerie.
             </p>
           </CardContent>
         </Card>
@@ -213,7 +212,7 @@ export function PanneauActions({
       {droits.reouvrir && statutCode === 'cloture' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-h3">Réouverture contrôlée (RG-07)</CardTitle>
+            <CardTitle className="text-h3">Rouvrir le dossier</CardTitle>
           </CardHeader>
           <CardContent>
             <FormulaireAction
@@ -242,8 +241,8 @@ export function PanneauActions({
           <CardContent className="space-y-3">
             <p className="text-sm text-secondary-700">
               {contentieux
-                ? 'Ce dossier est marqué en contentieux : son anonymisation automatique est suspendue.'
-                : 'Ce dossier suit le cycle ordinaire : archivage à 24 mois, anonymisation à 10 ans après clôture.'}
+                ? 'Dossier en contentieux : les données sont conservées jusqu’à nouvel ordre.'
+                : 'Archivage à 24 mois, anonymisation 10 ans après la clôture.'}
             </p>
 
             <FormulaireAction
@@ -252,7 +251,7 @@ export function PanneauActions({
               libelleBouton={contentieux ? 'Lever le blocage' : 'Marquer en contentieux'}
             >
               <p className="text-caption text-muted-foreground">
-                Seul le DPO peut poser ou lever ce blocage (RG-11).
+                Seul le délégué à la protection des données peut poser ou lever ce blocage.
               </p>
             </FormulaireAction>
           </CardContent>

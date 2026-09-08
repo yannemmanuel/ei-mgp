@@ -76,7 +76,7 @@ export function PanneauOrganisation({
     <div className="space-y-6">
       <EnTetePage
         titre="Sites et directions"
-        lede="Un site regroupe une ou plusieurs directions ; une direction relève d’un site, ou d’aucun. C’est ce rattachement qui donne son site à un dossier — et donc le secrétaire qui le recevra."
+        lede="Un site regroupe plusieurs directions. C’est la direction qui donne son site à un dossier, et donc la personne qui le recevra."
         mailles={[
           { libelle: 'Administration', href: '/administration' },
           { libelle: 'Sites et directions' },

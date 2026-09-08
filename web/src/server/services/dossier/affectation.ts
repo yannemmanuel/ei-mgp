@@ -42,7 +42,7 @@ export async function reaffecter(params: {
       dossier.declarant_user_id === params.nouvelUtilisateurId
     ) {
       throw new ErreurWorkflow(
-        "Un utilisateur ne peut pas être affecté comme traitant de son propre dossier (DT-06)."
+        "On ne peut pas confier à quelqu’un le dossier qu’il a lui-même déclaré."
       )
     }
 

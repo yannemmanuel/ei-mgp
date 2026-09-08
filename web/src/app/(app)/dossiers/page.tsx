@@ -113,7 +113,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     <div className="space-y-5">
       <EnTetePage
         titre="Dossiers"
-        lede="Les déclarations de votre périmètre, de la plus récente à la plus ancienne."
+        lede="Les déclarations que vous suivez, de la plus récente à la plus ancienne."
         compteur={`${resultat.total} ${resultat.total > 1 ? 'dossiers' : 'dossier'}`}
       />
 

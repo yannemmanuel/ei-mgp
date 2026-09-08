@@ -211,7 +211,7 @@ export async function creerDeclaration(params: {
           dossier_id: dossier.id,
           statut_precedent_id: statutRecu.id,
           statut_suivant_id: statutAffecte.id,
-          commentaire: 'Affectation automatique (EX-GES-02).',
+          commentaire: 'Affectation automatique.',
           effectue_par: null,
           created_at: new Date(),
         },

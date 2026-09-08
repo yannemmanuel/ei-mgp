@@ -24,7 +24,7 @@ export default async function PageGabarits() {
   return (
     <EditeurReferentiel
       titre="Gabarits de notification"
-      description="Un gabarit sans parcours s’applique à tous ; un gabarit spécifique prime sur le gabarit global pour le même couple évènement × canal."
+      description="Les messages envoyés au déclarant. Un modèle sans type de déclaration sert à tous."
       colonnes={['Évènement', 'Parcours', 'Canal', 'Objet', 'Destinataires en copie', 'État']}
       lignes={gabarits.map((g) => ({
         id: String(g.id),

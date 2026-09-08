@@ -15,7 +15,7 @@ export function FiltresAudit({
   actions,
   valeurs,
 }: {
-  actions: string[]
+  actions: { readonly valeur: string; readonly libelle: string }[]
   valeurs: { action?: string; dateDebut?: string; dateFin?: string }
 }) {
   const router = useRouter()
@@ -47,8 +47,8 @@ export function FiltresAudit({
           >
             <option value="">Toutes</option>
             {actions.map((action) => (
-              <option key={action} value={action}>
-                {action}
+              <option key={action.valeur} value={action.valeur}>
+                {action.libelle}
               </option>
             ))}
           </select>

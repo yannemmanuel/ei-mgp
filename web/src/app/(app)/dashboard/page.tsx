@@ -54,8 +54,8 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
         titre="Tableau de bord"
         lede={
           voitLeRapport
-            ? 'Ce qui vous revient, puis la vue d’ensemble de votre périmètre.'
-            : 'Les dossiers qui vous sont affectés.'
+            ? 'Ce qui vous attend, puis la vue d’ensemble.'
+            : 'Les dossiers qui vous sont confiés.'
         }
         actions={
           voitLeRapport && peutExporter(utilisateur) ? (
@@ -115,7 +115,7 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
             <EtatVide
               icone={Inbox}
               titre="Aucun dossier ne vous est affecté."
-              description="Les dossiers qui vous seront confiés apparaîtront ici, et vous serez notifié."
+              description="Ceux qui vous seront confiés apparaîtront ici."
             />
           </Card>
         )
@@ -147,15 +147,15 @@ function BandeUrgences({
       libelle: 'Vos dossiers en retard',
       valeur: urgences.miensEnRetard,
       href: '/dossiers?assigneAMoi=1',
-      aide: 'Échéance d’étape dépassée sur un dossier qui vous est affecté.',
+      aide: 'La date limite est passée.',
       grave: true,
     },
     {
       cle: 'retard',
-      libelle: 'En retard sur votre périmètre',
+      libelle: 'En retard, tous dossiers',
       valeur: urgences.enRetard,
       href: '/dossiers',
-      aide: 'Toutes échéances d’étape dépassées, affectées ou non.',
+      aide: 'Confiés à quelqu’un ou non.',
       grave: true,
     },
     {
@@ -165,15 +165,15 @@ function BandeUrgences({
       href: '/dossiers?nonAffectes=1',
       // Le cas se produit quand aucun compte actif ne porte le rôle de captage du parcours :
       // l'affectation automatique n'a personne à qui confier la déclaration (EX-GES-02).
-      aide: 'Personne ne les traite, et rien d’autre ne le signale.',
+      aide: 'Personne ne les traite pour l’instant.',
       grave: true,
     },
     {
       cle: 'miens',
-      libelle: 'Dossiers qui vous sont affectés',
+      libelle: 'Vos dossiers en cours',
       valeur: urgences.miens,
       href: '/dossiers?assigneAMoi=1',
-      aide: 'En cours, hors dossiers clos.',
+      aide: 'Hors dossiers clos.',
       grave: false,
     },
   ].filter((carte) => {
@@ -294,14 +294,14 @@ async function VueConsolidee({
         <Indicateur
           libelle="Taux de résolution"
           valeur={pourcent(indicateurs.tauxResolution)}
-          note={indicateurs.total === 0 ? 'Aucune déclaration sur ce périmètre.' : undefined}
+          note={indicateurs.total === 0 ? 'Aucune déclaration.' : undefined}
         />
         <Indicateur
           libelle="Taux de clôture"
           valeur={pourcent(indicateurs.tauxCloture)}
           note={
             indicateurs.tauxCloture === 0 && indicateurs.total > 0
-              ? 'Aucun dossier clôturé à ce jour.'
+              ? 'Aucun dossier clôturé.'
               : undefined
           }
         />
@@ -310,7 +310,7 @@ async function VueConsolidee({
           valeur={indicateurs.delaiMoyen === null ? '—' : `${indicateurs.delaiMoyen} j`}
           note={
             indicateurs.delaiMoyen === null
-              ? 'Se calcule à la clôture : rien à mesurer tant qu’aucun dossier n’est clos.'
+              ? 'Se calcule à la clôture des dossiers.'
               : undefined
           }
         />
@@ -363,11 +363,9 @@ async function VueConsolidee({
         </CardHeader>
         <CardContent>
           {historique.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Aucune période archivée. L’historisation (EX-REP-05) est écrite par la tâche
-              planifiée <code className="font-mono">calculer-statistiques-mensuelles</code>, en début de mois : ce
-              tableau restera vide jusqu’à son premier passage, et se remplira ensuite d’une ligne
-              par mois écoulé. Une case vide ici ne signale donc pas une perte de données.
+<p className="text-sm text-muted-foreground">
+              Le récapitulatif du mois est établi au début du mois suivant. Une ligne
+              apparaîtra ici dès le premier récapitulatif.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -554,7 +552,7 @@ function Repartition({
       </CardHeader>
       <CardContent>
         {lignes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune donnée sur ce périmètre.</p>
+          <p className="text-sm text-muted-foreground">Aucune donnée.</p>
         ) : (
           <ul className="space-y-2">
             {lignes.map((ligne) => {

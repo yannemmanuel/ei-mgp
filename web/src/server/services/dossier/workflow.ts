@@ -144,7 +144,7 @@ export async function cloturer(params: {
 
     if (actionsNonCloses > 0) {
       throw new ErreurWorkflow(
-        'Toutes les actions correctives doivent être closes et leur efficacité vérifiée avant clôture (RG-10).'
+        'Toutes les actions correctives doivent être closes et vérifiées avant de clôturer.'
       )
     }
 
@@ -173,7 +173,7 @@ export async function reouvrir(params: {
   motif: string
 }): Promise<void> {
   if (params.motif.trim().length < 5) {
-    throw new ErreurWorkflow('Le motif de réouverture est obligatoire (RG-07).')
+    throw new ErreurWorkflow('Le motif de réouverture est obligatoire.')
   }
 
   const libelleAffiche = await prisma.$transaction(async (tx) => {

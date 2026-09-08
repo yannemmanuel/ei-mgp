@@ -66,7 +66,7 @@ export async function ouvrirInvestigation(params: {
 
   if (jourDe(params.dateOuverture) < jourDe(dateRecevabilite)) {
     throw new ErreurWorkflow(
-      'La date d’ouverture ne peut être antérieure à la date de recevabilité du dossier (RGI-05).'
+      'La date d’ouverture ne peut pas précéder la recevabilité du dossier.'
     )
   }
 
@@ -175,7 +175,7 @@ export async function validerInvestigation(params: {
 
   if (investigation.enqueteur_id === params.validateurId) {
     throw new ErreurWorkflow(
-      'La validation hiérarchique ne peut être effectuée par l’enquêteur lui-même (RGI-06).'
+      'L’enquêteur ne peut pas valider sa propre investigation.'
     )
   }
 

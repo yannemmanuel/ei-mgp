@@ -46,16 +46,14 @@ export function PanneauQrCodes({
       <div>
         <EnTetePage
           titre="QR codes"
-          lede="Tous les codes mènent au même écran de choix : le déclarant y indique lui-même s’il signale un évènement indésirable ou dépose une plainte. Un seul support à imprimer, et aucun risque qu’une affiche envoie vers le mauvais formulaire."
+          lede="Tous les codes mènent au même écran, où le déclarant choisit lui-même. Un seul support à imprimer."
           mailles={[
             { libelle: 'Administration', href: '/administration' },
             { libelle: 'QR codes' },
           ]}
         />
         <p className="mt-2 text-caption text-muted-foreground">
-          Le code encode <code>/q/&#123;jeton&#125;</code> et non l’adresse du formulaire : c’est
-          cette indirection qui permet de retirer un support déjà imprimé de la circulation. Le
-          parcours choisi ci-dessous ne sert qu’à documenter où le support est posé.
+          Un code peut être retiré de la circulation même une fois imprimé.
         </p>
       </div>
 

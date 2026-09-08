@@ -137,7 +137,6 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
               </p>
               {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
             </div>
-            <p className="mt-0.5 font-mono text-caption text-muted-foreground">{role.role}</p>
             {role.description && (
               <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
             )}
@@ -192,7 +191,7 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
 
         {modifie && !ouvert && (
           <p className="mt-2 text-caption text-muted-foreground">
-            Diffère de la configuration livrée
+            Modifié depuis la mise en service
             {role.ajoutees.length > 0 && <> — {role.ajoutees.length} ajoutée(s)</>}
             {role.retirees.length > 0 && <> — {role.retirees.length} retirée(s)</>}
           </p>
@@ -253,9 +252,7 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
       </div>
 
       <p className="text-caption text-muted-foreground">
-        L’identifiant technique <code className="font-mono">{role.role}</code> n’est pas
-        modifiable : le cloisonnement par parcours s’y réfère, et le renommer retirerait
-        silencieusement leur périmètre aux comptes concernés.
+        Nom interne : <code className="font-mono">{role.role}</code>. Il n’est pas modifiable.
       </p>
 
       <Retour etat={etat} />
@@ -298,8 +295,7 @@ function FormulairePermissions({
         <p className="text-sm font-medium text-secondary-900">Habilitations</p>
         {!role.actif && (
           <p className="mt-1 text-caption text-muted-foreground">
-            Ce rôle est désactivé : ces droits sont enregistrés mais ne s’appliquent pas tant qu’il
-            ne l’est pas de nouveau.
+            Rôle désactivé : ces droits sont enregistrés, mais ne s’appliquent pas.
           </p>
         )}
       </div>
@@ -359,7 +355,7 @@ function FormulairePermissions({
         </Button>
         {role.actif && (
           <span className="text-caption text-muted-foreground">
-            Prend effet immédiatement pour les {role.comptes} personne(s) portant ce rôle.
+            S’applique tout de suite aux {role.comptes} personne(s) concernée(s).
           </span>
         )}
       </div>
@@ -390,14 +386,13 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
       <p className="text-caption text-muted-foreground">
         {role.actif ? (
           <>
-            Un rôle désactivé cesse de conférer ses permissions et son périmètre de parcours, dès
-            la requête suivante. Les rattachements sont conservés : réactiver le rôle rend leurs
-            droits aux comptes concernés, sans avoir à les réattribuer.
+            Un rôle désactivé ne donne plus aucun droit. Rien n’est perdu : le réactiver rend
+            leurs droits aux personnes concernées.
           </>
         ) : (
           <>
-            La réactivation rétablit les droits enregistrés ci-dessus pour les{' '}
-            {role.comptes} personne(s) qui portent encore ce rôle.
+            Réactiver ce rôle rend les droits ci-dessus aux {role.comptes} personne(s) qui le
+            portent encore.
           </>
         )}
       </p>
@@ -493,12 +488,9 @@ function Droit({
         )}
         {permission.sansEffet && (
           <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-caption text-secondary-600">
-            Sans effet aujourd’hui — aucun écran ne le consulte
+            Sans effet pour l’instant
           </span>
         )}
-        <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
-          {permission.nom}
-        </span>
       </span>
     </label>
   )

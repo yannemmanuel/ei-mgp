@@ -91,7 +91,7 @@ export const TACHES = {
     },
   },
   'appliquer-politique-conservation': {
-    libelle: 'Archivage et anonymisation des dossiers clôturés (RG-11)',
+    libelle: 'Archivage et anonymisation des dossiers clôturés',
     cadence: 'mensuelle, le 1er à 02h00',
     executer: async () => {
       const resultat = await appliquerPolitiqueConservation()

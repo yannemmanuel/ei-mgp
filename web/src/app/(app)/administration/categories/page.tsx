@@ -51,7 +51,7 @@ export default async function PageCategories() {
         { type: 'texte', nom: 'code', libelle: 'Code', requis: true, max: 100 },
         { type: 'texte', nom: 'libelle', libelle: 'Libellé', requis: true, max: 255 },
         { type: 'nombre', nom: 'ordre', libelle: 'Ordre d’affichage', requis: true, min: 1 },
-        { type: 'booleen', nom: 'isAutre', libelle: 'Catégorie « Autre » (RG-09)' },
+        { type: 'booleen', nom: 'isAutre', libelle: 'Catégorie « Autre »' },
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={actionEnregistrerCategorie}

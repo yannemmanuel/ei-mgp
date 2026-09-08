@@ -16,12 +16,9 @@ const ETAT: EtatMotDePasse = {}
 export function FormulaireMotDePasse({
   longueurMinimale,
   octetsMaximum,
-  obligatoire,
 }: {
   longueurMinimale: number
   octetsMaximum: number
-  /** Le mot de passe a été fixé par un tiers : on ne peut pas quitter l'écran sans le changer. */
-  obligatoire: boolean
 }) {
   const [etat, envoyer, enCours] = useActionState(actionChangerMotDePasse, ETAT)
   const [nouveau, setNouveau] = useState('')
@@ -45,8 +42,7 @@ export function FormulaireMotDePasse({
           className="mt-1"
         />
         <p className="mt-1 text-caption text-muted-foreground">
-          Exigé même si vous êtes déjà connecté : sans lui, un poste laissé ouvert quelques
-          secondes suffirait à s’approprier le compte.
+          Demandé même si vous êtes déjà connecté, pour vérifier que c’est bien vous.
         </p>
       </div>
 
@@ -69,8 +65,8 @@ export function FormulaireMotDePasse({
           }`}
         >
           {tropLong
-            ? `Trop long : ${octets} octets pour ${octetsMaximum} au maximum. Les accents et emojis comptent double ou plus.`
-            : `${longueurMinimale} caractères au moins. Aucune règle de composition — une phrase dont vous vous souvenez vaut mieux qu’un assemblage de symboles.`}
+            ? 'Trop long. Raccourcissez-le un peu.'
+            : `${longueurMinimale} caractères au moins. Une phrase dont vous vous souvenez fait un très bon mot de passe.`}
         </p>
       </div>
 
@@ -103,11 +99,6 @@ export function FormulaireMotDePasse({
         {enCours ? 'Enregistrement…' : 'Changer mon mot de passe'}
       </Button>
 
-      {!obligatoire && (
-        <p className="text-caption text-muted-foreground">
-          Vous serez redirigé vers le tableau de bord une fois le changement enregistré.
-        </p>
-      )}
     </form>
   )
 }

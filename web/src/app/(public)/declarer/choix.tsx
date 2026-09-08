@@ -100,9 +100,8 @@ export function ChoixParcours() {
       </div>
 
       <p className="mt-8 text-caption text-secondary-500">
-        Vous ne savez pas où classer votre situation ? Choisissez ce qui vous semble le plus
-        proche : le service compétent réorientera votre dossier si nécessaire, sans que vous ayez
-        à le redéposer.
+        Vous hésitez ? Choisissez ce qui vous semble le plus proche : nous réorienterons votre
+        dossier si besoin.
       </p>
     </div>
   )

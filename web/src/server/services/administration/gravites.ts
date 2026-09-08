@@ -33,7 +33,7 @@ export type EffetCircuit = (typeof EFFETS_CIRCUIT)[number]
 export const LIBELLES_EFFET: Record<EffetCircuit, string> = {
   standard: 'Circuit standard',
   priorisation: 'Traitement priorisé',
-  accelere: 'Circuit accéléré (RG-08) — alerte immédiate de la Direction',
+  accelere: 'Circuit accéléré — la Direction est alertée immédiatement',
 }
 
 export type DonneesGravite = {

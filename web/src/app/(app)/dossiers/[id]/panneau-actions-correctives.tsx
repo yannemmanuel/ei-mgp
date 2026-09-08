@@ -299,7 +299,7 @@ function FormulaireCreation({
           className={champ}
         />
         <p className="text-caption text-muted-foreground">
-          Doit être postérieure à aujourd’hui (RGI-07).
+          Doit être postérieure à aujourd’hui.
         </p>
       </div>
 
@@ -317,7 +317,7 @@ function FormulaireCreation({
             ))}
           </select>
           <p className="text-caption text-muted-foreground">
-            Seules les investigations validées peuvent être rattachées (EX-ACT-01).
+            Seules les investigations validées peuvent être rattachées.
           </p>
         </div>
       )}

@@ -15,7 +15,7 @@ export default async function PageStatuts() {
   return (
     <EditeurReferentiel
       titre="Statuts"
-      description="Le libellé affiché est celui que voit le déclarant sur la page de suivi (RGI-10) : le modifier ici le modifie partout, immédiatement."
+      description="Le libellé affiché est celui que voit le déclarant. Le modifier ici le change partout, tout de suite."
       colonnes={['Code', 'Libellé interne', 'Libellé affiché', 'Ordre', 'Terminal']}
       lignes={statuts.map((s) => ({
         id: String(s.id),

@@ -40,11 +40,9 @@ export default async function PageMotDePasse() {
       {obligatoire && (
         <Alert className="mt-6">
           <AlertDescription>
-            <p className="font-medium">Votre mot de passe actuel a été créé par un administrateur.</p>
+            <p className="font-medium">Votre mot de passe a été créé par un administrateur.</p>
             <p className="mt-1 text-caption">
-              Il lui est donc connu, et l’est peut-être resté du canal par lequel il vous a été
-              transmis. Choisissez-en un que vous seul connaissez : c’est la seule façon qu’une
-              action faite sous votre compte vous soit réellement imputable.
+              D’autres personnes le connaissent. Choisissez-en un que vous seul connaissez.
             </p>
           </AlertDescription>
         </Alert>
@@ -55,7 +53,6 @@ export default async function PageMotDePasse() {
           <FormulaireMotDePasse
             longueurMinimale={LONGUEUR_MINIMALE}
             octetsMaximum={OCTETS_MAXIMUM}
-            obligatoire={obligatoire}
           />
         </CardContent>
       </Card>

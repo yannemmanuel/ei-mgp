@@ -86,7 +86,7 @@ export const identiteSousTraitant = z.object({
   // RG-15 : consentement RGPD explicite, exigé UNIQUEMENT pour ce parcours (CDC §9.3).
   consentementRgpd: z.literal(true, {
     message:
-      'Le consentement au traitement des données est obligatoire pour soumettre une déclaration identifiée (RG-15).',
+      'Vous devez accepter le traitement de vos données pour envoyer une déclaration identifiée.',
   }),
 })
 

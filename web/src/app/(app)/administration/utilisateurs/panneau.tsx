@@ -83,7 +83,7 @@ export function PanneauComptes({
     <div className="space-y-6">
       <EnTetePage
         titre="Comptes"
-        lede="Un compte n’est jamais supprimé : il reste cité dans l’historique et le journal d’audit. La désactivation coupe l’accès dès la requête suivante."
+        lede="Un compte ne se supprime pas : il se désactive, et l’accès est coupé aussitôt."
         mailles={[{ libelle: 'Administration', href: '/administration' }, { libelle: 'Comptes' }]}
         actions={
           !creation && edition === null ? (

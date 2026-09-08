@@ -37,7 +37,7 @@ export default async function PageHabilitations() {
     <div className="space-y-6">
       <EnTetePage
         titre="Habilitations"
-        lede="Chaque rôle donne accès à certaines actions ; toute modification s’applique immédiatement aux personnes qui le portent."
+        lede="Ce que chaque rôle a le droit de faire. Une modification s’applique tout de suite."
         mailles={[
           { libelle: 'Administration', href: '/administration' },
           { libelle: 'Habilitations' },
@@ -47,23 +47,13 @@ export default async function PageHabilitations() {
 
       <Alert>
         <AlertDescription>
-          <p className="font-medium">Trois garde-fous encadrent ces modifications.</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-caption">
+          <ul className="list-disc space-y-1 pl-5 text-caption">
+            <li>Vous choisissez qui obtient quoi ; la liste des droits, elle, ne change pas ici.</li>
+            <li>Un compte au moins doit garder la gestion des habilitations : le dernier ne peut pas être retiré.</li>
             <li>
-              Le catalogue est fermé : seuls les rôles et permissions existants peuvent être
-              associés. On ajuste qui obtient quoi, jamais ce qui existe.
-            </li>
-            <li>
-              Le dernier accès administrateur ne peut pas être retiré : au moins un compte actif
-              doit conserver la gestion des habilitations — que l’on retire le droit ou que l’on
-              désactive le rôle qui le porte. Sans cela, plus personne ne pourrait revenir en
-              arrière.
-            </li>
-            <li>
-              Chaque changement est journalisé avec son auteur, son avant et son après —
-              consultable dans le{' '}
+              Chaque changement est enregistré, avec son auteur et sa date, dans le{' '}
               <Link href="/audit?action=role.permissions_modifiees" className="underline underline-offset-2">
-                journal d’audit
+                journal
               </Link>
               .
             </li>
@@ -75,12 +65,9 @@ export default async function PageHabilitations() {
         <Alert>
           <AlertDescription>
             <p className="font-medium">
-              {ecarts.length} rôle(s) diffèrent de la configuration livrée.
+              {ecarts.length} rôle(s) ont été ajustés depuis la mise en service.
             </p>
-            <p className="mt-1 text-caption">
-              Ce n’est pas une anomalie — c’est la trace des ajustements décidés depuis. Le journal
-              d’audit dit qui les a faits et quand.
-            </p>
+            <p className="mt-1 text-caption">Le journal dit qui les a modifiés, et quand.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -101,32 +88,22 @@ export default async function PageHabilitations() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-h3">Ce qui se règle ailleurs</CardTitle>
+          <CardTitle className="text-h3">Bon à savoir</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-secondary-700">
           <p>
-            Cet écran décide ce que peut faire un <strong>rôle</strong>. L’attribution des rôles
-            aux <strong>personnes</strong> se fait dans la{' '}
+            Ici, ce que peut faire un rôle. Pour donner un rôle à quelqu’un, allez dans les{' '}
             <Link
               href="/administration/utilisateurs"
               className="text-primary-700 underline underline-offset-2"
             >
-              console des comptes
+              comptes
             </Link>
             .
           </p>
           <p>
-            <strong>Aucun droit de suppression n’existe</strong>, et ce n’est pas un oubli : ni un
-            dossier, ni un compte, ni un rôle, ni un référentiel ne peut être supprimé. Ce qui n’a
-            plus lieu d’être se <em>désactive</em> — un rôle désactivé cesse de conférer quoi que
-            ce soit, mais reste cité dans le journal d’audit et dans l’historique des comptes.
-            Seule exception, encadrée par la loi : l’effacement des données d’identité au terme du
-            délai de conservation.
-          </p>
-          <p className="text-caption text-muted-foreground">
-            Le cloisonnement par parcours — qui limite un rôle aux dossiers qui le concernent — est
-            une dimension distincte, portée par le code et non par ces permissions. Retirer un
-            droit ici ne l’élargit ni ne le restreint.
+            Rien ne se supprime dans l’application : ce qui n’a plus lieu d’être se désactive, et
+            reste visible dans l’historique.
           </p>
         </CardContent>
       </Card>

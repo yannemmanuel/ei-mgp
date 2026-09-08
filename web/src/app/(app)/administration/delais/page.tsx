@@ -27,7 +27,7 @@ export default async function PageDelais() {
   return (
     <EditeurReferentiel
       titre="Délais de traitement"
-      description="Délais maximaux par étape et par parcours (CDC §11.2). Tant qu’un délai n’est pas validé, AUCUNE échéance n’est calculée : ni relance à J-3, ni escalade. « Délai global » désigne l’enveloppe totale depuis la création ; « Référence CDC » une étape conservée pour la traçabilité, sans échéance propre."
+      description="Temps maximal accordé à chaque étape. Un délai non validé ne déclenche ni relance ni alerte."
       colonnes={['Parcours', 'Étape', 'Délai', 'Suivi', 'Note']}
       lignes={delais.map((d) => ({
         id: String(d.id),

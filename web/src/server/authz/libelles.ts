@@ -63,7 +63,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'dossiers.assign': {
     libelle: 'Affecter un dossier',
     explication:
-      'Désigner la personne chargée de traiter un dossier. La première affectation est automatique (EX-GES-02) et les suivantes relèvent de « Réaffecter un dossier » : aucun écran ne consulte ce droit aujourd’hui.',
+      'Désigner qui traite un dossier. La première affectation est automatique ; les suivantes passent par « Réaffecter un dossier ».',
     sensibilite: 'ordinaire',
     // Accorder ou retirer ce droit ne change RIEN. Le dire est le minimum : un administrateur qui
     // le révoque en croyant fermer une porte doit savoir qu'elle n'existe pas.
@@ -166,7 +166,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'reporting.export.nominatif': {
     libelle: 'Exporter avec les identités',
     explication:
-      'Inclure nom, e-mail et téléphone des déclarants dans les exports. Chaque export de ce type est journalisé.',
+      'Inclure nom, e-mail et téléphone des déclarants dans les exports. Chaque export est enregistré.',
     sensibilite: 'donnees_personnelles',
   },
 
@@ -174,7 +174,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'audit.view': {
     libelle: 'Consulter le journal d’audit',
     explication:
-      'Lire l’historique des actions. L’adresse IP d’origine n’est visible que par le DPO et l’auditeur.',
+      'Lire l’historique des actions. L’adresse d’origine n’est visible que par le DPO et l’auditeur.',
     sensibilite: 'donnees_personnelles',
   },
 
@@ -188,7 +188,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'rgpd.acces.view': {
     libelle: 'Accéder aux données personnelles',
     explication:
-      'Consulter les identités des déclarants pour les besoins de conformité. En pratique, l’accès aux identités se règle ailleurs : tous les rôles les voient sauf le Comité éthique (docs/acteurs.md), et ce droit n’est consulté par aucun code.',
+      'Consulter l’identité des déclarants. En pratique, tous les rôles la voient sauf le Comité éthique.',
     sensibilite: 'donnees_personnelles',
     /*
      * Jamais consultée — ni ici, ni dans la baseline Laravel, où le `git grep` ne trouve aucun

@@ -115,7 +115,7 @@ export default async function PageActionsCorrectives({
     <div className="space-y-5">
       <EnTetePage
         titre="Actions correctives"
-        lede="Les actions décidées à l’issue des investigations, de l’échéance la plus proche à la plus lointaine."
+        lede="Les actions décidées après investigation, par échéance la plus proche."
         compteur={`${resultat.total} ${resultat.total > 1 ? 'actions' : 'action'}`}
       />
 

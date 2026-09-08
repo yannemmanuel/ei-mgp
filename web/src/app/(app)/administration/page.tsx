@@ -159,7 +159,7 @@ export default async function PageAdministration() {
     <div className="space-y-8">
       <EnTetePage
         titre="Administration"
-        lede="Le paramétrage de l’application. Rien ne s’y supprime : ce qui n’a plus lieu d’être se désactive."
+        lede="Le paramétrage de l’application."
       />
 
       {accessibles.length === 0 ? (

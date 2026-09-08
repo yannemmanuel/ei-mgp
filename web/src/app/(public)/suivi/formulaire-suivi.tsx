@@ -57,8 +57,7 @@ export function FormulaireSuivi() {
             Quitter le suivi
           </Button>
           <p className="mt-2 text-caption text-muted-foreground">
-            Referme votre session immédiatement. Elle expire de toute façon au bout de 30 minutes,
-            mais mieux vaut ne pas attendre sur un ordinateur qui n’est pas le vôtre.
+            À faire si vous n’êtes pas sur votre ordinateur.
           </p>
         </form>
       </>

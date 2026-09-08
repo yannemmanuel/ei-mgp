@@ -73,7 +73,7 @@ export async function creerAction(params: {
 
   if (jourDe(params.echeance) <= jourDe(new Date())) {
     throw new ErreurWorkflow(
-      'La date d’échéance doit être postérieure à la date de création (RGI-07).'
+      'La date d’échéance doit être postérieure à la date de création.'
     )
   }
 
@@ -148,7 +148,7 @@ export async function verifierEfficacite(params: {
 
   if (params.efficace && (params.commentaire ?? '').trim() === '') {
     throw new ErreurWorkflow(
-      'Un commentaire est obligatoire pour une vérification d’efficacité positive (RGI-08).'
+      'Un commentaire est obligatoire quand la vérification est positive.'
     )
   }
 
@@ -178,7 +178,7 @@ export async function cloturerAction(params: {
 
   if (action.verification_efficacite !== true) {
     throw new ErreurWorkflow(
-      'Une action ne peut être clôturée qu’après une vérification d’efficacité positive (RGI-09).'
+      'Une action ne peut être clôturée qu’après une vérification positive.'
     )
   }
 

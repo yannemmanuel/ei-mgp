@@ -192,9 +192,7 @@ export function FormulaireDeclaration({
             <p className="mt-1 text-sm text-destructive">{etat.erreurs.canalRelais}</p>
           )}
           <p className="mt-2 text-caption text-muted-foreground">
-            RG-13 : la déclaration suit ensuite exactement le même circuit qu’une déclaration
-            déposée directement. Vous êtes tracé comme personne ayant saisi, jamais comme
-            déclarant.
+            Vous êtes enregistré comme la personne qui saisit, jamais comme le déclarant.
           </p>
         </div>
       )}
@@ -274,8 +272,8 @@ export function FormulaireDeclaration({
                   Je souhaite rester anonyme
                 </span>
                 <span className="block text-caption text-secondary-600">
-                  Aucune donnée permettant de vous identifier ne sera collectée ni conservée. Vous
-                  recevrez un code d’accès pour suivre votre dossier.
+                  Aucune information sur votre identité ne sera enregistrée. Vous recevrez un code
+                  pour suivre votre dossier.
                 </span>
               </span>
             </label>
@@ -337,8 +335,7 @@ export function FormulaireDeclaration({
             />
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-caption text-muted-foreground">
-                Facultatif. L’essentiel en quelques phrases — vous pourrez compléter par messagerie
-                une fois le dossier ouvert.
+                Facultatif. L’essentiel en quelques phrases ; vous pourrez compléter plus tard.
               </p>
               <p
                 className={`text-caption tabular-nums ${

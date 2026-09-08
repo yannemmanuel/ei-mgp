@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { exigerPermission, utilisateurCourant } from '@/server/auth'
-import { peutVoirAdresseIpAudit } from '@/server/authz'
+import { LIBELLES_ROLE, peutVoirAdresseIpAudit, type Role } from '@/server/authz'
 import { actionsConnues, consulterJournal } from '@/server/services/audit/consultation'
+import { libelleAction, libelleChamp, libelleObjet } from '@/server/services/audit/libelles'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { FiltresAudit } from './filtres'
 
@@ -64,18 +65,20 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
     <div className="space-y-6">
       <EnTetePage
         titre="Journal d’audit"
-        lede="En ajout seul : aucune ligne ne peut être modifiée ni supprimée, par aucun rôle."
+        lede="Aucune ligne ne peut être modifiée ni supprimée, par personne."
         compteur={`${journal.total} ${journal.total > 1 ? 'entrées' : 'entrée'}`}
       />
 
-      <FiltresAudit actions={actions} valeurs={{ action, dateDebut, dateFin }} />
+      <FiltresAudit
+        actions={actions.map((a) => ({ valeur: a, libelle: libelleAction(a) }))}
+        valeurs={{ action, dateDebut, dateFin }}
+      />
 
       {!voitAdresseIp && (
         <Alert>
           <AlertDescription>
-            L’adresse IP et le navigateur d’origine ne sont pas affichés pour votre rôle. Ces
-            données ne sont consultables que par le DPO et l’auditeur, en cas d’enquête sur un
-            abus : elles pourraient permettre de réidentifier un déclarant anonyme.
+            L’adresse et le navigateur d’origine ne sont visibles que par le DPO et l’auditeur :
+            ils pourraient permettre de reconnaître un déclarant anonyme.
           </AlertDescription>
         </Alert>
       )}
@@ -83,7 +86,7 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
       <Card>
         <CardContent className="p-0">
           {journal.lignes.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">Aucune entrée sur ce périmètre.</p>
+            <p className="p-6 text-sm text-muted-foreground">Aucune entrée.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -107,12 +110,12 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
                       </td>
                       <td className="px-4 py-2">
                         <Badge variant="secondary" className="font-normal">
-                          {ligne.action}
+                          {libelleAction(ligne.action)}
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-secondary-800">{ligne.acteur ?? 'Système'}</td>
                       <td className="px-4 py-2 text-caption text-muted-foreground">
-                        {ligne.auditableType ? nomCourt(ligne.auditableType) : '—'}
+                        {ligne.auditableType ? libelleObjet(ligne.auditableType) : '—'}
                         {ligne.auditableId && (
                           <span className="block font-mono">{ligne.auditableId}</span>
                         )}
@@ -166,9 +169,6 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
 const horodatage = (iso: string) =>
   new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(iso))
 
-/** `App\Models\Dossier` → `Dossier` : le préfixe de namespace n'apprend rien au lecteur. */
-const nomCourt = (type: string) => type.split('\\').pop() ?? type
-
 function Changement({ anciennes, nouvelles }: { anciennes: unknown; nouvelles: unknown }) {
   const avant = objet(anciennes)
   const apres = objet(nouvelles)
@@ -179,7 +179,7 @@ function Changement({ anciennes, nouvelles }: { anciennes: unknown; nouvelles: u
     <dl className="space-y-0.5 text-caption">
       {Object.entries(apres).map(([cle, valeur]) => (
         <div key={cle}>
-          <dt className="inline text-muted-foreground">{cle} : </dt>
+          <dt className="inline text-muted-foreground">{libelleChamp(cle)} : </dt>
           <dd className="inline text-secondary-800">
             {avant && cle in avant && (
               <>
@@ -201,10 +201,25 @@ function objet(valeur: unknown): Record<string, unknown> | null {
     : null
 }
 
-/** Une valeur d'audit peut être n'importe quel JSON : elle est rendue lisible, jamais brute. */
+/**
+ * Une valeur d'audit peut être n'importe quel JSON : elle est rendue lisible, jamais brute.
+ *
+ * Une liste s'affiche séparée par des virgules plutôt qu'en JSON : `roles` valait
+ * `["correspondant_mgp"]`, guillemets échappés compris, là où « correspondant_mgp » dit la même
+ * chose. Ce qui n'est ni liste ni valeur simple retombe sur le JSON — mieux vaut illisible que
+ * disparu.
+ */
 function affichable(valeur: unknown): string {
-  if (valeur === null || valeur === undefined) return '∅'
+  if (valeur === null || valeur === undefined) return 'vide'
   if (typeof valeur === 'boolean') return valeur ? 'oui' : 'non'
+
+  if (Array.isArray(valeur)) {
+    if (valeur.length === 0) return 'aucun'
+    if (valeur.every((v) => typeof v !== 'object')) {
+      return valeur.map((v) => LIBELLES_ROLE[v as Role] ?? String(v)).join(', ')
+    }
+  }
+
   if (typeof valeur === 'object') return JSON.stringify(valeur)
 
   const texte = String(valeur)

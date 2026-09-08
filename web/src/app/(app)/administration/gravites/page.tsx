@@ -19,7 +19,7 @@ export default async function PageGravites() {
   return (
     <EditeurReferentiel
       titre="Niveaux de gravité"
-      description="Le niveau (1 à 4) et le code ne sont pas modifiables : ils ordonnent l’échelle et sont référencés par les dossiers déjà classés. L’effet de circuit, lui, commande l’alerte immédiate de la Direction (RG-08)."
+      description="Vous pouvez changer le nom, la couleur et l’alerte. Le niveau et le code sont figés."
       colonnes={['Niveau', 'Code', 'Libellé', 'Couleur', 'Circuit', 'État']}
       lignes={gravites.map((g) => ({
         id: String(g.id),

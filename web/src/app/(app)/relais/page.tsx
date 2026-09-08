@@ -21,7 +21,7 @@ export default async function PageRelais() {
     <div className="space-y-6">
       <EnTetePage
         titre="Saisie relais"
-        lede="Pour transcrire une déclaration reçue hors ligne — ligne verte, boîte à suggestions ou échange direct. Le canal d’origine est enregistré, et la déclaration suit ensuite exactement le même circuit qu’une déclaration déposée par le déclarant lui-même (RG-13)."
+        lede="Pour saisir une déclaration reçue autrement : ligne verte, boîte à suggestions ou de vive voix. Elle suit ensuite le même circuit que les autres."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
