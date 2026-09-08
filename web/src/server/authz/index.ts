@@ -5,6 +5,7 @@
  * réimplémenter un test de rôle ou de permission à la main dans une page ou une Server Action.
  */
 export * from './permissions'
+export * from './libelles'
 export * from './roles'
 export * from './parcours'
 export * from './utilisateur'

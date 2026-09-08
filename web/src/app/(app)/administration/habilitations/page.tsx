@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { exigerPermission } from '@/server/auth'
+import { DOMAINES, LIBELLES, LIBELLES_ROLE } from '@/server/authz'
 import { chargerHabilitations } from '@/server/services/administration/habilitations'
 import { EditeurHabilitations } from './editeur'
 
@@ -20,25 +21,24 @@ export default async function PageHabilitations() {
   await exigerPermission('roles.manage')
 
   const { lignes, permissions, ecarts } = await chargerHabilitations()
-
-  // Regroupe par préfixe (`dossiers.`, `reporting.`…) : 36 permissions en une seule liste
-  // seraient illisibles, et le préfixe correspond au domaine métier.
-  const domaines = new Map<string, string[]>()
-  for (const permission of permissions) {
-    const domaine = permission.split('.')[0]
-    domaines.set(domaine, [...(domaines.get(domaine) ?? []), permission])
-  }
-
   const ecartParRole = new Map(ecarts.map((e) => [e.role, e]))
+
+  // Les libellés sont résolus ici, côté serveur : le composant d'édition reçoit du texte prêt à
+  // lire, jamais des identifiants qu'il devrait traduire lui-même.
+  const domaines = DOMAINES.map((domaine) => ({
+    cle: domaine.cle,
+    titre: domaine.titre,
+    description: domaine.description,
+    permissions: domaine.permissions.map((nom) => ({ nom, ...LIBELLES[nom] })),
+  }))
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-h1 text-secondary-900">Habilitations</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          {lignes.length} rôles, {permissions.length} permissions. Cette matrice décide, pour
-          chaque rôle, ce qu’il peut faire — et elle est appliquée telle quelle : toute
-          modification vaut immédiatement pour les comptes concernés.
+          {lignes.length} rôles, {permissions.length} droits. Chaque rôle donne accès à certaines
+          actions ; toute modification s’applique immédiatement aux personnes qui le portent.
         </p>
       </div>
 
@@ -84,13 +84,13 @@ export default async function PageHabilitations() {
       <EditeurHabilitations
         roles={lignes.map((ligne) => ({
           role: ligne.role,
+          libelle: LIBELLES_ROLE[ligne.role],
           permissions: [...ligne.permissions],
-          reference: [...ligne.reference],
           comptes: ligne.comptes,
           retirees: ecartParRole.get(ligne.role)?.retirees ?? [],
           ajoutees: ecartParRole.get(ligne.role)?.ajoutees ?? [],
         }))}
-        domaines={[...domaines.entries()]}
+        domaines={domaines}
       />
 
       <Card>
@@ -109,10 +109,17 @@ export default async function PageHabilitations() {
             </Link>
             .
           </p>
+          <p>
+            <strong>Aucun droit de suppression n’existe</strong>, et ce n’est pas un oubli : ni un
+            dossier, ni un compte, ni un référentiel ne peut être supprimé. Ce qui n’a plus lieu
+            d’être se <em>désactive</em>, pour que l’historique reste lisible et qu’un dossier
+            gênant ne puisse pas disparaître. Seule exception, encadrée par la loi : l’effacement
+            des données d’identité au terme du délai de conservation.
+          </p>
           <p className="text-caption text-muted-foreground">
             Le cloisonnement par parcours — qui limite un rôle aux dossiers qui le concernent — est
-            une dimension distincte, portée par le code et non par ces permissions. Retirer une
-            permission ici ne l’élargit ni ne le restreint.
+            une dimension distincte, portée par le code et non par ces permissions. Retirer un
+            droit ici ne l’élargit ni ne le restreint.
           </p>
         </CardContent>
       </Card>

@@ -27,7 +27,8 @@ masquées, elles ne sont pas lues. Un oubli de rendu ne peut donc pas les divulg
 
 ```
 src/server/authz/
-  permissions.ts      34 permissions — liste close
+  permissions.ts      36 permissions — liste close
+  libelles.ts         traduction en français lisible + regroupement par domaine
   roles.ts            15 rôles → permissions
   parcours.ts         cloisonnement par parcours
   utilisateur.ts      chargement depuis la base, à chaque requête
@@ -133,7 +134,7 @@ journalisés.
 
 ## 6. Tests
 
-232 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+285 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Trois règles nées de défauts trouvés en chemin :
