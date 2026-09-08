@@ -31,9 +31,27 @@ src/server/authz/
   libelles.ts         traduction en français lisible + regroupement par domaine
   roles.ts            15 rôles → permissions
   parcours.ts         cloisonnement par parcours
+  etapes.ts           qui fait avancer un dossier, par parcours et par étape
   utilisateur.ts      chargement depuis la base, à chaque requête
   policies/           une par domaine métier
 ```
+
+**Trois verrous indépendants** commandent l'accès à un dossier, et il faut les trois :
+
+| Verrou | Question | Où |
+|---|---|---|
+| Permission | ce compte a-t-il le droit en général ? | `permissions.ts` |
+| Parcours | ce dossier est-il de son ressort ? | `parcours.ts` |
+| Étape | cette marche-ci lui revient-elle ? | `etapes.ts` |
+
+Le troisième manquait : le graphe des transitions contraignait l'enchaînement des statuts, mais
+tout porteur de `dossiers.status.update` pouvait franchir n'importe quelle marche de son périmètre
+— un seul compte menait un dossier de « Reçu » à « Résolu ». `docs/workflows.md` §3 demandait
+pourtant cette table explicitement.
+
+`dossiers.view.own` mérite sa propre mention : la permission était traitée à l'identique de
+`dossiers.view`, ce qui la vidait de son sens. Elle signifie « ses dossiers » — ceux qui lui sont
+affectés ou qu'il a déclarés —, jamais « tout son parcours ».
 
 Les droits sont **relus en base à chaque requête**, jamais portés par le jeton de session : la
 révocation d'un compte est ainsi effective à l'appel suivant, sans attendre l'expiration.
@@ -168,7 +186,7 @@ corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jam
 
 ## 6. Tests
 
-316 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+329 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :

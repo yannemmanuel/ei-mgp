@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { utilisateurCourant } from '@/server/auth'
 import { peutVoirDossier, type ParcoursCode } from '@/server/authz'
+import type { StatutCode } from '@/server/services/dossier/statuts'
 import { magasinNomme } from '@/server/services/stockage/magasin'
 
 /**
@@ -90,6 +91,12 @@ export async function GET(
       is_anonymous: true,
       declarant_user_id: true,
       parcours: { select: { code: true } },
+      statuts_dossier: { select: { code: true } },
+      dossier_affectations: {
+        where: { user_id: utilisateur.id, actif: true },
+        select: { id: true },
+        take: 1,
+      },
     },
   })
 
@@ -99,8 +106,10 @@ export async function GET(
     !dossier ||
     !peutVoirDossier(utilisateur, {
       parcoursCode: dossier.parcours.code as ParcoursCode,
+      statutCode: dossier.statuts_dossier.code as StatutCode,
       isAnonymous: dossier.is_anonymous,
       declarantUserId: dossier.declarant_user_id,
+      estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
     })
   ) {
     return new Response('Pièce jointe introuvable.', { status: 404 })

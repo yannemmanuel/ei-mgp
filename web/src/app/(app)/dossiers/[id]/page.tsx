@@ -7,7 +7,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
+  acteursDeLEtape,
   aPermission,
+  LIBELLES_ROLE,
   peutChangerStatutDossier,
   peutCloturerDossier,
   peutCreerInvestigation,
@@ -75,8 +77,10 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
 
   const pourPolicy = {
     parcoursCode: dossier.parcours.code as Parameters<typeof peutReaffecterDossier>[1]['parcoursCode'],
+    statutCode: dossier.statutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    estAffecteAuLecteur: dossier.estAffecteAuLecteur,
   }
 
   const [
@@ -467,6 +471,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             }))}
             affectables={affectables.map((u) => ({ id: String(u.id), nom: u.name }))}
             transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
+            acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
+              (role) => LIBELLES_ROLE[role] ?? role
+            )}
             droits={{
               reaffecter: peutReaffecterDossier(utilisateur, pourPolicy),
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),

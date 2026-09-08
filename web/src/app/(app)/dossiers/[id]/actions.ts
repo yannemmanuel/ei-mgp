@@ -27,7 +27,7 @@ import { aPermission } from '@/server/authz'
 export type EtatAction = { erreur?: string; succes?: string }
 
 /** Charge le dossier avec ce qu'il faut pour évaluer les policies. */
-async function dossierPourAutorisation(dossierId: string) {
+async function dossierPourAutorisation(dossierId: string, lecteurId: bigint) {
   const dossier = await prisma.dossiers.findUnique({
     where: { id: dossierId },
     select: {
@@ -35,6 +35,10 @@ async function dossierPourAutorisation(dossierId: string) {
       is_anonymous: true,
       declarant_user_id: true,
       parcours: { select: { code: true } },
+      statuts_dossier: { select: { code: true } },
+      // `dossiers.view.own` et le contrôle d'étape en dépendent : le statut et l'affectation du
+      // lecteur sont chargés ici, jamais déduits côté appelant.
+      dossier_affectations: { where: { user_id: lecteurId, actif: true }, select: { id: true }, take: 1 },
     },
   })
 
@@ -42,8 +46,10 @@ async function dossierPourAutorisation(dossierId: string) {
 
   return {
     parcoursCode: dossier.parcours.code as ParcoursCode,
+    statutCode: dossier.statuts_dossier.code as StatutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   }
 }
 
@@ -63,7 +69,7 @@ export async function actionReaffecter(
 ): Promise<EtatAction> {
   const utilisateur = await exigerUtilisateur()
   const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId)
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
 
   if (!dossier || !peutReaffecterDossier(utilisateur, dossier)) {
     return { erreur: REFUS }
@@ -96,7 +102,7 @@ export async function actionChangerStatut(
 ): Promise<EtatAction> {
   const utilisateur = await exigerUtilisateur()
   const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId)
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
 
   if (!dossier || !peutChangerStatutDossier(utilisateur, dossier)) {
     return { erreur: REFUS }
@@ -131,7 +137,7 @@ export async function actionRejeter(
 ): Promise<EtatAction> {
   const utilisateur = await exigerUtilisateur()
   const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId)
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
 
   // Le rejet est une transition de statut : il relève de la même permission.
   if (!dossier || !peutChangerStatutDossier(utilisateur, dossier)) {
@@ -158,7 +164,7 @@ export async function actionCloturer(
 ): Promise<EtatAction> {
   const utilisateur = await exigerUtilisateur()
   const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId)
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
 
   if (!dossier || !peutCloturerDossier(utilisateur, dossier)) {
     return { erreur: REFUS }
@@ -185,7 +191,7 @@ export async function actionReouvrir(
 ): Promise<EtatAction> {
   const utilisateur = await exigerUtilisateur()
   const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId)
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
 
   if (!dossier || !peutReouvrirDossier(utilisateur, dossier)) {
     return { erreur: REFUS }
@@ -223,7 +229,7 @@ export async function actionBasculerContentieux(
     return { erreur: REFUS }
   }
 
-  const pourPolicy = await dossierPourAutorisation(dossierId)
+  const pourPolicy = await dossierPourAutorisation(dossierId, utilisateur.id)
   if (!pourPolicy) return { erreur: REFUS }
 
   let contentieux: boolean

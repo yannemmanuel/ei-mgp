@@ -23,6 +23,11 @@ type Props = {
   affectations: Option[]
   affectables: Option[]
   transitions: { code: string; libelle: string }[]
+  /**
+   * Rôles à qui le CDC confie l'étape courante, déjà traduits en clair. Vide quand le CDC
+   * n'en désigne aucun.
+   */
+  acteursDeLEtape: string[]
   droits: {
     reaffecter: boolean
     changerStatut: boolean
@@ -50,6 +55,7 @@ export function PanneauActions({
   affectations,
   affectables,
   transitions,
+  acteursDeLEtape,
   droits,
   contentieux,
 }: Props) {
@@ -99,6 +105,29 @@ export function PanneauActions({
           )}
         </CardContent>
       </Card>
+
+      {/*
+        Ne pas pouvoir faire avancer un dossier est une situation NORMALE : chaque étape revient
+        à des acteurs désignés (docs/workflows.md §3). Sans cette carte, l'absence de bouton
+        passait pour une panne ou un oubli de droits, et le dossier semblait « coincé » sans
+        qu'on sache chez qui il attendait.
+      */}
+      {!droits.changerStatut && acteursDeLEtape.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h3">Étape suivante</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-secondary-700">
+              Cette étape revient à : <strong>{acteursDeLEtape.join(', ')}</strong>.
+            </p>
+            <p className="mt-1 text-caption text-muted-foreground">
+              Vous pouvez consulter le dossier et échanger par la messagerie, mais son passage à
+              l’étape suivante ne vous appartient pas.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {droits.changerStatut && transitions.length > 0 && (
         <Card>

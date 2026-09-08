@@ -3,10 +3,11 @@ import { prisma } from '@/lib/prisma'
 import {
   aPermission,
   aRole,
-  aUnePermissionParmi,
   parcoursAutorises,
+  peutFaireAvancerDepuis,
   type UtilisateurAutorise,
 } from '@/server/authz'
+import { STATUTS, transitionsDepuis } from './statuts'
 
 /**
  * EX-GES-01 : liste des dossiers, filtrable — port de `App\Livewire\Dossiers\DossierListPage`.
@@ -28,8 +29,21 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
     return {}
   }
 
-  if (aUnePermissionParmi(u, ['dossiers.view', 'dossiers.view.own'])) {
+  if (aPermission(u, 'dossiers.view')) {
     return { parcours: { code: { in: parcoursAutorises(u.roles) } } }
+  }
+
+  // `dossiers.view.own` : SES dossiers, pas tout son parcours. Traduction en SQL de la branche
+  // correspondante de `peutVoirDossier()` — les deux doivent dire exactement la même chose, et
+  // un test croise les deux implémentations dossier par dossier.
+  if (aPermission(u, 'dossiers.view.own')) {
+    return {
+      parcours: { code: { in: parcoursAutorises(u.roles) } },
+      OR: [
+        { dossier_affectations: { some: { user_id: u.id, actif: true } } },
+        { declarant_user_id: u.id },
+      ],
+    }
   }
 
   // Aucun accès : clause impossible plutôt que périmètre vide implicite, pour qu'un oubli de
@@ -46,6 +60,35 @@ export type FiltresDossiers = {
   periodeFin?: string
   /** Restreint aux dossiers dont l'utilisateur est titulaire actif. */
   assigneAMoi?: boolean
+  /** Restreint aux dossiers dont l'étape courante revient à ce rôle (docs/workflows.md §3). */
+  aMoiDAgir?: boolean
+}
+
+/**
+ * Dossiers que CET utilisateur peut faire avancer, ici et maintenant.
+ *
+ * « Être affecté » et « avoir la main » sont deux choses différentes : plusieurs personnes sont
+ * affectées à un même dossier tout au long de sa vie, mais à chaque étape une seule catégorie
+ * d'acteurs peut le faire progresser. Sans ce filtre, chacun voit une liste où l'immense majorité
+ * des lignes ne lui demande rien — et le dossier qui l'attend s'y noie.
+ */
+function clauseAMoiDAgir(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
+  if (!aPermission(u, 'dossiers.status.update')) {
+    return { id: { in: [] } }
+  }
+
+  const branches = parcoursAutorises(u.roles).map((parcours) => ({
+    parcours: { code: parcours },
+    statuts_dossier: {
+      code: {
+        in: STATUTS.filter((statut) => peutFaireAvancerDepuis(u.roles, parcours, statut)).filter(
+          (statut) => transitionsDepuis(statut).length > 0
+        ),
+      },
+    },
+  }))
+
+  return branches.length === 0 ? { id: { in: [] } } : { OR: branches }
 }
 
 function clauseFiltres(u: UtilisateurAutorise, filtres: FiltresDossiers): Prisma.dossiersWhereInput {
@@ -65,6 +108,10 @@ function clauseFiltres(u: UtilisateurAutorise, filtres: FiltresDossiers): Prisma
 
   if (filtres.assigneAMoi) {
     where.dossier_affectations = { some: { user_id: u.id, actif: true } }
+  }
+
+  if (filtres.aMoiDAgir) {
+    where.AND = [clauseAMoiDAgir(u)]
   }
 
   return where

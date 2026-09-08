@@ -1,9 +1,15 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { PARCOURS_CODES, peutVoirDossier, type ParcoursCode } from '@/server/authz'
+import {
+  PARCOURS_CODES,
+  peutChangerStatutDossier,
+  peutVoirDossier,
+  type ParcoursCode,
+} from '@/server/authz'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { utilisateurAvecRoles } from '@/server/authz/__tests__/aide'
+import type { StatutCode } from '../statuts'
 import { listerDossiers } from '../liste'
 
 /**
@@ -48,6 +54,9 @@ describe('Périmètre de la liste et policy : cohérence', () => {
       await creerPour(parcours)
     }
 
+    // Les rôles de captage (`dossiers.view.own`) manquaient à cette liste, et c'est ce qui a
+    // laissé passer le défaut : `view.own` se comportait exactement comme `view`, donc les deux
+    // implémentations concordaient — sur une règle fausse des deux côtés.
     const roles = [
       'rqse',
       'correspondant_mgp',
@@ -55,6 +64,9 @@ describe('Périmètre de la liste et policy : cohérence', () => {
       'auditeur',
       'comite_ethique',
       'administrateur_digital',
+      'rgp',
+      'captage_grief_communaute',
+      'captage_grief_soustraitant',
     ] as const
 
     for (const role of roles) {
@@ -62,15 +74,62 @@ describe('Périmètre de la liste et policy : cohérence', () => {
       const { dossiers } = await listerDossiers(u, {}, 1)
 
       for (const d of dossiers) {
+        const affectations = await prisma.dossier_affectations.count({
+          where: { dossier_id: d.id, user_id: u.id, actif: true },
+        })
+
         const autorise = peutVoirDossier(u, {
           parcoursCode: d.parcours.code as ParcoursCode,
+          statutCode: d.statuts_dossier.code as StatutCode,
           isAnonymous: d.is_anonymous,
           declarantUserId: null,
+          estAffecteAuLecteur: affectations > 0,
         })
 
         expect(autorise, `${role} voit ${d.reference} (${d.parcours.code}) hors de son périmètre`).toBe(true)
       }
     }
+  })
+
+  it('ne montre à un rôle de captage QUE les dossiers qui lui sont affectés', async () => {
+    // docs/acteurs.md §2 : `rgp`, `captage_grief_communaute` et `captage_grief_soustraitant` ont
+    // « écriture captage, lecture de SES dossiers » — pas de tout leur parcours.
+    const dossierId = await creerPour('grief_employe')
+
+    // L'identifiant doit correspondre à un compte réel : `dossier_affectations.user_id` porte une
+    // clé étrangère, et un utilisateur fabriqué de toutes pièces la violerait.
+    const compte = await prisma.users.findFirstOrThrow({
+      where: { actif: true },
+      select: { id: true },
+    })
+    const u = { ...utilisateurAvecRoles('rgp'), id: compte.id }
+
+    const avant = await listerDossiers(u, {}, 1)
+
+    expect(
+      avant.dossiers.some((d) => d.id === dossierId),
+      'un dossier non affecté ne devrait pas apparaître'
+    ).toBe(false)
+
+    await prisma.dossier_affectations.create({
+      data: {
+        dossier_id: dossierId,
+        user_id: u.id,
+        affecte_par: null,
+        type: 'automatique',
+        actif: true,
+        affecte_le: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    })
+
+    const apres = await listerDossiers(u, {}, 1)
+
+    expect(
+      apres.dossiers.some((d) => d.id === dossierId),
+      'un dossier affecté devrait apparaître'
+    ).toBe(true)
   })
 
   it('ne renvoie AUCUN dossier à administrateur_digital (DT-02)', async () => {
@@ -167,5 +226,41 @@ describe('Filtres (EX-GES-01)', () => {
 
     // L'utilisateur fabriqué n'existe pas en base : aucune affectation ne peut le désigner.
     expect(dossiers).toHaveLength(0)
+  })
+})
+
+describe('Filtre « à moi d’agir »', () => {
+  it('ne retient que les dossiers dont l’étape revient à ce rôle', async () => {
+    // « Être affecté » et « avoir la main » sont deux choses distinctes : plusieurs personnes
+    // suivent un dossier toute sa vie, mais à chaque étape une seule catégorie d'acteurs le fait
+    // progresser (docs/workflows.md §3).
+    for (const role of ['service_mgp', 'secretaire_csst', 'correspondant_mgp'] as const) {
+      const u = utilisateurAvecRoles(role)
+
+      const tous = await listerDossiers(u, {}, 1)
+      const aAgir = await listerDossiers(u, { aMoiDAgir: true }, 1)
+
+      expect(aAgir.total, `${role} : plus de dossiers à agir que de dossiers visibles`).toBeLessThanOrEqual(tous.total)
+
+      for (const d of aAgir.dossiers) {
+        const autorise = peutChangerStatutDossier(u, {
+          parcoursCode: d.parcours.code as ParcoursCode,
+          statutCode: d.statuts_dossier.code as StatutCode,
+          isAnonymous: d.is_anonymous,
+          declarantUserId: null,
+          estAffecteAuLecteur: true,
+        })
+
+        expect(autorise, `${role} ne peut pas faire avancer ${d.reference}`).toBe(true)
+      }
+    }
+  })
+
+  it('ne propose rien à un rôle en lecture seule', async () => {
+    // L'auditeur voit tout et ne change rien : le filtre doit lui rendre une liste vide, pas la
+    // totalité des dossiers.
+    const { total } = await listerDossiers(utilisateurAvecRoles('auditeur'), { aMoiDAgir: true }, 1)
+
+    expect(total).toBe(0)
   })
 })

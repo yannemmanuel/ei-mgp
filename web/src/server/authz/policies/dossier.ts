@@ -1,9 +1,11 @@
+import type { StatutCode } from '@/server/services/dossier/statuts'
+import { peutFaireAvancerDepuis } from '../etapes'
 import type { ParcoursCode } from '../parcours'
 import { peutVoirParcours } from '../parcours'
 import { aPermission, aRole, aUnePermissionParmi, type UtilisateurAutorise } from '../utilisateur'
 
 /**
- * Port de `App\Policies\DossierPolicy` (docs/acteurs.md, RG-14).
+ * Autorisation d'accès aux dossiers (docs/acteurs.md, RG-14).
  *
  * Toute vérification d'accès à un dossier passe par ce module : aucune page, aucune Server
  * Action ne doit réimplémenter cette logique. Les fonctions sont pures — l'appelant fournit les
@@ -11,8 +13,16 @@ import { aPermission, aRole, aUnePermissionParmi, type UtilisateurAutorise } fro
  */
 export type DossierPourAutorisation = {
   readonly parcoursCode: ParcoursCode
+  readonly statutCode: StatutCode
   readonly isAnonymous: boolean
   readonly declarantUserId: bigint | null
+  /**
+   * L'utilisateur détient-il une affectation ACTIVE sur ce dossier ?
+   *
+   * Nécessaire à `dossiers.view.own` : sans cette information, la permission ne peut pas se
+   * distinguer de `dossiers.view`. L'appelant la calcule — le module reste pur.
+   */
+  readonly estAffecteAuLecteur: boolean
 }
 
 export function peutVoirListeDossiers(u: UtilisateurAutorise): boolean {
@@ -30,8 +40,26 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
     return true
   }
 
-  if (aUnePermissionParmi(u, ['dossiers.view', 'dossiers.view.own'])) {
+  if (aPermission(u, 'dossiers.view')) {
     return peutVoirParcours(u.roles, dossier.parcoursCode)
+  }
+
+  /**
+   * `dossiers.view.own` : SES dossiers, pas tout son parcours.
+   *
+   * La permission était traitée à l'identique de `dossiers.view`, ce qui la vidait de son sens —
+   * les rôles de captage (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`)
+   * voyaient l'intégralité des dossiers de leur parcours quand `docs/acteurs.md` §2 leur accorde
+   * « écriture captage, lecture de ses dossiers ». Le défaut venait de la baseline Laravel
+   * (`DossierPolicy::view`) et avait été porté fidèlement.
+   *
+   * « Ses dossiers » = ceux qui lui sont affectés — l'affectation automatique (EX-GES-02) leur
+   * confie précisément les déclarations qu'ils captent — ou ceux qu'il a lui-même déclarés.
+   */
+  if (aPermission(u, 'dossiers.view.own')) {
+    if (!peutVoirParcours(u.roles, dossier.parcoursCode)) return false
+
+    return dossier.estAffecteAuLecteur || dossier.declarantUserId === u.id
   }
 
   return false
@@ -49,8 +77,19 @@ export function peutReaffecterDossier(u: UtilisateurAutorise, dossier: DossierPo
   return aPermission(u, 'dossiers.reassign') && peutVoirDossier(u, dossier)
 }
 
+/**
+ * Faire avancer un dossier : la permission ne suffit pas, l'étape désigne ses acteurs.
+ *
+ * `docs/workflows.md` §3 attribue chaque étape à un ensemble de rôles. Sans ce troisième
+ * contrôle, un même compte pouvait pousser seul un dossier de « Reçu » à « Résolu », sur
+ * n'importe quel parcours de son périmètre, en franchissant des marches confiées à d'autres.
+ */
 export function peutChangerStatutDossier(u: UtilisateurAutorise, dossier: DossierPourAutorisation): boolean {
-  return aPermission(u, 'dossiers.status.update') && peutVoirDossier(u, dossier)
+  return (
+    aPermission(u, 'dossiers.status.update') &&
+    peutVoirDossier(u, dossier) &&
+    peutFaireAvancerDepuis(u.roles, dossier.parcoursCode, dossier.statutCode)
+  )
 }
 
 export function peutCloturerDossier(u: UtilisateurAutorise, dossier: DossierPourAutorisation): boolean {

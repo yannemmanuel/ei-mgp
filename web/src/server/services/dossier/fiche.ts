@@ -45,6 +45,13 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },
       statuts_dossier: { select: { id: true, code: true, libelle_interne: true } },
       declaration_identites: true,
+      // Affectation du LECTEUR, chargée dans la même requête : `dossiers.view.own` en dépend, et
+      // un aller-retour de plus par consultation de fiche ne se justifierait pas.
+      dossier_affectations: {
+        where: { user_id: u.id, actif: true },
+        select: { id: true },
+        take: 1,
+      },
       // Les pièces jointes sont polymorphes : Prisma n'en a AUCUNE relation vers `dossiers`
       // (cf. MIGRATION_PLAN.md, risque 3). Elles se chargent séparément, par
       // `piecesJointesDossier()`.
@@ -55,8 +62,10 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
 
   const autorise = peutVoirDossier(u, {
     parcoursCode: dossier.parcours.code as ParcoursCode,
+    statutCode: dossier.statuts_dossier.code as StatutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   })
 
   if (!autorise) return null
@@ -64,6 +73,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
   return {
     ...dossier,
     statutCode: dossier.statuts_dossier.code as StatutCode,
+    estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
     // L'identité est retirée de l'objet retourné, pas seulement masquée à l'affichage : ce qui
     // n'est pas envoyé au composant ne peut pas fuiter par inadvertance.
     declaration_identites: peutVoirIdentite(u) ? dossier.declaration_identites : null,

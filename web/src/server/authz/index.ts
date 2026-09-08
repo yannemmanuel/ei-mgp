@@ -7,6 +7,7 @@
 export * from './permissions'
 export * from './libelles'
 export * from './roles'
+export * from './etapes'
 export * from './parcours'
 export * from './utilisateur'
 export * from './policies/dossier'

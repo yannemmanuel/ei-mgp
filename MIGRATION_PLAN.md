@@ -1749,11 +1749,115 @@ Base inchangée.
 
 ---
 
+### ✅ Étape 23 — Le workflow avait un graphe, pas d'acteurs
+
+**Signalement** : « Les statuts changent mais les workflows ne sont pas respectés. Les déclarations
+ne quittent pas d'un écran à un autre. Tout le monde peut voir pratiquement tout. »
+
+Trois symptômes, deux défauts, et une part de conception à assumer telle quelle.
+
+#### 1. Le graphe contraignait les états, jamais les acteurs
+
+`services/dossier/statuts.ts` interdisait bien de sauter de « Reçu » à « Clôturé ». Mais
+`peutChangerStatutDossier()` se résumait à *permission + périmètre de parcours* : **n'importe quel
+porteur de `dossiers.status.update` pouvait pousser seul un dossier de bout en bout**, y compris à
+des étapes que le CDC confie à d'autres.
+
+Le constat n'est pas théorique : `GEM-2026-000002`, créé le 08/09 à 08:32, se trouvait à
+« Résolu » sans qu'aucune affectation n'existe — un seul compte l'avait mené jusque-là.
+
+Or `docs/workflows.md` §3 le demandait noir sur blanc :
+
+> les « acteurs responsables » par étape [...] sont modélisés comme un **ensemble de rôles
+> autorisés à faire progresser le dossier à cette étape**, vérifié par Policy, pas comme un unique
+> `assignee_id`.
+
+Cette table n'existait pas. Elle existe désormais — `authz/etapes.ts` — transcrite des quatre
+circuits du CDC (§6.1 à §6.4), et croisée avec le cloisonnement par parcours.
+
+**Ce que le CDC ne dit pas reste ouvert.** Quatre acteurs n'ont aucun rôle applicatif :
+« Responsable identifié » (§6.1 étape 4), « DL » (§6.3), « Équipe dédiée » (§6.4 étape 5),
+« Déclarant ou tiers ». Leur inventer une correspondance aurait bloqué du travail légitime au nom
+d'une règle que personne n'a écrite : l'absence de désignation vaut absence de restriction, et un
+test le fige comme un choix, non comme un oubli.
+
+**Une divergence entre deux documents, laissée visible.** `workflows.md` §6.2 cite le RQSE parmi
+les acteurs de l'analyse d'un grief employé ; `acteurs.md` §2 lui donne « Dossiers ei_employe ».
+Les deux transcriptions restent fidèles à leur source — c'est leur intersection qui s'applique,
+donc la règle la plus étroite. Un test l'énonce plutôt que de trancher en silence.
+
+#### 2. `dossiers.view.own` ne voulait pas dire « ses dossiers »
+
+La permission était traitée à l'identique de `dossiers.view` : les trois rôles de captage
+(`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) voyaient **l'intégralité des
+dossiers de leur parcours** quand `acteurs.md` §2 leur accorde « écriture captage, lecture de ses
+dossiers ».
+
+Le défaut venait de la baseline — `DossierPolicy::view` faisait exactement la même chose — et
+avait été porté fidèlement. Rien ne l'a signalé parce que le test qui croise la clause SQL et la
+policy ne testait aucun rôle en `view.own` : les deux implémentations concordaient sur une règle
+fausse des deux côtés.
+
+« Ses dossiers » = ceux qui lui sont affectés (l'affectation automatique EX-GES-02 lui confie
+précisément ce qu'il capte) ou ceux qu'il a lui-même déclarés.
+
+#### 3. « Tout le monde voit tout » : en partie voulu
+
+| Rôle | Avant | Après | Statut |
+|---|---|---|---|
+| `rgp`, `captage_grief_communaute`, `captage_grief_soustraitant` | tout leur parcours | leurs seuls dossiers | corrigé |
+| `service_mgp`, `dg`, `dpo`, `auditeur` | 11/11 | 11/11 | **conforme** — `acteurs.md` §2 leur donne les 4 parcours |
+| `secretaire_csst`, `rqse` | 7/11 (tous les EI) | inchangé | conforme — « Dossiers `ei_employe` » |
+| `administrateur_digital` | 0 | 0 | conforme — DT-02 |
+
+Quatre rôles voient encore l'ensemble des dossiers, et c'est la spécification : transverse pour le
+Service MGP et la DG, données personnelles pour le DPO, lecture d'audit pour l'auditeur. Le
+restreindre serait un changement de CDC, pas une correction.
+
+#### 4. « Les déclarations ne quittent pas d'un écran à un autre »
+
+La spécification écarte explicitement la réaffectation automatique (« pas comme un unique
+`assignee_id` »). Le passage d'un acteur à l'autre ne se joue donc pas sur l'affectation mais sur
+**qui a la main à cette étape** — ce qui manquait, et que le point 1 installe.
+
+Deux ajouts le rendent lisible :
+
+- **La fiche dit chez qui le dossier attend.** Ne pas pouvoir le faire avancer est normal ; sans
+  message, l'absence de bouton passait pour une panne. La carte « Étape suivante » nomme désormais
+  les acteurs de l'étape.
+- **La liste sait montrer ce qui appelle une action.** « Être affecté » et « avoir la main » sont
+  deux choses distinctes : plusieurs personnes suivent un dossier toute sa vie, une seule catégorie
+  d'acteurs le fait progresser à un instant donné. Le filtre « À moi d'agir » les sépare.
+
+#### Le revers d'une restriction, testé
+
+Une étape dont aucun compte actif ne porte le rôle bloquerait le dossier pour toujours, sans
+message et sans recours — pire que la permissivité qu'on corrige. Un cas lit la configuration
+réelle des comptes et échoue si une étape désignée se retrouve sans preneur. Il passe aujourd'hui,
+mais de justesse : l'analyse d'un grief employé ne tient qu'au seul compte `correspondant_mgp`.
+
+**Vérifié sur requêtes HTTP réelles**, cinq sessions :
+
+| Compte | Voit | Peut faire avancer |
+|---|---|---|
+| `service_mgp` | 11/11 | **3** — les 6 dossiers EI « Affecté » indiquent « attend Secrétaire CSST / RQSE » |
+| `secretaire_csst` | 7/11 | 7 — ses propres étapes, aucun blocage |
+| `correspondant_mgp` | 4/11 | 2 |
+| `auditeur` | 11/11 | 0 |
+| `administrateur_digital` | liste refusée | — |
+
+La clôture reste ouverte au Service MGP sur un dossier « Résolu » : la restriction d'étape n'a pas
+débordé sur `dossiers.close` ni sur `dossiers.reopen`, qui ont leurs propres permissions.
+
+**Livré** — 329 tests (41 fichiers), `typecheck` et `lint` au vert. Base inchangée.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 316 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 329 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -1778,6 +1882,9 @@ Base inchangée.
 | 24 | **Deux écrans de la baseline jamais portés.** `/investigations` et `/actions-correctives` (vues transverses, `InvestigationListPage` / `ActionCorrectiveListPage`) répondaient 404 alors que la barre latérale y menait par quatre liens. Découvert à l'étape 20 en revoyant la navigation, pas par un test. | 🔴 Majeur | ✅ Résolu à l'étape 20 — écrans portés, et un test relie désormais chaque destination annoncée à une page existante |
 | 25 | **Les permissions directes échappent à la désactivation d'un rôle.** `model_has_permissions` accorde une permission à un compte sans passer par aucun rôle : désactiver un rôle ne la retire donc pas. La table est vide et aucune interface ne l'alimente, mais le schéma l'autorise et `chargerUtilisateurAutorise()` la lit. | 🟢 Faible | Accepté et documenté — à revoir si une interface d'attribution directe est ouverte |
 | 26 | **Le formulaire public perdait toutes les saisies** hors dernière étape : les étapes étaient démontées en avançant, et `FormData` ne collecte que les champs présents. Aucune déclaration ne pouvait aboutir par l'interface. Invisible des tests, qui appellent `creerDeclaration()` avec leurs propres données. | 🔴 Majeur | ✅ Résolu à l'étape 22 — étapes montées en permanence, quatre cas structurels vérifiés discriminants |
+| 27 | **Le workflow n'avait pas d'acteurs.** Le graphe contraignait l'enchaînement des statuts, mais tout porteur de `dossiers.status.update` pouvait franchir n'importe quelle étape de son périmètre — un seul compte menait un dossier de « Reçu » à « Résolu ». La table demandée par `workflows.md` §3 n'existait pas. | 🔴 Majeur | ✅ Résolu à l'étape 23 — `authz/etapes.ts`, vérifié sur 5 sessions HTTP |
+| 28 | **`dossiers.view.own` se comportait comme `dossiers.view`.** Les trois rôles de captage voyaient tout leur parcours au lieu de leurs seuls dossiers (`acteurs.md` §2). Défaut hérité de la baseline Laravel, porté fidèlement ; le test de cohérence liste/policy ne couvrait aucun rôle en `view.own`. | 🔴 Majeur | ✅ Résolu à l'étape 23 |
+| 29 | **Analyse d'un grief employé tenue par un seul compte.** L'étape n'est franchissable que par `responsable_grief_employe`, `correspondant_mgp` ou `rqse` : un seul compte actif porte l'un de ces rôles. Sa désactivation bloquerait tous les griefs employés à l'analyse. | 🟠 Moyen | Ouvert — un test échoue si une étape se retrouve sans preneur, mais la marge est nulle |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

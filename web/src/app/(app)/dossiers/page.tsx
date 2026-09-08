@@ -54,6 +54,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     periodeDebut: lire('periodeDebut'),
     periodeFin: lire('periodeFin'),
     assigneAMoi: lire('assigneAMoi') === '1',
+    aMoiDAgir: lire('aMoiDAgir') === '1',
   }
 
   const page = Number(lire('page') ?? '1')
@@ -101,7 +102,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     { type: 'date', cle: 'periodeFin', libelle: 'Jusqu’au' },
   ]
 
-  const filtree = champs.some((c) => lire(c.cle)) || filtres.assigneAMoi
+  const filtree = champs.some((c) => lire(c.cle)) || filtres.assigneAMoi || filtres.aMoiDAgir
 
   return (
     <div className="space-y-5">
@@ -114,8 +115,17 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
       <BarreFiltres
         base="/dossiers"
         champs={champs}
-        valeurs={{ ...filtres, assigneAMoi: filtres.assigneAMoi ? '1' : undefined }}
+        valeurs={{
+          ...filtres,
+          assigneAMoi: filtres.assigneAMoi ? '1' : undefined,
+          aMoiDAgir: filtres.aMoiDAgir ? '1' : undefined,
+        }}
         bascule={{ cle: 'assigneAMoi', libelleTous: 'Tous', libelleMiens: 'Les miens' }}
+        interrupteur={{
+          cle: 'aMoiDAgir',
+          libelle: 'À moi d’agir',
+          aide: 'Dossiers dont l’étape courante revient à votre rôle',
+        }}
       />
 
       <Card className="overflow-hidden p-0">

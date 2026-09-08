@@ -16,8 +16,12 @@ const dossier = (
   extra: Partial<DossierPourAutorisation> = {}
 ): DossierPourAutorisation => ({
   parcoursCode,
+  statutCode: 'affecte',
   isAnonymous: true,
   declarantUserId: null,
+  // Défaut délibérément DÉFAVORABLE : un rôle en `dossiers.view.own` ne doit rien voir sans
+  // affectation. Un défaut à `true` laisserait passer une régression sans que rien ne bouge.
+  estAffecteAuLecteur: false,
   ...extra,
 })
 

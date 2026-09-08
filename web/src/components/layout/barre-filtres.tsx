@@ -29,6 +29,13 @@ export type BasculePersonnelle = {
   readonly libelleMiens: string
 }
 
+/** Interrupteur indépendant de la bascule de périmètre — actif ou non, sans troisième état. */
+export type InterrupteurFiltre = {
+  readonly cle: string
+  readonly libelle: string
+  readonly aide?: string
+}
+
 /**
  * Barre de filtres commune aux listes.
  *
@@ -49,12 +56,14 @@ export function BarreFiltres({
   champs,
   valeurs,
   bascule,
+  interrupteur,
 }: {
   /** Chemin de la liste, ex. `/dossiers`. */
   base: string
   champs: readonly ChampFiltre[]
   valeurs: Readonly<Record<string, string | undefined>>
   bascule?: BasculePersonnelle
+  interrupteur?: InterrupteurFiltre
 }) {
   const router = useRouter()
   const params = useSearchParams()
@@ -141,6 +150,28 @@ export function BarreFiltres({
               </button>
             ))}
           </div>
+        )}
+
+        {interrupteur && (
+          <button
+            type="button"
+            aria-pressed={valeurs[interrupteur.cle] === '1'}
+            title={interrupteur.aide}
+            onClick={() =>
+              naviguer((p) => {
+                if (valeurs[interrupteur.cle] === '1') p.delete(interrupteur.cle)
+                else p.set(interrupteur.cle, '1')
+              })
+            }
+            className={cn(
+              'rounded-md border px-3 py-1 text-sm font-medium transition-colors',
+              valeurs[interrupteur.cle] === '1'
+                ? 'border-primary-600 bg-primary-50 text-primary-800'
+                : 'border-border text-secondary-600 hover:bg-muted'
+            )}
+          >
+            {interrupteur.libelle}
+          </button>
         )}
 
         <Button
