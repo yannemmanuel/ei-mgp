@@ -33,6 +33,14 @@ const ENTREES: Entree[] = [
     unite: 'compte(s)',
   },
   {
+    libelle: 'Habilitations',
+    href: '/administration/habilitations',
+    permission: 'roles.manage',
+    description: 'Qui a le droit de faire quoi. Lecture seule — la matrice est décidée dans le code.',
+    compter: () => prisma.roles.count(),
+    unite: 'rôle(s)',
+  },
+  {
     libelle: 'Catégories',
     href: '/administration/categories',
     permission: 'referentiels.categories.manage',

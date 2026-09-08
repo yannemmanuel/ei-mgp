@@ -27,6 +27,7 @@ const PERMISSIONS_DOSSIERS = ['dossiers.view', 'dossiers.view.all', 'dossiers.vi
 
 const PERMISSIONS_ADMINISTRATION = [
   'users.manage',
+  'roles.manage',
   'referentiels.categories.manage',
   'referentiels.statuts.manage',
   'referentiels.sites.manage',
