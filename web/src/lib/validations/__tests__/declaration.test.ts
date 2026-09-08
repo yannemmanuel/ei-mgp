@@ -15,7 +15,7 @@ const base = {
   anonymat: true,
   categorieId: '1',
   niveauGraviteId: '1',
-  description: 'Description factuelle suffisamment longue pour être acceptée.',
+  description: 'Extincteur vide, atelier 3.',
   dateSurvenance: new Date().toISOString(),
   horodatageAffichage: Math.floor(Date.now() / 1000) - 60,
 }
@@ -25,11 +25,30 @@ describe('Socle de déclaration', () => {
     expect(socleDeclaration.safeParse(base).success).toBe(true)
   })
 
-  it('refuse une description de moins de 20 caractères (RGI-02)', () => {
-    const r = socleDeclaration.safeParse({ ...base, description: 'Trop court' })
+  it('accepte une description courte, et même absente', () => {
+    // Arbitrage du 08/09/2026 : le plancher de 20 caractères (RGI-02) écartait des signalements
+    // légitimes tenant en trois mots — « Fuite gaz zone B » en fait 16.
+    expect(socleDeclaration.safeParse({ ...base, description: 'Fuite gaz' }).success).toBe(true)
+    expect(socleDeclaration.safeParse({ ...base, description: '' }).success).toBe(true)
+
+    const sansChamp = { ...base }
+    delete (sansChamp as { description?: string }).description
+    const r = socleDeclaration.safeParse(sansChamp)
+
+    expect(r.success).toBe(true)
+    // Jamais `undefined` : la colonne est `TEXT NOT NULL`, c'est une chaîne vide qui est écrite.
+    expect(r.data?.description).toBe('')
+  })
+
+  it('refuse une description de plus de 200 caractères', () => {
+    const r = socleDeclaration.safeParse({ ...base, description: 'a'.repeat(201) })
 
     expect(r.success).toBe(false)
     expect(r.error?.issues.some((i) => i.path[0] === 'description')).toBe(true)
+  })
+
+  it('accepte exactement 200 caractères (borne incluse)', () => {
+    expect(socleDeclaration.safeParse({ ...base, description: 'a'.repeat(200) }).success).toBe(true)
   })
 
   it('refuse une date des faits postérieure à aujourd’hui (RGI-01)', () => {

@@ -85,8 +85,13 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     categorieId: z.string().regex(/^\d+$/, 'Merci de sélectionner une catégorie.'),
     categorieAutrePrecision: z.string().trim().max(500).optional(),
     niveauGraviteId: z.string().regex(/^\d+$/, 'Merci de sélectionner un niveau de gravité.'),
-    // RGI-02 : description factuelle, 20 caractères minimum.
-    description: z.string().trim().min(20, 'La description doit contenir au moins 20 caractères.'),
+    // Facultative, 200 caractères au plus — arbitrage du 08/09/2026 remplaçant RGI-02.
+    description: z
+      .string()
+      .trim()
+      .max(200, 'La description ne peut pas dépasser 200 caractères.')
+      .optional()
+      .default(''),
     attentesDeclarant: z.string().trim().max(255).optional(),
     // Anti-spam (DT-14).
     piegeAraignee: z.string().max(0, 'Soumission refusée.').optional(),

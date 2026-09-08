@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Répertoires de build des instances de vérification (NEXT_DIST_DIR) : du code généré, que
+    // le linter n'a pas à juger — et qui noierait les vrais avertissements sous des milliers.
+    ".next-*/**",
   ]),
 ]);
 

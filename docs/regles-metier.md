@@ -33,7 +33,7 @@ listées ici pour ne pas être perdues lors du codage.
 | ID interne | Règle | Source CDC |
 |---|---|---|
 | RGI-01 | La date de survenue/des faits ne peut pas être postérieure à la date de soumission | §9.1, §9.2, §9.3, §9.4 (règle répétée sur chaque formulaire) |
-| RGI-02 | La description factuelle est obligatoire avec un minimum de 20 caractères | §9.1 à §9.6 (champ « Description ») |
+| RGI-02 | ~~La description factuelle est obligatoire avec un minimum de 20 caractères~~ → **Révisée le 08/09/2026** : description **facultative**, **200 caractères au plus**. Le plancher écartait des signalements légitimes tenant en trois mots (« Fuite gaz zone B » : 16 caractères) ; le plafond tient à la lecture, le détail passant par la messagerie du dossier. Conséquence assumée : un dossier peut exister sans description. | §9.1 à §9.6 (champ « Description ») |
 | RGI-03 | Champs d'identification (nom, matricule/entreprise, coordonnées) obligatoirement masqués/non collectés si la case anonymat est cochée, quel que soit le parcours | §9.1–9.4, note `*` en bas de chaque tableau de formulaire |
 | RGI-04 | Une pièce jointe est limitée à 5 fichiers et 50 Mo au total par déclaration | §9.1–9.4 (règle répétée), EX-DEC-06 |
 | RGI-05 | La date d'ouverture d'une investigation ne peut être antérieure à la date de recevabilité du dossier | §9.5 |

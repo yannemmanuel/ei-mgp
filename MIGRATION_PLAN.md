@@ -1664,11 +1664,96 @@ sur requêtes HTTP réelles : rôle `auditeur` désactivé → `/audit` et `/dos
 
 ---
 
+### ✅ Étape 22 — Le formulaire de déclaration perdait les saisies
+
+**Demande** : bloquer le passage à l'étape suivante tant que les champs obligatoires ne sont pas
+renseignés ; retirer le plancher de 20 caractères de la description au profit d'un plafond de 200.
+
+#### Le défaut trouvé en ouvrant le fichier
+
+Les quatre étapes étaient rendues sous condition — `{etape === 1 && …}`, `{etape === 2 && …}`.
+Passer à l'étape suivante **démontait** les champs de la précédente, et React retirait leurs nœuds
+du DOM. Or `FormData` ne collecte que les champs présents dans le formulaire.
+
+Conséquence : arrivé à l'étape 4, la soumission ne portait plus que les pièces jointes. Identité,
+contexte, catégorie, gravité, description — tout avait été détruit en chemin. **Aucune déclaration
+ne pouvait aboutir par ce formulaire.**
+
+Rien ne le signalait : les tests de service appellent `creerDeclaration()` directement, avec leurs
+propres données. Quatrième occurrence de la règle inscrite en tête de la section 6 — *un test qui
+fabrique son entrée ne teste jamais le producteur de cette entrée*.
+
+Les étapes restent désormais montées ; seule leur visibilité change.
+
+#### Bloquer l'avancement
+
+« Continuer » était un `type="button"` qui incrémentait un compteur. La validation native du
+navigateur ne se déclenche qu'à la soumission : rien n'empêchait de traverser les quatre étapes
+sans rien saisir, et les manques n'apparaissaient qu'à l'envoi, tous à la fois.
+
+Garder les étapes montées interdit en revanche de s'en remettre à la validation native : le
+navigateur refuserait d'envoyer le formulaire en désignant un champ obligatoire d'une étape
+masquée, qu'il ne peut pas focaliser — l'envoi échouerait **sans qu'aucun message n'apparaisse**.
+
+D'où `noValidate` et `validerEtapes()`, qui reprend le même contrôle :
+
+| Geste | Contrôle |
+|---|---|
+| « Continuer » | Les champs de l'étape courante. Bloque et place le curseur sur le premier en défaut |
+| « Envoyer » | Les quatre étapes. Ramène à la première en défaut — on peut être revenu vider un champ |
+| Frappe dans un champ | Efface son message, pour ne pas laisser une erreur affichée pendant la correction |
+
+`checkValidity()` fonctionne sur un champ masqué ; c'est `reportValidity()` qui échoue à y placer
+le curseur. On collecte donc les messages soi-même, on affiche l'étape fautive, **puis** on donne
+le focus.
+
+Rien de tout cela ne remplace la validation serveur : le message du serveur prime toujours sur
+celui du navigateur pour un même champ.
+
+#### Description : plancher retiré, plafond posé
+
+Arbitrage métier, en remplacement de **RGI-02** (« obligatoire, 20 caractères minimum ») :
+**facultative, 200 caractères au plus**.
+
+Le plancher écartait des signalements légitimes tenant en trois mots — « Extincteur vide, atelier
+3 » passe à 27 caractères, « Fuite gaz zone B » est refusé à 16. Le plafond tient à la lecture : au
+delà de deux ou trois phrases l'essentiel se dilue, et la messagerie du dossier existe pour le
+détail.
+
+**Conséquence assumée** : un dossier peut désormais exister sans description. `dossiers.description`
+est `TEXT NOT NULL` — c'est une chaîne vide qui est écrite, jamais NULL. La fiche dossier le dit
+explicitement plutôt que d'afficher un cadre vide, qu'on prendrait pour un défaut d'affichage.
+Aucun dossier existant n'est concerné : le plus long en compte 105.
+
+#### Ce qui empêche la récidive
+
+Quatre cas structurels dans `non-regression.test.ts`, vérifiés discriminants — ils échouent sur le
+code d'avant, passent sur celui d'après : aucune étape rendue sous condition, les quatre portant
+`data-etape`, « Continuer » passant par `continuer()`, l'envoi revalidant l'ensemble. Un cinquième
+garde RGI-03 : garder les étapes montées ne doit pas avoir transformé le retrait des champs
+d'identité en simple masquage — un champ présent dans le DOM est un champ soumissible.
+
+#### Deux nettoyages au passage
+
+`prettier` reformatait les 446 lignes du fichier — il n'est pas la mise en forme de ce dépôt. Les
+modifications ont été rejouées sur la version versionnée : 210 lignes touchées au lieu de 638.
+
+`eslint.config.mjs` ignore désormais `.next-*/**` : une instance de vérification lancée en
+parallèle faisait remonter 6 534 avertissements de code généré, sous lesquels les vrais
+disparaissaient.
+
+**Livré** — 316 tests (40 fichiers), `typecheck` et `lint` au vert. Formulaire vérifié sur deux
+parcours en HTTP réel : quatre étapes présentes simultanément dans le DOM, 18 champs portés par une
+même soumission, description sans `required` ni `minLength`, `maxlength=200` et compteur « 0/200 ».
+Base inchangée.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 310 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 316 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -1692,6 +1777,7 @@ sur requêtes HTTP réelles : rôle `auditeur` désactivé → `/audit` et `/dos
 | 23 | **7 délais sans échéance par étape.** Caractérisation corrigée à l'étape 19 : les 3 lignes `retour_information` relèvent d'une décision documentée (DT-23), pas d'un oubli ; les 4 lignes `cloture` portent le délai global, désormais câblé dans l'escalade et affiché sur la fiche. | 🟢 Faible | ✅ Résolu |
 | 24 | **Deux écrans de la baseline jamais portés.** `/investigations` et `/actions-correctives` (vues transverses, `InvestigationListPage` / `ActionCorrectiveListPage`) répondaient 404 alors que la barre latérale y menait par quatre liens. Découvert à l'étape 20 en revoyant la navigation, pas par un test. | 🔴 Majeur | ✅ Résolu à l'étape 20 — écrans portés, et un test relie désormais chaque destination annoncée à une page existante |
 | 25 | **Les permissions directes échappent à la désactivation d'un rôle.** `model_has_permissions` accorde une permission à un compte sans passer par aucun rôle : désactiver un rôle ne la retire donc pas. La table est vide et aucune interface ne l'alimente, mais le schéma l'autorise et `chargerUtilisateurAutorise()` la lit. | 🟢 Faible | Accepté et documenté — à revoir si une interface d'attribution directe est ouverte |
+| 26 | **Le formulaire public perdait toutes les saisies** hors dernière étape : les étapes étaient démontées en avançant, et `FormData` ne collecte que les champs présents. Aucune déclaration ne pouvait aboutir par l'interface. Invisible des tests, qui appellent `creerDeclaration()` avec leurs propres données. | 🔴 Majeur | ✅ Résolu à l'étape 22 — étapes montées en permanence, quatre cas structurels vérifiés discriminants |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

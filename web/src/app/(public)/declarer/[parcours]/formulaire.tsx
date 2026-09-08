@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
+import { useActionState, useMemo, useRef, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,9 @@ type Props = {
 
 const LIBELLES_ETAPES = ['Votre identité', 'Contexte', 'Nature de l’évènement', 'Pièces jointes']
 const NB_ETAPES = 4
+
+/** Plafond de la description (arbitrage du 08/09/2026, en remplacement du plancher RGI-02). */
+const LONGUEUR_MAX_DESCRIPTION = 200
 const ETAT_INITIAL: EtatSoumission = {}
 
 export function FormulaireDeclaration({
@@ -56,6 +59,17 @@ export function FormulaireDeclaration({
   const [horodatageAffichage] = useState(() => Math.floor(Date.now() / 1000))
   const [anonymat, setAnonymat] = useState(false)
   const [categorieId, setCategorieId] = useState('')
+  const [descriptionLongueur, setDescriptionLongueur] = useState(0)
+
+  /**
+   * Erreurs détectées dans le navigateur, avant tout aller-retour serveur.
+   *
+   * Elles COMPLÈTENT `etat.erreurs` (le retour du serveur) sans jamais s'y substituer : la
+   * validation du navigateur est un confort d'ergonomie, celle des Server Actions reste la seule
+   * qui fasse autorité.
+   */
+  const [erreursClient, setErreursClient] = useState<Record<string, string>>({})
+  const formulaireRef = useRef<HTMLFormElement>(null)
 
   // RGI-03 : les champs d'identité ne sont pas rendus du tout si l'anonymat est coché — pas
   // seulement masqués en CSS, ils ne peuvent donc pas être soumis.
@@ -71,10 +85,88 @@ export function FormulaireDeclaration({
   }
 
   const champsDe = (n: number) => visibles.filter((c) => c.etape === n)
-  const erreur = (nom: string) => etat.erreurs?.[nom]
+
+  // Le serveur fait autorité : son message l'emporte sur celui du navigateur pour un même champ.
+  const erreur = (nom: string) => etat.erreurs?.[nom] ?? erreursClient[nom]
+
+  /**
+   * Vérifie les champs d'une ou plusieurs étapes, et renvoie la première en défaut.
+   *
+   * `checkValidity()` fonctionne sur un champ masqué ; c'est `reportValidity()` qui échoue à y
+   * placer le curseur. On collecte donc les messages nous-mêmes et on affiche l'étape fautive
+   * avant de donner le focus — sinon le navigateur bloquerait l'envoi en désignant un champ que
+   * personne ne voit, sans dire lequel.
+   */
+  function validerEtapes(numeros: number[]): number | null {
+    const formulaire = formulaireRef.current
+    if (!formulaire) return null
+
+    const messages: Record<string, string> = {}
+    let premiereEnDefaut: number | null = null
+    let premierChampInvalide: HTMLElement | null = null
+
+    for (const numero of numeros) {
+      const champs = formulaire.querySelectorAll<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >(`[data-etape="${numero}"] [name]`)
+
+      for (const champ of champs) {
+        if (champ.checkValidity()) continue
+
+        messages[champ.name] = champ.validationMessage
+
+        if (premiereEnDefaut === null) {
+          premiereEnDefaut = numero
+          premierChampInvalide = champ
+        }
+      }
+    }
+
+    setErreursClient(messages)
+
+    if (premiereEnDefaut !== null) {
+      setEtape(premiereEnDefaut)
+      // Le focus attend que l'étape fautive soit rendue : le placer avant reviendrait à viser un
+      // champ encore masqué, que le navigateur refuse de focaliser.
+      requestAnimationFrame(() => premierChampInvalide?.focus())
+    }
+
+    return premiereEnDefaut
+  }
+
+  function continuer() {
+    if (validerEtapes([etape]) !== null) return
+    setEtape((e) => Math.min(NB_ETAPES, e + 1))
+  }
 
   return (
-    <form action={action} className="mx-auto max-w-2xl">
+    <form
+      ref={formulaireRef}
+      action={action}
+      /*
+       * `noValidate` : la validation native est remplacée, pas supprimée.
+       *
+       * Toutes les étapes restent montées pour que les saisies survivent à la navigation ; le
+       * navigateur refuserait alors d'envoyer le formulaire en désignant un champ obligatoire
+       * d'une étape masquée, qu'il ne peut pas focaliser — l'envoi échouerait sans qu'aucun
+       * message n'apparaisse. `validerEtapes()` reprend le même contrôle, étape par étape, et
+       * ramène l'utilisateur devant le champ en cause.
+       */
+      noValidate
+      onInput={(e) => {
+        // Une erreur disparaît dès que le champ est retouché : la laisser affichée pendant que
+        // la personne corrige donne l'impression que rien ne bouge.
+        const nom = (e.target as HTMLElement).getAttribute('name')
+        if (nom && erreursClient[nom]) {
+          setErreursClient((actuelles) => {
+            const suivantes = { ...actuelles }
+            delete suivantes[nom]
+            return suivantes
+          })
+        }
+      }}
+      className="mx-auto max-w-2xl"
+    >
       <input type="hidden" name="parcours" value={config.code} />
 
       {viaRelais && (
@@ -157,112 +249,129 @@ export function FormulaireDeclaration({
       )}
 
       <div className="mt-8 space-y-5">
-        {etape === 1 && (
-          <>
-            <div className="rounded-lg border border-primary-200 bg-primary-50 p-4">
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  name="anonymat"
-                  checked={anonymat}
-                  onChange={(e) => setAnonymat(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-secondary-900">
-                    Je souhaite rester anonyme
-                  </span>
-                  <span className="block text-caption text-secondary-600">
-                    Aucune donnée permettant de vous identifier ne sera collectée ni conservée.
-                    Vous recevrez un code d’accès pour suivre votre dossier.
-                  </span>
-                </span>
-              </label>
-            </div>
+        {/*
+          Les quatre étapes restent MONTÉES, seule leur visibilité change.
 
-            {champsDe(1).map((champ) => (
-              <ChampFormulaire
-                key={champ.nom}
-                champ={champ}
-                erreur={erreur(champ.nom)}
-                directions={directions}
+          Elles étaient rendues conditionnellement : passer à l'étape 2 démontait les champs de
+          l'étape 1, et leurs valeurs disparaissaient du formulaire. Arrivé à l'étape 4, on
+          n'envoyait plus que les pièces jointes — tout le reste avait été détruit en chemin.
+
+          RGI-03 reste intact : les champs d'identité ne sont pas seulement masqués quand
+          l'anonymat est coché, ils sont retirés de `visibles` et donc absents du DOM.
+        */}
+        <div data-etape={1} className={etape === 1 ? 'space-y-5' : 'hidden'}>
+          <div className="rounded-lg border border-primary-200 bg-primary-50 p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="anonymat"
+                checked={anonymat}
+                onChange={(e) => setAnonymat(e.target.checked)}
+                className="mt-0.5"
               />
-            ))}
-          </>
-        )}
+              <span>
+                <span className="block text-sm font-medium text-secondary-900">
+                  Je souhaite rester anonyme
+                </span>
+                <span className="block text-caption text-secondary-600">
+                  Aucune donnée permettant de vous identifier ne sera collectée ni conservée. Vous
+                  recevrez un code d’accès pour suivre votre dossier.
+                </span>
+              </span>
+            </label>
+          </div>
 
-        {etape === 2 &&
-          champsDe(2).map((champ) => (
+          {champsDe(1).map((champ) => (
+            <ChampFormulaire
+              key={champ.nom}
+              champ={champ}
+              erreur={erreur(champ.nom)}
+              directions={directions}
+            />
+          ))}
+        </div>
+
+        <div data-etape={2} className={etape === 2 ? 'space-y-5' : 'hidden'}>
+          {champsDe(2).map((champ) => (
+            <ChampFormulaire key={champ.nom} champ={champ} erreur={erreur(champ.nom)} directions={directions} />
+          ))}
+        </div>
+
+        <div data-etape={3} className={etape === 3 ? 'space-y-5' : 'hidden'}>
+          <ChampSelect
+            nom="categorieId"
+            libelle="Catégorie"
+            obligatoire
+            options={categories}
+            valeur={categorieId}
+            onChange={setCategorieId}
+            erreur={erreur('categorieId')}
+          />
+
+          {categorieEstAutre && (
+            <ChampTexte
+              nom="categorieAutrePrecision"
+              libelle="Préciser la catégorie"
+              obligatoire
+              erreur={erreur('categorieAutrePrecision')}
+            />
+          )}
+
+          <ChampSelect
+            nom="niveauGraviteId"
+            libelle="Niveau de gravité"
+            obligatoire
+            options={niveauxGravite}
+            erreur={erreur('niveauGraviteId')}
+          />
+
+          <div className="space-y-1.5">
+            <Label htmlFor="description">Description des faits</Label>
+            <textarea
+              id="description"
+              name="description"
+              rows={5}
+              maxLength={LONGUEUR_MAX_DESCRIPTION}
+              onChange={(e) => setDescriptionLongueur(e.target.value.length)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-caption text-muted-foreground">
+                Facultatif. L’essentiel en quelques phrases — vous pourrez compléter par messagerie
+                une fois le dossier ouvert.
+              </p>
+              <p
+                className={`text-caption tabular-nums ${
+                  descriptionLongueur >= LONGUEUR_MAX_DESCRIPTION
+                    ? 'text-destructive'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {descriptionLongueur}/{LONGUEUR_MAX_DESCRIPTION}
+              </p>
+            </div>
+            {erreur('description') && <Erreur message={erreur('description')!} />}
+          </div>
+
+          {champsDe(3).map((champ) => (
             <ChampFormulaire key={champ.nom} champ={champ} erreur={erreur(champ.nom)} directions={directions} />
           ))}
 
-        {etape === 3 && (
-          <>
-            <ChampSelect
-              nom="categorieId"
-              libelle="Catégorie"
-              obligatoire
-              options={categories}
-              valeur={categorieId}
-              onChange={setCategorieId}
-              erreur={erreur('categorieId')}
-            />
+          <ChampTexte
+            nom="attentesDeclarant"
+            libelle="Vos attentes"
+            erreur={erreur('attentesDeclarant')}
+          />
+        </div>
 
-            {categorieEstAutre && (
-              <ChampTexte
-                nom="categorieAutrePrecision"
-                libelle="Préciser la catégorie"
-                obligatoire
-                erreur={erreur('categorieAutrePrecision')}
-              />
-            )}
-
-            <ChampSelect
-              nom="niveauGraviteId"
-              libelle="Niveau de gravité"
-              obligatoire
-              options={niveauxGravite}
-              erreur={erreur('niveauGraviteId')}
-            />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="description">
-                Description des faits <span className="text-destructive">*</span>
-              </Label>
-              <textarea
-                id="description"
-                name="description"
-                rows={5}
-                required
-                minLength={20}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <p className="text-caption text-muted-foreground">Au moins 20 caractères.</p>
-              {erreur('description') && <Erreur message={erreur('description')!} />}
-            </div>
-
-            {champsDe(3).map((champ) => (
-              <ChampFormulaire key={champ.nom} champ={champ} erreur={erreur(champ.nom)} directions={directions} />
-            ))}
-
-            <ChampTexte
-              nom="attentesDeclarant"
-              libelle="Vos attentes"
-              erreur={erreur('attentesDeclarant')}
-            />
-          </>
-        )}
-
-        {etape === 4 && (
-          <div className="space-y-1.5">
-            <Label htmlFor="fichiers">Pièces jointes</Label>
-            <Input id="fichiers" name="fichiers" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf" />
-            <p className="text-caption text-muted-foreground">
-              5 fichiers maximum, 50 Mo au total. Images, vidéos ou PDF.
-            </p>
-            {erreur('fichiers') && <Erreur message={erreur('fichiers')!} />}
-          </div>
-        )}
+        <div data-etape={4} className={etape === 4 ? 'space-y-1.5' : 'hidden'}>
+          <Label htmlFor="fichiers">Pièces jointes</Label>
+          <Input id="fichiers" name="fichiers" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf" />
+          <p className="text-caption text-muted-foreground">
+            5 fichiers maximum, 50 Mo au total. Images, vidéos ou PDF.
+          </p>
+          {erreur('fichiers') && <Erreur message={erreur('fichiers')!} />}
+        </div>
       </div>
 
       <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6">
@@ -276,11 +385,20 @@ export function FormulaireDeclaration({
         </Button>
 
         {etape < NB_ETAPES ? (
-          <Button type="button" onClick={() => setEtape((e) => Math.min(NB_ETAPES, e + 1))}>
+          <Button type="button" onClick={continuer}>
             Continuer
           </Button>
         ) : (
-          <Button type="submit" disabled={enCours}>
+          <Button
+            type="submit"
+            disabled={enCours}
+            onClick={(e) => {
+              // Dernier filet : une étape précédente a pu être vidée après coup, en revenant en
+              // arrière. On les revérifie toutes, et l'envoi est annulé si l'une manque.
+              const etapes = Array.from({ length: NB_ETAPES }, (_, i) => i + 1)
+              if (validerEtapes(etapes) !== null) e.preventDefault()
+            }}
+          >
             {enCours ? 'Envoi en cours…' : 'Envoyer ma déclaration'}
           </Button>
         )}

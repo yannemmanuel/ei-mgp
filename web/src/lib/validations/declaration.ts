@@ -9,11 +9,25 @@ import { z } from 'zod'
  * n'est qu'un confort d'ergonomie : elle ne remplace jamais celle-ci.
  */
 
-/** RGI-02 : description factuelle obligatoire, 20 caractères minimum. */
+/**
+ * Description factuelle : facultative, 200 caractères au plus.
+ *
+ * Arbitrage métier du 08/09/2026, qui remplace RGI-02 (« obligatoire, 20 caractères minimum »).
+ * Le plancher écartait des signalements légitimes tenant en une phrase — « Extincteur vide,
+ * atelier 3 » fait 27 caractères, mais « Fuite gaz zone B » n'en fait que 16. Le plafond tient à
+ * la lecture : au-delà de deux ou trois phrases, l'essentiel se dilue, et la messagerie du
+ * dossier existe pour le détail.
+ *
+ * ⚠️ Conséquence assumée : un dossier peut désormais être créé SANS description. La colonne
+ * `dossiers.description` est `TEXT NOT NULL` — c'est une chaîne vide qui y est écrite, jamais
+ * NULL, et les écrans de traitement doivent rester lisibles dans ce cas.
+ */
 const description = z
   .string()
   .trim()
-  .min(20, 'La description doit contenir au moins 20 caractères.')
+  .max(200, 'La description ne peut pas dépasser 200 caractères.')
+  .optional()
+  .default('')
 
 /**
  * RGI-01 : la date des faits ne peut jamais être postérieure à la date de soumission.

@@ -168,7 +168,7 @@ corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jam
 
 ## 6. Tests
 
-310 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+316 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :
@@ -176,6 +176,9 @@ Quatre règles nées de défauts trouvés en chemin :
 1. **Un test qui fabrique son entrée ne teste jamais le producteur de cette entrée.** Trois
    référentiels sont restés vides en base pendant des mois sans qu'aucun test ne le signale.
    `chargement.test.ts` et `parite-laravel.test.ts` valident désormais l'état réel de la base.
+   Quatrième occurrence : le formulaire public détruisait les saisies de toutes les étapes sauf la
+   dernière — les tests appellent `creerDeclaration()` avec leurs propres données et n'ont jamais
+   traversé l'interface.
 2. **Toujours filtrer un nettoyage d'audit par `auditable_type`.** `auditable_id` est une colonne
    texte partagée par tous les modèles : un nettoyage par identifiant seul détruit des lignes sans
    rapport. `nettoyerAudit(type, ids)` rend le type obligatoire dans sa signature.

@@ -266,9 +266,19 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 <CardTitle className="text-h3">Description</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="whitespace-pre-line text-sm text-secondary-700">
-                  {dossier.description}
-                </p>
+                {dossier.description.trim() === '' ? (
+                  // La description est facultative depuis le 08/09/2026 : un dossier peut n'en
+                  // porter aucune. Le dire explicitement évite de laisser croire à un défaut
+                  // d'affichage — et oriente vers le seul endroit où l'obtenir.
+                  <p className="text-sm text-muted-foreground">
+                    Aucune description n’a été saisie lors de la déclaration. La messagerie du
+                    dossier permet d’en demander une au déclarant, s’il n’est pas anonyme.
+                  </p>
+                ) : (
+                  <p className="whitespace-pre-line text-sm text-secondary-700">
+                    {dossier.description}
+                  </p>
+                )}
 
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   {(

@@ -326,3 +326,55 @@ describe('EX-NOT-06 / RGI-12 — la référence et le code sont la SEULE clé de
     expect(suivi).not.toContain('libelle_interne')
   })
 })
+
+describe('EX-DEC-07 — le formulaire en plusieurs étapes ne perd pas les saisies', () => {
+  const CHEMIN = 'src/app/(public)/declarer/[parcours]/formulaire.tsx'
+
+  it('garde les quatre étapes montées', async () => {
+    const source = await import('node:fs/promises')
+    const formulaire = await source.readFile(CHEMIN, 'utf8')
+
+    // Le défaut réparé : les étapes étaient rendues sous condition (`{etape === 2 && …}`).
+    // Passer à la suivante DÉMONTAIT les champs de la précédente, dont les valeurs quittaient le
+    // formulaire. Arrivé à la dernière étape, la soumission ne portait plus que les pièces
+    // jointes — la déclaration ne pouvait pas aboutir.
+    expect(formulaire).not.toMatch(/\{etape === \d+ &&/)
+
+    for (const numero of [1, 2, 3, 4]) {
+      expect(formulaire, `étape ${numero} non montée`).toContain(`data-etape={${numero}}`)
+    }
+  })
+
+  it('vérifie l’étape avant de la quitter, et toutes avant l’envoi', async () => {
+    const source = await import('node:fs/promises')
+    const formulaire = await source.readFile(CHEMIN, 'utf8')
+
+    // « Continuer » n'avançait qu'en incrémentant un compteur : rien n'empêchait de traverser le
+    // formulaire entier sans rien saisir, et les manques n'apparaissaient qu'après l'envoi.
+    expect(formulaire).toContain('onClick={continuer}')
+    expect(formulaire).toMatch(/function continuer\(\)[\s\S]*validerEtapes\(\[etape\]\)/)
+
+    // Et le bouton d'envoi revérifie l'ensemble : on peut revenir en arrière vider un champ.
+    expect(formulaire).toMatch(/validerEtapes\(etapes\) !== null\) e\.preventDefault\(\)/)
+  })
+
+  it('n’a pas troqué la validation serveur contre celle du navigateur', async () => {
+    const source = await import('node:fs/promises')
+    const formulaire = await source.readFile(CHEMIN, 'utf8')
+
+    // `noValidate` désactive la validation native — indispensable, puisque les champs masqués
+    // d'une étape non courante bloqueraient l'envoi sans message affichable. Le contrôle qui fait
+    // autorité reste celui de la Server Action, et le message du serveur prime à l'affichage.
+    expect(formulaire).toContain('noValidate')
+    expect(formulaire).toContain("etat.erreurs?.[nom] ?? erreursClient[nom]")
+  })
+
+  it('retire toujours les champs d’identité du DOM en cas d’anonymat (RGI-03)', async () => {
+    const source = await import('node:fs/promises')
+    const formulaire = await source.readFile(CHEMIN, 'utf8')
+
+    // Garder les étapes montées ne doit PAS avoir transformé cette garantie structurelle en
+    // simple masquage : un champ présent dans le DOM est un champ soumissible.
+    expect(formulaire).toMatch(/config\.champs\.filter\(\(c\) => !anonymat \|\| !c\.identite/)
+  })
+})
