@@ -2045,6 +2045,79 @@ Base rendue à l'identique.
 
 ---
 
+### ✅ Étape 28 — Changer son mot de passe après la première connexion
+
+**Demande** : « une interface où l'utilisateur modifie son mot de passe après la première
+connexion ».
+
+#### Ce que la colonne enregistre vraiment
+
+Pas « la première connexion », mais un fait plus précis et plus utile : **le mot de passe a été
+choisi par quelqu'un d'autre**. Un administrateur crée un compte, lit la valeur générée une fois,
+la transmet — elle est donc connue d'un tiers, et l'est peut-être restée du canal emprunté, tant
+que son porteur ne l'a pas remplacée. Le même raisonnement vaut après une **régénération**, qui
+n'est pas une première connexion mais appelle exactement la même correction.
+
+`users.doit_changer_mot_de_passe` est donc posée à vrai à la création d'un compte et à chaque
+régénération, levée par le porteur seul.
+
+Ce n'est pas une subtilité de vocabulaire : tant que la valeur est connue de deux personnes, une
+action faite sous ce compte n'est imputable à personne avec certitude — ce qui vide de son sens le
+journal d'audit sur lequel repose la conformité du dispositif.
+
+#### L'écran vit hors de la coquille, et ce n'est pas du rangement
+
+`/mot-de-passe` est une route de premier niveau, délibérément **hors du groupe `(app)`**. C'est la
+coquille du back-office qui redirige vers elle tout compte dont le mot de passe est provisoire : si
+l'écran vivait sous cette coquille, il se redirigerait vers lui-même. Boucle infinie, et le compte
+serait définitivement inaccessible — un défaut qui ne se verrait qu'en production, sur le premier
+compte créé. Deux cas structurels figent les deux moitiés de cette propriété, qu'aucun test
+d'exécution ne peut atteindre : un layout ne s'appelle pas hors requête.
+
+Une seule issue est laissée à qui n'a pas encore changé : la déconnexion. Proposer « retour au
+tableau de bord » rendrait l'obligation contournable d'un clic. L'écran reste par ailleurs
+accessible volontairement, depuis le menu de compte.
+
+#### Trois décisions sur la règle elle-même
+
+| Décision | Pourquoi |
+|---|---|
+| **12 caractères minimum**, aucune règle de composition | Le générateur de l'administration en produit quatorze : accepter moins laisserait choisir plus faible que ce que la machine attribue. Les règles de composition produisent des mots de passe prévisibles (« Motdepasse1! ») sans entropie réelle — le NIST recommande de les abandonner depuis 2017 |
+| **72 OCTETS maximum**, pas caractères | bcrypt ignore silencieusement au-delà : deux phrases différant après cette borne ouvriraient le même compte. Un accent pèse deux octets, un emoji jusqu'à quatre — 40 caractères accentués dépassent déjà la limite tout en paraissant courts |
+| **Mot de passe actuel exigé**, même session ouverte | Sans lui, un poste laissé déverrouillé quelques secondes suffirait à s'approprier le compte : le voleur en changerait la clé sans avoir jamais connu l'ancienne, et le porteur légitime se retrouverait dehors |
+
+Aucun `trim()` sur la valeur : une espace en tête ou en fin fait partie du mot de passe, et la
+retirer en silence rendrait impossible de se reconnecter avec ce qu'on croit avoir saisi.
+
+Le journal consigne le fait, jamais la valeur ni son empreinte — et l'auteur est le porteur
+lui-même, ce qui distingue ce geste d'une régénération administrative.
+
+#### Vérifié de bout en bout
+
+Sur requêtes HTTP réelles, avec un compte jetable créé puis supprimé :
+
+```
+compte créé              doit changer : true
+connexion (provisoire)   ok
+  /dashboard             307 → /mot-de-passe
+  /mot-de-passe          200 — « Choisissez votre mot de passe »
+    sortie « Se déconnecter »        : oui
+    lien « Retour au tableau de bord » : non
+changement, puis reconnexion
+  /dashboard             200 (plus de redirection)
+  l'ancien mot de passe ouvre encore : non
+```
+
+**Livré** — 400 tests (50 fichiers), `typecheck` et `lint` au vert. Base rendue à l'identique :
+aucun compte de test ne subsiste.
+
+**Portée** : les comptes créés AVANT cette étape ne sont pas concernés — la colonne vaut faux pour
+les lignes existantes, à dessein. Obliger les comptes en service à changer au prochain accès n'est
+pas une décision de migration mais d'exploitation ; la commande figure en commentaire dans le
+fichier d'évolution.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -2058,7 +2131,7 @@ Base rendue à l'identique.
 | 7 | `mysql2` (4 vulnérabilités hautes) entre transitivement via `prisma`. **Non exploitable ici** : la faille exige une connexion à un serveur MySQL, l'application ne parle qu'à PostgreSQL. Aucun correctif dans la ligne 7.x ; `audit fix --force` rétrograderait vers Prisma 6. | 🟢 Faible | Accepté et documenté — à revoir à chaque montée de version |
 | 8 | Génération PDF : mise en page dompdf entièrement à refaire. | 🟠 Moyen | Traité à l'étape 10 (@react-pdf/renderer, mise en page réécrite) |
 | 9 | **Limitation de débit en mémoire.** | 🟠 Moyen | ✅ Résolu à l'étape 14b — compteurs en base, incrément atomique, concurrence testée |
-| 10 | **Pas de réinitialisation en libre-service.** La baseline la déclare sans la rendre atteignable (aucune vue Fortify enregistrée, aucun lien depuis la connexion). Comblé côté administration (réattribution par un administrateur) ; le libre-service reste conditionné au transport e-mail. | 🟠 Moyen | Partiellement traité à l'étape 14 |
+| 10 | **Pas de réinitialisation en libre-service** *pour un compte qui a PERDU son mot de passe* — ce cas reste conditionné au transport e-mail. Le changement par un porteur connecté existe depuis l'étape 28, et il est imposé tant que la valeur a été fixée par un tiers.| **Pas de réinitialisation en libre-service.** La baseline la déclare sans la rendre atteignable (aucune vue Fortify enregistrée, aucun lien depuis la connexion). Comblé côté administration (réattribution par un administrateur) ; le libre-service reste conditionné au transport e-mail. | 🟠 Moyen | Partiellement traité à l'étape 14 |
 | 12 | **Transport e-mail à configurer.** `TransportSmtp` s'active dès que `MAIL_HOST` et `MAIL_FROM` sont renseignés ; sinon repli journalisé, annoncé au démarrage. Ce n'est plus une lacune de code. | 🟠 Moyen | Traité à l'étape 14b — paramétrage à faire |
 | 13 | **Notifications envoyées en synchrone, sans file.** Satisfait RG-08 a fortiori, mais allonge le temps de réponse des opérations qui en déclenchent. Une file serait souhaitable à fort volume pour les notifications non critiques — jamais pour le circuit accéléré. | 🟢 Faible | Accepté |
 | 14 | **Envoi de message déclarant non vérifié au navigateur.** Le portillon de session est prouvé en HTTP réel sur le chemin de lecture ; l'écriture partage le même contrôle mais n'a pas été exercée de bout en bout. | 🟠 Moyen | Ouvert — passe manuelle avant bascule |

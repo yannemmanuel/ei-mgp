@@ -26,6 +26,12 @@ export type UtilisateurAutorise = {
   readonly actif: boolean
   /** Site de rattachement, `null` s'il n'est pas renseigné. Voir `authz/site.ts`. */
   readonly siteId: bigint | null
+  /**
+   * Le mot de passe a été fixé par un tiers — création de compte ou régénération — et n'a pas
+   * encore été remplacé par son porteur. La coquille du back-office l'oriente alors vers l'écran
+   * de changement, et n'en laisse sortir qu'une fois le remplacement fait.
+   */
+  readonly doitChangerMotDePasse: boolean
   readonly roles: readonly Role[]
   readonly permissions: ReadonlySet<Permission>
 }
@@ -63,7 +69,7 @@ export function aUnePermissionParmi(u: UtilisateurAutorise, permissions: readonl
 export async function chargerUtilisateurAutorise(userId: bigint): Promise<UtilisateurAutorise | null> {
   const utilisateur = await prisma.users.findUnique({
     where: { id: userId },
-    select: { id: true, actif: true, site_id: true },
+    select: { id: true, actif: true, site_id: true, doit_changer_mot_de_passe: true },
   })
 
   if (!utilisateur) {
@@ -127,6 +133,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     id: utilisateur.id,
     actif: utilisateur.actif,
     siteId: utilisateur.site_id,
+    doitChangerMotDePasse: utilisateur.doit_changer_mot_de_passe,
     roles,
     permissions,
   }

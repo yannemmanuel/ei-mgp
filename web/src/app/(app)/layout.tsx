@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { exigerUtilisateur } from '@/server/auth'
 import { LIBELLES_ROLE } from '@/server/authz'
 import { BarreLaterale } from '@/components/layout/barre-laterale'
@@ -19,6 +20,18 @@ import { seDeconnecter } from './actions'
  */
 export default async function LayoutApplication({ children }: LayoutProps<'/'>) {
   const utilisateur = await exigerUtilisateur()
+
+  /**
+   * Un mot de passe fixé par un tiers barre l'accès au back-office jusqu'à son remplacement.
+   *
+   * Le contrôle est ici, dans la coquille, et non page par page : une seule vérification couvre
+   * tout le groupe, et aucun écran ne peut être oublié. `/mot-de-passe` vit délibérément HORS de
+   * ce groupe — sous cette coquille, il se redirigerait vers lui-même.
+   */
+  if (utilisateur.doitChangerMotDePasse) {
+    redirect('/mot-de-passe')
+  }
+
   const sections = navigationPour(utilisateur)
 
   const [profil, notifications, nonLues, libellesRoles] = await Promise.all([

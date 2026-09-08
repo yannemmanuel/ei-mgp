@@ -511,6 +511,9 @@ CREATE TABLE "users" (
     "sso_subject_id" VARCHAR(255),
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "responsable_hierarchique_id" BIGINT,
+    -- Ajoutée le 08/09/2026 (prisma/evolutions/2026-09-08-mot-de-passe-a-changer.sql).
+    -- Le mot de passe a été fixé par un tiers et n'a pas encore été remplacé par son porteur.
+    "doit_changer_mot_de_passe" BOOLEAN NOT NULL DEFAULT FALSE,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );

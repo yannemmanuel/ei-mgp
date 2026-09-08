@@ -165,6 +165,9 @@ export async function enregistrerUtilisateur(
       data: {
         ...valeurs,
         password: await hacherMotDePasse(motDePasse),
+        // Le mot de passe initial est lu par l'administrateur puis transmis : il est connu d'un
+        // tiers jusqu'à ce que son porteur le remplace, et l'application l'y oblige.
+        doit_changer_mot_de_passe: true,
         email_verified_at: new Date(),
         created_at: new Date(),
         updated_at: new Date(),
@@ -297,7 +300,13 @@ export async function regenererMotDePasse(
 
   await prisma.users.update({
     where: { id: utilisateurId },
-    data: { password: await hacherMotDePasse(motDePasse), updated_at: new Date() },
+    data: {
+      password: await hacherMotDePasse(motDePasse),
+      // La valeur est connue de l'administrateur qui vient de la lire : elle n'est provisoire que
+      // si son porteur est tenu de la remplacer.
+      doit_changer_mot_de_passe: true,
+      updated_at: new Date(),
+    },
   })
 
   await journaliser({

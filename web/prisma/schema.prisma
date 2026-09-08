@@ -528,6 +528,7 @@ model users {
   sso_subject_id                                               String?                @unique(map: "users_sso_subject_id_unique") @db.VarChar(255)
   actif                                                        Boolean                @default(true)
   responsable_hierarchique_id                                  BigInt?
+  doit_changer_mot_de_passe                                    Boolean                @default(false)
   actions_correctives                                          actions_correctives[]
   audit_logs                                                   audit_logs[]
   dossier_affectations_dossier_affectations_affecte_parTousers dossier_affectations[] @relation("dossier_affectations_affecte_parTousers")

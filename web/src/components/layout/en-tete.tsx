@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { LogOut, Menu } from 'lucide-react'
+import Link from 'next/link'
+import { KeyRound, LogOut, Menu } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -101,6 +102,13 @@ export function EnTete({
                 {roles.length === 0 ? 'Aucun rôle attribué' : roles.join(' · ')}
               </p>
             </div>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem render={<Link href="/mot-de-passe" />}>
+              <KeyRound className="h-4 w-4" aria-hidden />
+              Changer mon mot de passe
+            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 
