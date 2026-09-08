@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
+import { useActionState, useMemo, useState, type KeyboardEvent } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -50,6 +51,8 @@ const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> =
   gouvernance: 'Modifie ce que les autres peuvent faire',
 }
 
+type Onglet = 'droits' | 'nom' | 'activation'
+
 /**
  * Édition des rôles : leur nom lisible, leurs habilitations, leur activation.
  *
@@ -57,6 +60,11 @@ const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> =
  * le journal d'audit doit pouvoir dire quel changement a été voulu. Renommer un rôle et lui
  * retirer un droit dans la même soumission produirait une seule ligne où l'on ne saurait plus
  * lequel des deux gestes était l'intention et lequel a suivi par inadvertance.
+ *
+ * ⚠️ Les trois formulaires restent MONTÉS quand on passe de l'un à l'autre — masqués par
+ * `hidden`, jamais démontés. Les démonter viderait les cases cochées de l'onglet des droits dès
+ * qu'on va vérifier le nom du rôle, sans rien dire. Le formulaire public de déclaration a déjà
+ * perdu des saisies exactement de cette façon.
  */
 export function EditeurHabilitations({
   roles,
@@ -100,15 +108,23 @@ export function EditeurHabilitations({
         <p className="text-sm text-muted-foreground">Aucun rôle ne correspond.</p>
       )}
 
-      {filtres.map((role) => (
-        <FicheRole key={role.role} role={role} domaines={domaines} />
-      ))}
+      {/*
+        Deux colonnes : quinze rôles empilés faisaient une page entière à parcourir avant d'en
+        atteindre un. La fiche ouverte reprend toute la largeur — on lit une liste à deux
+        colonnes, on édite sur une pleine largeur.
+      */}
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        {filtres.map((role) => (
+          <FicheRole key={role.role} role={role} domaines={domaines} />
+        ))}
+      </div>
     </div>
   )
 }
 
 function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }) {
   const [ouvert, setOuvert] = useState(false)
+  const [onglet, setOnglet] = useState<Onglet>('droits')
 
   const detenues = new Set(role.permissions)
   const modifie = role.retirees.length > 0 || role.ajoutees.length > 0
@@ -127,7 +143,9 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
     .filter((p) => detenues.has(p.nom) && p.sensibilite !== 'ordinaire')
 
   return (
-    <Card className={role.actif ? undefined : 'border-dashed bg-muted/30'}>
+    <Card
+      className={`${role.actif ? '' : 'border-dashed bg-muted/30'} ${ouvert ? 'lg:col-span-2' : ''}`}
+    >
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -138,7 +156,9 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
               {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
             </div>
             {role.description && (
-              <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
+              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-secondary-600">
+                {role.description}
+              </p>
             )}
           </div>
 
@@ -148,7 +168,21 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                 ? 'Personne'
                 : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
             </Badge>
-            {modifie && <Badge variant="destructive">Ajusté</Badge>}
+            {/* Le détail de l'ajustement tenait sur une ligne de plus, sur chacune des quinze
+                fiches. Il rejoint l'infobulle de l'étiquette qui l'annonce déjà. */}
+            {modifie && (
+              <Badge
+                variant="destructive"
+                title={[
+                  role.ajoutees.length > 0 ? `${role.ajoutees.length} droit(s) ajouté(s)` : null,
+                  role.retirees.length > 0 ? `${role.retirees.length} droit(s) retiré(s)` : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              >
+                Ajusté
+              </Badge>
+            )}
             <Button size="sm" variant="outline" onClick={() => setOuvert((v) => !v)}>
               {ouvert ? 'Replier' : 'Modifier'}
             </Button>
@@ -156,15 +190,14 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
         </div>
 
         {!ouvert && (
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 space-y-1">
             {!role.actif ? (
               <p className="text-sm text-secondary-600">
-                Ce rôle ne confère plus aucun droit.
+                Ce rôle ne donne plus aucun droit.
                 {role.comptes > 0 && (
                   <>
                     {' '}
-                    {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore et{' '}
-                    {role.comptes > 1 ? 'retrouveront' : 'retrouvera'} ses droits à la réactivation.
+                    {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
                   </>
                 )}
               </p>
@@ -189,23 +222,116 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
           </div>
         )}
 
-        {modifie && !ouvert && (
-          <p className="mt-2 text-caption text-muted-foreground">
-            Modifié depuis la mise en service
-            {role.ajoutees.length > 0 && <> — {role.ajoutees.length} ajoutée(s)</>}
-            {role.retirees.length > 0 && <> — {role.retirees.length} retirée(s)</>}
-          </p>
-        )}
-
         {ouvert && (
-          <div className="mt-4 space-y-6 border-t border-border pt-4">
-            <FormulaireIdentite role={role} />
-            <FormulairePermissions role={role} domaines={domaines} onAnnuler={() => setOuvert(false)} />
-            <FormulaireActivation role={role} />
+          <div className="mt-4 border-t border-border pt-4">
+            <Onglets
+              actif={onglet}
+              onChange={setOnglet}
+              role={role.role}
+              onglets={[
+                { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
+                { cle: 'nom', libelle: 'Nom' },
+                { cle: 'activation', libelle: role.actif ? 'Désactiver' : 'Réactiver' },
+              ]}
+            />
+
+            <div className="mt-4">
+              <div
+                role="tabpanel"
+                aria-labelledby={`onglet-${role.role}-droits`}
+                hidden={onglet !== 'droits'}
+              >
+                <FormulairePermissions
+                  role={role}
+                  domaines={domaines}
+                  onAnnuler={() => setOuvert(false)}
+                />
+              </div>
+              <div
+                role="tabpanel"
+                aria-labelledby={`onglet-${role.role}-nom`}
+                hidden={onglet !== 'nom'}
+              >
+                <FormulaireIdentite role={role} />
+              </div>
+              <div
+                role="tabpanel"
+                aria-labelledby={`onglet-${role.role}-activation`}
+                hidden={onglet !== 'activation'}
+              >
+                <FormulaireActivation role={role} />
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Bascule entre les trois formulaires d'un rôle.
+ *
+ * Ils faisaient trois fois la hauteur de l'écran, empilés, alors qu'on n'en remplit qu'un à la
+ * fois. Un seul est visible ; les autres restent montés derrière `hidden`.
+ *
+ * `role="tablist"` promet une navigation aux flèches, et un lecteur d'écran l'annonce comme telle :
+ * elle est donc implémentée, avec le tabindex mobile qui va avec. Porter le rôle sans le
+ * comportement laisserait l'utilisateur appuyer sur une flèche pour rien.
+ */
+function Onglets({
+  actif,
+  onChange,
+  onglets,
+  role,
+}: {
+  actif: Onglet
+  onChange: (onglet: Onglet) => void
+  onglets: { cle: Onglet; libelle: string }[]
+  role: string
+}) {
+  function surTouche(evenement: KeyboardEvent<HTMLDivElement>) {
+    const index = onglets.findIndex((o) => o.cle === actif)
+    const deplacements: Record<string, number> = {
+      ArrowRight: (index + 1) % onglets.length,
+      ArrowLeft: (index - 1 + onglets.length) % onglets.length,
+      Home: 0,
+      End: onglets.length - 1,
+    }
+
+    const suivant = deplacements[evenement.key]
+    if (suivant === undefined) return
+
+    evenement.preventDefault()
+    onChange(onglets[suivant].cle)
+    document.getElementById(`onglet-${role}-${onglets[suivant].cle}`)?.focus()
+  }
+
+  return (
+    <div
+      role="tablist"
+      onKeyDown={surTouche}
+      className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1"
+    >
+      {onglets.map((onglet) => (
+        <button
+          key={onglet.cle}
+          type="button"
+          role="tab"
+          id={`onglet-${role}-${onglet.cle}`}
+          aria-selected={actif === onglet.cle}
+          tabIndex={actif === onglet.cle ? 0 : -1}
+          onClick={() => onChange(onglet.cle)}
+          className={`rounded-md px-3 py-1.5 text-caption font-medium transition-colors ${
+            actif === onglet.cle
+              ? 'bg-background text-secondary-900 shadow-sm'
+              : 'text-muted-foreground hover:text-secondary-800'
+          }`}
+        >
+          {onglet.libelle}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -216,8 +342,6 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
   return (
     <form action={envoyer} className="space-y-3">
       <input type="hidden" name="role" value={role.role} />
-
-      <p className="text-sm font-medium text-secondary-900">Identité</p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -276,6 +400,20 @@ function FormulairePermissions({
   const [etat, envoyer, enCours] = useActionState(actionModifierHabilitations, ETAT)
   const [cochees, setCochees] = useState<string[]>(role.permissions)
 
+  /*
+    Ne sont dépliés d'emblée que les domaines où le rôle a déjà quelque chose.
+
+    Les huit domaines ouverts déroulaient trente-six droits d'affilée : il fallait parcourir tout
+    le paramétrage métier pour atteindre l'administration technique. Ouvrir ce que le rôle touche
+    déjà montre en une hauteur d'écran ce qu'il fait ; le reste est à un clic, et le compte
+    « (0/6) » dit ce qu'on trouvera derrière.
+  */
+  const [deplies, setDeplies] = useState<string[]>(() =>
+    domaines
+      .filter((d) => d.permissions.some((p) => role.permissions.includes(p.nom)))
+      .map((d) => d.cle)
+  )
+
   function basculerDomaine(domaine: DomaineVue, tout: boolean) {
     const noms = domaine.permissions.map((p) => p.nom)
 
@@ -284,71 +422,112 @@ function FormulairePermissions({
     )
   }
 
+  const toutDeplie = deplies.length === domaines.length
+
   return (
-    <form action={envoyer} className="space-y-6 border-t border-border pt-4">
+    <form action={envoyer} className="space-y-4">
       <input type="hidden" name="role" value={role.role} />
       {cochees.map((permission) => (
         <input key={permission} type="hidden" name="permissions" value={permission} />
       ))}
 
-      <div>
-        <p className="text-sm font-medium text-secondary-900">Habilitations</p>
-        {!role.actif && (
-          <p className="mt-1 text-caption text-muted-foreground">
-            Rôle désactivé : ces droits sont enregistrés, mais ne s’appliquent pas.
-          </p>
-        )}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-caption text-muted-foreground">
+          {cochees.length} droit{cochees.length > 1 ? 's' : ''} accordé
+          {cochees.length > 1 ? 's' : ''}
+          {!role.actif && ' — enregistrés, mais sans effet tant que le rôle est désactivé'}
+        </p>
+        <button
+          type="button"
+          onClick={() => setDeplies(toutDeplie ? [] : domaines.map((d) => d.cle))}
+          className="text-caption text-primary-700 underline underline-offset-2"
+        >
+          {toutDeplie ? 'Tout replier' : 'Tout déplier'}
+        </button>
       </div>
 
-      {domaines.map((domaine) => {
-        const total = domaine.permissions.length
-        const actives = domaine.permissions.filter((p) => cochees.includes(p.nom)).length
+      <div className="divide-y divide-border rounded-lg border border-border">
+        {domaines.map((domaine) => {
+          const total = domaine.permissions.length
+          const actives = domaine.permissions.filter((p) => cochees.includes(p.nom)).length
+          const deplie = deplies.includes(domaine.cle)
 
-        return (
-          <fieldset key={domaine.cle}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <legend className="text-sm font-medium text-secondary-900">
-                {domaine.titre}{' '}
-                <span className="font-normal text-muted-foreground">
-                  ({actives}/{total})
-                </span>
-              </legend>
-              <button
-                type="button"
-                onClick={() => basculerDomaine(domaine, actives < total)}
-                className="text-caption text-primary-700 underline underline-offset-2"
-              >
-                {actives < total ? 'Tout accorder' : 'Tout retirer'}
-              </button>
-            </div>
+          return (
+            <fieldset key={domaine.cle}>
+              <legend className="sr-only">{domaine.titre}</legend>
 
-            <p className="mt-0.5 text-caption text-muted-foreground">{domaine.description}</p>
-
-            <div className="mt-3 space-y-2">
-              {domaine.permissions.map((permission) => (
-                <Droit
-                  key={permission.nom}
-                  permission={permission}
-                  coche={cochees.includes(permission.nom)}
-                  onChange={(actif) =>
-                    setCochees((actuelles) =>
-                      actif
-                        ? [...actuelles, permission.nom]
-                        : actuelles.filter((p) => p !== permission.nom)
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <button
+                  type="button"
+                  aria-expanded={deplie}
+                  onClick={() =>
+                    setDeplies((actuels) =>
+                      deplie ? actuels.filter((c) => c !== domaine.cle) : [...actuels, domaine.cle]
                     )
                   }
-                />
-              ))}
-            </div>
-          </fieldset>
-        )
-      })}
+                  className="flex min-w-0 items-center gap-2 text-left"
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                      deplie ? '' : '-rotate-90'
+                    }`}
+                    aria-hidden
+                  />
+                  <span className="text-sm font-medium text-secondary-900">{domaine.titre}</span>
+                  <span
+                    className={`text-caption ${
+                      actives > 0 ? 'text-primary-700' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {actives}/{total}
+                  </span>
+                </button>
+
+                {deplie && (
+                  <button
+                    type="button"
+                    onClick={() => basculerDomaine(domaine, actives < total)}
+                    className="text-caption text-primary-700 underline underline-offset-2"
+                  >
+                    {actives < total ? 'Tout accorder' : 'Tout retirer'}
+                  </button>
+                )}
+              </div>
+
+              {deplie && (
+                <div className="px-3 pb-3">
+                  <p className="text-caption text-muted-foreground">{domaine.description}</p>
+
+                  {/* Deux colonnes dès que la largeur le permet : neuf droits de suite pour le
+                      seul domaine « Dossiers » faisaient déjà défiler l'écran. */}
+                  <div className="mt-2 grid gap-2 xl:grid-cols-2">
+                    {domaine.permissions.map((permission) => (
+                      <Droit
+                        key={permission.nom}
+                        permission={permission}
+                        coche={cochees.includes(permission.nom)}
+                        onChange={(actif) =>
+                          setCochees((actuelles) =>
+                            actif
+                              ? [...actuelles, permission.nom]
+                              : actuelles.filter((p) => p !== permission.nom)
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </fieldset>
+          )
+        })}
+      </div>
 
       <Retour etat={etat} />
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={enCours}>
-          {enCours ? 'Enregistrement…' : 'Enregistrer les habilitations'}
+          {enCours ? 'Enregistrement…' : 'Enregistrer les droits'}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onAnnuler}>
           Annuler
@@ -375,13 +554,9 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
   const [confirme, setConfirme] = useState(false)
 
   return (
-    <form action={envoyer} className="space-y-3 border-t border-border pt-4">
+    <form action={envoyer} className="space-y-3">
       <input type="hidden" name="role" value={role.role} />
       <input type="hidden" name="actif" value={role.actif ? '0' : '1'} />
-
-      <p className="text-sm font-medium text-secondary-900">
-        {role.actif ? 'Désactiver ce rôle' : 'Réactiver ce rôle'}
-      </p>
 
       <p className="text-caption text-muted-foreground">
         {role.actif ? (
@@ -391,8 +566,8 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
           </>
         ) : (
           <>
-            Réactiver ce rôle rend les droits ci-dessus aux {role.comptes} personne(s) qui le
-            portent encore.
+            Réactiver ce rôle rend ses droits aux {role.comptes} personne(s) qui le portent
+            encore.
           </>
         )}
       </p>
@@ -468,7 +643,7 @@ function Droit({
 
   return (
     <label
-      className={`flex cursor-pointer items-start gap-3 rounded-md border p-2.5 transition-colors ${
+      className={`flex cursor-pointer items-start gap-2.5 rounded-md border p-2 transition-colors ${
         coche ? 'border-primary-600/40 bg-primary-50/40' : 'border-border hover:bg-muted/40'
       }`}
     >
@@ -476,7 +651,7 @@ function Droit({
         type="checkbox"
         checked={coche}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-1"
+        className="mt-0.5"
       />
       <span className="min-w-0">
         <span className="block text-sm font-medium text-secondary-900">{permission.libelle}</span>

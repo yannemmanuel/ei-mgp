@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
 import { DOMAINES, LIBELLES } from '@/server/authz'
@@ -45,32 +44,23 @@ export default async function PageHabilitations() {
         compteur={`${lignes.filter((l) => l.actif).length} rôles actifs sur ${lignes.length} · ${permissions.length} droits`}
       />
 
+      {/*
+        Trois puces sur trois lignes, relues à chaque visite par quelqu'un qui vient changer un
+        droit : la mise en garde tient sur une ligne, et le renvoi au journal reste cliquable.
+      */}
       <Alert>
-        <AlertDescription>
-          <ul className="list-disc space-y-1 pl-5 text-caption">
-            <li>Vous choisissez qui obtient quoi ; la liste des droits, elle, ne change pas ici.</li>
-            <li>Un compte au moins doit garder la gestion des habilitations : le dernier ne peut pas être retiré.</li>
-            <li>
-              Chaque changement est enregistré, avec son auteur et sa date, dans le{' '}
-              <Link href="/audit?action=role.permissions_modifiees" className="underline underline-offset-2">
-                journal
-              </Link>
-              .
-            </li>
-          </ul>
+        <AlertDescription className="text-caption">
+          Un compte au moins doit garder la gestion des habilitations. Chaque changement est
+          enregistré dans le{' '}
+          <Link
+            href="/audit?action=role.permissions_modifiees"
+            className="underline underline-offset-2"
+          >
+            journal
+          </Link>
+          {ecarts.length > 0 && <> — {ecarts.length} rôle(s) y ont déjà été ajustés</>}.
         </AlertDescription>
       </Alert>
-
-      {ecarts.length > 0 && (
-        <Alert>
-          <AlertDescription>
-            <p className="font-medium">
-              {ecarts.length} rôle(s) ont été ajustés depuis la mise en service.
-            </p>
-            <p className="mt-1 text-caption">Le journal dit qui les a modifiés, et quand.</p>
-          </AlertDescription>
-        </Alert>
-      )}
 
       <EditeurHabilitations
         roles={lignes.map((ligne) => ({
@@ -86,27 +76,16 @@ export default async function PageHabilitations() {
         domaines={domaines}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-h3">Bon à savoir</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-secondary-700">
-          <p>
-            Ici, ce que peut faire un rôle. Pour donner un rôle à quelqu’un, allez dans les{' '}
-            <Link
-              href="/administration/utilisateurs"
-              className="text-primary-700 underline underline-offset-2"
-            >
-              comptes
-            </Link>
-            .
-          </p>
-          <p>
-            Rien ne se supprime dans l’application : ce qui n’a plus lieu d’être se désactive, et
-            reste visible dans l’historique.
-          </p>
-        </CardContent>
-      </Card>
+      <p className="text-caption text-muted-foreground">
+        Ici, ce que peut faire un rôle. Pour donner un rôle à quelqu’un, allez dans les{' '}
+        <Link
+          href="/administration/utilisateurs"
+          className="text-primary-700 underline underline-offset-2"
+        >
+          comptes
+        </Link>
+        .
+      </p>
     </div>
   )
 }
