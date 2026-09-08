@@ -51,7 +51,7 @@ export default async function PageInvestigations({
 
   // Vérification serveur, indépendante du masquage du lien dans la navigation.
   if (!peutVoirListeInvestigations(utilisateur)) {
-    redirect('/acces-refuse')
+    redirect('/acces-refuse?droit=investigations.view')
   }
 
   const params = await searchParams

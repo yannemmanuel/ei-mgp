@@ -52,7 +52,7 @@ export default async function PageActionsCorrectives({
   const utilisateur = await exigerUtilisateur()
 
   if (!peutVoirListeActions(utilisateur)) {
-    redirect('/acces-refuse')
+    redirect('/acces-refuse?droit=actions.view')
   }
 
   const params = await searchParams

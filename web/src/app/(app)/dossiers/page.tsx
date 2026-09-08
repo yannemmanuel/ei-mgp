@@ -37,7 +37,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
 
   // Vérification serveur, indépendante du masquage du lien dans la navigation.
   if (!peutVoirListeDossiers(utilisateur)) {
-    redirect('/acces-refuse')
+    redirect('/acces-refuse?droit=dossiers.view')
   }
 
   const params = await searchParams

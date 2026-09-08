@@ -76,7 +76,18 @@ export async function exigerPermission(permission: Permission): Promise<Utilisat
   const utilisateur = await exigerUtilisateur()
 
   if (!aPermission(utilisateur, permission)) {
-    redirect('/acces-refuse')
+    /**
+     * Le droit manquant voyage avec la redirection.
+     *
+     * Sans lui, la page de refus ne pouvait dire ni ce qui manque ni à qui le demander — on
+     * restait bloqué sans savoir quoi faire. Ce n'est pas la fuite que redoute
+     * `exigences-securite.md` §5 : celle-là concerne l'EXISTENCE d'un dossier, et un dossier hors
+     * périmètre répond `notFound()`, jamais ce chemin. Ici, la personne est authentifiée, elle
+     * sait déjà qu'on lui refuse la page ; lui nommer la capacité requise ne révèle aucune
+     * donnée. La page valide le paramètre contre le catalogue fermé avant d'en afficher quoi que
+     * ce soit.
+     */
+    redirect(`/acces-refuse?droit=${encodeURIComponent(permission)}`)
   }
 
   return utilisateur

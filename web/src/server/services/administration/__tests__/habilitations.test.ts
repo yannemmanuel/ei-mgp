@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { PERMISSIONS, ROLES, ROLE_NAMES } from '@/server/authz'
+import { PERMISSIONS, ROLES, ROLE_NAMES, type Role } from '@/server/authz'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import { chargerHabilitations, modifierPermissionsRole } from '../habilitations'
 
@@ -66,10 +66,44 @@ describe('Lecture de la matrice', () => {
 })
 
 describe('Détection d’écart', () => {
-  it('ne signale aucun écart quand la base est conforme', async () => {
+  it('ne rapporte QUE des écarts réels, dans le bon sens', async () => {
+    /**
+     * Ce cas affirmait « aucun écart » — et il a fini par échouer, non parce que le code avait
+     * régressé, mais parce qu'un administrateur avait ajusté des permissions depuis l'écran des
+     * habilitations. Depuis que ces associations sont modifiables, un écart n'est plus une
+     * anomalie : c'est la trace d'une décision, et l'écran le dit ainsi.
+     *
+     * Ce qui doit rester vrai, c'est que l'écart rapporté correspond EXACTEMENT à la différence
+     * entre le code et la base — ni un écart inventé, ni un écart tu.
+     */
     const { ecarts } = await chargerHabilitations()
 
-    expect(ecarts).toEqual([])
+    for (const ecart of ecarts) {
+      const role = await prisma.roles.findFirstOrThrow({
+        where: { name: ecart.role },
+        select: {
+          role_has_permissions: { select: { permissions: { select: { name: true } } } },
+        },
+      })
+
+      const enBase = new Set(role.role_has_permissions.map((r) => r.permissions.name))
+      const reference = new Set<string>(ROLES[ecart.role as Role] ?? [])
+
+      for (const ajoutee of ecart.ajoutees) {
+        expect(enBase.has(ajoutee), `« ${ajoutee} » annoncée ajoutée mais absente de la base`).toBe(true)
+        expect(reference.has(ajoutee), `« ${ajoutee} » annoncée ajoutée mais présente en référence`).toBe(false)
+      }
+
+      for (const retiree of ecart.retirees) {
+        expect(enBase.has(retiree), `« ${retiree} » annoncée retirée mais présente en base`).toBe(false)
+        expect(reference.has(retiree), `« ${retiree} » annoncée retirée mais absente de la référence`).toBe(true)
+      }
+
+      expect(
+        ecart.ajoutees.length + ecart.retirees.length,
+        `« ${ecart.role} » figure dans les écarts sans en avoir aucun`
+      ).toBeGreaterThan(0)
+    }
   })
 
   it('signale une permission retirée de la base', async () => {
