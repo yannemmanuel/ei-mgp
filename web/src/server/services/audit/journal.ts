@@ -27,6 +27,7 @@ export const MODELES = {
   slaDelai: String.raw`App\Models\SlaDelai`,
   niveauGravite: String.raw`App\Models\NiveauGravite`,
   utilisateur: String.raw`App\Models\User`,
+  role: String.raw`Spatie\Permission\Models\Role`,
   dossier: String.raw`App\Models\Dossier`,
 } as const
 

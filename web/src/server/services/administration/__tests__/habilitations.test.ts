@@ -1,7 +1,8 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { PERMISSIONS, ROLES, ROLE_NAMES } from '@/server/authz'
-import { chargerHabilitations } from '../habilitations'
+import { ErreurWorkflow } from '../../dossier/workflow'
+import { chargerHabilitations, modifierPermissionsRole } from '../habilitations'
 
 /**
  * Matrice des habilitations.
@@ -33,11 +34,21 @@ describe('Lecture de la matrice', () => {
     expect(permissions).toEqual(PERMISSIONS)
   })
 
-  it('restitue les permissions décidées pour chaque rôle', async () => {
+  it('restitue ce qui S’APPLIQUE, lu en base, et la référence livrée', async () => {
     const { lignes } = await chargerHabilitations()
 
     for (const ligne of lignes) {
-      expect(ligne.permissions, `rôle ${ligne.role}`).toEqual(ROLES[ligne.role])
+      const enBase = await prisma.roles.findFirst({
+        where: { name: ligne.role, guard_name: 'web' },
+        select: { role_has_permissions: { select: { permissions: { select: { name: true } } } } },
+      })
+
+      // C'est la base qui fait foi à l'exécution : l'écran doit montrer ce que
+      // `chargerUtilisateurAutorise()` lira, pas ce que le code prévoyait.
+      expect([...ligne.permissions].sort(), `rôle ${ligne.role}`).toEqual(
+        (enBase?.role_has_permissions ?? []).map((r) => r.permissions.name).sort()
+      )
+      expect(ligne.reference, `référence du rôle ${ligne.role}`).toEqual(ROLES[ligne.role])
     }
   })
 
@@ -79,9 +90,119 @@ describe('Détection d’écart', () => {
     const { ecarts } = await chargerHabilitations()
     const ecart = ecarts.find((e) => e.role === 'service_mgp')
 
-    // Le sens compte : une permission absente de la base PRIVE d'un accès décidé. C'est
-    // exactement la dérive qu'un test avait déjà trouvée, et qu'aucun écran ne montrait.
-    expect(ecart?.manquantes).toContain('reporting.export.nominatif')
-    expect(ecart?.enTrop).toEqual([])
+    // Le sens compte : une permission retirée PRIVE d'un accès prévu à la livraison.
+    expect(ecart?.retirees).toContain('reporting.export.nominatif')
+    expect(ecart?.ajoutees).toEqual([])
+  })
+})
+
+describe('Modification des habilitations', () => {
+  const GUARD = 'web'
+
+  async function acteur() {
+    const u = await prisma.users.findFirstOrThrow({ orderBy: { id: 'asc' }, select: { id: true } })
+    return { id: u.id }
+  }
+
+  async function permissionsDe(role: string): Promise<string[]> {
+    const ligne = await prisma.roles.findFirstOrThrow({
+      where: { name: role, guard_name: GUARD },
+      select: { role_has_permissions: { select: { permissions: { select: { name: true } } } } },
+    })
+
+    return ligne.role_has_permissions.map((r) => r.permissions.name).sort()
+  }
+
+  /** Rétablit l'état d'un rôle après un test : cette table décide de droits réels. */
+  async function retablir(role: string, permissions: string[]) {
+    const qui = await acteur()
+    await modifierPermissionsRole(qui, role, permissions)
+    await prisma.audit_logs.deleteMany({ where: { action: 'role.permissions_modifiees' } })
+  }
+
+  it('retire et ajoute une permission, avec effet en base', async () => {
+    const qui = await acteur()
+    const avant = await permissionsDe('auditeur')
+
+    try {
+      await modifierPermissionsRole(qui, 'auditeur', ['audit.view'])
+
+      expect(await permissionsDe('auditeur')).toEqual(['audit.view'])
+
+      await modifierPermissionsRole(qui, 'auditeur', ['audit.view', 'reporting.view'])
+
+      expect(await permissionsDe('auditeur')).toEqual(['audit.view', 'reporting.view'])
+    } finally {
+      await retablir('auditeur', avant)
+    }
+
+    expect(await permissionsDe('auditeur')).toEqual(avant)
+  })
+
+  it('journalise le changement avec son avant et son après', async () => {
+    const qui = await acteur()
+    const avant = await permissionsDe('auditeur')
+
+    try {
+      await modifierPermissionsRole(qui, 'auditeur', ['audit.view'])
+
+      const [trace] = await prisma.audit_logs.findMany({
+        where: { action: 'role.permissions_modifiees' },
+        orderBy: { id: 'desc' },
+        take: 1,
+        select: { user_id: true, old_values: true, new_values: true },
+      })
+
+      // La traçabilité remplace la comparaison automatique code/base qui protégeait ces
+      // associations tant qu'elles étaient figées : un droit accordé doit rester explicable.
+      expect(trace.user_id).toBe(qui.id)
+      expect((trace.old_values as Record<string, unknown>).permissions).toEqual(avant)
+      expect((trace.new_values as Record<string, unknown>).permissions).toEqual(['audit.view'])
+    } finally {
+      await retablir('auditeur', avant)
+    }
+  })
+
+  it('n’écrit rien quand la liste est inchangée', async () => {
+    const qui = await acteur()
+    const actuelles = await permissionsDe('auditeur')
+
+    await modifierPermissionsRole(qui, 'auditeur', actuelles)
+
+    const traces = await prisma.audit_logs.count({
+      where: { action: 'role.permissions_modifiees' },
+    })
+    expect(traces).toBe(0)
+  })
+
+  it('refuse un nom de rôle ou de permission hors catalogue', async () => {
+    const qui = await acteur()
+
+    await expect(modifierPermissionsRole(qui, 'role_invente', [])).rejects.toBeInstanceOf(
+      ErreurWorkflow
+    )
+
+    // Le catalogue reste fermé : on ajuste qui obtient quoi, jamais ce qui existe.
+    await expect(
+      modifierPermissionsRole(qui, 'auditeur', ['audit.view', 'dossiers.supprimer'])
+    ).rejects.toThrow(/inconnue/i)
+  })
+
+  it('interdit de retirer le dernier accès administrateur', async () => {
+    const qui = await acteur()
+    const avant = await permissionsDe('administrateur_digital')
+
+    // `administrateur_digital` est le seul rôle porteur de `roles.manage` : le lui retirer
+    // rendrait l'écran inaccessible à tous, sans aucun moyen de revenir en arrière — il n'y a
+    // plus d'application Laravel ni de commande pour le faire.
+    await expect(
+      modifierPermissionsRole(
+        qui,
+        'administrateur_digital',
+        avant.filter((p) => p !== 'roles.manage')
+      )
+    ).rejects.toThrow(/dernier rôle habilité|aucun compte actif/i)
+
+    expect(await permissionsDe('administrateur_digital')).toEqual(avant)
   })
 })

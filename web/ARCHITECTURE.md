@@ -37,6 +37,13 @@ src/server/authz/
 Les droits sont **relus en base à chaque requête**, jamais portés par le jeton de session : la
 révocation d'un compte est ainsi effective à l'appel suivant, sans attendre l'expiration.
 
+Le partage des responsabilités est explicite : le **code** décide ce qui EXISTE — le catalogue
+fermé des 36 permissions et des 15 rôles —, la **base** décide qui obtient quoi. Les associations
+se règlent depuis `/administration/habilitations` et prennent effet immédiatement. Trois contrôles
+remplacent la comparaison automatique qui protégeait ces associations tant qu'elles étaient
+figées : validation contre le catalogue, invariant du dernier administrateur actif, et
+journalisation de chaque changement.
+
 ---
 
 ## 2. Couches
