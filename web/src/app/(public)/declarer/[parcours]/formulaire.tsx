@@ -106,7 +106,19 @@ export function FormulaireDeclaration({
           </p>
         </div>
       )}
-      <input type="hidden" name="horodatageAffichage" value={horodatageAffichage} />
+      {/*
+        `suppressHydrationWarning` : cette valeur DIFFÈRE volontairement entre le serveur et le
+        client. L'initialiseur de `useState` s'exécute une fois au rendu serveur, une fois à
+        l'hydratation — quelques secondes plus tard. C'est la valeur du client qui nous intéresse
+        (elle mesure le temps pendant lequel le formulaire est resté ouvert), et React la
+        conserve ; sans ce marqueur il signalerait un écart à chaque affichage.
+      */}
+      <input
+        type="hidden"
+        name="horodatageAffichage"
+        value={horodatageAffichage}
+        suppressHydrationWarning
+      />
       {/* Champ piège (DT-14) : invisible pour un humain, rempli par un robot. */}
       <div aria-hidden className="absolute left-[-9999px]">
         <label htmlFor="piegeAraignee">Ne pas remplir</label>
