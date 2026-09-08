@@ -15,13 +15,16 @@ export default async function PageSites() {
   return (
     <EditeurReferentiel
       titre="Sites"
-      description="Sites d’exploitation, utilisés au dépôt d’une déclaration et comme filtre de reporting."
-      colonnes={['Code', 'Libellé', 'État']}
+      description="Un site regroupe une ou plusieurs directions, et c’est par lui que sont habilités les secrétaires. Un site ne se supprime pas : il se désactive — et pas tant que des directions y sont rattachées."
+      colonnes={['Code', 'Libellé', 'Directions', 'Comptes', 'État']}
       lignes={sites.map((s) => ({
         id: String(s.id),
         cellules: [
           s.code,
           s.libelle,
+          // Ce qui dépend du site, visible avant de le désactiver plutôt qu'après.
+          String(s._count.directions),
+          String(s._count.users),
           { badge: s.actif ? 'Actif' : 'Inactif', variant: s.actif ? 'default' : 'secondary' },
         ],
         valeurs: { code: s.code, libelle: s.libelle, actif: s.actif },

@@ -168,8 +168,18 @@ export async function modifierStatut(
 
 export type DonneesSite = { code: string; libelle: string; actif: boolean }
 
+/**
+ * Sites, avec ce qui en dépend.
+ *
+ * Les décomptes ne sont pas décoratifs : désactiver un site dont des directions dépendent
+ * couperait l'acheminement des déclarations qui les visent. Les voir avant d'agir évite de
+ * découvrir la conséquence après.
+ */
 export async function listerSites() {
-  return prisma.sites.findMany({ orderBy: { libelle: 'asc' } })
+  return prisma.sites.findMany({
+    orderBy: { libelle: 'asc' },
+    include: { _count: { select: { directions: true, users: true } } },
+  })
 }
 
 export async function enregistrerSite(
@@ -184,6 +194,24 @@ export async function enregistrerSite(
 
   if (doublon) {
     throw new ErreurWorkflow('Ce code de site est déjà utilisé.')
+  }
+
+  /**
+   * Un site encore porteur de directions actives ne se désactive pas.
+   *
+   * Le site d'un dossier découle de sa direction : désactiver le site laisserait ces directions
+   * pointer vers un rattachement hors service, et les déclarations qui les visent continueraient
+   * d'être acheminées vers un site que l'administration croit fermé. Détacher d'abord les
+   * directions rend la décision explicite.
+   */
+  if (siteId !== undefined && !donnees.actif) {
+    const rattachees = await prisma.directions.count({ where: { site_id: siteId, actif: true } })
+
+    if (rattachees > 0) {
+      throw new ErreurWorkflow(
+        `Impossible de désactiver ce site : ${rattachees} direction${rattachees > 1 ? 's y sont' : ' y est'} encore rattachée${rattachees > 1 ? 's' : ''}. Rattachez-les ailleurs, ou désactivez-les d'abord.`
+      )
+    }
   }
 
   if (siteId === undefined) {

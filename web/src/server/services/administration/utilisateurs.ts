@@ -51,6 +51,10 @@ export async function listerUtilisateurs(recherche = '') {
       direction_id: true,
       site_id: true,
       responsable_hierarchique_id: true,
+      // Rattachement lisible, et site de la direction : leur désaccord se voit ainsi sans
+      // requête supplémentaire, et l'écran peut le signaler.
+      sites: { select: { libelle: true } },
+      directions: { select: { libelle: true, site_id: true, sites: { select: { libelle: true } } } },
     },
   })
 

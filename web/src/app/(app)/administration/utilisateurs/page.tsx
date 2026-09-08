@@ -40,7 +40,16 @@ export default async function PageComptes({
         responsableId:
           c.responsable_hierarchique_id === null ? '' : String(c.responsable_hierarchique_id),
         roles: c.roles,
+        site: c.sites?.libelle ?? null,
+        direction: c.directions?.libelle ?? null,
         siteManquant: siteManquant(c.roles as Role[], c.site_id),
+        // Le compte est rattaché à un site ET à une direction qui relève d'un AUTRE site. Rien
+        // ne l'interdit techniquement, mais l'un des deux est faux — et le dossier qu'on croira
+        // lui adresser partira ailleurs.
+        rattachementIncoherent:
+          c.site_id !== null &&
+          c.directions?.site_id != null &&
+          c.directions.site_id !== c.site_id,
       }))}
       roles={roles.map((r) => ({ nom: r.name, libelle: r.libelle, actif: r.actif }))}
       directions={referentiels.directions.map((d) => ({ id: String(d.id), libelle: d.libelle }))}

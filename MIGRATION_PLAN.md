@@ -1931,11 +1931,62 @@ comptes concernés. Tant que ce n'est pas fait, rien ne change pour personne —
 
 ---
 
+### ✅ Étape 25 — L'organisation devient administrable, et une classe de test intermittent tombe
+
+**Demande** : « le CRUD des sites, directions, faire les affectations ».
+
+#### Ce qui existait déjà, et ce qui manquait
+
+Sites et directions avaient bien leur console — la seconde venait d'être ajoutée à l'étape 24 — et
+le formulaire de compte comportait déjà les listes « Site » et « Direction ». Rien de tout cela
+n'était **praticable** pour autant : on ne pouvait pas voir qui était rattaché où sans ouvrir les
+comptes un par un, ni savoir ce qui dépendait d'un site avant de le désactiver.
+
+| Écran | Ajouté |
+|---|---|
+| Sites | Colonnes **Directions** et **Comptes** — ce qui dépend du site, visible avant d'agir |
+| Directions | (créée à l'étape 24) rattachement au site, alerte sur les orphelines |
+| Comptes | Colonne **Rattachement** : site, direction, et leur désaccord éventuel |
+
+**Le D de CRUD n'existe pas, et n'existera pas.** Ni site, ni direction, ni référentiel ne se
+supprime : une entrée déjà citée par un dossier ne peut pas disparaître sans rendre l'historique
+incohérent (RG-03). Les écrans le disent en toutes lettres, et la désactivation tient ce rôle.
+
+#### Deux incohérences que l'écran ne laissait pas voir
+
+**Désactiver un site dont des directions dépendent.** Le site d'un dossier découle de sa
+direction : désactiver le site laisserait ces directions pointer vers un rattachement hors service,
+et les déclarations qui les visent continueraient d'être acheminées vers un site que
+l'administration croit fermé. Le service refuse désormais, en nommant le nombre de directions à
+détacher d'abord.
+
+**Un compte dont le site et la direction se contredisent.** Rien ne l'interdit techniquement, mais
+l'un des deux est faux — et le dossier qu'on croira lui adresser partira ailleurs. La console le
+signale plutôt que de le laisser vivre.
+
+#### Une classe de test intermittent, éliminée
+
+La suite a échoué une fois sur `utilisateurs.test.ts` : deux lignes d'audit comparées par leur
+position, dans un `findMany` **sans `orderBy`**. PostgreSQL ne promet aucun ordre ; le cas passait
+par chance depuis des semaines, et une jointure ajoutée ailleurs a suffi à retourner le tirage.
+
+C'est le même défaut que celui corrigé à l'étape 15 sur `findFirst`. Plutôt que l'instance, la
+classe : les **neuf** requêtes d'audit non triées de la suite reçoivent un `orderBy: { id: 'asc' }`.
+Trois exécutions complètes consécutives au vert.
+
+**Vérifié** — 350 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+la console des sites affiche « Siège · 0 directions · 1 compte », celle des directions marque les
+trois comme « Aucun site », et celle des comptes montre « Superviseur CSST — Site manquant » face à
+« Talou Serges — Siège / Direction des Ressources Humaines ». Base rendue à l'identique : les
+sites et directions retrouvent leur état d'origine après les tests.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 346 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 350 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |

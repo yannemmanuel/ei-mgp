@@ -92,6 +92,7 @@ describe('Création de compte', () => {
       // Même en lecture, le type accompagne l'identifiant : sans lui l'assertion porterait aussi
       // sur les lignes d'autres modèles partageant ce numéro.
       where: { auditable_type: MODEL_TYPE_USER, auditable_id: String(resultat.utilisateurId) },
+      orderBy: { id: 'asc' },
       select: { new_values: true },
     })
 
@@ -165,6 +166,7 @@ describe('Attribution des rôles', () => {
         auditable_type: MODEL_TYPE_USER,
         auditable_id: String(resultat.utilisateurId),
       },
+      orderBy: { id: 'asc' },
       select: { old_values: true, new_values: true },
     })
 
@@ -248,6 +250,7 @@ describe('Réattribution de mot de passe', () => {
         auditable_type: MODEL_TYPE_USER,
         auditable_id: String(resultat.utilisateurId),
       },
+      orderBy: { id: 'asc' },
       select: { new_values: true, user_id: true },
     })
 

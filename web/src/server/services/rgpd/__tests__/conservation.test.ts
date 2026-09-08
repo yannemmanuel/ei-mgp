@@ -196,6 +196,7 @@ describe('Anonymisation à 10 ans', () => {
 
     const [trace] = await prisma.audit_logs.findMany({
       where: { action: 'dossier.anonymise', auditable_type: MODEL_TYPE_DOSSIER, auditable_id: id },
+      orderBy: { id: 'asc' },
       select: { new_values: true },
     })
 

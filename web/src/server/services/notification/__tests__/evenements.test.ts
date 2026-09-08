@@ -36,6 +36,7 @@ async function evenementsNotifies(dossierId: string): Promise<string[]> {
       auditable_id: dossierId,
       action: 'notification.envoyee',
     },
+    orderBy: { id: 'asc' },
     select: { new_values: true },
   })
 

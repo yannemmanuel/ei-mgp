@@ -26,6 +26,9 @@ export type CompteVue = {
   siteId: string
   responsableId: string
   roles: string[]
+  /** Rattachement lisible, `null` s'il n'est pas renseigné. */
+  site: string | null
+  direction: string | null
   /**
    * Ce compte porte un rôle cloisonné par site sans en avoir un.
    *
@@ -34,6 +37,8 @@ export type CompteVue = {
    * dossiers affichés.
    */
   siteManquant: boolean
+  /** Site du compte et site de sa direction se contredisent : l'un des deux est faux. */
+  rattachementIncoherent: boolean
 }
 
 type Option = { id: string; libelle: string }
@@ -130,6 +135,7 @@ export function PanneauComptes({
                     <th className="px-4 py-2 font-medium text-muted-foreground">Nom</th>
                     <th className="px-4 py-2 font-medium text-muted-foreground">E-mail</th>
                     <th className="px-4 py-2 font-medium text-muted-foreground">Rôles</th>
+                    <th className="px-4 py-2 font-medium text-muted-foreground">Rattachement</th>
                     <th className="px-4 py-2 font-medium text-muted-foreground">État</th>
                     <th className="px-4 py-2" />
                   </tr>
@@ -160,6 +166,28 @@ export function PanneauComptes({
                             </Badge>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        {compte.site === null && compte.direction === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <div className="text-sm">
+                            <span className="text-secondary-900">{compte.site ?? 'Aucun site'}</span>
+                            {compte.direction && (
+                              <span className="block text-caption text-muted-foreground">
+                                {compte.direction}
+                              </span>
+                            )}
+                            {compte.rattachementIncoherent && (
+                              <span
+                                className="mt-0.5 block text-caption font-medium text-destructive"
+                                title="La direction de ce compte relève d’un autre site que celui qui lui est attribué."
+                              >
+                                Site et direction se contredisent
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         <Badge variant={compte.actif ? 'default' : 'secondary'}>

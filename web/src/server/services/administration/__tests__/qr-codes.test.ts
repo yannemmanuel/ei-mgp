@@ -64,6 +64,7 @@ describe('Génération', () => {
 
     const [trace] = await prisma.audit_logs.findMany({
       where: { action: 'qr_code.cree', auditable_id: id },
+      orderBy: { id: 'asc' },
       select: { auditable_type: true, new_values: true },
     })
 

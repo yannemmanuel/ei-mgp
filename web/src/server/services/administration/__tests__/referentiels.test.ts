@@ -4,8 +4,11 @@ import { nettoyerAudit } from '../../declaration/__tests__/aide-base'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import {
   enregistrerCategorie,
+  enregistrerDirection,
   enregistrerSite,
   listerCategories,
+  listerDirections,
+  listerSites,
   modifierCanal,
   modifierStatut,
 } from '../referentiels'
@@ -19,6 +22,7 @@ import {
  */
 const categoriesCreees: bigint[] = []
 const sitesCrees: bigint[] = []
+const directionsCreees: bigint[] = []
 
 async function acteur() {
   const utilisateur = await prisma.users.findFirstOrThrow({ select: { id: true } })
@@ -28,6 +32,7 @@ async function acteur() {
 async function lignesAudit(action: string, auditableId: string) {
   return prisma.audit_logs.findMany({
     where: { action, auditable_id: auditableId },
+    orderBy: { id: 'asc' },
     select: { action: true, auditable_type: true, old_values: true, new_values: true, user_id: true },
   })
 }
@@ -39,6 +44,12 @@ afterEach(async () => {
   if (categoriesCreees.length > 0) {
     await prisma.categories.deleteMany({ where: { id: { in: categoriesCreees } } })
     categoriesCreees.length = 0
+  }
+  // Les directions partent AVANT les sites : la clé étrangère l'exige.
+  await nettoyerAudit(String.raw`App\Models\Direction`, directionsCreees)
+  if (directionsCreees.length > 0) {
+    await prisma.directions.deleteMany({ where: { id: { in: directionsCreees } } })
+    directionsCreees.length = 0
   }
   if (sitesCrees.length > 0) {
     await prisma.sites.deleteMany({ where: { id: { in: sitesCrees } } })
@@ -245,5 +256,118 @@ describe('Absence de suppression (RG-03)', () => {
     // Garde-fou structurel : si une suppression apparaît un jour, ce test le signale avant que
     // l'intégrité d'un historique n'en dépende.
     expect(noms.filter((n) => /supprimer|delete|retirer/i.test(n))).toEqual([])
+  })
+})
+
+describe('Organisation — sites et directions', () => {
+  it('rattache une direction à un site, et le restitue', async () => {
+    const qui = await acteur()
+
+    const siteId = await enregistrerSite(qui, {
+      code: 'TEST_MIGRATION_ORG',
+      libelle: 'Site de test — organisation',
+      actif: true,
+    })
+    sitesCrees.push(siteId)
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_MIGRATION_DIR',
+      libelle: 'Direction de test',
+      siteId,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    const lignes = await listerDirections()
+    const creee = lignes.find((d) => d.id === directionId)
+
+    expect(creee?.site_id).toBe(siteId)
+    expect(creee?.sites?.libelle).toBe('Site de test — organisation')
+
+    const trace = await lignesAudit('direction.creee', String(directionId))
+    expect(trace).toHaveLength(1)
+    expect(trace[0].auditable_type).toBe(String.raw`App\Models\Direction`)
+  })
+
+  it('refuse un site inconnu au rattachement', async () => {
+    const qui = await acteur()
+
+    await expect(
+      enregistrerDirection(qui, {
+        code: 'TEST_MIGRATION_DIR_2',
+        libelle: 'Direction de test',
+        siteId: 9_999_999n,
+        actif: true,
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+
+  it('refuse de désactiver un site dont des directions dépendent', async () => {
+    /**
+     * Le site d'un dossier découle de sa direction. Désactiver le site laisserait ces directions
+     * pointer vers un rattachement hors service, et les déclarations qui les visent continueraient
+     * d'être acheminées vers un site que l'administration croit fermé.
+     */
+    const qui = await acteur()
+
+    const siteId = await enregistrerSite(qui, {
+      code: 'TEST_MIGRATION_ORG_3',
+      libelle: 'Site avec directions',
+      actif: true,
+    })
+    sitesCrees.push(siteId)
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_MIGRATION_DIR_3',
+      libelle: 'Direction rattachée',
+      siteId,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    await expect(
+      enregistrerSite(qui, { code: 'TEST_MIGRATION_ORG_3', libelle: 'Site avec directions', actif: false }, siteId)
+    ).rejects.toThrow(/direction/i)
+
+    // Le site est resté actif : le refus n'a rien laissé à moitié fait.
+    const apres = await prisma.sites.findUniqueOrThrow({ where: { id: siteId }, select: { actif: true } })
+    expect(apres.actif).toBe(true)
+
+    // Une fois la direction détachée, la désactivation passe.
+    await enregistrerDirection(
+      qui,
+      { code: 'TEST_MIGRATION_DIR_3', libelle: 'Direction rattachée', siteId: null, actif: true },
+      directionId
+    )
+
+    await enregistrerSite(qui, { code: 'TEST_MIGRATION_ORG_3', libelle: 'Site avec directions', actif: false }, siteId)
+
+    const fin = await prisma.sites.findUniqueOrThrow({ where: { id: siteId }, select: { actif: true } })
+    expect(fin.actif).toBe(false)
+  })
+
+  it('compte ce qui dépend de chaque site', async () => {
+    // Les décomptes affichés doivent dire vrai : c'est sur eux qu'on décide de désactiver ou non.
+    const qui = await acteur()
+
+    const siteId = await enregistrerSite(qui, {
+      code: 'TEST_MIGRATION_ORG_4',
+      libelle: 'Site compté',
+      actif: true,
+    })
+    sitesCrees.push(siteId)
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_MIGRATION_DIR_4',
+      libelle: 'Direction comptée',
+      siteId,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    const site = (await listerSites()).find((s) => s.id === siteId)
+
+    expect(site?._count.directions).toBe(1)
+    expect(site?._count.users).toBe(0)
   })
 })

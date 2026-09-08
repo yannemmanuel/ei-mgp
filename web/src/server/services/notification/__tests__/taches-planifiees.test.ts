@@ -85,6 +85,7 @@ async function dossierAvecEcheance(acteurId: bigint): Promise<string> {
 async function evenementsNotifies(dossierId: string): Promise<string[]> {
   const lignes = await prisma.audit_logs.findMany({
     where: { auditable_id: dossierId, action: 'notification.envoyee' },
+    orderBy: { id: 'asc' },
     select: { new_values: true },
   })
 

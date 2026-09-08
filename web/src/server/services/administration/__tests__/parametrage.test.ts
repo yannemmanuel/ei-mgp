@@ -227,6 +227,7 @@ describe('Niveaux de gravité paramétrables', () => {
 
       const [trace] = await prisma.audit_logs.findMany({
         where: { auditable_type: MODELE_GRAVITE, auditable_id: String(gravite.id) },
+        orderBy: { id: 'asc' },
         select: { action: true, old_values: true },
       })
 

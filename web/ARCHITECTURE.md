@@ -199,7 +199,7 @@ corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jam
 
 ## 6. Tests
 
-346 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+350 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :
@@ -212,7 +212,10 @@ Quatre règles nées de défauts trouvés en chemin :
    traversé l'interface.
 2. **Toujours filtrer un nettoyage d'audit par `auditable_type`.** `auditable_id` est une colonne
    texte partagée par tous les modèles : un nettoyage par identifiant seul détruit des lignes sans
-   rapport. `nettoyerAudit(type, ids)` rend le type obligatoire dans sa signature.
+   rapport. `nettoyerAudit(type, ids)` rend le type obligatoire dans sa signature. **Et toujours
+   trier** une lecture dont on compare les lignes par position : PostgreSQL ne promet aucun ordre,
+   et un cas non trié passe par chance jusqu'au jour où une jointure ajoutée ailleurs retourne le
+   tirage.
 3. **Vérifier, ne pas supposer.** Le préfixe bcrypt, le comportement de `render` de Base UI, les
    dist-tags npm : chaque hypothèse qui a été vérifiée s'est révélée fausse au moins une fois.
 4. **Une navigation qui annonce une destination doit la servir.** Quatre liens de la barre
