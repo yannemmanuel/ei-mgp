@@ -10,6 +10,7 @@ import {
   listerDirections,
   listerSites,
   modifierCanal,
+  rattacherDirection,
   modifierStatut,
 } from '../referentiels'
 
@@ -371,3 +372,95 @@ describe('Organisation — sites et directions', () => {
     expect(site?._count.users).toBe(0)
   })
 })
+
+describe('Rattachement d’une direction', () => {
+  it('déplace une direction d’un site à l’autre, puis la détache', async () => {
+    const qui = await acteur()
+
+    const siteA = await enregistrerSite(qui, { code: 'TEST_ORG_A', libelle: 'Site A', actif: true })
+    const siteB = await enregistrerSite(qui, { code: 'TEST_ORG_B', libelle: 'Site B', actif: true })
+    sitesCrees.push(siteA, siteB)
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_ORG_DIR',
+      libelle: 'Direction mobile',
+      siteId: siteA,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    await rattacherDirection(qui, directionId, siteB)
+    expect((await lire(directionId)).site_id).toBe(siteB)
+
+    await rattacherDirection(qui, directionId, null)
+    expect((await lire(directionId)).site_id).toBeNull()
+
+    // Deux gestes, deux traces distinctes : un déplacement et un détachement ne se lisent pas de
+    // la même façon dans un journal.
+    const actions = (
+      await prisma.audit_logs.findMany({
+        where: { auditable_type: String.raw`App\Models\Direction`, auditable_id: String(directionId) },
+        orderBy: { id: 'asc' },
+        select: { action: true },
+      })
+    ).map((l) => l.action)
+
+    expect(actions).toContain('direction.rattachee')
+    expect(actions).toContain('direction.detachee')
+  })
+
+  it('refuse de rattacher à un site désactivé', async () => {
+    // Sinon les déclarations visant cette direction partiraient vers un site hors service.
+    const qui = await acteur()
+
+    const siteId = await enregistrerSite(qui, {
+      code: 'TEST_ORG_INACTIF',
+      libelle: 'Site fermé',
+      actif: false,
+    })
+    sitesCrees.push(siteId)
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_ORG_DIR_2',
+      libelle: 'Direction sans site',
+      siteId: null,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    await expect(rattacherDirection(qui, directionId, siteId)).rejects.toThrow(/désactivé/i)
+    expect((await lire(directionId)).site_id).toBeNull()
+  })
+
+  it('ne fait rien, et ne trace rien, si le rattachement ne change pas', async () => {
+    const qui = await acteur()
+
+    const directionId = await enregistrerDirection(qui, {
+      code: 'TEST_ORG_DIR_3',
+      libelle: 'Direction stable',
+      siteId: null,
+      actif: true,
+    })
+    directionsCreees.push(directionId)
+
+    await rattacherDirection(qui, directionId, null)
+
+    const traces = await prisma.audit_logs.count({
+      where: {
+        auditable_type: String.raw`App\Models\Direction`,
+        auditable_id: String(directionId),
+        action: { in: ['direction.rattachee', 'direction.detachee'] },
+      },
+    })
+
+    // Un journal qui consigne des non-événements devient illisible.
+    expect(traces).toBe(0)
+  })
+})
+
+async function lire(directionId: bigint) {
+  return prisma.directions.findUniqueOrThrow({
+    where: { id: directionId },
+    select: { site_id: true },
+  })
+}

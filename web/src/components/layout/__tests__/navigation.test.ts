@@ -65,3 +65,22 @@ describe('Filtrage par permission', () => {
     }
   })
 })
+
+describe('Le sommaire de l’administration ne propose pas d’impasse', () => {
+  it('chaque console listée a bien sa page', async () => {
+    // Même défaut que pour la barre latérale, à un autre endroit : le sommaire de
+    // `/administration` porte ses propres liens, qu'aucun test ne reliait à l'arborescence. Deux
+    // consoles viennent d'y être fusionnées — l'occasion de fermer aussi cette porte.
+    const source = await import('node:fs/promises')
+    const page = await source.readFile('src/app/(app)/administration/page.tsx', 'utf8')
+
+    const destinations = [...page.matchAll(/href: '(\/administration\/[a-z-]+)'/g)].map((m) => m[1])
+
+    expect(destinations.length, 'aucune console listée : la lecture a échoué').toBeGreaterThan(5)
+
+    for (const href of destinations) {
+      const chemin = join(RACINE, href.replace(/^\//, ''), 'page.tsx')
+      expect(existsSync(chemin), `« ${href} » n’a pas de page`).toBe(true)
+    }
+  })
+})

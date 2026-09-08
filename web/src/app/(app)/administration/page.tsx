@@ -96,21 +96,14 @@ const GROUPES: Groupe[] = [
         unite: ['catégorie', 'catégories'],
       },
       {
-        libelle: 'Sites',
-        href: '/administration/sites',
-        permission: 'referentiels.sites.manage',
-        description: 'Sites d’exploitation.',
-        compter: () => prisma.sites.count(),
-        unite: ['site', 'sites'],
-      },
-      {
-        libelle: 'Directions',
-        href: '/administration/directions',
+        libelle: 'Sites et directions',
+        href: '/administration/organisation',
         permission: 'referentiels.sites.manage',
         description:
-          'Rattachement des directions aux sites — il décide du site d’un dossier, donc de qui le reçoit.',
+          'Un site regroupe plusieurs directions. Ce rattachement décide du site d’un dossier, donc de qui le reçoit.',
         // Ce sont les directions ORPHELINES qui méritent l'attention : leurs dossiers
-        // n'atteignent aucun secrétaire habilité par site.
+        // n'atteignent aucun secrétaire habilité par site. Compter les sites n'appellerait
+        // aucune action.
         compter: () => prisma.directions.count({ where: { actif: true, site_id: null } }),
         unite: ['direction sans site', 'directions sans site'],
       },

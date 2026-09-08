@@ -273,6 +273,9 @@ export async function listerDirections() {
       actif: true,
       site_id: true,
       sites: { select: { libelle: true } },
+      // Un détachement concerne aussi les comptes rattachés : les compter ici évite une requête
+      // par ligne dans l'écran.
+      _count: { select: { users: true } },
     },
   })
 }
@@ -351,6 +354,60 @@ export async function enregistrerDirection(
   )
 
   return directionId
+}
+
+/**
+ * Rattache une direction à un site, ou l'en détache.
+ *
+ * Geste distinct de `enregistrerDirection` à dessein : c'est le seul de cet écran qui déplace une
+ * direction d'un site à l'autre, et le journal doit pouvoir le dire sans qu'on ait à comparer
+ * quatre colonnes pour deviner ce qui a changé.
+ *
+ * Ne réécrit AUCUN dossier déjà déposé : leur `site_id` a été figé à la déclaration, et il dit de
+ * quel site relevait le signalement à ce moment-là. Réattribuer rétroactivement ferait changer de
+ * mains des dossiers en cours sans que personne l'ait décidé.
+ */
+export async function rattacherDirection(
+  acteur: Acteur,
+  directionId: bigint,
+  siteId: bigint | null
+): Promise<void> {
+  const direction = await prisma.directions.findUniqueOrThrow({
+    where: { id: directionId },
+    select: { site_id: true, libelle: true },
+  })
+
+  if (direction.site_id === siteId) return
+
+  if (siteId !== null) {
+    const site = await prisma.sites.findUnique({
+      where: { id: siteId },
+      select: { id: true, actif: true },
+    })
+
+    if (!site) {
+      throw new ErreurWorkflow('Site inconnu.')
+    }
+
+    // Rattacher à un site désactivé produirait des dossiers acheminés vers un site hors service.
+    if (!site.actif) {
+      throw new ErreurWorkflow('Ce site est désactivé : on ne peut pas y rattacher une direction.')
+    }
+  }
+
+  await prisma.directions.update({
+    where: { id: directionId },
+    data: { site_id: siteId, updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: siteId === null ? 'direction.detachee' : 'direction.rattachee',
+    acteurId: acteur.id,
+    auditableType: MODELES.direction,
+    auditableId: String(directionId),
+    anciennes: { libelle: direction.libelle, site_id: direction.site_id?.toString() ?? null },
+    nouvelles: { libelle: direction.libelle, site_id: siteId?.toString() ?? null },
+  })
 }
 
 // --- Canaux de captage -----------------------------------------------------------------------

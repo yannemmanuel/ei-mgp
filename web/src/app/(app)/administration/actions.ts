@@ -10,6 +10,7 @@ import {
   enregistrerGabarit,
   enregistrerDirection,
   enregistrerSite,
+  rattacherDirection,
   modifierCanal,
   modifierStatut,
   type CanalNotification,
@@ -155,7 +156,7 @@ export async function actionEnregistrerSite(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath('/administration/sites')
+  revalidatePath('/administration/organisation')
   return { succes: 'Site enregistré.' }
 }
 
@@ -194,8 +195,36 @@ export async function actionEnregistrerDirection(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath('/administration/directions')
+  revalidatePath('/administration/organisation')
   return { succes: 'Direction enregistrée.' }
+}
+
+/**
+ * Rattachement d'une direction à un site, ou détachement.
+ *
+ * Le geste d'affectation, isolé de l'édition : il se déclenche depuis la liste, sans ouvrir de
+ * formulaire, parce que déplacer vingt directions ne doit pas demander vingt formulaires.
+ */
+export async function actionRattacherDirection(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.sites.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const direction = texte(donnees, 'directionId')
+  if (direction === '') return { erreur: 'Direction manquante.' }
+
+  const site = texte(donnees, 'siteId')
+
+  try {
+    await rattacherDirection(acteur, BigInt(direction), site === '' ? null : BigInt(site))
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/organisation')
+  return { succes: site === '' ? 'Direction détachée.' : 'Direction rattachée.' }
 }
 
 export async function actionModifierCanal(

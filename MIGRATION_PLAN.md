@@ -1982,11 +1982,74 @@ sites et directions retrouvent leur état d'origine après les tests.
 
 ---
 
+### ✅ Étape 27 — Sites et directions dans un seul écran
+
+**Demande** : « une interface CRUD des sites, directions, faire les affectations. Un site peut
+avoir plusieurs directions et une direction est rattachée à 0 ou un site. »
+
+Le modèle décrit était déjà celui en place (`directions.site_id` nullable, étape 24). Ce qui
+manquait, c'était **l'interface** : deux consoles séparées obligeaient à ouvrir chaque direction
+pour lire — puis changer — une information qui n'a de sens que rapportée au site. La question
+qu'on se pose devant ces référentiels n'est jamais « quels sites existent ? » mais « quelles
+directions relèvent de quel site ? ».
+
+`/administration/sites` et `/administration/directions` sont donc fusionnées en
+**`/administration/organisation`** :
+
+| | |
+|---|---|
+| Structure | Un bloc par site, ses directions à l'intérieur, et une section « Sans site » |
+| Création | Site et direction, depuis le même en-tête |
+| Modification | En place, sans quitter l'écran |
+| **Affectation** | Une liste déroulante par direction, qui **soumet d'elle-même** — déplacer vingt directions ne doit pas demander vingt formulaires |
+
+`rattacherDirection()` est un geste distinct de l'enregistrement, et c'est délibéré : c'est le seul
+qui déplace une direction d'un site à l'autre, et le journal doit pouvoir le dire — `direction.rattachee`,
+`direction.detachee` — sans qu'on ait à comparer quatre colonnes pour deviner ce qui a changé. Un
+rattachement qui ne change rien n'écrit rien : un journal qui consigne des non-événements devient
+illisible.
+
+**Le D de CRUD n'existe toujours pas** (RG-03). Trois garde-fous le remplacent, tous vérifiés côté
+service : un site ne se désactive pas tant que des directions y sont rattachées ; une direction ne
+se rattache pas à un site désactivé ; et les dossiers déjà déposés ne sont jamais réécrits — leur
+`site_id` dit de quel site relevait le signalement au moment des faits.
+
+**Un test de plus, pour une porte restée ouverte.** Le sommaire de `/administration` porte ses
+propres liens, qu'aucun test ne reliait à l'arborescence — le même angle mort que celui de la barre
+latérale, corrigé à l'étape 20. Fusionner deux consoles était l'occasion de le fermer : chaque
+`href` du sommaire doit désormais correspondre à un `page.tsx` existant.
+
+#### Ce que les données disent déjà
+
+Deux déclarations déposées pendant le développement, à 11:46 et 11:47, confirment la chaîne et sa
+limite :
+
+- `EI-2026-000008` — anonyme, **direction « Direction des Ressources Humaines » conservée**, site
+  `null` parce que cette direction n'est rattachée à aucun site. La correction de l'étape 24 tient :
+  l'anonymat n'efface plus la direction.
+- `GCO-2026-000002` — anonyme, **aucune direction**, parce que le formulaire Grief Communauté n'en
+  demande pas.
+
+Ce second point est un problème ouvert : seul le parcours `ei_employe` collecte une direction. Les
+dossiers des trois parcours Griefs n'auront donc jamais de site, et les rôles de captage cloisonnés
+par site (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) ne verraient plus rien
+le jour où un site leur serait attribué. La règle « compte sans site = pas de cloisonnement » les
+protège aujourd'hui, pas demain.
+
+**Vérifié** — 354 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+le sommaire n'affiche plus qu'une entrée « Sites et directions — 3 directions sans site » ;
+l'écran fusionné rend « 3 sites · 3 directions », l'alerte des orphelines, un bloc par site
+(« Siège · SITE-SIEGE · 0 direction · 1 compte ») et **trois sélecteurs de rattachement** listant
+« — Aucun site — » et les trois sites actifs ; `/administration/sites` répond 404, comme prévu.
+Base rendue à l'identique.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 350 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 354 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -2016,6 +2079,7 @@ sites et directions retrouvent leur état d'origine après les tests.
 | 29 | **Analyse d'un grief employé tenue par un seul compte.** L'étape n'est franchissable que par `responsable_grief_employe`, `correspondant_mgp` ou `rqse` : un seul compte actif porte l'un de ces rôles. Sa désactivation bloquerait tous les griefs employés à l'analyse. | 🟠 Moyen | Ouvert — un test échoue si une étape se retrouve sans preneur, mais la marge est nulle |
 | 30 | **Référentiel d'organisation incomplet.** Les 3 directions ne sont rattachées à aucun site, et aucun compte ne porte de site : le cloisonnement par site est en place mais ne s'applique à personne. Les 13 dossiers existants n'ont pas de site et échappent donc aux rôles cloisonnés dès qu'un site leur sera attribué. | 🟠 Moyen | Ouvert — données à saisir depuis `/administration/directions` et la console des comptes, qui signalent tous deux le manque |
 | 31 | **Client Prisma figé après un changement de schéma.** `prisma generate` réécrit `node_modules`, que Next ne surveille pas : le serveur de développement en cours ignore les colonnes nouvelles et répond 500, avec un message qui accuse la requête et non le client. Rencontré trois fois. | 🟢 Faible | ✅ Atténué à l'étape 26 — `predev` régénère à chaque démarrage, `db:pull` enchaîne la génération ; il reste à relancer le serveur, ce que la documentation dit désormais |
+| 32 | **Seul le parcours `ei_employe` collecte une direction.** Les dossiers des trois parcours Griefs n'auront donc jamais de site, et les rôles de captage cloisonnés par site (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) ne verraient plus aucun dossier le jour où un site leur serait attribué. Confirmé par `GCO-2026-000002`, déposé le 08/09 sans direction. | 🟠 Moyen | Ouvert — soit ajouter le champ aux trois formulaires Griefs, soit ne cloisonner par site que `secretaire_csst` et `rqse` |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---
