@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowRight, Inbox } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Inbox } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EtatVide } from '@/components/ui/etat-vide'
 import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
@@ -17,6 +17,7 @@ import {
 import { calculerIndicateurs, type LigneRepartition } from '@/server/services/reporting/indicateurs'
 import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
 import { historiqueMensuel } from '@/server/services/reporting/statistiques-mensuelles'
+import { aTraiter, type ADTraiter } from '@/server/services/reporting/a-traiter'
 import { BoutonsExport } from './boutons-export'
 
 export const metadata: Metadata = { title: 'Tableau de bord' }
@@ -42,7 +43,10 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
   const voitLeRapport = aPermission(utilisateur, 'reporting.view')
   const filtre = filtreDepuisParametres(parametres)
 
-  const mesDossiers = await dossiersATraiter(utilisateur.id)
+  const [mesDossiers, urgences] = await Promise.all([
+    dossiersATraiter(utilisateur.id),
+    aTraiter(utilisateur),
+  ])
 
   return (
     <div className="space-y-6">
@@ -59,6 +63,8 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           ) : null
         }
       />
+
+      <BandeUrgences urgences={urgences} peutVoirTout={aPermission(utilisateur, 'dossiers.view.all')} />
 
       {mesDossiers.length > 0 && (
         <Card>
@@ -102,7 +108,9 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           peutVoirActions={aPermission(utilisateur, 'actions.view')}
         />
       ) : (
-        mesDossiers.length === 0 && (
+        mesDossiers.length === 0 &&
+        urgences.enRetard === 0 &&
+        urgences.nonAffectes === 0 && (
           <Card className="p-0">
             <EtatVide
               icone={Inbox}
@@ -112,6 +120,99 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           </Card>
         )
       )}
+    </div>
+  )
+}
+
+/**
+ * Ce qui appelle une action, en tête d'écran et pour tous les rôles.
+ *
+ * Le tableau de bord ouvrait sur quatre taux — de quoi décrire ce qui s'est passé, rien pour
+ * décider quoi faire ce matin. Les rôles de traitement, qui n'ont pas `reporting.view`, n'avaient
+ * même pas cela : une liste de cinq dossiers, sans compte ni urgence.
+ *
+ * Cette bande ne s'affiche que si elle a quelque chose à dire. Une carte qui annonce zéro tous les
+ * jours cesse d'être lue, et fait passer pour vide un écran qui ne l'est pas.
+ */
+function BandeUrgences({
+  urgences,
+  peutVoirTout,
+}: {
+  urgences: ADTraiter
+  peutVoirTout: boolean
+}) {
+  const cartes = [
+    {
+      cle: 'miens-retard',
+      libelle: 'Vos dossiers en retard',
+      valeur: urgences.miensEnRetard,
+      href: '/dossiers?assigneAMoi=1',
+      aide: 'Échéance d’étape dépassée sur un dossier qui vous est affecté.',
+      grave: true,
+    },
+    {
+      cle: 'retard',
+      libelle: 'En retard sur votre périmètre',
+      valeur: urgences.enRetard,
+      href: '/dossiers',
+      aide: 'Toutes échéances d’étape dépassées, affectées ou non.',
+      grave: true,
+    },
+    {
+      cle: 'non-affectes',
+      libelle: 'Reçus sans destinataire',
+      valeur: urgences.nonAffectes,
+      href: '/dossiers?nonAffectes=1',
+      // Le cas se produit quand aucun compte actif ne porte le rôle de captage du parcours :
+      // l'affectation automatique n'a personne à qui confier la déclaration (EX-GES-02).
+      aide: 'Personne ne les traite, et rien d’autre ne le signale.',
+      grave: true,
+    },
+    {
+      cle: 'miens',
+      libelle: 'Dossiers qui vous sont affectés',
+      valeur: urgences.miens,
+      href: '/dossiers?assigneAMoi=1',
+      aide: 'En cours, hors dossiers clos.',
+      grave: false,
+    },
+  ].filter((carte) => {
+    // « En retard sur le périmètre » double « vos dossiers en retard » pour qui ne voit que les
+    // siens : ne la montrer qu'à ceux dont le périmètre dépasse leurs affectations.
+    if (carte.cle === 'retard' && !peutVoirTout) return false
+    return carte.valeur > 0
+  })
+
+  if (cartes.length === 0) return null
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {cartes.map((carte) => (
+        <Link
+          key={carte.cle}
+          href={carte.href}
+          className="group block rounded-xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <Card
+            className={`h-full p-4 transition-shadow group-hover:shadow-sm ${
+              carte.grave ? 'ring-destructive/30 group-hover:ring-destructive/50' : ''
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-caption text-muted-foreground">{carte.libelle}</p>
+              {carte.grave && (
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
+              )}
+            </div>
+            <p
+              className={`mt-1 text-h1 ${carte.grave ? 'text-destructive' : 'text-secondary-900'}`}
+            >
+              {carte.valeur}
+            </p>
+            <p className="mt-1 text-caption text-muted-foreground">{carte.aide}</p>
+          </Card>
+        </Link>
+      ))}
     </div>
   )
 }
@@ -146,7 +247,7 @@ async function VueConsolidee({
 }) {
   const codes = parcoursAutorises(roles as Parameters<typeof parcoursAutorises>[0])
 
-  const [indicateurs, historique, referentiels, aTraiter] = await Promise.all([
+  const [indicateurs, historique, referentiels, compteurs] = await Promise.all([
     calculerIndicateurs(filtre),
     historiqueMensuel(),
     chargerReferentiels(filtre.parcoursId ?? null),
@@ -183,13 +284,35 @@ async function VueConsolidee({
     <>
       <BarreFiltres base="/dashboard" champs={champs} valeurs={valeurs} />
 
+      {/*
+        Un « 0 % » sans contexte se lit comme un mauvais résultat, alors qu'il dit souvent qu'il
+        n'y a rien à mesurer : aucun dossier clôturé, donc aucun délai moyen. Nommer la cause évite
+        de faire passer un dispositif qui démarre pour un dispositif qui échoue.
+      */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicateur libelle="Déclarations" valeur={String(indicateurs.total)} />
-        <Indicateur libelle="Taux de résolution" valeur={pourcent(indicateurs.tauxResolution)} />
-        <Indicateur libelle="Taux de clôture" valeur={pourcent(indicateurs.tauxCloture)} />
+        <Indicateur
+          libelle="Taux de résolution"
+          valeur={pourcent(indicateurs.tauxResolution)}
+          note={indicateurs.total === 0 ? 'Aucune déclaration sur ce périmètre.' : undefined}
+        />
+        <Indicateur
+          libelle="Taux de clôture"
+          valeur={pourcent(indicateurs.tauxCloture)}
+          note={
+            indicateurs.tauxCloture === 0 && indicateurs.total > 0
+              ? 'Aucun dossier clôturé à ce jour.'
+              : undefined
+          }
+        />
         <Indicateur
           libelle="Délai moyen"
           valeur={indicateurs.delaiMoyen === null ? '—' : `${indicateurs.delaiMoyen} j`}
+          note={
+            indicateurs.delaiMoyen === null
+              ? 'Se calcule à la clôture : rien à mesurer tant qu’aucun dossier n’est clos.'
+              : undefined
+          }
         />
       </div>
 
@@ -205,13 +328,13 @@ async function VueConsolidee({
             <div className="grid grid-cols-2 gap-4">
               <CompteurActionnable
                 libelle="Actions correctives en retard"
-                valeur={aTraiter.actionsEnRetard}
+                valeur={compteurs.actionsEnRetard}
                 href={peutVoirActions ? '/actions-correctives?statut=en_retard' : null}
-                alerte={aTraiter.actionsEnRetard > 0}
+                alerte={compteurs.actionsEnRetard > 0}
               />
               <CompteurActionnable
                 libelle="Investigations à valider"
-                valeur={aTraiter.investigationsEnAttente}
+                valeur={compteurs.investigationsEnAttente}
                 href={
                   peutVoirInvestigations
                     ? '/investigations?statut=en_attente_validation'
@@ -241,8 +364,10 @@ async function VueConsolidee({
         <CardContent>
           {historique.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Aucune période archivée. L’historisation mensuelle (EX-REP-05) est alimentée par une
-              tâche planifiée.
+              Aucune période archivée. L’historisation (EX-REP-05) est écrite par la tâche
+              planifiée <code className="font-mono">calculer-statistiques-mensuelles</code>, en début de mois : ce
+              tableau restera vide jusqu’à son premier passage, et se remplira ensuite d’une ligne
+              par mois écoulé. Une case vide ici ne signale donc pas une perte de données.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -341,11 +466,21 @@ async function chargerReferentiels(parcoursId: bigint | null) {
   }
 }
 
-function Indicateur({ libelle, valeur }: { libelle: string; valeur: string }) {
+function Indicateur({
+  libelle,
+  valeur,
+  note,
+}: {
+  libelle: string
+  valeur: string
+  /** Ce que le chiffre ne dit pas : pourquoi il vaut zéro, ou pourquoi il n'existe pas. */
+  note?: string
+}) {
   return (
     <Card className="p-5">
       <p className="text-caption text-muted-foreground">{libelle}</p>
       <p className="mt-1 text-h1 text-secondary-900">{valeur}</p>
+      {note && <p className="mt-1 text-caption text-muted-foreground">{note}</p>}
     </Card>
   )
 }
@@ -452,7 +587,14 @@ function Repartition({
   )
 }
 
-const pourcent = (valeur: number | null) => (valeur === null ? '—' : `${valeur} %`)
+/**
+ * Un taux s'affiche arrondi.
+ *
+ * « 9.09 % » sur 22 dossiers donne à croire à une mesure fine là où deux dossiers de plus
+ * changeraient le chiffre de dix points. L'arrondi dit la même chose sans promettre une précision
+ * que l'échantillon ne porte pas. La valeur exacte reste celle des exports.
+ */
+const pourcent = (valeur: number | null) => (valeur === null ? '—' : `${Math.round(valeur)} %`)
 
 const moisFr = (periode: string) =>
   new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(

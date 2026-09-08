@@ -55,6 +55,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     periodeFin: lire('periodeFin'),
     assigneAMoi: lire('assigneAMoi') === '1',
     aMoiDAgir: lire('aMoiDAgir') === '1',
+    nonAffectes: lire('nonAffectes') === '1',
   }
 
   const page = Number(lire('page') ?? '1')
@@ -102,7 +103,11 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     { type: 'date', cle: 'periodeFin', libelle: 'Jusqu’au' },
   ]
 
-  const filtree = champs.some((c) => lire(c.cle)) || filtres.assigneAMoi || filtres.aMoiDAgir
+  const filtree =
+    champs.some((c) => lire(c.cle)) ||
+    filtres.assigneAMoi ||
+    filtres.aMoiDAgir ||
+    filtres.nonAffectes
 
   return (
     <div className="space-y-5">
@@ -119,6 +124,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
           ...filtres,
           assigneAMoi: filtres.assigneAMoi ? '1' : undefined,
           aMoiDAgir: filtres.aMoiDAgir ? '1' : undefined,
+          nonAffectes: filtres.nonAffectes ? '1' : undefined,
         }}
         bascule={{ cle: 'assigneAMoi', libelleTous: 'Tous', libelleMiens: 'Les miens' }}
         interrupteur={{

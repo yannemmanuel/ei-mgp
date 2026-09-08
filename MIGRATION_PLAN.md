@@ -2204,6 +2204,63 @@ l'identique : aucune écriture de l'audit.
 
 ---
 
+### ✅ Étape 30 — Le tableau de bord dit enfin quoi faire
+
+**Signalement** : « on a des tableaux de bord vides ou pas assez explicites ».
+
+Le constat, sur la base réelle : quatre taux et trois répartitions, soit de quoi décrire ce qui
+s'est passé — rien pour décider quoi faire le matin. « Taux de clôture 0 % », « délai moyen — »,
+« actions en retard 0 », « investigations à valider 0 » : quatre cases vides. Et les rôles de
+traitement, qui n'ont pas `reporting.view`, n'avaient même pas cela : une liste de cinq lignes,
+sans compte ni urgence.
+
+Pendant ce temps, **cinq déclarations attendaient sans destinataire** et **sept dossiers avaient
+dépassé leur échéance** — sans que rien ne l'affiche.
+
+#### Le chiffre qui manquait, et pourquoi il manquait
+
+Le nombre de dossiers en retard avait été écarté à dessein : `dateDebutEtape()` interroge
+`historique_statuts` dossier par dossier, et l'appeler sur tout un périmètre à chaque affichage de
+la page la plus visitée aurait créé un vrai N+1. La note était juste ; la conclusion, trop courte.
+
+`datesLimites()` calcule le même résultat en **deux requêtes** au lieu d'une par dossier, borné aux
+dossiers ouverts dont l'étape est suivie. La règle n'est pas réécrite : le lot passe par les mêmes
+`etapeActuelle`, `ETAPE_VERS_STATUT_DE_DEPART`, `delaisValides` et `ajouter` que le calcul
+unitaire — deux définitions de la même échéance finiraient par diverger, et l'écart se verrait
+d'abord sur une alerte qui ne part pas. Un cas les croise sur les dossiers réels, un par un.
+
+#### Ce que l'écran montre maintenant
+
+Une bande d'urgences en tête, **pour tous les rôles**, qui ne s'affiche que si elle a quelque chose
+à dire — une carte annonçant zéro tous les jours cesse d'être lue :
+
+| Carte | Pour qui |
+|---|---|
+| Vos dossiers en retard | tous |
+| En retard sur votre périmètre | ceux dont le périmètre dépasse leurs affectations |
+| Reçus sans destinataire | tous — le cas se produit quand aucun compte actif ne porte le rôle de captage du parcours |
+| Dossiers qui vous sont affectés | tous |
+
+Chaque chiffre mène à la liste correspondante, y compris le nouveau filtre `nonAffectes`, et un cas
+vérifie que la carte et la liste comptent pareil : cliquer sur « 5 » pour en découvrir sept serait
+pire que ne rien afficher.
+
+#### Les cases qui restent vides disent pourquoi
+
+« Taux de clôture 0 % » se lit comme un mauvais résultat, alors qu'il dit qu'il n'y a rien à
+mesurer. Chaque indicateur vide porte sa cause — « aucun dossier clôturé à ce jour », « se calcule
+à la clôture » —, et l'historique mensuel nomme la tâche qui le remplira
+(`calculer-statistiques-mensuelles`, mensuelle) plutôt que de laisser croire à une perte de
+données. Les taux s'affichent enfin arrondis : « 9,09 % » sur 22 dossiers promettait une précision
+que l'échantillon ne porte pas.
+
+**Vérifié** — 414 tests (53 fichiers), `typecheck` et `lint` au vert. Sur quatre sessions HTTP
+réelles : le Secrétaire CSST voit « 6 en retard · 12 affectés » là où il n'avait qu'une liste,
+l'Enquêteur « 1 en retard · 5 sans destinataire », le Service MGP et l'auditeur « 7 en retard ·
+5 sans destinataire ». Base inchangée.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |

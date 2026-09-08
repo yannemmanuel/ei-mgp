@@ -69,6 +69,8 @@ export type FiltresDossiers = {
   assigneAMoi?: boolean
   /** Restreint aux dossiers dont l'étape courante revient à ce rôle (docs/workflows.md §3). */
   aMoiDAgir?: boolean
+  /** Reçus sans aucun destinataire actif : personne ne les traite. */
+  nonAffectes?: boolean
 }
 
 /**
@@ -119,6 +121,13 @@ function clauseFiltres(u: UtilisateurAutorise, filtres: FiltresDossiers): Prisma
 
   if (filtres.aMoiDAgir) {
     where.AND = [clauseAMoiDAgir(u)]
+  }
+
+  if (filtres.nonAffectes) {
+    // « Reçu » ET sans destinataire actif : l'affectation automatique n'a trouvé aucun compte
+    // portant le rôle de captage du parcours (EX-GES-02). Le dossier existe, personne ne l'a.
+    where.statuts_dossier = { code: 'recu' }
+    where.dossier_affectations = { none: { actif: true } }
   }
 
   return where

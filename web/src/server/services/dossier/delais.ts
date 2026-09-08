@@ -172,6 +172,85 @@ export async function dateDebutEtape(dossier: {
   return entree?.created_at ?? null
 }
 
+/**
+ * Échéances d'un LOT de dossiers, en deux requêtes au lieu d'une par dossier.
+ *
+ * Le tableau de bord avait renoncé à compter les dossiers en retard pour cette raison exacte :
+ * `dateDebutEtape()` interroge `historique_statuts` dossier par dossier, et l'appeler sur tout un
+ * périmètre à chaque affichage de la page la plus visitée aurait créé un vrai N+1. Le nombre de
+ * dossiers en retard est pourtant l'information la plus utile de cet écran — celle qui dit quoi
+ * faire, quand les taux ne disent que ce qui s'est passé.
+ *
+ * La règle n'est pas réécrite : ce lot passe par les MÊMES `etapeActuelle`, `ETAPE_VERS_STATUT_DE_DEPART`,
+ * `delaisValides` et `ajouter` que le calcul unitaire. Deux définitions de la même échéance
+ * finiraient par diverger, et l'écart se verrait d'abord sur une alerte qui ne part pas.
+ *
+ * Renvoie `null` pour un dossier dont l'étape n'est pas suivie, dont le délai n'est pas validé
+ * (DT-04), ou dont l'historique ne porte pas l'entrée attendue.
+ */
+export async function datesLimites(
+  dossiers: readonly { id: string; statutCode: StatutCode; parcoursId: bigint }[]
+): Promise<Map<string, Date | null>> {
+  const resultat = new Map<string, Date | null>(dossiers.map((d) => [d.id, null]))
+  if (dossiers.length === 0) return resultat
+
+  // Quels statuts de départ sont à chercher, et pour quels dossiers.
+  const aChercher = dossiers
+    .map((d) => {
+      const etape = etapeActuelle(d.statutCode)
+      const depart = etape ? ETAPE_VERS_STATUT_DE_DEPART[etape] : undefined
+      return depart ? { ...d, etape: etape!, depart } : null
+    })
+    .filter((d) => d !== null)
+
+  if (aChercher.length === 0) return resultat
+
+  const [entrees, delais] = await Promise.all([
+    prisma.historique_statuts.findMany({
+      where: {
+        dossier_id: { in: aChercher.map((d) => d.id) },
+        statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
+          code: { in: [...new Set(aChercher.map((d) => d.depart))] },
+        },
+      },
+      // Décroissant : la PREMIÈRE ligne vue pour un couple (dossier, statut) est donc la plus
+      // récente — un dossier réouvert repasse par les mêmes étapes, et c'est le dernier passage
+      // qui fait foi.
+      orderBy: { created_at: 'desc' },
+      select: {
+        dossier_id: true,
+        created_at: true,
+        statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
+          select: { code: true },
+        },
+      },
+    }),
+    delaisValides(),
+  ])
+
+  const derniereEntree = new Map<string, Date>()
+  for (const entree of entrees) {
+    const cle = `${entree.dossier_id}|${entree.statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier.code}`
+    if (!derniereEntree.has(cle) && entree.created_at) {
+      derniereEntree.set(cle, entree.created_at)
+    }
+  }
+
+  for (const dossier of aChercher) {
+    const debut = derniereEntree.get(`${dossier.id}|${dossier.depart}`)
+    if (!debut) continue
+
+    const delai = delais.find(
+      (d) => d.parcours_id === dossier.parcoursId && d.etape_code === dossier.etape
+    )
+    if (!delai) continue
+
+    resultat.set(dossier.id, ajouter(debut, delai.valeur, delai.unite))
+  }
+
+  return resultat
+}
+
 export async function dateLimite(dossier: {
   id: string
   statutCode: StatutCode
