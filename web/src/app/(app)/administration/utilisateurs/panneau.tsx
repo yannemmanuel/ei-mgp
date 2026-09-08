@@ -26,6 +26,14 @@ export type CompteVue = {
   siteId: string
   responsableId: string
   roles: string[]
+  /**
+   * Ce compte porte un rôle cloisonné par site sans en avoir un.
+   *
+   * Il voit alors TOUS les dossiers de son parcours, ce que le cloisonnement existe précisément
+   * pour empêcher. Le signaler ici vaut mieux que de le découvrir en s'étonnant du nombre de
+   * dossiers affichés.
+   */
+  siteManquant: boolean
 }
 
 type Option = { id: string; libelle: string }
@@ -141,6 +149,15 @@ export function PanneauComptes({
                                 {libelleDuRole.get(role) ?? role}
                               </Badge>
                             ))
+                          )}
+                          {compte.siteManquant && (
+                            <Badge
+                              variant="destructive"
+                              className="font-normal"
+                              title="Ce rôle est habilité par site, mais aucun site n’est renseigné : le compte voit tous les dossiers de son parcours."
+                            >
+                              Site manquant
+                            </Badge>
                           )}
                         </div>
                       </td>

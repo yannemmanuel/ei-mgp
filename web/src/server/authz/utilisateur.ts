@@ -24,6 +24,8 @@ const GUARD = 'web'
 export type UtilisateurAutorise = {
   readonly id: bigint
   readonly actif: boolean
+  /** Site de rattachement, `null` s'il n'est pas renseigné. Voir `authz/site.ts`. */
+  readonly siteId: bigint | null
   readonly roles: readonly Role[]
   readonly permissions: ReadonlySet<Permission>
 }
@@ -61,7 +63,7 @@ export function aUnePermissionParmi(u: UtilisateurAutorise, permissions: readonl
 export async function chargerUtilisateurAutorise(userId: bigint): Promise<UtilisateurAutorise | null> {
   const utilisateur = await prisma.users.findUnique({
     where: { id: userId },
-    select: { id: true, actif: true },
+    select: { id: true, actif: true, site_id: true },
   })
 
   if (!utilisateur) {
@@ -121,5 +123,11 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     }
   }
 
-  return { id: utilisateur.id, actif: utilisateur.actif, roles, permissions }
+  return {
+    id: utilisateur.id,
+    actif: utilisateur.actif,
+    siteId: utilisateur.site_id,
+    roles,
+    permissions,
+  }
 }

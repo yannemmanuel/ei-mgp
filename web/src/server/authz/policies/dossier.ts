@@ -2,6 +2,7 @@ import type { StatutCode } from '@/server/services/dossier/statuts'
 import { peutFaireAvancerDepuis } from '../etapes'
 import type { ParcoursCode } from '../parcours'
 import { peutVoirParcours } from '../parcours'
+import { siteCloisonnant } from '../site'
 import { aPermission, aRole, aUnePermissionParmi, type UtilisateurAutorise } from '../utilisateur'
 
 /**
@@ -16,6 +17,8 @@ export type DossierPourAutorisation = {
   readonly statutCode: StatutCode
   readonly isAnonymous: boolean
   readonly declarantUserId: bigint | null
+  /** Site du dossier, déduit de la direction concernée. `null` si la direction n'en a aucun. */
+  readonly siteId: bigint | null
   /**
    * L'utilisateur détient-il une affectation ACTIVE sur ce dossier ?
    *
@@ -38,6 +41,18 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
 
   if (aPermission(u, 'dossiers.view.all')) {
     return true
+  }
+
+  /**
+   * Cloisonnement par site, en plus du parcours.
+   *
+   * Un dossier SANS site n'est vu d'aucun rôle cloisonné : la direction concernée n'est rattachée
+   * à aucun site, personne ne peut donc dire de qui il relève. Le rendre visible à tous par
+   * défaut annulerait le cloisonnement au premier référentiel incomplet.
+   */
+  const site = siteCloisonnant(u)
+  if (site !== null && dossier.siteId !== site) {
+    return false
   }
 
   if (aPermission(u, 'dossiers.view')) {

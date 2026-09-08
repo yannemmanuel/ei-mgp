@@ -40,6 +40,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       is_anonymous: true,
       declarant_user_id: true,
       created_at: true,
+      site_id: true,
       parcours: { select: { id: true, code: true, libelle: true } },
       categories: { select: { libelle: true } },
       niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },
@@ -65,6 +66,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
     statutCode: dossier.statuts_dossier.code as StatutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    siteId: dossier.site_id,
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   })
 

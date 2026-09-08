@@ -8,6 +8,7 @@ import {
   CANAUX_NOTIFICATION,
   enregistrerCategorie,
   enregistrerGabarit,
+  enregistrerDirection,
   enregistrerSite,
   modifierCanal,
   modifierStatut,
@@ -156,6 +157,45 @@ export async function actionEnregistrerSite(
 
   revalidatePath('/administration/sites')
   return { succes: 'Site enregistré.' }
+}
+
+/**
+ * Enregistrement d'une direction, avec son site de rattachement.
+ *
+ * Partage la permission `referentiels.sites.manage` : sites et directions décrivent la même
+ * organisation, et ouvrir une permission de plus pour la moitié d'un référentiel compliquerait la
+ * matrice sans rien protéger de plus.
+ */
+export async function actionEnregistrerDirection(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.sites.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  if (texte(donnees, 'code') === '' || texte(donnees, 'libelle') === '') {
+    return { erreur: 'Code et libellé sont obligatoires.' }
+  }
+
+  const site = texte(donnees, 'siteId')
+
+  try {
+    await enregistrerDirection(
+      acteur,
+      {
+        code: texte(donnees, 'code'),
+        libelle: texte(donnees, 'libelle'),
+        siteId: site === '' ? null : BigInt(site),
+        actif: coche(donnees, 'actif'),
+      },
+      identifiant(donnees)
+    )
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/directions')
+  return { succes: 'Direction enregistrée.' }
 }
 
 export async function actionModifierCanal(

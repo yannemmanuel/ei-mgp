@@ -60,24 +60,44 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier de concassage',
+      directionId: '1',
     })
 
     expect(resultat.success).toBe(true)
   })
 
-  it('n’exige pas la direction en anonyme, mais l’exige en identifié (EI Employé)', () => {
+  it('exige la direction, anonyme ou non (EI Employé)', () => {
+    /**
+     * La direction était facultative en anonyme, et nulle en base. Depuis qu'elle porte le
+     * rattachement au site — donc l'acheminement vers le secrétaire compétent —, l'omettre
+     * produirait un dossier que personne d'habilité ne voit. Elle est demandée dans les deux cas.
+     *
+     * Ce n'est pas une donnée d'identité : une direction compte des centaines de personnes, comme
+     * le lieu, déjà obligatoire et collecté anonymement.
+     */
     const base = {
       ...socle,
-      anonymat: false,
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier',
     }
 
-    expect(schemaParcours(PARCOURS.ei_employe, true).safeParse({ ...base, anonymat: true }).success).toBe(true)
+    for (const anonyme of [true, false]) {
+      const sans = schemaParcours(PARCOURS.ei_employe, anonyme).safeParse({
+        ...base,
+        anonymat: anonyme,
+      })
 
-    const identifie = schemaParcours(PARCOURS.ei_employe, false).safeParse(base)
-    expect(identifie.success).toBe(false)
-    expect(identifie.error?.issues.map((i) => String(i.path[0]))).toContain('directionId')
+      expect(sans.success, `anonyme=${anonyme}`).toBe(false)
+      expect(sans.error?.issues.map((i) => String(i.path[0]))).toContain('directionId')
+    }
+
+    expect(
+      schemaParcours(PARCOURS.ei_employe, true).safeParse({
+        ...base,
+        anonymat: true,
+        directionId: '1',
+      }).success
+    ).toBe(true)
   })
 
   it('rend le consentement RGPD bloquant pour le seul parcours Sous-traitant (RG-15)', () => {

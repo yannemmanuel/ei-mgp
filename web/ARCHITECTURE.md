@@ -31,6 +31,7 @@ src/server/authz/
   libelles.ts         traduction en français lisible + regroupement par domaine
   roles.ts            15 rôles → permissions
   parcours.ts         cloisonnement par parcours
+  site.ts             cloisonnement par site, déduit de la direction concernée
   etapes.ts           qui fait avancer un dossier, par parcours et par étape
   utilisateur.ts      chargement depuis la base, à chaque requête
   policies/           une par domaine métier
@@ -42,7 +43,19 @@ src/server/authz/
 |---|---|---|
 | Permission | ce compte a-t-il le droit en général ? | `permissions.ts` |
 | Parcours | ce dossier est-il de son ressort ? | `parcours.ts` |
+| Site | ce dossier relève-t-il de son site ? | `site.ts` |
 | Étape | cette marche-ci lui revient-elle ? | `etapes.ts` |
+
+Le **site** d'un dossier n'est pas saisi : il découle de la direction concernée
+(`directions.site_id`), choisie à la déclaration. La direction n'est donc PAS une donnée
+d'identité — la traiter comme telle la mettait à NULL en anonyme, et tout signalement anonyme
+devenait un dossier sans site que nul secrétaire ne voyait. Une direction compte des centaines de
+personnes, comme le lieu, déjà obligatoire et collecté anonymement.
+
+Deux garde-fous encadrent ce verrou, tous deux tournés vers le même risque — masquer un dossier à
+qui doit le traiter est pire que le montrer trop largement : un compte **sans** site n'est pas
+cloisonné (l'oubli de paramétrage est signalé, pas transformé en écran vide), et cumuler un rôle
+non cloisonné desserre la contrainte plutôt que de l'ajouter.
 
 Le troisième manquait : le graphe des transitions contraignait l'enchaînement des statuts, mais
 tout porteur de `dossiers.status.update` pouvait franchir n'importe quelle marche de son périmètre
@@ -186,7 +199,7 @@ corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jam
 
 ## 6. Tests
 
-333 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+346 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
 Quatre règles nées de défauts trouvés en chemin :

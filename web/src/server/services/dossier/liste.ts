@@ -5,6 +5,7 @@ import {
   aRole,
   parcoursAutorises,
   peutFaireAvancerDepuis,
+  siteCloisonnant,
   type UtilisateurAutorise,
 } from '@/server/authz'
 import { STATUTS, transitionsDepuis } from './statuts'
@@ -29,8 +30,13 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
     return {}
   }
 
+  // Cloisonnement par site, traduit en SQL comme dans `peutVoirDossier()`. Un dossier sans site
+  // n'est retenu par aucune de ces clauses : c'est voulu.
+  const site = siteCloisonnant(u)
+  const parSite: Prisma.dossiersWhereInput = site === null ? {} : { site_id: site }
+
   if (aPermission(u, 'dossiers.view')) {
-    return { parcours: { code: { in: parcoursAutorises(u.roles) } } }
+    return { ...parSite, parcours: { code: { in: parcoursAutorises(u.roles) } } }
   }
 
   // `dossiers.view.own` : SES dossiers, pas tout son parcours. Traduction en SQL de la branche
@@ -38,6 +44,7 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
   // un test croise les deux implémentations dossier par dossier.
   if (aPermission(u, 'dossiers.view.own')) {
     return {
+      ...parSite,
       parcours: { code: { in: parcoursAutorises(u.roles) } },
       OR: [
         { dossier_affectations: { some: { user_id: u.id, actif: true } } },
@@ -140,6 +147,9 @@ export async function listerDossiers(
         reference: true,
         created_at: true,
         is_anonymous: true,
+        // Nécessaire au test qui croise cette clause avec `peutVoirDossier()` : sans le site, il
+        // ne pourrait pas vérifier le cloisonnement qu'il est là pour surveiller.
+        site_id: true,
         parcours: { select: { id: true, libelle: true, code: true } },
         categories: { select: { libelle: true } },
         niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },

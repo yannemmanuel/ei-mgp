@@ -83,6 +83,7 @@ describe('Périmètre de la liste et policy : cohérence', () => {
           statutCode: d.statuts_dossier.code as StatutCode,
           isAnonymous: d.is_anonymous,
           declarantUserId: null,
+          siteId: d.site_id,
           estAffecteAuLecteur: affectations > 0,
         })
 
@@ -248,6 +249,7 @@ describe('Filtre « à moi d’agir »', () => {
           statutCode: d.statuts_dossier.code as StatutCode,
           isAnonymous: d.is_anonymous,
           declarantUserId: null,
+          siteId: d.site_id,
           estAffecteAuLecteur: true,
         })
 

@@ -113,7 +113,11 @@ export async function creerDeclaration(params: {
         // EX-NOT-06 : la page de suivi exige référence + code d'accès, anonyme ou non — RG-02 ne
         // couvrait que le cas anonyme, généralisé en DT-28 pour une clé secondaire uniforme.
         access_code_hash: accessCodeHash,
-        site_id: d.siteId ?? null,
+        // Le site n'est pas saisi : il DÉCOULE de la direction (un site regroupe une ou plusieurs
+        // directions). Le déduire ici plutôt que de le demander évite deux informations à tenir
+        // cohérentes, et une contradiction entre elles qu'aucun écran ne saurait arbitrer.
+        // `siteId` reste accepté pour les appels qui le connaissent déjà (reprise, tests).
+        site_id: d.siteId ?? (await siteDeLaDirection(tx, d.directionId ?? null)),
         direction_id: d.directionId ?? null,
         // RG-06 : une déclaration anonyme n'est JAMAIS rattachée à un compte, même si le
         // déclarant était connecté au moment du dépôt.
@@ -233,6 +237,27 @@ export async function creerDeclaration(params: {
   }
 
   return { ...resultat, codeAcces: codeAccesClair }
+}
+
+/**
+ * Site auquel appartient une direction.
+ *
+ * Renvoie `null` si la direction est inconnue ou n'est rattachée à aucun site. Un dossier sans
+ * site n'est visible que des rôles transverses : c'est le comportement décidé, et l'écran
+ * d'administration des directions signale celles qui restent orphelines.
+ */
+async function siteDeLaDirection(
+  tx: ClientTransaction,
+  directionId: bigint | null
+): Promise<bigint | null> {
+  if (directionId === null) return null
+
+  const direction = await tx.directions.findUnique({
+    where: { id: directionId },
+    select: { site_id: true },
+  })
+
+  return direction?.site_id ?? null
 }
 
 /**

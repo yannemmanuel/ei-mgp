@@ -80,6 +80,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     statutCode: dossier.statutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    siteId: dossier.site_id,
     estAffecteAuLecteur: dossier.estAffecteAuLecteur,
   }
 

@@ -34,6 +34,7 @@ async function dossierPourAutorisation(dossierId: string, lecteurId: bigint) {
       id: true,
       is_anonymous: true,
       declarant_user_id: true,
+      site_id: true,
       parcours: { select: { code: true } },
       statuts_dossier: { select: { code: true } },
       // `dossiers.view.own` et le contrôle d'étape en dépendent : le statut et l'affectation du
@@ -49,6 +50,7 @@ async function dossierPourAutorisation(dossierId: string, lecteurId: bigint) {
     statutCode: dossier.statuts_dossier.code as StatutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
+    siteId: dossier.site_id,
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   }
 }

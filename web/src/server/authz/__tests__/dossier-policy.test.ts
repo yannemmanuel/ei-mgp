@@ -19,6 +19,7 @@ const dossier = (
   statutCode: 'affecte',
   isAnonymous: true,
   declarantUserId: null,
+  siteId: null,
   // Défaut délibérément DÉFAVORABLE : un rôle en `dossiers.view.own` ne doit rien voir sans
   // affectation. Un défaut à `true` laisserait passer une régression sans que rien ne bouge.
   estAffecteAuLecteur: false,

@@ -57,8 +57,10 @@ describe('Progression entre les étapes', () => {
   it('atteint l’étape des pièces jointes, et ne la saute pas', async () => {
     const { utilisateur } = afficher()
 
-    // Étape 1 — l'anonymat retire les champs d'identité, donc plus rien d'obligatoire ici.
+    // Étape 1 — l'anonymat retire les champs d'identité. La direction, elle, reste demandée :
+    // elle porte le rattachement au site, pas l'identité du déclarant.
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Étape 2
@@ -84,6 +86,7 @@ describe('Progression entre les étapes', () => {
     const { utilisateur } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
 
@@ -98,6 +101,7 @@ describe('Progression entre les étapes', () => {
     const { utilisateur, soumissions } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -135,6 +139,7 @@ describe('Le clic de trop', () => {
     const { utilisateur, soumissions } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))

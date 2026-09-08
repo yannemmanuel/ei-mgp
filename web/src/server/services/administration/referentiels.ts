@@ -219,6 +219,112 @@ export async function enregistrerSite(
   return siteId
 }
 
+// --- Directions ------------------------------------------------------------------------------
+
+export type DonneesDirection = {
+  code: string
+  libelle: string
+  siteId: bigint | null
+  actif: boolean
+}
+
+/**
+ * Directions, avec leur site de rattachement.
+ *
+ * Le rattachement n'est pas décoratif : c'est lui qui donne son site à un dossier, et donc le
+ * secrétaire CSST qui le recevra. Une direction sans site produit des dossiers que seuls les
+ * rôles transverses voient — l'écran le signale plutôt que de le laisser deviner.
+ */
+export async function listerDirections() {
+  return prisma.directions.findMany({
+    orderBy: [{ sites: { libelle: 'asc' } }, { libelle: 'asc' }],
+    select: {
+      id: true,
+      code: true,
+      libelle: true,
+      actif: true,
+      site_id: true,
+      sites: { select: { libelle: true } },
+    },
+  })
+}
+
+export async function enregistrerDirection(
+  acteur: Acteur,
+  donnees: DonneesDirection,
+  directionId?: bigint
+): Promise<bigint> {
+  const doublon = await prisma.directions.findFirst({
+    where: { code: donnees.code, ...(directionId ? { NOT: { id: directionId } } : {}) },
+    select: { id: true },
+  })
+
+  if (doublon) {
+    throw new ErreurWorkflow('Ce code de direction est déjà utilisé.')
+  }
+
+  if (donnees.siteId !== null) {
+    const site = await prisma.sites.findUnique({
+      where: { id: donnees.siteId },
+      select: { id: true },
+    })
+
+    if (!site) {
+      throw new ErreurWorkflow('Site inconnu.')
+    }
+  }
+
+  const colonnes = {
+    code: donnees.code,
+    libelle: donnees.libelle,
+    site_id: donnees.siteId,
+    actif: donnees.actif,
+  }
+
+  if (directionId === undefined) {
+    const cree = await prisma.directions.create({
+      data: { ...colonnes, created_at: new Date(), updated_at: new Date() },
+      select: { id: true },
+    })
+
+    await journaliser({
+      action: 'direction.creee',
+      acteurId: acteur.id,
+      auditableType: MODELES.direction,
+      auditableId: String(cree.id),
+      nouvelles: attributsCrees(colonnes),
+    })
+
+    return cree.id
+  }
+
+  const avant = await prisma.directions.findUniqueOrThrow({ where: { id: directionId } })
+
+  await prisma.directions.update({
+    where: { id: directionId },
+    data: { ...colonnes, updated_at: new Date() },
+  })
+
+  /**
+   * Changer le site d'une direction ne réécrit PAS les dossiers déjà déposés.
+   *
+   * Leur `site_id` a été figé à la déclaration, et c'est voulu : il dit de quel site relevait le
+   * signalement au moment des faits, pas où la direction se trouve aujourd'hui. Réattribuer
+   * rétroactivement ferait changer de mains des dossiers en cours de traitement, sans que
+   * personne l'ait décidé — la réaffectation existe pour cela, et elle est tracée.
+   */
+  await journaliserModification(
+    'direction.modifiee',
+    MODELES.direction,
+    String(directionId),
+    acteur,
+    avant as unknown as ValeursAudit,
+    colonnes
+  )
+
+  return directionId
+}
+
 // --- Canaux de captage -----------------------------------------------------------------------
 
 export type DonneesCanal = { libelle: string; actif: boolean }

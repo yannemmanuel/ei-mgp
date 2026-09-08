@@ -1853,11 +1853,89 @@ débordé sur `dossiers.close` ni sur `dossiers.reopen`, qui ont leurs propres p
 
 ---
 
+### ✅ Étape 24 — Un clic de trop, et le cloisonnement par site
+
+Deux signalements sans rapport l'un avec l'autre.
+
+#### 1. « Il saute l'étape des pièces jointes pour aller à la fin »
+
+Lire le source n'a rien donné, inspecter le HTML servi non plus : les quatre étapes sont montées,
+les boutons portent `type="button"`, le champ fichier est là. Le défaut vit dans **l'interaction**,
+et rien dans la suite ne l'exerçait.
+
+D'où un environnement DOM, le seul du dépôt. L'hypothèse s'est vérifiée au premier essai :
+« Continuer » et « Envoyer ma déclaration » occupent la même place, et à la dernière étape le
+premier est remplacé **sur place** par le second. Un double-clic sur « Continuer » à l'étape 3 fait
+donc partir la déclaration — le second clic atteint un bouton qui n'existait pas au premier.
+
+L'étape 22 l'a rendu visible sans le créer : la soumission prématurée échouait auparavant côté
+serveur et ramenait au formulaire ; depuis que les saisies survivent à la navigation, elle aboutit.
+
+Le correctif énonce l'invariant plutôt qu'un délai : **un envoi ne peut pas être déclenché par le
+geste qui vient de le faire apparaître**. `MouseEvent.detail` compte les clics d'une même rafale ;
+au-delà de 1, le clic appartient au geste précédent. Un seuil de temps aurait fait dépendre la
+correction du réglage du système.
+
+#### 2. « Un secrétaire est habilité par site, et un site a une ou plusieurs directions »
+
+L'état des lieux avant de commencer :
+
+| Constat | Conséquence |
+|---|---|
+| `dossiers.site_id` existait, **jamais renseigné** (13 dossiers, 0 site) | Rien à cloisonner |
+| `directions` et `sites` étaient **deux référentiels indépendants** | « un site a plusieurs directions » n'était pas modélisé |
+| La direction était mise à **NULL pour une déclaration anonyme** | Point décisif, ci-dessous |
+
+**La chaîne** : le déclarant choisit une direction → la direction porte un site
+(`directions.site_id`, ajouté) → le dossier en hérite à la création → seuls les comptes de ce site
+le voient. Le site n'est pas demandé : le déduire évite deux informations à tenir cohérentes, et
+une contradiction entre elles qu'aucun écran ne saurait arbitrer.
+
+**Le point décisif : la direction n'est pas une donnée d'identité.** Elle était traitée comme
+telle, donc effacée pour une déclaration anonyme. Combinée aux choix retenus, **tout signalement
+anonyme serait devenu un dossier sans site, que nul secrétaire n'aurait vu** — l'inverse exact de
+ce que l'anonymat sert à obtenir. Une direction compte des centaines de personnes : la connaître
+n'identifie personne, pas plus que le lieu, déjà obligatoire et collecté anonymement. Elle est
+désormais demandée dans les deux cas, stockée sur `dossiers`, jamais dans
+`declaration_identites` — un test vérifie qu'aucune ligne d'identité n'apparaît.
+
+**Trois arbitrages, et leurs revers assumés :**
+
+| Décision | Revers |
+|---|---|
+| Dossier sans site → visible des seuls rôles transverses | Les 13 dossiers actuels échappent aux secrétaires tant qu'aucune direction n'est rattachée |
+| Compte sans site → **pas** de cloisonnement | Un oubli de paramétrage ne vide pas l'écran d'un compte qui travaillait la veille ; la console des comptes le signale par une pastille « Site manquant » |
+| Cumul avec un rôle non cloisonné → pas de cloisonnement | Cumuler « Secrétaire CSST » et « Correspondant MGP », c'est porter un mandat plus large, pas être deux fois restreint. Masquer est la direction dangereuse de l'erreur |
+
+Cinq rôles cloisonnés : `secretaire_csst`, `rqse`, `rgp`, `captage_grief_communaute`,
+`captage_grief_soustraitant`. Le site **s'ajoute** au parcours, il ne le remplace pas.
+
+**Une console pour les directions**, sans nouvelle permission — `referentiels.sites.manage` couvre
+les deux faces du même référentiel d'organisation. Elle alerte sur les directions orphelines : une
+déclaration qui les vise produit un dossier que personne d'habilité ne verra. Le sommaire de
+l'administration compte d'ailleurs les directions **sans** site, pas les directions — c'est ce
+nombre qui appelle une action.
+
+Changer le site d'une direction ne réécrit pas les dossiers déjà déposés : leur `site_id` dit de
+quel site relevait le signalement au moment des faits. Réattribuer rétroactivement ferait changer
+de mains des dossiers en cours sans que personne l'ait décidé.
+
+**Vérifié** — 346 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+le formulaire public demande « Direction concernée » sans session ouverte ; la console des
+directions affiche « 3 directions sans site de rattachement » en les nommant ; la console des
+comptes marque « Site manquant » sur le Secrétaire CSST. Base rendue à l'identique — les trois
+directions retrouvent leur rattachement d'origine après les tests.
+
+**Reste à faire, côté données** : rattacher les 3 directions à leur site, et donner un site aux
+comptes concernés. Tant que ce n'est pas fait, rien ne change pour personne — c'est voulu.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 329 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 346 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -1885,6 +1963,7 @@ débordé sur `dossiers.close` ni sur `dossiers.reopen`, qui ont leurs propres p
 | 27 | **Le workflow n'avait pas d'acteurs.** Le graphe contraignait l'enchaînement des statuts, mais tout porteur de `dossiers.status.update` pouvait franchir n'importe quelle étape de son périmètre — un seul compte menait un dossier de « Reçu » à « Résolu ». La table demandée par `workflows.md` §3 n'existait pas. | 🔴 Majeur | ✅ Résolu à l'étape 23 — `authz/etapes.ts`, vérifié sur 5 sessions HTTP |
 | 28 | **`dossiers.view.own` se comportait comme `dossiers.view`.** Les trois rôles de captage voyaient tout leur parcours au lieu de leurs seuls dossiers (`acteurs.md` §2). Défaut hérité de la baseline Laravel, porté fidèlement ; le test de cohérence liste/policy ne couvrait aucun rôle en `view.own`. | 🔴 Majeur | ✅ Résolu à l'étape 23 |
 | 29 | **Analyse d'un grief employé tenue par un seul compte.** L'étape n'est franchissable que par `responsable_grief_employe`, `correspondant_mgp` ou `rqse` : un seul compte actif porte l'un de ces rôles. Sa désactivation bloquerait tous les griefs employés à l'analyse. | 🟠 Moyen | Ouvert — un test échoue si une étape se retrouve sans preneur, mais la marge est nulle |
+| 30 | **Référentiel d'organisation incomplet.** Les 3 directions ne sont rattachées à aucun site, et aucun compte ne porte de site : le cloisonnement par site est en place mais ne s'applique à personne. Les 13 dossiers existants n'ont pas de site et échappent donc aux rôles cloisonnés dès qu'un site leur sera attribué. | 🟠 Moyen | Ouvert — données à saisir depuis `/administration/directions` et la console des comptes, qui signalent tous deux le manque |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

@@ -21,6 +21,7 @@ export const MODELES = {
   categorie: String.raw`App\Models\Categorie`,
   statutDossier: String.raw`App\Models\StatutDossier`,
   site: String.raw`App\Models\Site`,
+  direction: String.raw`App\Models\Direction`,
   canalCaptage: String.raw`App\Models\CanalCaptage`,
   notificationTemplate: String.raw`App\Models\NotificationTemplate`,
   qrCode: String.raw`App\Models\QrCode`,

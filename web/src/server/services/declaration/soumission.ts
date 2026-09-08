@@ -166,9 +166,10 @@ export async function traiterSoumission(
         propositionMesureCorrective: (dossierSpecifique.propositionMesureCorrective ?? null) as
           | string
           | null,
-        // Le rattachement à la direction n'existe que pour une déclaration identifiée.
-        directionId:
-          !anonyme && valide.directionId ? BigInt(String(valide.directionId)) : null,
+        // Conservée même pour une déclaration anonyme : elle porte le rattachement au site, donc
+        // l'acheminement vers le bon secrétaire. Ce n'est pas une donnée d'identité — elle vit sur
+        // `dossiers`, jamais dans `declaration_identites`.
+        directionId: valide.directionId ? BigInt(String(valide.directionId)) : null,
       },
       donneesIdentite: anonyme ? undefined : identite,
       fichiers,

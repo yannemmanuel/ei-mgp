@@ -114,6 +114,9 @@ CREATE TABLE "directions" (
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(0),
     "updated_at" TIMESTAMP(0),
+    -- Ajoutée le 08/09/2026 (prisma/evolutions/2026-09-08-directions-rattachees-a-un-site.sql).
+    -- Un site regroupe une ou plusieurs directions ; le site d'un dossier en découle.
+    "site_id" BIGINT,
 
     CONSTRAINT "directions_pkey" PRIMARY KEY ("id")
 );

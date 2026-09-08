@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { exigerPermission } from '@/server/auth'
+import { siteManquant, type Role } from '@/server/authz'
 import {
   listerUtilisateurs,
   referentielsComptes,
@@ -39,6 +40,7 @@ export default async function PageComptes({
         responsableId:
           c.responsable_hierarchique_id === null ? '' : String(c.responsable_hierarchique_id),
         roles: c.roles,
+        siteManquant: siteManquant(c.roles as Role[], c.site_id),
       }))}
       roles={roles.map((r) => ({ nom: r.name, libelle: r.libelle, actif: r.actif }))}
       directions={referentiels.directions.map((d) => ({ id: String(d.id), libelle: d.libelle }))}

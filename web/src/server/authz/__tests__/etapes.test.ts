@@ -21,6 +21,7 @@ const dossier = (
   statutCode,
   isAnonymous: true,
   declarantUserId: null,
+  siteId: null,
   estAffecteAuLecteur: false,
 })
 

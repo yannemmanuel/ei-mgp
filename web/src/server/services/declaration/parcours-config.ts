@@ -74,13 +74,21 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       { nom: 'matricule', libelle: 'Matricule', type: 'texte', etape: 1, max: 100, identite: true, colonne: 'matricule' },
       { nom: 'posteOccupe', libelle: 'Poste occupé', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'fonction' },
       {
+        // La direction N'EST PAS une donnée d'identité, et le devenir a des conséquences : elle
+        // détermine le site, donc le secrétaire CSST qui recevra le signalement. Nulle pour une
+        // déclaration anonyme, elle ferait de chaque signalement anonyme un dossier que personne
+        // ne voit — l'inverse exact de ce que l'anonymat sert à obtenir.
+        //
+        // Une direction compte des centaines de personnes : la connaître n'identifie personne,
+        // pas plus que le lieu, déjà obligatoire et collecté anonymement. Elle est stockée sur
+        // `dossiers.direction_id`, jamais dans `declaration_identites`.
         nom: 'directionId',
-        libelle: 'Direction',
+        libelle: 'Direction concernée',
         type: 'select',
         etape: 1,
-        obligatoire: 'siIdentifie',
+        obligatoire: true,
         referentiel: 'directions',
-        identite: true,
+        aide: 'Sert à transmettre le signalement au site compétent. Ne permet pas de vous identifier.',
       },
       ...CONTACT,
       { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
