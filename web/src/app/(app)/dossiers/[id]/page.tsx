@@ -37,7 +37,7 @@ import {
   historiqueDossier,
   piecesJointesDossier,
 } from '@/server/services/dossier/fiche'
-import { joursRestants } from '@/server/services/dossier/delais'
+import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
@@ -73,6 +73,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     pieces,
     transitions,
     restants,
+    limiteGlobale,
     affectables,
     investigations,
     actions,
@@ -87,6 +88,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       ? transitionsManuelles(dossier.statutCode)
       : Promise.resolve([]),
     joursRestants({ id, statutCode: dossier.statutCode, parcoursId: dossier.parcours.id }),
+    dateLimiteGlobale({ parcoursId: dossier.parcours.id, creeLe: dossier.created_at ?? new Date() }),
     peutReaffecterDossier(utilisateur, pourPolicy) ? utilisateursAffectables(id) : Promise.resolve([]),
     investigationsDuDossier(id),
     actionsDuDossier(id),
@@ -200,6 +202,11 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 ? `En retard (${Math.abs(restants)} j)`
                 : `${restants} j avant échéance`}
             </Badge>
+          )}
+          {/* CDC §11.2 : enveloppe totale depuis la création (DT-23). Un dossier peut tenir
+              chacune de ses étapes et dépasser malgré tout ce délai d'ensemble. */}
+          {limiteGlobale !== null && limiteGlobale < new Date() && (
+            <Badge variant="destructive">Délai global dépassé</Badge>
           )}
         </div>
       </Card>

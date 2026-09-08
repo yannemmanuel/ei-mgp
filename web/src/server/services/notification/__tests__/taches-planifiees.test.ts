@@ -4,7 +4,7 @@ import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { changerStatut } from '../../dossier/workflow'
 import { reaffecter } from '../../dossier/affectation'
-import { joursRestants, viderCacheDelais } from '../../dossier/delais'
+import { estEnRetard, joursRestants, viderCacheDelais } from '../../dossier/delais'
 import { detecterRetards, relancerEcheances } from '../taches-planifiees'
 import { definirTransportEmail, TransportJournal, type MessageEmail } from '../transport'
 
@@ -199,5 +199,52 @@ describe('Escalade des retards (EX-NOT-04)', () => {
     const evenements = await evenementsNotifies(dossierId)
     expect(evenements).not.toContain('alerte_retard_service_mgp')
     expect(evenements).not.toContain('alerte_retard_n1')
+  })
+})
+
+describe('Délai global (CDC §11.2, DT-23)', () => {
+  it('escalade un dossier qui dépasse l’enveloppe totale, même à jour sur son étape', async () => {
+    const acteur = await prisma.users.findFirstOrThrow({ where: { actif: true }, select: { id: true } })
+    const dossierId = await dossierAvecEcheance(acteur.id)
+
+    await creerGabarit('alerte_retard_service_mgp')
+
+    // L'étape vient de commencer : son échéance est devant nous. Seul le délai global — mesuré
+    // depuis la CRÉATION — est dépassé. C'est le cas que la surveillance par étape laissait
+    // passer : un dossier qui tient chacun de ses jalons et s'éternise malgré tout.
+    const trenteSeptMois = new Date()
+    trenteSeptMois.setMonth(trenteSeptMois.getMonth() - 37)
+
+    await prisma.dossiers.update({
+      where: { id: dossierId },
+      data: { created_at: trenteSeptMois },
+    })
+
+    const contexte = await prisma.dossiers.findUniqueOrThrow({
+      where: { id: dossierId },
+      select: { parcours_id: true, statuts_dossier: { select: { code: true } } },
+    })
+
+    expect(
+      await estEnRetard({
+        id: dossierId,
+        statutCode: contexte.statuts_dossier.code as 'en_analyse',
+        parcoursId: contexte.parcours_id,
+      })
+    ).toBe(false)
+
+    await detecterRetards()
+
+    expect(await evenementsNotifies(dossierId)).toContain('alerte_retard_service_mgp')
+  })
+
+  it('n’escalade pas un dossier dans son enveloppe', async () => {
+    const acteur = await prisma.users.findFirstOrThrow({ where: { actif: true }, select: { id: true } })
+    const dossierId = await dossierAvecEcheance(acteur.id)
+
+    await creerGabarit('alerte_retard_service_mgp')
+    await detecterRetards()
+
+    expect(await evenementsNotifies(dossierId)).not.toContain('alerte_retard_service_mgp')
   })
 })

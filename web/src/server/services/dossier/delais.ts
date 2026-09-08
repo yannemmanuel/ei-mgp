@@ -237,6 +237,25 @@ export async function pourcentageDepassement(dossier: {
   return ((ecoulement - dureeAllouee) / dureeAllouee) * 100
 }
 
+/**
+ * Échéance GLOBALE de traitement (CDC §11.2), mesurée depuis la CRÉATION du dossier.
+ *
+ * DT-23 : « Clôture, suivi et évaluation » n'est pas une sous-étape déclenchée par un statut,
+ * mais l'enveloppe totale dans laquelle le dossier doit être traité. Un dossier peut donc
+ * respecter chacune de ses étapes et dépasser malgré tout ce délai d'ensemble — c'est
+ * précisément ce que cette mesure attrape.
+ *
+ * `null` si le parcours n'a pas de délai de clôture validé.
+ */
+export async function dateLimiteGlobale(dossier: {
+  parcoursId: bigint
+  creeLe: Date
+}): Promise<Date | null> {
+  const delai = await delaiConfigure(dossier.parcoursId, 'cloture')
+
+  return delai ? ajouter(dossier.creeLe, delai.valeur, delai.unite) : null
+}
+
 /** Délai GLOBAL de traitement (§11.2), mesuré depuis la création, indépendamment du statut. */
 export async function estEnRetardGlobalement(dossier: {
   statutCode: StatutCode
@@ -248,8 +267,7 @@ export async function estEnRetardGlobalement(dossier: {
     return false
   }
 
-  const delai = await delaiConfigure(dossier.parcoursId, 'cloture')
-  if (!delai) return false
+  const limite = await dateLimiteGlobale(dossier)
 
-  return new Date() > ajouter(dossier.creeLe, delai.valeur, delai.unite)
+  return limite !== null && new Date() > limite
 }

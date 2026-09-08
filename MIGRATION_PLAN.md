@@ -1436,6 +1436,53 @@ aucun test ne l'a exercée de bout en bout.
 
 ---
 
+### ✅ Étape 19 — Délai global câblé, et une caractérisation corrigée
+
+**Livré** — 269 tests, `typecheck`, `lint` et `build` au vert ; base inchangée.
+
+#### Je m'étais trompé sur `retour_information`
+
+À l'étape 16, j'ai signalé 7 délais « structurellement sans effet » comme un problème à arbitrer.
+En cherchant à les câbler, j'ai relu **DT-23**, qui traite déjà les deux cas — et l'un des deux
+n'était pas un défaut :
+
+> *« Ne pas inventer un statut interne artificiel pour cette étape — elle reste enregistrée dans
+> `sla_delais` à titre de référence (traçabilité CDC complète) mais n'est pas suivie comme
+> échéance autonome avec compte à rebours. »*
+
+« Retour d'information au plaignant » figure au §6 du CDC mais n'a pas de statut au §7.1 : elle se
+produit **pendant** « En investigation ». Ne pas la suivre séparément est une **décision assumée**,
+prise et documentée en Phase 6. Mes 3 lignes « sans effet » sur cette étape sont donc conformes,
+pas résiduelles. L'écran les affiche désormais « Référence CDC », et non plus « Sans effet » —
+la nuance n'est pas cosmétique : elle distingue un choix d'un oubli.
+
+#### En revanche, le délai global n'était pas câblé — et c'était bien un manque
+
+DT-23 dit que « Clôture, suivi et évaluation » est « traitée comme un délai global mesuré depuis
+la création ». La fonction existait (`estEnRetardGlobalement`), **rien ne l'appelait** — ni dans
+le portage, ni dans la baseline Laravel.
+
+Conséquence : **un dossier pouvait respecter chacune de ses étapes et s'éterniser sans que rien
+ne le signale.** C'est précisément le cas que le délai d'enveloppe existe pour attraper — un
+dossier qui n'est jamais en retard nulle part, et qui traîne un an.
+
+Trois branchements :
+
+| Où | Quoi |
+|---|---|
+| `dateLimiteGlobale()` | Exposée — la date était calculée en interne, jamais lisible |
+| `detecterRetards()` | Escalade sur dépassement d'étape **ou** d'enveloppe, une seule alerte par dossier |
+| Fiche dossier | Pastille « Délai global dépassé » |
+
+Le palier « Direction » (+50 %) continue de se mesurer sur l'étape courante : un dépassement
+global n'a pas de pourcentage propre à comparer.
+
+Un test fige le cas qui manquait : un dossier **à jour sur son étape** — vérifié explicitement —
+mais créé il y a 37 mois est désormais escaladé. Aucun dossier réel n'est concerné aujourd'hui, le
+plus ancien datant du 28 août 2026 pour une enveloppe de 6 mois.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -1461,7 +1508,7 @@ aucun test ne l'a exercée de bout en bout.
 | 20 | **`TACHES_SECRET` à provisionner en production.** Absent ou trop court, la route refuse tout (503) et aucune tâche ne s'exécute — panne silencieuse côté métier. Journalisée côté serveur, mais à surveiller. | 🟠 Moyen | Ouvert — avant bascule |
 | 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
 | 22 | **Pièces jointes incompatibles avec Netlify.** | 🔴 Majeur | ✅ Résolu à l'étape 17 — stockage objet, route de téléchargement, script de transfert |
-| 23 | **7 délais sur 22 sans effet structurel.** `retour_information` n'est rattachée à aucun statut ; `cloture` porte le délai global, lu par une fonction que rien n'appelle (dans les deux applications). Signalé dans l'écran, mais la question de fond reste : faut-il câbler ces étapes ou retirer leurs lignes ? | 🟠 Moyen | Ouvert — arbitrage |
+| 23 | **7 délais sans échéance par étape.** Caractérisation corrigée à l'étape 19 : les 3 lignes `retour_information` relèvent d'une décision documentée (DT-23), pas d'un oubli ; les 4 lignes `cloture` portent le délai global, désormais câblé dans l'escalade et affiché sur la fiche. | 🟢 Faible | ✅ Résolu |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

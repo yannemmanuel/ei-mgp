@@ -27,7 +27,7 @@ export default async function PageDelais() {
   return (
     <EditeurReferentiel
       titre="Délais de traitement"
-      description="Délais maximaux par étape et par parcours (CDC §11.2). Tant qu’un délai n’est pas validé, AUCUNE échéance n’est calculée pour cette étape : ni relance à J-3, ni escalade."
+      description="Délais maximaux par étape et par parcours (CDC §11.2). Tant qu’un délai n’est pas validé, AUCUNE échéance n’est calculée : ni relance à J-3, ni escalade. « Délai global » désigne l’enveloppe totale depuis la création ; « Référence CDC » une étape conservée pour la traçabilité, sans échéance propre."
       colonnes={['Parcours', 'Étape', 'Délai', 'Suivi', 'Note']}
       lignes={delais.map((d) => ({
         id: String(d.id),
@@ -96,13 +96,26 @@ export default async function PageDelais() {
  * Deux conditions doivent être réunies pour qu'un délai déclenche quoi que ce soit : être validé
  * par le métier (DT-04), et porter sur une étape rattachée à un statut.
  *
- * Deux étapes ne le sont pas — « Retour d'information », qu'aucun statut ne déclenche, et
- * « Clôture », qui porte le délai global qu'aucun traitement n'évalue aujourd'hui. Les afficher
- * comme réglables sans le dire laisserait croire à un suivi qui n'existe pas.
+ * Deux étapes échappent à ce mécanisme, et pour des raisons différentes (DT-23) :
+ *
+ * - « Retour d'information » se produit pendant « En investigation », sans statut propre. Le CDC
+ *   la décrit, la base la conserve pour la traçabilité, mais elle n'est pas suivie comme une
+ *   échéance autonome — décision assumée, pas un oubli.
+ * - « Clôture » n'est pas une sous-étape : c'est l'enveloppe TOTALE, mesurée depuis la création.
+ *   Elle est bien surveillée, par `estEnRetardGlobalement`, et déclenche l'escalade au même titre
+ *   qu'un dépassement d'étape.
  */
 function etatSuivi(etape: string, valide: boolean) {
+  // Le délai de clôture n'est pas une étape : c'est l'enveloppe totale, mesurée depuis la
+  // création. Il est bien surveillé, mais par un autre chemin (DT-23).
+  if (etape === 'cloture') {
+    return valide
+      ? { badge: 'Délai global', variant: 'default' as const }
+      : { badge: 'Provisoire', variant: 'destructive' as const }
+  }
+
   if (!etapeProduitUneEcheance(etape)) {
-    return { badge: 'Sans effet', variant: 'secondary' as const }
+    return { badge: 'Référence CDC', variant: 'secondary' as const }
   }
 
   return valide

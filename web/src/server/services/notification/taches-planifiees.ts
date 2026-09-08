@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import type { StatutCode } from '../dossier/statuts'
-import { estEnRetard, joursRestants, pourcentageDepassement } from '../dossier/delais'
+import {
+  estEnRetard,
+  estEnRetardGlobalement,
+  joursRestants,
+  pourcentageDepassement,
+} from '../dossier/delais'
 import { responsablesHierarchiques, titulairesDuDossier, utilisateursAvecRoles } from './destinataires'
 import { envoyerNotification } from './notification'
 
@@ -67,6 +72,12 @@ export async function relancerEcheances(): Promise<number> {
  *
  * Dès le dépassement : N+1 des titulaires **et** Service MGP.
  * Au-delà de +50 % du délai alloué : la Direction Générale est alertée en plus.
+ *
+ * **Deux dépassements distincts déclenchent l'escalade** (RG-05, CDC §11.2) : celui de l'étape
+ * courante, et celui du délai GLOBAL mesuré depuis la création (DT-23). Un dossier peut respecter
+ * chacune de ses étapes et dépasser malgré tout l'enveloppe totale — en ne surveillant que les
+ * étapes, ce cas passait inaperçu. L'escalade reste unique par dossier, quel que soit le nombre
+ * de dépassements constatés : deux alertes pour un même retard se banaliseraient.
  */
 const SEUIL_DIRECTION_POURCENT = 50
 
@@ -81,7 +92,15 @@ export async function detecterRetards(): Promise<number> {
       parcoursId: dossier.parcours_id,
     }
 
-    if (!(await estEnRetard(contexteDelai))) continue
+    const enRetardEtape = await estEnRetard(contexteDelai)
+
+    const enRetardGlobal = await estEnRetardGlobalement({
+      statutCode: dossier.statuts_dossier.code as StatutCode,
+      parcoursId: dossier.parcours_id,
+      creeLe: dossier.created_at ?? new Date(),
+    })
+
+    if (!enRetardEtape && !enRetardGlobal) continue
 
     const n1 = await responsablesHierarchiques(dossier.id)
     if (n1.length > 0) {
@@ -101,6 +120,8 @@ export async function detecterRetards(): Promise<number> {
       })
     }
 
+    // Le palier « Direction » se mesure sur l'étape courante : un dépassement global sans
+    // dépassement d'étape n'a pas de pourcentage propre à comparer.
     const depassement = await pourcentageDepassement(contexteDelai)
 
     if (depassement !== null && depassement >= SEUIL_DIRECTION_POURCENT) {
