@@ -5,6 +5,7 @@ import { useActionState, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,20 +62,18 @@ export function PanneauComptes({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-h1 text-secondary-900">Comptes</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Un compte n’est jamais supprimé : il reste cité dans l’historique et le journal
-            d’audit. La désactivation coupe l’accès dès la requête suivante.
-          </p>
-        </div>
-        {!creation && edition === null && (
-          <Button size="sm" onClick={() => setCreation(true)}>
-            Créer un compte
-          </Button>
-        )}
-      </div>
+      <EnTetePage
+        titre="Comptes"
+        lede="Un compte n’est jamais supprimé : il reste cité dans l’historique et le journal d’audit. La désactivation coupe l’accès dès la requête suivante."
+        mailles={[{ libelle: 'Administration', href: '/administration' }, { libelle: 'Comptes' }]}
+        actions={
+          !creation && edition === null ? (
+            <Button size="sm" onClick={() => setCreation(true)}>
+              Créer un compte
+            </Button>
+          ) : null
+        }
+      />
 
       {(creation || edition !== null) && (
         <FormulaireCompte

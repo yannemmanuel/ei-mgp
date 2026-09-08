@@ -104,18 +104,34 @@ export async function listerDossiers(
   return { dossiers, total, page, parPage: PAR_PAGE, pages: Math.max(1, Math.ceil(total / PAR_PAGE)) }
 }
 
-/** Référentiels alimentant les listes déroulantes de filtres. */
+/**
+ * Référentiels alimentant les listes déroulantes de filtres.
+ *
+ * Les catégories appartiennent chacune à un parcours, et plusieurs portent le même libellé d'un
+ * parcours à l'autre — « Autre » existe quatre fois, « Environnement » deux fois. Tant qu'aucun
+ * parcours n'est choisi, la liste complète affichait donc des doublons impossibles à départager.
+ * Le parcours est alors accolé au libellé ; dès qu'un parcours est retenu, l'ambiguïté disparaît
+ * avec lui et le suffixe aussi.
+ */
 export async function referentielsFiltres(parcoursId?: string) {
   const [parcours, categories, statuts, gravites] = await Promise.all([
     prisma.parcours.findMany({ where: { actif: true }, orderBy: { ordre: 'asc' }, select: { id: true, libelle: true } }),
     prisma.categories.findMany({
       where: { actif: true, ...(parcoursId ? { parcours_id: BigInt(parcoursId) } : {}) },
-      orderBy: { libelle: 'asc' },
-      select: { id: true, libelle: true },
+      orderBy: [{ parcours: { ordre: 'asc' } }, { libelle: 'asc' }],
+      select: { id: true, libelle: true, parcours: { select: { libelle: true } } },
     }),
     prisma.statuts_dossier.findMany({ orderBy: { ordre: 'asc' }, select: { id: true, libelle_interne: true } }),
     prisma.niveaux_gravite.findMany({ where: { actif: true }, orderBy: { niveau: 'asc' }, select: { id: true, libelle: true } }),
   ])
 
-  return { parcours, categories, statuts, gravites }
+  return {
+    parcours,
+    categories: categories.map((c) => ({
+      id: c.id,
+      libelle: parcoursId ? c.libelle : `${c.libelle} — ${c.parcours.libelle}`,
+    })),
+    statuts,
+    gravites,
+  }
 }

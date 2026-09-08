@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
 import { PARCOURS } from '@/server/services/declaration/parcours-config'
 
@@ -18,14 +19,10 @@ export default async function PageRelais() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-h1 text-secondary-900">Saisie relais</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Pour transcrire une déclaration reçue hors ligne — ligne verte, boîte à suggestions ou
-          échange direct. Le canal d’origine est enregistré, et la déclaration suit ensuite
-          exactement le même circuit qu’une déclaration déposée par le déclarant lui-même (RG-13).
-        </p>
-      </div>
+      <EnTetePage
+        titre="Saisie relais"
+        lede="Pour transcrire une déclaration reçue hors ligne — ligne verte, boîte à suggestions ou échange direct. Le canal d’origine est enregistré, et la déclaration suit ensuite exactement le même circuit qu’une déclaration déposée par le déclarant lui-même (RG-13)."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {Object.values(PARCOURS).map((parcours) => (

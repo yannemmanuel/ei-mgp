@@ -5,6 +5,7 @@ import { useActionState, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,12 +44,14 @@ export function PanneauQrCodes({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-h1 text-secondary-900">QR codes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Tous les codes mènent au <strong>même écran de choix</strong> : le déclarant y indique
-          lui-même s’il signale un évènement indésirable ou dépose une plainte. Un seul support à
-          imprimer, et aucun risque qu’une affiche envoie vers le mauvais formulaire.
-        </p>
+        <EnTetePage
+          titre="QR codes"
+          lede="Tous les codes mènent au même écran de choix : le déclarant y indique lui-même s’il signale un évènement indésirable ou dépose une plainte. Un seul support à imprimer, et aucun risque qu’une affiche envoie vers le mauvais formulaire."
+          mailles={[
+            { libelle: 'Administration', href: '/administration' },
+            { libelle: 'QR codes' },
+          ]}
+        />
         <p className="mt-2 text-caption text-muted-foreground">
           Le code encode <code>/q/&#123;jeton&#125;</code> et non l’adresse du formulaire : c’est
           cette indirection qui permet de retirer un support déjà imprimé de la circulation. Le

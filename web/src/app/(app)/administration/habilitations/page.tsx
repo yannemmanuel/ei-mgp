@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
 import { DOMAINES, LIBELLES, LIBELLES_ROLE } from '@/server/authz'
 import { chargerHabilitations } from '@/server/services/administration/habilitations'
@@ -34,13 +35,15 @@ export default async function PageHabilitations() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-h1 text-secondary-900">Habilitations</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          {lignes.length} rôles, {permissions.length} droits. Chaque rôle donne accès à certaines
-          actions ; toute modification s’applique immédiatement aux personnes qui le portent.
-        </p>
-      </div>
+      <EnTetePage
+        titre="Habilitations"
+        lede="Chaque rôle donne accès à certaines actions ; toute modification s’applique immédiatement aux personnes qui le portent."
+        mailles={[
+          { libelle: 'Administration', href: '/administration' },
+          { libelle: 'Habilitations' },
+        ]}
+        compteur={`${lignes.length} rôles · ${permissions.length} droits`}
+      />
 
       <Alert>
         <AlertDescription>

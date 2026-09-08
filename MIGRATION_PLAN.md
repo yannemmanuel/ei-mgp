@@ -1483,11 +1483,111 @@ plus ancien datant du 28 août 2026 pour une enveloppe de 6 mois.
 
 ---
 
+### ✅ Étape 20 — Deux écrans jamais portés, et une navigation qui les cachait
+
+**Demande** : rendre la navigation plus fluide, retirer l'information inutile, hiérarchiser ce qui
+reste.
+
+#### Ce que la revue de navigation a trouvé d'abord
+
+La barre latérale proposait huit entrées. Quatre d'entre elles — « Mes investigations »,
+« Investigations », « Mes actions », « Actions correctives » — pointaient vers `/investigations`
+et `/actions-correctives`. **Ces deux routes répondaient 404.**
+
+Vérifié dans l'historique Git, avant le retrait de Laravel (commit `33a441e`) :
+
+```
+routes/web.php
+  Route::get('/investigations', InvestigationListPage::class)
+  Route::get('/actions-correctives', ActionCorrectiveListPage::class)
+  Route::get('/dossiers/{dossier}/investigations/{investigation}', InvestigationDetailPage::class)
+```
+
+Les trois composants existaient (`app/Livewire/Investigations/`,
+`app/Livewire/ActionsCorrectives/`). Deux vues transverses — toutes investigations confondues,
+toutes actions confondues — n'ont jamais été portées. Ce n'est pas un lien mort : c'est une
+**fonctionnalité perdue en migration**, contre l'engagement « aucune fonctionnalité existante ne
+doit disparaître ».
+
+Deux indices étaient présents dans le code sans que rien ne les relie :
+`peutVoirListeInvestigations()` et `peutVoirListeActions()` étaient écrites, exportées, et
+**appelées nulle part**. Des policies pour des écrans absents.
+
+Aucun test ne pouvait le voir : la navigation était une liste de chaînes, et rien ne confrontait
+ce qu'elle annonce à ce que l'application sert.
+
+#### Les deux écrans, portés
+
+| Écran | Source | Choix de portage |
+|---|---|---|
+| `/investigations` | `InvestigationListPage` | Filtres statut / parcours / enquêteur / période, tri par ouverture décroissante |
+| `/actions-correctives` | `ActionCorrectiveListPage` | Filtres statut / parcours / responsable / échéance, tri par échéance croissante |
+
+Le cloisonnement par parcours est poussé **en SQL avant pagination**, comme dans la baseline
+(`whereHas('dossier.parcours')`) : filtrer après lecture donnerait des pages incomplètes et ferait
+transiter par le serveur des lignes hors périmètre. Onze cas le vérifient contre la base réelle,
+rôle par rôle, dans les deux sens — rien de trop, rien qui manque.
+
+`InvestigationDetailPage` n'est **pas** reportée comme page autonome : consultation, modification
+et validation hiérarchique vivent déjà dans le panneau de la fiche dossier. Les lignes des listes
+mènent donc à `/dossiers/{id}#investigations`. Rouvrir une seconde surface d'édition ferait exister
+deux chemins pour le même geste — et RGI-06 (l'enquêteur ne valide jamais sa propre fiche) est
+précisément une règle qu'on ne veut pas voir dupliquée.
+
+Le décompte de jours avant échéance est calculé **au rendu**, pas lu depuis `statut` : la colonne
+ne bascule en `en_retard` qu'au passage quotidien de la tâche planifiée, et une action qui vient
+d'expirer afficherait encore « en cours ».
+
+#### La refonte de navigation
+
+| Avant | Après | Pourquoi |
+|---|---|---|
+| 8 entrées, 4 destinations | 6 entrées, 6 destinations | « Mes X » et « X » menaient au même chemin, à un paramètre près : le repère d'écran courant s'allumait sur les deux lignes à la fois |
+| Filtre « les miennes » dans la barre | Bascule en haut de chaque liste | Se voit, s'annule, se combine avec les autres critères |
+| Aucun `loading.tsx` | Trois niveaux de squelettes | Chaque page lit la base : sans repère, le clic paraissait n'avoir rien produit |
+| Rôles techniques dans la barre (`admin_digital`) | Menu de compte, libellés lisibles | Trois informations consultées rarement occupaient le coin droit en permanence |
+| « ← Retour à la liste » | Fil d'Ariane | Dit aussi où l'on est, et permet de remonter de plusieurs crans |
+
+#### Hiérarchie de l'information
+
+**Fiche dossier** — jusqu'à sept cartes empilées, deux à trois écrans de défilement, sans moyen de
+savoir avant d'y arriver s'il y a des messages en attente. Un sommaire d'ancres les annonce avec
+leur décompte (« Messagerie 3 »), et la colonne d'actions devient collante : changer de statut
+n'impose plus de remonter.
+
+**Listes** — la carte de huit filtres dépliée en permanence repoussait les données sous la ligne de
+flottaison. Elle se replie ; restent la bascule de périmètre et **une puce par critère actif**, qui
+répond à la question que huit champs ne répondaient pas : pourquoi cette liste est-elle si courte ?
+
+**Tableau de bord** — « Actions correctives en retard : 3 » ne menait nulle part ; le nombre ouvre
+maintenant la liste filtrée. Et la carte « Votre activité » n'est plus affichée quand elle est
+vide : un directeur, qui n'a jamais de dossier affecté, lisait chaque jour un encadré lui annonçant
+qu'il n'en avait pas.
+
+**Administration** — dix consoles à plat, dans l'ordre où elles avaient été écrites, regroupées en
+quatre familles. La carte « Habilitations » annonçait encore « Lecture seule — la matrice est
+décidée dans le code », faux depuis l'étape précédente.
+
+**Catégories** — « Autre » apparaissait quatre fois dans les listes déroulantes, une fois par
+parcours, sans moyen de les distinguer. Le parcours est accolé au libellé tant qu'aucun n'est
+choisi.
+
+#### Ce qui empêche la récidive
+
+`src/components/layout/__tests__/navigation.test.ts` confronte chaque destination déclarée à
+l'existence du fichier `page.tsx` correspondant, refuse deux entrées vers le même chemin, et exige
+que tout rôle conserve au moins le tableau de bord (DT-31). C'est le test qui manquait.
+
+**Livré** — 303 tests (39 fichiers), `typecheck` et `lint` au vert, dix routes vérifiées en HTTP
+réel avec session. Base inchangée : ces écrans ne font que lire.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
 |---|---|---|---|
-| 1 | **Les 295 tests Pest ne se migrent pas.** 232 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
+| 1 | **Les 295 tests Pest ne se migrent pas.** 303 tests écrits côté Next couvrent les 67 exigences (39 EX + 15 RG + 13 RGI), mais restent moins nombreux que la suite Pest : la couverture des cas limites propres à Laravel n'est pas reproduite à l'identique. | 🟠 Moyen | Traité à l'étape 13 — écart de volume assumé et documenté |
 | 2 | **RG-06 (anonymat)** : propriété de sûreté, régression silencieuse possible. | 🔴 Majeur | Ouvert — vérifié en 9b (messagerie : `expediteur_user_id` forcé NULL, session sans compte) ; à revérifier à chaque module |
 | 3 | **Polymorphisme non supporté par Prisma.** `pieces_jointes` introspectée sans relation vers `dossiers`/`investigations`/`actions_correctives` : le lien n'existe que comme `attachable_type` + `attachable_id`. Idem `audit_logs`. | 🟠 Moyen | Confirmé à l'étape 1 — jointures à écrire manuellement |
 | 4 | **Contrainte CHECK non représentée.** `niveaux_gravite_niveau_check` (échelle 1-4) reste appliquée par PostgreSQL mais est invisible du client Prisma : une écriture invalide échouera en erreur SQL brute au lieu d'être validée en amont. | 🟠 Moyen | Confirmé — à doubler par une validation Zod |
@@ -1509,6 +1609,7 @@ plus ancien datant du 28 août 2026 pour une enveloppe de 6 mois.
 | 21 | **Délais non validés sur `ei_employe`.** | 🟠 Moyen | ✅ Analyse préliminaire arbitrée à 5 jours ouvrés (étape 15). Les deux autres étapes restent provisoires, réglables depuis `/administration/delais`. |
 | 22 | **Pièces jointes incompatibles avec Netlify.** | 🔴 Majeur | ✅ Résolu à l'étape 17 — stockage objet, route de téléchargement, script de transfert |
 | 23 | **7 délais sans échéance par étape.** Caractérisation corrigée à l'étape 19 : les 3 lignes `retour_information` relèvent d'une décision documentée (DT-23), pas d'un oubli ; les 4 lignes `cloture` portent le délai global, désormais câblé dans l'escalade et affiché sur la fiche. | 🟢 Faible | ✅ Résolu |
+| 24 | **Deux écrans de la baseline jamais portés.** `/investigations` et `/actions-correctives` (vues transverses, `InvestigationListPage` / `ActionCorrectiveListPage`) répondaient 404 alors que la barre latérale y menait par quatre liens. Découvert à l'étape 20 en revoyant la navigation, pas par un test. | 🔴 Majeur | ✅ Résolu à l'étape 20 — écrans portés, et un test relie désormais chaque destination annoncée à une page existante |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

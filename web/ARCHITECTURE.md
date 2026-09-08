@@ -58,8 +58,25 @@ server/services/         Règles métier — le cœur
 server/authz/            Autorisation
 server/auth/             Session, identifiants, hachage
 lib/validations/         Schémas Zod
-components/              Interface
+components/ui/           Primitives (shadcn/Base UI) + étiquettes de statut, états vides
+components/layout/       Coquille et éléments communs à toutes les pages
 ```
+
+**`components/layout/` porte la cohérence entre écrans**, et c'est délibéré : chaque page
+composait auparavant son propre titre, ses propres filtres, sa propre pagination, et l'œil devait
+réapprendre la page à chaque navigation.
+
+```
+en-tete-page.tsx    Fil d'Ariane, titre, une phrase, actions — dans cet ordre, partout
+barre-filtres.tsx   Filtres repliés, puces des critères actifs, état porté par l'URL
+pagination.tsx      Recopie les paramètres courants — changer de page ne perd pas les filtres
+squelettes.tsx      Formes de chargement, alimentées par les `loading.tsx`
+navigation.ts       Une entrée par objet métier, filtrée par permission
+```
+
+Un `loading.tsx` existe au niveau du groupe `(app)` : la coquille reste en place et seule la zone
+de contenu se recompose. Sans lui, chaque navigation figeait l'écran précédent le temps de la
+lecture en base — et le clic paraissait n'avoir rien produit.
 
 Une règle métier ne vit **jamais** dans un composant ni dans une action : les actions valident,
 autorisent, puis délèguent. C'est ce qui permet aux tests d'exercer les règles sans HTTP.
@@ -134,10 +151,10 @@ journalisés.
 
 ## 6. Tests
 
-285 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
+303 tests, exécutés **contre la base réelle** — pas de doublure. Un test qui ment sur son
 environnement ne protège rien.
 
-Trois règles nées de défauts trouvés en chemin :
+Quatre règles nées de défauts trouvés en chemin :
 
 1. **Un test qui fabrique son entrée ne teste jamais le producteur de cette entrée.** Trois
    référentiels sont restés vides en base pendant des mois sans qu'aucun test ne le signale.
@@ -147,6 +164,11 @@ Trois règles nées de défauts trouvés en chemin :
    rapport. `nettoyerAudit(type, ids)` rend le type obligatoire dans sa signature.
 3. **Vérifier, ne pas supposer.** Le préfixe bcrypt, le comportement de `render` de Base UI, les
    dist-tags npm : chaque hypothèse qui a été vérifiée s'est révélée fausse au moins une fois.
+4. **Une navigation qui annonce une destination doit la servir.** Quatre liens de la barre
+   latérale ont mené vers deux 404 pendant toute la migration : les écrans transverses
+   `/investigations` et `/actions-correctives` n'avaient jamais été portés depuis Laravel. Rien
+   ne reliait ce que la barre annonce à ce que l'application sert. `navigation.test.ts` le fait
+   désormais, en confrontant chaque `href` à l'existence de son `page.tsx`.
 
 Les 67 exigences (39 EX, 15 RG, 13 RGI) sont citées par au moins un test. Trois d'entre elles sont
 couvertes **structurellement** (lecture du source) plutôt que par exécution, faute de pouvoir

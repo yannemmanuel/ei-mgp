@@ -2,13 +2,18 @@ import type { Permission } from '@/server/authz'
 import { aUnePermissionParmi, type UtilisateurAutorise } from '@/server/authz'
 
 /**
- * Structure de navigation du back-office — port fidèle de
- * `resources/views/components/layouts/app.blade.php` (Laravel), y compris ses conditions
- * d'affichage.
+ * Structure de navigation du back-office.
  *
  * ⚠️ Masquer un lien N'EST PAS un contrôle d'accès : chaque page cible refait sa propre
  * vérification serveur via `exigerPermission()`. Cette structure ne sert qu'à ne pas proposer
  * une destination qui aboutirait à un refus.
+ *
+ * UNE ENTRÉE PAR OBJET MÉTIER. La barre latérale portait auparavant « Mes dossiers » et
+ * « Dossiers », « Mes investigations » et « Investigations » — la même destination deux fois, à
+ * un paramètre d'URL près. Deux effets, tous deux mauvais : le repère d'écran courant
+ * s'allumait sur les deux lignes à la fois (la comparaison ignore la query string), et la barre
+ * comptait huit entrées pour quatre destinations. Le filtre « les miennes » vit désormais en
+ * haut de chaque liste, où il se voit, s'annule et se combine avec les autres critères.
  */
 export type LienNavigation = {
   readonly libelle: string
@@ -48,30 +53,17 @@ const SECTIONS: readonly SectionNavigation[] = [
     ],
   },
   {
-    titre: 'Mon activité',
-    liens: [
-      { libelle: 'Mes dossiers', href: '/dossiers?assigneAMoi=1', icone: 'folder', permissions: PERMISSIONS_DOSSIERS },
-      { libelle: 'Mes investigations', href: '/investigations?miennes=1', icone: 'clipboard', permissions: ['investigations.view'] },
-      { libelle: 'Mes actions', href: '/actions-correctives?miennes=1', icone: 'wrench', permissions: ['actions.view'] },
-    ],
-  },
-  {
-    titre: 'Dossiers',
+    titre: 'Traitement',
     liens: [
       { libelle: 'Dossiers', href: '/dossiers', icone: 'folder', permissions: PERMISSIONS_DOSSIERS },
-      // EX-DEC-10 : `agent_relais` ne porte QUE `dossiers.create` — c'est son unique entrée.
-      { libelle: 'Saisie relais', href: '/relais', icone: 'folder', permissions: ['dossiers.create'] },
-    ],
-  },
-  {
-    titre: 'Analyse',
-    liens: [
       { libelle: 'Investigations', href: '/investigations', icone: 'clipboard', permissions: ['investigations.view'] },
       { libelle: 'Actions correctives', href: '/actions-correctives', icone: 'wrench', permissions: ['actions.view'] },
+      // EX-DEC-10 : `agent_relais` ne porte QUE `dossiers.create` — c'est son unique entrée.
+      { libelle: 'Saisie relais', href: '/relais', icone: 'inbox', permissions: ['dossiers.create'] },
     ],
   },
   {
-    titre: 'Administration',
+    titre: 'Pilotage',
     liens: [
       { libelle: 'Administration', href: '/administration', icone: 'cog', permissions: PERMISSIONS_ADMINISTRATION },
       { libelle: 'Audit', href: '/audit', icone: 'shield', permissions: ['audit.view'] },
@@ -87,4 +79,9 @@ export function navigationPour(utilisateur: UtilisateurAutorise): SectionNavigat
       (lien) => lien.permissions.length === 0 || aUnePermissionParmi(utilisateur, lien.permissions)
     ),
   })).filter((section) => section.liens.length > 0)
+}
+
+/** Toutes les destinations déclarées, à plat — utilisé par le test de non-régression. */
+export function toutesLesDestinations(): string[] {
+  return SECTIONS.flatMap((section) => section.liens.map((lien) => lien.href))
 }

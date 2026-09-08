@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { exigerPermission, utilisateurCourant } from '@/server/auth'
 import { peutVoirAdresseIpAudit } from '@/server/authz'
 import { actionsConnues, consulterJournal } from '@/server/services/audit/consultation'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { FiltresAudit } from './filtres'
 
 export const metadata: Metadata = { title: 'Journal d’audit' }
@@ -61,13 +62,11 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-h1 text-secondary-900">Journal d’audit</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {journal.total} entrée(s). Ce journal est en ajout seul : aucune ligne ne peut être
-          modifiée ni supprimée, par aucun rôle.
-        </p>
-      </div>
+      <EnTetePage
+        titre="Journal d’audit"
+        lede="En ajout seul : aucune ligne ne peut être modifiée ni supprimée, par aucun rôle."
+        compteur={`${journal.total} ${journal.total > 1 ? 'entrées' : 'entrée'}`}
+      />
 
       <FiltresAudit actions={actions} valeurs={{ action, dateDebut, dateFin }} />
 

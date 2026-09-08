@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { Paperclip } from 'lucide-react'
 import { notFound } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
+import { EtiquetteStatut, type TonStatut } from '@/components/ui/etiquette-statut'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { prisma } from '@/lib/prisma'
@@ -39,6 +39,8 @@ import {
 } from '@/server/services/dossier/fiche'
 import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
+import { FilAriane } from '@/components/layout/fil-ariane'
+import { SommaireDossier, type SectionDossier } from './sommaire'
 import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
@@ -48,6 +50,16 @@ export const metadata: Metadata = { title: 'Dossier' }
 
 const dateFr = (d: Date | null) =>
   d ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(d) : '—'
+
+const dateCourteFr = (d: Date | null) =>
+  d ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(d) : '—'
+
+/** Échelle de gravité 1-4 (CDC §11.1) : seul le palier haut passe en alerte. */
+function tonGravite(niveau: number): TonStatut {
+  if (niveau >= 4) return 'alerte'
+  if (niveau === 3) return 'attention'
+  return 'neutre'
+}
 
 export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'>) {
   const { id } = await params
@@ -175,113 +187,148 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     envoyeLe: (m.created_at ?? new Date()).toISOString(),
   }))
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/dossiers" className="text-sm text-muted-foreground hover:text-secondary-900">
-          ← Retour à la liste
-        </Link>
-      </div>
+  // Le sommaire ne liste que les sections réellement présentes : proposer « Identité du
+  // déclarant » sur un dossier anonyme mènerait à une ancre vide.
+  const sections: SectionDossier[] = [
+    { id: 'description', libelle: 'Description' },
+    ...(dossier.declaration_identites ? [{ id: 'identite', libelle: 'Identité' }] : []),
+    { id: 'pieces-jointes', libelle: 'Pièces jointes', nombre: pieces.length },
+    { id: 'investigations', libelle: 'Investigations', nombre: investigationsVues.length },
+    { id: 'actions-correctives', libelle: 'Actions correctives', nombre: actionsVues.length },
+    ...(peutVoirMessagerie(utilisateur, contexteParcours)
+      ? [{ id: 'messagerie', libelle: 'Messagerie', nombre: messagesVus.length }]
+      : []),
+    { id: 'historique', libelle: 'Historique', nombre: historique.length },
+  ]
 
-      <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
-        <div>
-          <p className="font-mono text-sm text-muted-foreground">{dossier.reference}</p>
-          <h1 className="text-h2 text-secondary-900">
-            {dossier.parcours.libelle} — {dossier.categories.libelle}
-          </h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={dossier.niveaux_gravite.niveau >= 4 ? 'destructive' : 'secondary'}>
-            {dossier.niveaux_gravite.libelle}
-          </Badge>
-          <Badge variant="secondary">{dossier.statuts_dossier.libelle_interne}</Badge>
-          {dossier.is_anonymous && <Badge variant="secondary">Anonyme</Badge>}
-          {restants !== null && (
-            <Badge variant={restants < 0 ? 'destructive' : restants <= 3 ? 'default' : 'secondary'}>
-              {restants < 0
-                ? `En retard (${Math.abs(restants)} j)`
-                : `${restants} j avant échéance`}
-            </Badge>
-          )}
-          {/* CDC §11.2 : enveloppe totale depuis la création (DT-23). Un dossier peut tenir
-              chacune de ses étapes et dépasser malgré tout ce délai d'ensemble. */}
-          {limiteGlobale !== null && limiteGlobale < new Date() && (
-            <Badge variant="destructive">Délai global dépassé</Badge>
-          )}
+  return (
+    <div className="space-y-5">
+      <FilAriane
+        mailles={[{ libelle: 'Dossiers', href: '/dossiers' }, { libelle: dossier.reference }]}
+      />
+
+      {/* En-tête : ce qu'est ce dossier à gauche, où il en est à droite. L'ordre des étiquettes
+          est fixe — statut, gravité, échéance — pour que l'œil les retrouve au même endroit d'un
+          dossier à l'autre. */}
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-caption text-muted-foreground">
+                {dossier.reference}
+              </span>
+              {dossier.is_anonymous && (
+                <EtiquetteStatut ton="neutre">Déclarant anonyme</EtiquetteStatut>
+              )}
+            </div>
+            <h1 className="mt-1 text-h1 text-secondary-900">{dossier.categories.libelle}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {dossier.parcours.libelle} · reçu le {dateCourteFr(dossier.created_at)}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <EtiquetteStatut ton="encours">
+              {dossier.statuts_dossier.libelle_interne}
+            </EtiquetteStatut>
+            <EtiquetteStatut ton={tonGravite(dossier.niveaux_gravite.niveau)}>
+              Gravité : {dossier.niveaux_gravite.libelle}
+            </EtiquetteStatut>
+            {restants !== null && (
+              <EtiquetteStatut
+                ton={restants < 0 ? 'alerte' : restants <= 3 ? 'attention' : 'neutre'}
+              >
+                {restants < 0
+                  ? `En retard de ${Math.abs(restants)} j`
+                  : restants === 0
+                    ? 'Échéance aujourd’hui'
+                    : `${restants} j avant échéance`}
+              </EtiquetteStatut>
+            )}
+            {/* CDC §11.2 : enveloppe totale depuis la création (DT-23). Un dossier peut tenir
+                chacune de ses étapes et dépasser malgré tout ce délai d'ensemble. */}
+            {limiteGlobale !== null && limiteGlobale < new Date() && (
+              <EtiquetteStatut ton="alerte">Délai global dépassé</EtiquetteStatut>
+            )}
+          </div>
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-h3">Description</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-line text-sm text-secondary-700">{dossier.description}</p>
+      <SommaireDossier sections={sections} />
 
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                {dossier.lieu && (
-                  <div>
-                    <dt className="text-caption text-muted-foreground">Lieu</dt>
-                    <dd className="text-secondary-800">{dossier.lieu}</dd>
-                  </div>
-                )}
-                {dossier.date_survenance && (
-                  <div>
-                    <dt className="text-caption text-muted-foreground">Date des faits</dt>
-                    <dd className="text-secondary-800">{dateFr(dossier.date_survenance)}</dd>
-                  </div>
-                )}
-                {dossier.caractere_repetitif && (
-                  <div>
-                    <dt className="text-caption text-muted-foreground">Caractère répétitif</dt>
-                    <dd className="text-secondary-800">{dossier.caractere_repetitif}</dd>
-                  </div>
-                )}
-                {dossier.attentes_declarant && (
-                  <div>
-                    <dt className="text-caption text-muted-foreground">Attentes du déclarant</dt>
-                    <dd className="text-secondary-800">{dossier.attentes_declarant}</dd>
-                  </div>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          {/* `scroll-mt` compense la barre supérieure et le sommaire, tous deux collants : sans
+              lui, l'ancre dépose le titre de section DERRIÈRE eux. */}
+          <section id="description" className="scroll-mt-28">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-h3">Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-secondary-700">
+                  {dossier.description}
+                </p>
+
+                <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {(
+                    [
+                      ['Lieu', dossier.lieu],
+                      [
+                        'Date des faits',
+                        dossier.date_survenance ? dateCourteFr(dossier.date_survenance) : null,
+                      ],
+                      ['Caractère répétitif', dossier.caractere_repetitif],
+                      ['Attentes du déclarant', dossier.attentes_declarant],
+                    ] as const
+                  ).map(([libelle, valeur]) =>
+                    valeur ? (
+                      <div key={libelle}>
+                        <dt className="text-caption text-muted-foreground">{libelle}</dt>
+                        <dd className="text-sm text-secondary-800">{valeur}</dd>
+                      </div>
+                    ) : null
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+          </section>
 
           {/* RG-06 / acteurs.md : l'identité n'est même pas chargée pour un rôle qui n'y a pas
               droit — elle ne peut donc pas fuiter par un oubli d'affichage. */}
           {dossier.declaration_identites && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-h3">Identité du déclarant</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-2 gap-3 text-sm">
-                  {(
-                    [
-                      ['nom_prenom', 'Nom et prénom'],
-                      ['matricule', 'Matricule'],
-                      ['entreprise', 'Entreprise'],
-                      ['fonction', 'Fonction'],
-                      ['localite', 'Localité'],
-                      ['statut_plaignant', 'Statut'],
-                      ['contact_email', 'E-mail'],
-                      ['contact_telephone', 'Téléphone'],
-                    ] as const
-                  ).map(([cle, libelle]) => {
-                    const valeur = dossier.declaration_identites?.[cle]
-                    if (!valeur) return null
-                    return (
-                      <div key={cle}>
-                        <dt className="text-caption text-muted-foreground">{libelle}</dt>
-                        <dd className="text-secondary-800">{String(valeur)}</dd>
-                      </div>
-                    )
-                  })}
-                </dl>
-              </CardContent>
-            </Card>
+            <section id="identite" className="scroll-mt-28">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-h3">Identité du déclarant</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        ['nom_prenom', 'Nom et prénom'],
+                        ['matricule', 'Matricule'],
+                        ['entreprise', 'Entreprise'],
+                        ['fonction', 'Fonction'],
+                        ['localite', 'Localité'],
+                        ['statut_plaignant', 'Statut'],
+                        ['contact_email', 'E-mail'],
+                        ['contact_telephone', 'Téléphone'],
+                      ] as const
+                    ).map(([cle, libelle]) => {
+                      const valeur = dossier.declaration_identites?.[cle]
+                      if (!valeur) return null
+                      return (
+                        <div key={cle}>
+                          <dt className="text-caption text-muted-foreground">{libelle}</dt>
+                          <dd className="text-sm text-secondary-800">{String(valeur)}</dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                </CardContent>
+              </Card>
+            </section>
           )}
 
           {dossier.identiteMasquee && (
@@ -292,111 +339,136 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-h3">Pièces jointes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {pieces.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucune pièce jointe.</p>
-              ) : (
-                <ul className="space-y-1 text-sm">
-                  {pieces.map((p) => (
-                    <li key={p.id}>
-                      {/* Le fichier transite par une route qui revérifie la Policy du dossier :
-                          jamais par une URL de stockage directe (exigences-securite.md §3). */}
-                      <a
-                        href={`/api/pieces-jointes/${p.id}`}
-                        className="text-secondary-800 underline underline-offset-2 hover:text-primary-700"
-                        download={p.nom_original}
-                      >
-                        {p.nom_original}
-                      </a>{' '}
-                      <span className="text-caption text-muted-foreground">
-                        ({Math.round(Number(p.taille_octets) / 1024)} Ko)
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <section id="pieces-jointes" className="scroll-mt-28">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-h3">Pièces jointes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pieces.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune pièce jointe.</p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {pieces.map((p) => (
+                      <li key={p.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                        <Paperclip className="h-4 w-4 shrink-0 text-secondary-400" aria-hidden />
+                        {/* Le fichier transite par une route qui revérifie la Policy du dossier :
+                            jamais par une URL de stockage directe (exigences-securite.md §3). */}
+                        <a
+                          href={`/api/pieces-jointes/${p.id}`}
+                          className="min-w-0 flex-1 truncate text-sm text-secondary-800 underline-offset-2 hover:text-primary-700 hover:underline"
+                          download={p.nom_original}
+                        >
+                          {p.nom_original}
+                        </a>
+                        <span className="shrink-0 text-caption text-muted-foreground">
+                          {Math.round(Number(p.taille_octets) / 1024)} Ko
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </section>
 
-          <PanneauInvestigations
-            dossierId={id}
-            investigations={investigationsVues}
-            peutOuvrir={peutCreerInvestigation(utilisateur, {
-              ...contexteParcours,
-              enqueteurId: utilisateur.id,
-            })}
-            dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
-          />
+          <section id="investigations" className="scroll-mt-28">
+            <PanneauInvestigations
+              dossierId={id}
+              investigations={investigationsVues}
+              peutOuvrir={peutCreerInvestigation(utilisateur, {
+                ...contexteParcours,
+                enqueteurId: utilisateur.id,
+              })}
+              dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
+            />
+          </section>
 
-          <PanneauActionsCorrectives
-            dossierId={id}
-            actions={actionsVues}
-            investigationsValidees={investigationsValidees_.map((i) => ({
-              id: i.id,
-              libelle: `Investigation du ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(i.date_ouverture)}`,
-            }))}
-            responsables={responsablesPossibles.map((u) => ({ id: String(u.id), nom: u.name }))}
-            droits={droitsActions}
-            dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
-          />
+          <section id="actions-correctives" className="scroll-mt-28">
+            <PanneauActionsCorrectives
+              dossierId={id}
+              actions={actionsVues}
+              investigationsValidees={investigationsValidees_.map((i) => ({
+                id: i.id,
+                libelle: `Investigation du ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(i.date_ouverture)}`,
+              }))}
+              responsables={responsablesPossibles.map((u) => ({ id: String(u.id), nom: u.name }))}
+              droits={droitsActions}
+              dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
+            />
+          </section>
 
           {peutVoirMessagerie(utilisateur, contexteParcours) && (
-            <PanneauMessagerie
-              dossierId={id}
-              messages={messagesVus}
-              peutEnvoyer={peutEnvoyerMessage(utilisateur, contexteParcours)}
-            />
+            <section id="messagerie" className="scroll-mt-28">
+              <PanneauMessagerie
+                dossierId={id}
+                messages={messagesVus}
+                peutEnvoyer={peutEnvoyerMessage(utilisateur, contexteParcours)}
+              />
+            </section>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-h3">Historique</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {historique.map((h) => (
-                  <li key={String(h.id)} className="text-sm">
-                    <p className="text-secondary-800">
-                      <span className="font-medium">
-                        {h.statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier.libelle_interne}
-                      </span>{' '}
-                      — {h.users?.name ?? 'Système'}
-                    </p>
-                    <p className="text-caption text-muted-foreground">{dateFr(h.created_at)}</p>
-                    {h.commentaire && (
-                      <p className="text-caption text-secondary-600">{h.commentaire}</p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <section id="historique" className="scroll-mt-28">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-h3">Historique</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Frise verticale : le trait relie les étapes et donne à voir d'un coup le chemin
+                    parcouru, là où une liste à puces demandait de le reconstituer. */}
+                <ol className="relative space-y-4 border-l border-border pl-5">
+                  {historique.map((h) => (
+                    <li key={String(h.id)} className="relative">
+                      <span
+                        aria-hidden
+                        className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-secondary-300 ring-4 ring-card"
+                      />
+                      <p className="text-sm text-secondary-800">
+                        <span className="font-medium">
+                          {
+                            h
+                              .statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier
+                              .libelle_interne
+                          }
+                        </span>{' '}
+                        — {h.users?.name ?? 'Système'}
+                      </p>
+                      <p className="text-caption text-muted-foreground">{dateFr(h.created_at)}</p>
+                      {h.commentaire && (
+                        <p className="mt-1 text-caption text-secondary-600">{h.commentaire}</p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          </section>
         </div>
 
-        <PanneauActions
-          dossierId={id}
-          statutCode={dossier.statutCode}
-          affectations={affectations.map((a) => ({
-            id: String(a.id),
-            nom: a.users_dossier_affectations_user_idTousers.name,
-          }))}
-          affectables={affectables.map((u) => ({ id: String(u.id), nom: u.name }))}
-          transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
-          droits={{
-            reaffecter: peutReaffecterDossier(utilisateur, pourPolicy),
-            changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
-            cloturer: peutCloturerDossier(utilisateur, pourPolicy),
-            reouvrir: peutReouvrirDossier(utilisateur, pourPolicy),
-            // RG-11 : le blocage contentieux relève du seul DPO, indépendamment des droits
-            // détenus sur le dossier lui-même.
-            gererContentieux: aPermission(utilisateur, 'rgpd.conservation.manage'),
-          }}
-          contentieux={dossier.contentieux}
-        />
+        {/* Colonne d'actions collante : sur un dossier long, changer de statut ne doit pas
+            imposer de remonter en haut de page. */}
+        <div className="lg:sticky lg:top-28 lg:self-start">
+          <PanneauActions
+            dossierId={id}
+            statutCode={dossier.statutCode}
+            affectations={affectations.map((a) => ({
+              id: String(a.id),
+              nom: a.users_dossier_affectations_user_idTousers.name,
+            }))}
+            affectables={affectables.map((u) => ({ id: String(u.id), nom: u.name }))}
+            transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
+            droits={{
+              reaffecter: peutReaffecterDossier(utilisateur, pourPolicy),
+              changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
+              cloturer: peutCloturerDossier(utilisateur, pourPolicy),
+              reouvrir: peutReouvrirDossier(utilisateur, pourPolicy),
+              // RG-11 : le blocage contentieux relève du seul DPO, indépendamment des droits
+              // détenus sur le dossier lui-même.
+              gererContentieux: aPermission(utilisateur, 'rgpd.conservation.manage'),
+            }}
+            contentieux={dossier.contentieux}
+          />
+        </div>
       </div>
     </div>
   )

@@ -1,14 +1,22 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
+import { ArrowRight, Inbox } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EtatVide } from '@/components/ui/etat-vide'
+import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
+import { BarreFiltres, type ChampFiltre } from '@/components/layout/barre-filtres'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
-import { aPermission, parcoursAutorises, peutExporter, peutExporterNominatif } from '@/server/authz'
+import {
+  aPermission,
+  parcoursAutorises,
+  peutExporter,
+  peutExporterNominatif,
+} from '@/server/authz'
 import { calculerIndicateurs, type LigneRepartition } from '@/server/services/reporting/indicateurs'
 import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
 import { historiqueMensuel } from '@/server/services/reporting/statistiques-mensuelles'
-import { FiltresReporting } from './filtres'
 import { BoutonsExport } from './boutons-export'
 
 export const metadata: Metadata = { title: 'Tableau de bord' }
@@ -17,12 +25,15 @@ export const metadata: Metadata = { title: 'Tableau de bord' }
 export const dynamic = 'force-dynamic'
 
 /**
- * EX-REP-01/02/03/05 : tableau de bord consolidé — port de
- * `App\Livewire\Reporting\DashboardConsolide`.
+ * EX-REP-01/02/03/05 : tableau de bord consolidé.
  *
  * `/dashboard` est la page d'atterrissage de TOUS les comptes authentifiés : elle ne renvoie
  * jamais un refus. Le contenu se ramifie selon `reporting.view` (DT-31) — vue consolidée pour
  * les rôles transverses, résumé personnel pour les rôles de traitement.
+ *
+ * Ce qui est à SOI passe avant ce qui est agrégé : on ouvre cet écran le matin pour savoir quoi
+ * faire, pas pour lire un taux. Et une carte vide n'est pas affichée — un directeur, qui n'a
+ * jamais de dossier affecté, voyait chaque jour un encadré lui annonçant qu'il n'en avait pas.
  */
 export default async function PageTableauDeBord({ searchParams }: PageProps<'/dashboard'>) {
   const utilisateur = await exigerUtilisateur()
@@ -31,59 +42,76 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
   const voitLeRapport = aPermission(utilisateur, 'reporting.view')
   const filtre = filtreDepuisParametres(parametres)
 
-  const [mesDossiers, mesAffectations] = await Promise.all([
-    dossiersATraiter(utilisateur.id),
-    prisma.dossier_affectations.count({ where: { user_id: utilisateur.id, actif: true } }),
-  ])
+  const mesDossiers = await dossiersATraiter(utilisateur.id)
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-h1 text-secondary-900">Tableau de bord</h1>
-        {voitLeRapport && peutExporter(utilisateur) && (
-          <BoutonsExport peutNominatif={peutExporterNominatif(utilisateur)} />
-        )}
-      </div>
+      <EnTetePage
+        titre="Tableau de bord"
+        lede={
+          voitLeRapport
+            ? 'Ce qui vous revient, puis la vue d’ensemble de votre périmètre.'
+            : 'Les dossiers qui vous sont affectés.'
+        }
+        actions={
+          voitLeRapport && peutExporter(utilisateur) ? (
+            <BoutonsExport peutNominatif={peutExporterNominatif(utilisateur)} />
+          ) : null
+        }
+      />
 
-      {voitLeRapport ? (
-        <VueConsolidee filtre={filtre} parametres={parametres} roles={utilisateur.roles} />
-      ) : (
+      {mesDossiers.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-h3">Votre activité</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-h3">Vos dossiers à traiter</CardTitle>
+            <Link
+              href="/dossiers?assigneAMoi=1"
+              className="flex items-center gap-1 text-caption text-primary-700 underline-offset-2 hover:underline"
+            >
+              Voir tous les miens
+              <ArrowRight className="h-3 w-3" aria-hidden />
+            </Link>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-secondary-700">
-              {mesAffectations === 0
-                ? 'Aucun dossier ne vous est actuellement affecté.'
-                : `${mesAffectations} dossier(s) vous sont actuellement affectés.`}
-            </p>
+            <ul className="divide-y divide-border">
+              {mesDossiers.map((d) => (
+                <li key={d.id} className="relative flex items-center justify-between gap-3 py-2">
+                  <Link
+                    href={`/dossiers/${d.id}`}
+                    className="min-w-0 text-sm after:absolute after:inset-0 hover:underline"
+                  >
+                    <span className="font-mono text-muted-foreground">{d.reference}</span>{' '}
+                    <span className="text-secondary-900">{d.categories.libelle}</span>
+                  </Link>
+                  <EtiquetteStatut ton="encours">
+                    {d.statuts_dossier.libelle_interne}
+                  </EtiquetteStatut>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-h3">Vos dossiers à traiter</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {mesDossiers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun dossier affecté.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {mesDossiers.map((d) => (
-                <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                  <Link href={`/dossiers/${d.id}`} className="text-sm hover:underline">
-                    <span className="font-mono text-muted-foreground">{d.reference}</span>{' '}
-                    <span className="text-secondary-900">{d.categories.libelle}</span>
-                  </Link>
-                  <Badge variant="secondary">{d.statuts_dossier.libelle_interne}</Badge>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {voitLeRapport ? (
+        <VueConsolidee
+          filtre={filtre}
+          parametres={parametres}
+          roles={utilisateur.roles}
+          peutVoirInvestigations={aPermission(utilisateur, 'investigations.view')}
+          peutVoirActions={aPermission(utilisateur, 'actions.view')}
+        />
+      ) : (
+        mesDossiers.length === 0 && (
+          <Card className="p-0">
+            <EtatVide
+              icone={Inbox}
+              titre="Aucun dossier ne vous est affecté."
+              description="Les dossiers qui vous seront confiés apparaîtront ici, et vous serez notifié."
+            />
+          </Card>
+        )
+      )}
     </div>
   )
 }
@@ -107,10 +135,14 @@ async function VueConsolidee({
   filtre,
   parametres,
   roles,
+  peutVoirInvestigations,
+  peutVoirActions,
 }: {
   filtre: ReturnType<typeof filtreDepuisParametres>
   parametres: Record<string, string | string[] | undefined>
   roles: readonly string[]
+  peutVoirInvestigations: boolean
+  peutVoirActions: boolean
 }) {
   const codes = parcoursAutorises(roles as Parameters<typeof parcoursAutorises>[0])
 
@@ -128,9 +160,28 @@ async function VueConsolidee({
     ])
   )
 
+  // EX-REP-02 : sur-ensemble des filtres de la liste des dossiers (ajoute site et direction).
+  const champs: ChampFiltre[] = [
+    {
+      type: 'select',
+      cle: 'parcoursId',
+      libelle: 'Parcours',
+      tous: 'Tous',
+      options: referentiels.parcours,
+      invalide: ['categorieId'],
+    },
+    { type: 'select', cle: 'categorieId', libelle: 'Catégorie', tous: 'Toutes', options: referentiels.categories },
+    { type: 'select', cle: 'statutId', libelle: 'Statut', tous: 'Tous', options: referentiels.statuts },
+    { type: 'select', cle: 'niveauGraviteId', libelle: 'Gravité', tous: 'Toutes', options: referentiels.gravites },
+    { type: 'select', cle: 'siteId', libelle: 'Site', tous: 'Tous', options: referentiels.sites },
+    { type: 'select', cle: 'directionId', libelle: 'Direction', tous: 'Toutes', options: referentiels.directions },
+    { type: 'date', cle: 'periodeDebut', libelle: 'Soumis à partir du' },
+    { type: 'date', cle: 'periodeFin', libelle: 'Jusqu’au' },
+  ]
+
   return (
     <>
-      <FiltresReporting referentiels={referentiels} valeurs={valeurs} />
+      <BarreFiltres base="/dashboard" champs={champs} valeurs={valeurs} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Indicateur libelle="Déclarations" valeur={String(indicateurs.total)} />
@@ -148,18 +199,26 @@ async function VueConsolidee({
             <CardTitle className="text-h3">À traiter</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <dt className="text-caption text-muted-foreground">
-                  Actions correctives en retard
-                </dt>
-                <dd className="text-h2 text-secondary-900">{aTraiter.actionsEnRetard}</dd>
-              </div>
-              <div>
-                <dt className="text-caption text-muted-foreground">Investigations à valider</dt>
-                <dd className="text-h2 text-secondary-900">{aTraiter.investigationsEnAttente}</dd>
-              </div>
-            </dl>
+            {/* Ces deux nombres appelaient une action sans y mener : il fallait deviner où
+                retrouver les lignes qu'ils comptaient. Ils ouvrent désormais la liste
+                correspondante, déjà filtrée. */}
+            <div className="grid grid-cols-2 gap-4">
+              <CompteurActionnable
+                libelle="Actions correctives en retard"
+                valeur={aTraiter.actionsEnRetard}
+                href={peutVoirActions ? '/actions-correctives?statut=en_retard' : null}
+                alerte={aTraiter.actionsEnRetard > 0}
+              />
+              <CompteurActionnable
+                libelle="Investigations à valider"
+                valeur={aTraiter.investigationsEnAttente}
+                href={
+                  peutVoirInvestigations
+                    ? '/investigations?statut=en_attente_validation'
+                    : null
+                }
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -243,12 +302,20 @@ async function blocATraiter(codes: string[]) {
   return { actionsEnRetard, investigationsEnAttente }
 }
 
+/**
+ * Référentiels des filtres.
+ *
+ * Plusieurs catégories portent le même libellé d'un parcours à l'autre — « Autre » quatre fois.
+ * Tant qu'aucun parcours n'est choisi, le parcours est accolé au libellé pour les départager ;
+ * dès qu'un parcours est retenu, l'ambiguïté disparaît avec lui.
+ */
 async function chargerReferentiels(parcoursId: bigint | null) {
   const [parcours, categories, statuts, gravites, sites, directions] = await Promise.all([
     prisma.parcours.findMany({ where: { actif: true }, orderBy: { ordre: 'asc' } }),
     prisma.categories.findMany({
       where: { actif: true, ...(parcoursId ? { parcours_id: parcoursId } : {}) },
-      orderBy: { libelle: 'asc' },
+      orderBy: [{ parcours: { ordre: 'asc' } }, { libelle: 'asc' }],
+      select: { id: true, libelle: true, parcours: { select: { libelle: true } } },
     }),
     prisma.statuts_dossier.findMany({ orderBy: { ordre: 'asc' } }),
     prisma.niveaux_gravite.findMany({ where: { actif: true }, orderBy: { niveau: 'asc' } }),
@@ -256,12 +323,18 @@ async function chargerReferentiels(parcoursId: bigint | null) {
     prisma.directions.findMany({ where: { actif: true }, orderBy: { libelle: 'asc' } }),
   ])
 
-  const option = (l: { id: bigint; libelle: string }) => ({ id: String(l.id), libelle: l.libelle })
+  const option = (l: { id: bigint; libelle: string }) => ({
+    valeur: String(l.id),
+    libelle: l.libelle,
+  })
 
   return {
     parcours: parcours.map(option),
-    categories: categories.map(option),
-    statuts: statuts.map((s) => ({ id: String(s.id), libelle: s.libelle_interne })),
+    categories: categories.map((c) => ({
+      valeur: String(c.id),
+      libelle: parcoursId ? c.libelle : `${c.libelle} — ${c.parcours.libelle}`,
+    })),
+    statuts: statuts.map((s) => ({ valeur: String(s.id), libelle: s.libelle_interne })),
     gravites: gravites.map(option),
     sites: sites.map(option),
     directions: directions.map(option),
@@ -274,6 +347,52 @@ function Indicateur({ libelle, valeur }: { libelle: string; valeur: string }) {
       <p className="text-caption text-muted-foreground">{libelle}</p>
       <p className="mt-1 text-h1 text-secondary-900">{valeur}</p>
     </Card>
+  )
+}
+
+/**
+ * Compteur qui mène à ce qu'il compte.
+ *
+ * `href` vaut `null` quand le rôle n'a pas accès à la liste : le nombre reste affiché — il
+ * appartient au pilotage — mais il ne promet pas une destination qui serait refusée.
+ */
+function CompteurActionnable({
+  libelle,
+  valeur,
+  href,
+  alerte = false,
+}: {
+  libelle: string
+  valeur: number
+  href: string | null
+  alerte?: boolean
+}) {
+  const contenu = (
+    <>
+      <p className="text-caption text-muted-foreground">{libelle}</p>
+      <p
+        className={`mt-1 text-h2 ${alerte && valeur > 0 ? 'text-destructive' : 'text-secondary-900'}`}
+      >
+        {valeur}
+      </p>
+    </>
+  )
+
+  if (href === null || valeur === 0) {
+    return <div>{contenu}</div>
+  }
+
+  return (
+    <Link
+      href={href}
+      className="group -m-2 rounded-lg p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
+      {contenu}
+      <span className="mt-0.5 flex items-center gap-1 text-caption text-primary-700 opacity-0 transition-opacity group-hover:opacity-100">
+        Voir la liste
+        <ArrowRight className="h-3 w-3" aria-hidden />
+      </span>
+    </Link>
   )
 }
 

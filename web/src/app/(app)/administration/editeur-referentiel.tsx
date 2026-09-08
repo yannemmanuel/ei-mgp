@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { EnTetePage } from '@/components/layout/en-tete-page'
 
 /**
  * Éditeur commun aux référentiels d'administration.
@@ -79,17 +80,18 @@ export function EditeurReferentiel({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-h1 text-secondary-900">{titre}</h1>
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
-        </div>
-        {creationPossible && edition === null && (
-          <Button size="sm" onClick={() => setEdition({ id: '', valeurs: valeursVides })}>
-            {libelleCreation}
-          </Button>
-        )}
-      </div>
+      <EnTetePage
+        titre={titre}
+        lede={description}
+        mailles={[{ libelle: 'Administration', href: '/administration' }, { libelle: titre }]}
+        actions={
+          creationPossible && edition === null ? (
+            <Button size="sm" onClick={() => setEdition({ id: '', valeurs: valeursVides })}>
+              {libelleCreation}
+            </Button>
+          ) : null
+        }
+      />
 
       {etat.succes && (
         <Alert>
