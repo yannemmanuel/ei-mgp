@@ -21,6 +21,14 @@ export type LibellePermission = {
   readonly libelle: string
   readonly explication: string
   readonly sensibilite: Sensibilite
+  /**
+   * Aucun code ne consulte cette permission : l'accorder ou la retirer ne change rien.
+   *
+   * Elle existe dans le catalogue et dans la base — héritées de la baseline Laravel —, et la
+   * retirer casserait la parité. Mais un droit qui ne fait rien tout en ayant l'air d'agir est
+   * pire qu'un droit absent : l'écran doit le dire, et un test vérifie que la mention reste vraie.
+   */
+  readonly sansEffet?: true
 }
 
 export type Domaine = {
@@ -54,8 +62,12 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   },
   'dossiers.assign': {
     libelle: 'Affecter un dossier',
-    explication: 'Désigner la personne chargée de traiter un dossier.',
+    explication:
+      'Désigner la personne chargée de traiter un dossier. La première affectation est automatique (EX-GES-02) et les suivantes relèvent de « Réaffecter un dossier » : aucun écran ne consulte ce droit aujourd’hui.',
     sensibilite: 'ordinaire',
+    // Accorder ou retirer ce droit ne change RIEN. Le dire est le minimum : un administrateur qui
+    // le révoque en croyant fermer une porte doit savoir qu'elle n'existe pas.
+    sansEffet: true,
   },
   'dossiers.reassign': {
     libelle: 'Réaffecter un dossier',
@@ -175,8 +187,19 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   },
   'rgpd.acces.view': {
     libelle: 'Accéder aux données personnelles',
-    explication: 'Consulter les identités des déclarants pour les besoins de conformité.',
+    explication:
+      'Consulter les identités des déclarants pour les besoins de conformité. En pratique, l’accès aux identités se règle ailleurs : tous les rôles les voient sauf le Comité éthique (docs/acteurs.md), et ce droit n’est consulté par aucun code.',
     sensibilite: 'donnees_personnelles',
+    /*
+     * Jamais consultée — ni ici, ni dans la baseline Laravel, où le `git grep` ne trouve aucun
+     * appel non plus. Le défaut est donc hérité, pas introduit par le portage.
+     *
+     * L'accès aux identités passe par `peutVoirIdentite()`, une liste d'exclusion à un seul nom :
+     * tout le monde voit, sauf `comite_ethique`. Basculer sur cette permission changerait qui voit
+     * quoi pour la moitié des rôles — un arbitrage métier, pas une correction technique. La
+     * mention dit la vérité en attendant cette décision.
+     */
+    sansEffet: true,
   },
 
   // --- Référentiels métier ---

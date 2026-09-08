@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { rechercherDossier, type EtatSuivi } from './actions'
+import { quitterLeSuivi, rechercherDossier, type EtatSuivi } from './actions'
 import { PanneauMessagerie } from './panneau-messagerie'
 
 const ETAT_INITIAL: EtatSuivi = {}
@@ -46,6 +46,21 @@ export function FormulaireSuivi() {
         </div>
 
         {etat.messagerieOuverte && <PanneauMessagerie />}
+
+        {/*
+          Une sortie explicite, et pas seulement l'expiration au bout de trente minutes : sur un
+          poste partagé — cybercafé, poste d'accueil, téléphone prêté —, la personne suivante
+          lirait le dossier et sa messagerie.
+        */}
+        <form action={quitterLeSuivi} className="mt-6">
+          <Button type="submit" variant="outline" size="sm">
+            Quitter le suivi
+          </Button>
+          <p className="mt-2 text-caption text-muted-foreground">
+            Referme votre session immédiatement. Elle expire de toute façon au bout de 30 minutes,
+            mais mieux vaut ne pas attendre sur un ordinateur qui n’est pas le vôtre.
+          </p>
+        </form>
       </>
     )
   }

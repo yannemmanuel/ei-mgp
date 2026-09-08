@@ -2118,6 +2118,92 @@ fichier d'évolution.
 
 ---
 
+### ✅ Étape 29 — Audit de bout en bout
+
+Passe complète sur le projet, à la recherche de ce qui ne lève aucune erreur mais fausse le
+fonctionnement. Cinq anomalies trouvées et corrigées, deux constats laissés ouverts.
+
+#### Ce qui a été vérifié, et qui tient
+
+| Dimension | Résultat |
+|---|---|
+| `typecheck`, `lint` | Au vert |
+| **Build de production** | Passe (`next build`), 24 routes générées |
+| Intégrité de la base | **Aucune anomalie** sur 22 contrôles : référentiels, orphelins, RG-04, RG-06, invariant d'administration, absence de secret dans l'audit |
+| Autorisation, en HTTP réel | Correcte pour les 4 rôles éprouvés, sur 23 routes, avec et sans session |
+| Dépendances | 6 vulnérabilités, toutes préexistantes et documentées (risque 7) |
+
+#### Anomalie 1 — Une page lisait la base sans revérifier la session
+
+`acces-refuse/page.tsx`, écrite la veille, interrogeait `roles` pour nommer qui détient le droit
+manquant — sans appeler aucune garde. Seul `proxy.ts` en gardait l'entrée, alors que son propre
+en-tête dit qu'il **n'est pas un contrôle d'accès** : il ne consulte pas la base et peut s'exécuter
+en périphérie. Une page de refus qui répondrait à un visiteur non authentifié lui apprendrait la
+structure des rôles sans qu'il ait jamais eu de compte.
+
+Corrigée, et surtout **outillée** : `auth/__tests__/gardes.test.ts` vérifie que chaque page du
+back-office appelle une garde, et que chaque Server Action en appelle une ou figure dans une liste
+d'entrées publiques justifiées une par une. Vérifié discriminant — la version commitée la veille
+échoue.
+
+#### Anomalie 2 — Une session de suivi qu'on ne pouvait pas fermer
+
+`fermerSessionSuivi()` existait, exportée, **appelée nulle part**. La session du déclarant vivait
+ses trente minutes sans qu'on puisse l'interrompre. Sur un poste partagé — cybercafé, poste
+d'accueil, téléphone prêté, tous ordinaires pour un plaignant communauté — la personne suivante
+lisait le dossier et sa messagerie. Un bouton « Quitter le suivi » referme désormais la session.
+
+#### Anomalie 3 — Deux boîtes de notifications, dont une morte
+
+`notification.ts` exportait `notificationsNonLues` et `marquerNotificationsLues`, doublons de
+`boite.ts` que personne n'appelait. La duplication n'était pas inoffensive : **la version morte
+oubliait `updated_at`**, que sa jumelle vivante met à jour. Qui l'aurait reprise en la croyant
+équivalente aurait laissé des lignes datées de travers. Retirées.
+
+#### Anomalies 4 et 5 — Deux droits qui n'agissent pas
+
+L'écran des habilitations propose d'accorder ou de retirer 36 droits. Deux ne sont consultés par
+aucun code : les accorder ou les retirer ne change **rien**, alors que l'écran donne à croire le
+contraire.
+
+- **`dossiers.assign`** — la première affectation est automatique (EX-GES-02), les suivantes
+  relèvent de `dossiers.reassign`. `peutAffecterDossier()` le cite, mais rien n'appelle cette
+  policy.
+- **`rgpd.acces.view`** — jamais consultée ici, ni dans la baseline Laravel, où `git grep` n'en
+  trouve aucun appel non plus : le défaut est hérité, pas introduit par le portage. L'accès aux
+  identités passe en réalité par `peutVoirIdentite()`, une liste d'exclusion à un seul nom — tout
+  le monde voit, sauf `comite_ethique`.
+
+Ni l'un ni l'autre n'est supprimé : ils viennent de la baseline et vivent dans la table
+`permissions`. Ils sont **déclarés** — l'écran affiche « Sans effet aujourd'hui — aucun écran ne le
+consulte » — et deux cas figent la liste : une permission jamais consultée doit être déclarée, une
+permission déclarée sans effet ne doit pas avoir d'appelant, et un troisième droit décoratif ferait
+échouer la suite.
+
+#### Ce que l'audit a corrigé de ses propres outils
+
+**Un refus prend trois formes, pas une.** La note d'`ARCHITECTURE.md` §5 n'en documentait qu'une —
+le marqueur `;307` dans la charge RSC. Le balayage des routes a d'abord conclu que **tout était
+ouvert pour tout le monde**, y compris l'auditeur sur la saisie relais. La cause n'était pas dans
+l'application : Next signale aussi le refus par un `<meta http-equiv="refresh">` sur un rendu
+streamé, et par un vrai 307 quand rien n'a encore été diffusé. Une note incomplète sur la manière de
+vérifier vaut un défaut : elle produit des conclusions fausses avec l'apparence de la rigueur. Les
+trois formes sont maintenant tabulées.
+
+#### Laissé ouvert, sciemment
+
+- **Un seul compte peut gérer les habilitations.** L'invariant interdit de retirer le dernier
+  accès, mais un seul porteur reste une fragilité d'exploitation : sa désactivation ne casse rien
+  formellement et bloque tout en pratique.
+- **`peutVoirIdentite()` est une liste d'exclusion, pas une permission.** Basculer sur
+  `rgpd.acces.view` changerait qui voit les identités pour la moitié des rôles — un arbitrage
+  métier, pas une correction technique.
+
+**Livré** — 406 tests (51 fichiers), `typecheck`, `lint` et `build` au vert. Base rendue à
+l'identique : aucune écriture de l'audit.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -2153,6 +2239,8 @@ fichier d'évolution.
 | 30 | **Référentiel d'organisation incomplet.** Les 3 directions ne sont rattachées à aucun site, et aucun compte ne porte de site : le cloisonnement par site est en place mais ne s'applique à personne. Les 13 dossiers existants n'ont pas de site et échappent donc aux rôles cloisonnés dès qu'un site leur sera attribué. | 🟠 Moyen | Ouvert — données à saisir depuis `/administration/directions` et la console des comptes, qui signalent tous deux le manque |
 | 31 | **Client Prisma figé après un changement de schéma.** `prisma generate` réécrit `node_modules`, que Next ne surveille pas : le serveur de développement en cours ignore les colonnes nouvelles et répond 500, avec un message qui accuse la requête et non le client. Rencontré trois fois. | 🟢 Faible | ✅ Atténué à l'étape 26 — `predev` régénère à chaque démarrage, `db:pull` enchaîne la génération ; il reste à relancer le serveur, ce que la documentation dit désormais |
 | 32 | **Seul le parcours `ei_employe` collecte une direction.** Les dossiers des trois parcours Griefs n'auront donc jamais de site, et les rôles de captage cloisonnés par site (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) ne verraient plus aucun dossier le jour où un site leur serait attribué. Confirmé par `GCO-2026-000002`, déposé le 08/09 sans direction. | 🟠 Moyen | Ouvert — soit ajouter le champ aux trois formulaires Griefs, soit ne cloisonner par site que `secretaire_csst` et `rqse` |
+| 33 | **Un seul compte peut gérer les habilitations.** L'invariant interdit de retirer le dernier accès, mais un porteur unique reste une fragilité d'exploitation : sa désactivation ne casse formellement rien et bloque tout en pratique. | 🟠 Moyen | Ouvert — attribuer `roles.manage` à un second compte actif |
+| 34 | **L'accès aux identités ne passe pas par la permission prévue.** `peutVoirIdentite()` est une liste d'exclusion à un seul nom (tout le monde sauf `comite_ethique`) ; `rgpd.acces.view` n'est consultée nulle part, ici comme dans la baseline Laravel. Basculer sur la permission changerait qui voit quoi pour la moitié des rôles. | 🟠 Moyen | Ouvert — arbitrage métier ; les deux droits sans effet sont déclarés et testés (étape 29) |
 | 11 | `next-auth` v5 est en **beta** (`5.0.0-beta.32`). C'est la seule voie pour l'App Router et elle est largement utilisée en production, mais l'API peut encore bouger. | 🟢 Faible | Accepté |
 
 ---

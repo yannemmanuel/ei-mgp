@@ -4,6 +4,7 @@ import { ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { prisma } from '@/lib/prisma'
+import { exigerUtilisateur } from '@/server/auth'
 import { LIBELLES, LIBELLES_ROLE, PERMISSIONS, type Permission, type Role } from '@/server/authz'
 
 export const metadata: Metadata = { title: 'Accès refusé' }
@@ -26,6 +27,17 @@ export const dynamic = 'force-dynamic'
  * afficher n'importe quel texte sur une page de l'application.
  */
 export default async function PageAccesRefuse({ searchParams }: PageProps<'/acces-refuse'>) {
+  /**
+   * Oui, même ici.
+   *
+   * Cette page lit la base — les rôles qui portent le droit manquant — et ne l'entourait d'aucune
+   * vérification : seul `proxy.ts` en gardait l'entrée, alors que son en-tête dit en toutes
+   * lettres qu'il N'EST PAS un contrôle d'accès (il ne consulte pas la base et peut s'exécuter en
+   * périphérie). Une page de refus qui répondrait à un visiteur non authentifié lui apprendrait la
+   * structure des rôles sans qu'il ait jamais eu de compte.
+   */
+  await exigerUtilisateur()
+
   const parametres = await searchParams
   const brut = Array.isArray(parametres.droit) ? parametres.droit[0] : parametres.droit
   const droit =

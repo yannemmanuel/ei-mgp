@@ -231,19 +231,14 @@ async function auditerEnvoi(
   })
 }
 
-/** Notifications « outil » non lues d'un utilisateur. */
-export async function notificationsNonLues(utilisateurId: bigint) {
-  return prisma.notifications.findMany({
-    where: { notifiable_type: NOTIFIABLE_USER, notifiable_id: utilisateurId, read_at: null },
-    orderBy: { created_at: 'desc' },
-    take: 20,
-    select: { id: true, data: true, created_at: true },
-  })
-}
-
-export async function marquerNotificationsLues(utilisateurId: bigint): Promise<void> {
-  await prisma.notifications.updateMany({
-    where: { notifiable_type: NOTIFIABLE_USER, notifiable_id: utilisateurId, read_at: null },
-    data: { read_at: new Date() },
-  })
-}
+/*
+ * La lecture de la boîte de réception vit dans `notification/boite.ts`, et nulle part ailleurs.
+ *
+ * Deux fonctions faisaient double emploi ici — `notificationsNonLues` et
+ * `marquerNotificationsLues` —, exportées et appelées par personne. La duplication n'était pas
+ * inoffensive : la version morte oubliait `updated_at`, que sa jumelle vivante met à jour. Qui
+ * l'aurait reprise en la croyant équivalente aurait laissé des lignes datées de travers.
+ *
+ * Ce module ne fait plus qu'ÉMETTRE des notifications ; les lire et les marquer relèvent de
+ * `boite.ts`.
+ */

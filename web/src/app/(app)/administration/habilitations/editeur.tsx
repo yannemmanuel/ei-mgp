@@ -20,6 +20,8 @@ export type PermissionVue = {
   libelle: string
   explication: string
   sensibilite: 'ordinaire' | 'donnees_personnelles' | 'gouvernance'
+  /** Aucun code ne consulte ce droit : l'accorder ou le retirer ne change rien. */
+  sansEffet?: boolean
 }
 
 export type DomaineVue = {
@@ -487,6 +489,11 @@ function Droit({
         {mention && (
           <span className="mt-1 inline-block text-caption font-medium text-destructive">
             {mention}
+          </span>
+        )}
+        {permission.sansEffet && (
+          <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-caption text-secondary-600">
+            Sans effet aujourd’hui — aucun écran ne le consulte
           </span>
         )}
         <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">

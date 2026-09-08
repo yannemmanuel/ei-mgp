@@ -62,3 +62,64 @@ describe('Qualité des libellés', () => {
     expect(sensibles).toContain('users.manage')
   })
 })
+
+describe('Un droit affiché doit agir', () => {
+  async function corpus(exclus: readonly string[]) {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+
+    function sources(depuis: string): string[] {
+      return readdirSync(depuis).flatMap((entree) => {
+        const chemin = join(depuis, entree)
+        if (statSync(chemin).isDirectory()) return sources(chemin)
+        if (!/[.]tsx?$/.test(entree)) return []
+        if (exclus.includes(entree)) return []
+        if (chemin.includes('__tests__')) return []
+        return [chemin]
+      })
+    }
+
+    return sources(join(process.cwd(), 'src')).map((f) => readFileSync(f, 'utf8'))
+  }
+
+  it('chaque permission est consultée quelque part', async () => {
+    // Une permission ajoutée au catalogue puis oubliée s'afficherait sur l'écran des
+    // habilitations comme un droit qu'on accorde ou retire — sans que cela change rien.
+    const fichiers = await corpus(['libelles.ts', 'permissions.ts', 'roles.ts'])
+    const texte = fichiers.join(String.fromCharCode(10))
+
+    for (const permission of PERMISSIONS) {
+      if (LIBELLES[permission].sansEffet) continue
+
+      expect(
+        texte.includes(`'${permission}'`),
+        `« ${permission} » n’est consultée nulle part : déclarez-la « sansEffet » ou câblez-la`
+      ).toBe(true)
+    }
+  })
+
+  it('recense les droits sans effet, pour qu’aucun ne s’ajoute en silence', () => {
+    // Deux, et ils sont documentés. Un troisième qui apparaîtrait ferait échouer ce cas : ajouter
+    // un droit décoratif doit être une décision, jamais une dérive.
+    const sansEffet = PERMISSIONS.filter((p) => LIBELLES[p].sansEffet)
+
+    expect(sansEffet.sort()).toEqual(['dossiers.assign', 'rgpd.acces.view'])
+  })
+
+  it('« dossiers.assign » reste sans appelant, comme la mention l’annonce', async () => {
+    /**
+     * Elle EST citée — par `peutAffecterDossier()` — mais cette policy n'est appelée par personne :
+     * la première affectation est automatique (EX-GES-02) et les suivantes relèvent de
+     * `dossiers.reassign`. Un droit cité par du code mort n'agit pas davantage qu'un droit absent.
+     *
+     * C'est donc l'absence d'appelant qu'il faut surveiller : le jour où un écran d'affectation
+     * appellera cette policy, ce cas échouera — et rappellera de retirer la mention.
+     */
+    expect(LIBELLES['dossiers.assign'].sansEffet).toBe(true)
+
+    const fichiers = await corpus(['dossier.ts'])
+    const appels = fichiers.filter((f) => f.includes('peutAffecterDossier')).length
+
+    expect(appels, '`peutAffecterDossier` a désormais un appelant : la mention est à retirer').toBe(0)
+  })
+})

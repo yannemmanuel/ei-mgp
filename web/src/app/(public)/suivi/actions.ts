@@ -1,10 +1,11 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { verifierCodeAcces } from '@/server/services/declaration/code-acces'
 import { autoriserTentative, cleThrottle, reinitialiserTentatives } from '@/server/auth/throttle'
-import { ouvrirSessionSuivi } from '@/server/auth/session-suivi'
+import { fermerSessionSuivi, ouvrirSessionSuivi } from '@/server/auth/session-suivi'
 
 /**
  * EX-NOT-06 : consultation publique d'un dossier par référence + code d'accès.
@@ -111,4 +112,20 @@ export async function rechercherDossier(
     },
     messagerieOuverte: true,
   }
+}
+
+/**
+ * Ferme la session de suivi.
+ *
+ * `fermerSessionSuivi()` existait, exportée, et n'était appelée nulle part : la session vivait
+ * ses trente minutes sans qu'on puisse l'interrompre. Sur un poste partagé — cybercafé, poste
+ * d'accueil, téléphone prêté, tous ordinaires pour un plaignant communauté — la personne suivante
+ * lisait le dossier et sa messagerie.
+ *
+ * Aucune vérification d'accès à faire : effacer son propre cookie n'expose personne, et refuser
+ * de le faire n'aurait aucun sens.
+ */
+export async function quitterLeSuivi(): Promise<void> {
+  await fermerSessionSuivi()
+  redirect('/suivi')
 }
