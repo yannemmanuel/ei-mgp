@@ -1,5 +1,6 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
+import { peutVoirParcours, type ParcoursCode, type Role } from '@/server/authz'
 import { dateDebutEtape } from '../dossier/delais'
 import { ErreurWorkflow } from '../dossier/workflow'
 import type { StatutCode } from '../dossier/statuts'
@@ -210,4 +211,31 @@ export async function investigationsDuDossier(dossierId: string) {
       users_investigations_valide_parTousers: { select: { name: true } },
     },
   })
+}
+
+/**
+ * Qui peut valider une fiche de ce parcours — en clair, pour l'afficher.
+ *
+ * Ne pas voir le bouton « Valider » est une situation NORMALE : l'enquêteur ne valide jamais sa
+ * propre fiche, et tous les rôles n'en ont pas le droit. Mais un bouton absent se lit comme une
+ * fonction manquante — c'est le retour qui nous est fait. Nommer qui doit agir transforme une
+ * impasse apparente en attente identifiée.
+ *
+ * Lu en BASE, pas dans le code : les droits sont administrables, et un rôle qui vient de recevoir
+ * « valider une investigation » doit apparaître ici sans redéploiement.
+ */
+export async function rolesValidateurs(parcours: ParcoursCode): Promise<string[]> {
+  const roles = await prisma.roles.findMany({
+    where: {
+      guard_name: 'web',
+      actif: true,
+      role_has_permissions: { some: { permissions: { name: 'investigations.validate' } } },
+    },
+    select: { name: true, libelle: true },
+    orderBy: { libelle: 'asc' },
+  })
+
+  return roles
+    .filter((r) => peutVoirParcours([r.name as Role], parcours))
+    .map((r) => r.libelle)
 }

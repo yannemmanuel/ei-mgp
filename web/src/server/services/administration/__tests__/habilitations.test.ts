@@ -235,10 +235,13 @@ describe('Modification des habilitations', () => {
 
     await modifierPermissionsRole(qui, 'auditeur', actuelles)
 
+    // ⚠️ Compté au-dessus du plancher, pas sur toute la table : le journal contient désormais
+    // les modifications réelles des administrateurs, que le nettoyage n'efface plus. Compter
+    // globalement, c'était ne passer que parce que cet historique disparaissait.
     const traces = await prisma.audit_logs.count({
-      where: { action: 'role.permissions_modifiees' },
+      where: { action: 'role.permissions_modifiees', id: { gt: plancherAudit } },
     })
-    expect(traces).toBe(0)
+    expect(traces, 'une opération sans changement a écrit dans le journal').toBe(0)
   })
 
   it('refuse un nom de rôle ou de permission hors catalogue', async () => {

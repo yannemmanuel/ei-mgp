@@ -29,6 +29,8 @@ export type InvestigationVue = {
   /** Calculés côté serveur : les policies ne s'évaluent jamais dans le navigateur. */
   peutModifier: boolean
   peutValider: boolean
+  /** Le lecteur est l'enquêteur : il ne validera jamais cette fiche, quels que soient ses droits. */
+  estLEnqueteur: boolean
 }
 
 type Props = {
@@ -37,6 +39,8 @@ type Props = {
   peutOuvrir: boolean
   /** Une fiche ne s'ouvre que sur un dossier « En investigation » (EX-INV-01). */
   dossierEnInvestigation: boolean
+  /** Rôles habilités à valider sur ce parcours, en clair — pour nommer qui doit agir. */
+  validateurs: string[]
 }
 
 const ETAT: EtatAction = {}
@@ -56,6 +60,7 @@ export function PanneauInvestigations({
   investigations,
   peutOuvrir,
   dossierEnInvestigation,
+  validateurs,
 }: Props) {
   const [ouvertureVisible, setOuvertureVisible] = useState(false)
 
@@ -90,14 +95,20 @@ export function PanneauInvestigations({
         )}
 
         {investigations.map((i) => (
-          <FicheInvestigation key={i.id} investigation={i} />
+          <FicheInvestigation key={i.id} investigation={i} validateurs={validateurs} />
         ))}
       </CardContent>
     </Card>
   )
 }
 
-function FicheInvestigation({ investigation }: { investigation: InvestigationVue }) {
+function FicheInvestigation({
+  investigation,
+  validateurs,
+}: {
+  investigation: InvestigationVue
+  validateurs: string[]
+}) {
   const [editionVisible, setEditionVisible] = useState(false)
 
   return (
@@ -150,6 +161,14 @@ function FicheInvestigation({ investigation }: { investigation: InvestigationVue
         )}
       </div>
 
+      {/*
+        Un bouton absent se lit comme une fonction manquante — c'est le retour qui nous a été
+        fait. Ne pas pouvoir valider est pourtant la situation NORMALE de l'enquêteur : la règle
+        lui interdit de valider sa propre fiche. Une ligne dit donc où en est la fiche et à qui
+        elle revient, plutôt que de laisser un vide à interpréter.
+      */}
+      <Attente investigation={investigation} validateurs={validateurs} />
+
       {editionVisible && (
         <div className="mt-4 border-t border-border pt-4">
           <FormulaireInvestigation
@@ -163,6 +182,45 @@ function FicheInvestigation({ investigation }: { investigation: InvestigationVue
       )}
     </div>
   )
+}
+
+/**
+ * Où en est la fiche, et à qui elle revient — quand aucun bouton n'est offert au lecteur.
+ *
+ * Rien ne s'affiche si le lecteur a justement un geste à faire : le bouton parle pour lui-même.
+ */
+function Attente({
+  investigation,
+  validateurs,
+}: {
+  investigation: InvestigationVue
+  validateurs: string[]
+}) {
+  const qui = validateurs.length > 0 ? validateurs.join(' ou ') : null
+
+  const message = (() => {
+    if (investigation.statut === 'validee') return null
+
+    if (investigation.statut === 'en_cours') {
+      if (investigation.peutModifier) return null
+      return 'L’enquêteur doit d’abord soumettre cette fiche pour validation.'
+    }
+
+    // En attente de validation.
+    if (investigation.peutValider) return null
+
+    if (investigation.estLEnqueteur) {
+      return qui
+        ? `Vous avez mené cette investigation : elle doit être validée par quelqu’un d’autre — ${qui}.`
+        : 'Vous avez mené cette investigation : elle doit être validée par quelqu’un d’autre.'
+    }
+
+    return qui ? `En attente de validation par : ${qui}.` : 'En attente de validation.'
+  })()
+
+  if (message === null) return null
+
+  return <p className="mt-3 text-caption text-muted-foreground">{message}</p>
 }
 
 function Rubrique({ libelle, valeur }: { libelle: string; valeur: string | null }) {

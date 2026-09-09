@@ -53,10 +53,17 @@ export type RoleVue = {
 
 const ETAT: EtatHabilitation = {}
 
+/**
+ * Nature d'un droit, en deux mots et sans couleur d'alerte.
+ *
+ * C'étaient deux phrases en rouge sous chaque droit concerné : le rouge annonce un danger ou une
+ * erreur, or il s'agit d'une information de nature. Il criait, et il occupait une ligne de plus
+ * sur chacun des droits sensibles.
+ */
 const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> = {
   ordinaire: null,
-  donnees_personnelles: 'Donne accès à des données personnelles',
-  gouvernance: 'Modifie ce que les autres peuvent faire',
+  donnees_personnelles: 'Données personnelles',
+  gouvernance: 'Droits des autres',
 }
 
 type Onglet = 'droits' | 'nom' | 'activation'
@@ -230,10 +237,6 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
     }))
     .filter((d) => d.nombre > 0)
 
-  const sensibles = domaines
-    .flatMap((d) => d.permissions)
-    .filter((p) => detenues.has(p.nom) && p.sensibilite !== 'ordinaire')
-
   return (
     <Card
       className={`${role.actif ? '' : 'border-dashed bg-muted/30'} ${ouvert ? 'lg:col-span-2' : ''}`}
@@ -304,12 +307,6 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                     {d.titre} <span className="text-muted-foreground">({d.nombre})</span>
                   </span>
                 ))}
-              </p>
-            )}
-
-            {role.actif && sensibles.length > 0 && (
-              <p className="text-caption text-destructive">
-                Dont : {sensibles.map((p) => p.libelle.toLowerCase()).join(', ')}.
               </p>
             )}
 
@@ -504,18 +501,35 @@ function FormulairePermissions({
   const [cochees, setCochees] = useState<string[]>(role.permissions)
 
   /*
-    Ne sont dépliés d'emblée que les domaines où le rôle a déjà quelque chose.
+    Tout est déplié d'emblée, et c'est un retour en arrière assumé.
 
-    Les huit domaines ouverts déroulaient trente-six droits d'affilée : il fallait parcourir tout
-    le paramétrage métier pour atteindre l'administration technique. Ouvrir ce que le rôle touche
-    déjà montre en une hauteur d'écran ce qu'il fait ; le reste est à un clic, et le compte
-    « (0/6) » dit ce qu'on trouvera derrière.
+    Replier les domaines que le rôle ne touche pas encore réduisait bien le défilement — mais on
+    venait ici pour ACCORDER un droit, c'est-à-dire précisément un droit que le rôle n'a pas :
+    celui qu'on cherche était donc systématiquement caché. On se perdait à ouvrir les domaines un
+    par un pour retrouver « valider une investigation ».
+
+    Ce qui règle vraiment le problème n'est pas le repliement, c'est la recherche : on tape trois
+    lettres, on voit les droits qui correspondent, tous domaines confondus. Le repliement reste
+    disponible pour qui veut réduire la page, il n'est simplement plus le comportement par défaut.
   */
-  const [deplies, setDeplies] = useState<string[]>(() =>
-    domaines
-      .filter((d) => d.permissions.some((p) => role.permissions.includes(p.nom)))
-      .map((d) => d.cle)
-  )
+  const [deplies, setDeplies] = useState<string[]>(() => domaines.map((d) => d.cle))
+  const [recherche, setRecherche] = useState('')
+
+  const terme = recherche.trim().toLowerCase()
+
+  const visibles = useMemo(() => {
+    if (terme === '') return domaines
+
+    return domaines
+      .map((domaine) => ({
+        ...domaine,
+        permissions: domaine.permissions.filter(
+          (p) =>
+            p.libelle.toLowerCase().includes(terme) || p.explication.toLowerCase().includes(terme)
+        ),
+      }))
+      .filter((domaine) => domaine.permissions.length > 0)
+  }, [domaines, terme])
 
   function basculerDomaine(domaine: DomaineVue, tout: boolean) {
     const noms = domaine.permissions.map((p) => p.nom)
@@ -534,26 +548,43 @@ function FormulairePermissions({
         <input key={permission} type="hidden" name="permissions" value={permission} />
       ))}
 
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={recherche}
+          onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Chercher un droit…"
+          aria-label="Chercher un droit"
+          className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+        />
         <p className="text-caption text-muted-foreground">
           {cochees.length} droit{cochees.length > 1 ? 's' : ''} accordé
           {cochees.length > 1 ? 's' : ''}
-          {!role.actif && ' — enregistrés, mais sans effet tant que le rôle est désactivé'}
+          {!role.actif && ' — sans effet tant que le rôle est désactivé'}
         </p>
         <button
           type="button"
           onClick={() => setDeplies(toutDeplie ? [] : domaines.map((d) => d.cle))}
-          className="text-caption text-primary-700 underline underline-offset-2"
+          className="ms-auto text-caption text-primary-700 underline underline-offset-2"
         >
           {toutDeplie ? 'Tout replier' : 'Tout déplier'}
         </button>
       </div>
 
+      {terme !== '' && visibles.length === 0 && (
+        <p className="text-sm text-muted-foreground">Aucun droit ne correspond à « {recherche} ».</p>
+      )}
+
       <div className="divide-y divide-border rounded-lg border border-border">
-        {domaines.map((domaine) => {
-          const total = domaine.permissions.length
-          const actives = domaine.permissions.filter((p) => cochees.includes(p.nom)).length
-          const deplie = deplies.includes(domaine.cle)
+        {visibles.map((domaine) => {
+          // Le compte porte sur le domaine ENTIER, jamais sur le sous-ensemble filtré : « 2/9 »
+          // qui deviendrait « 1/1 » pendant une recherche ferait croire à un droit perdu.
+          const entier = domaines.find((d) => d.cle === domaine.cle) ?? domaine
+          const total = entier.permissions.length
+          const actives = entier.permissions.filter((p) => cochees.includes(p.nom)).length
+          // Une recherche déplie ce qu'elle trouve : sans cela, les résultats resteraient
+          // derrière un chevron fermé et la recherche ne servirait à rien.
+          const deplie = terme !== '' || deplies.includes(domaine.cle)
 
           return (
             <fieldset key={domaine.cle}>
@@ -586,10 +617,12 @@ function FormulairePermissions({
                   </span>
                 </button>
 
-                {deplie && (
+                {/* Pendant une recherche, « Tout accorder » ne dirait pas s'il vise les droits
+                    affichés ou tout le domaine : on ne le propose pas. */}
+                {deplie && terme === '' && (
                   <button
                     type="button"
-                    onClick={() => basculerDomaine(domaine, actives < total)}
+                    onClick={() => basculerDomaine(entier, actives < total)}
                     className="text-caption text-primary-700 underline underline-offset-2"
                   >
                     {actives < total ? 'Tout accorder' : 'Tout retirer'}
@@ -599,7 +632,9 @@ function FormulairePermissions({
 
               {deplie && (
                 <div className="px-3 pb-3">
-                  <p className="text-caption text-muted-foreground">{domaine.description}</p>
+                  {terme === '' && (
+                    <p className="text-caption text-muted-foreground">{domaine.description}</p>
+                  )}
 
                   {/* Deux colonnes dès que la largeur le permet : neuf droits de suite pour le
                       seul domaine « Dossiers » faisaient déjà défiler l'écran. */}
@@ -819,7 +854,7 @@ function Droit({
         <span className="block text-sm font-medium text-secondary-900">{permission.libelle}</span>
         <span className="block text-caption text-secondary-600">{permission.explication}</span>
         {mention && (
-          <span className="mt-1 inline-block text-caption font-medium text-destructive">
+          <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-caption text-secondary-600">
             {mention}
           </span>
         )}

@@ -138,27 +138,54 @@ describe('Navigation au clavier', () => {
   })
 })
 
-describe('Repliement des domaines', () => {
-  it('déplie ce que le rôle touche déjà, replie le reste', async () => {
+describe('Trouver un droit précis', () => {
+  it('montre tous les droits à l’ouverture, y compris ceux que le rôle n’a pas', async () => {
+    /*
+      Replier les domaines que le rôle ne touche pas cachait justement le droit qu'on venait
+      accorder : on ouvre cet écran pour donner un droit que le rôle n'a PAS. Le retour reçu
+      était qu'on s'y perdait.
+    */
     const clavier = afficher()
     await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
 
-    // « Dossiers » : le rôle y a un droit, ses cases sont là.
     expect(screen.getByLabelText(/Voir les dossiers/)).toBeDefined()
-
-    // « Administration technique » : aucun droit, replié — la case n'est pas rendue.
-    expect(screen.queryByLabelText(/Gérer les comptes/)).toBeNull()
-
-    // Mais le compte annonce ce qui est derrière.
-    expect(screen.getByRole('button', { name: /Administration technique/ })).toBeDefined()
+    expect(screen.getByLabelText(/Gérer les comptes/), 'un droit non détenu reste caché').toBeDefined()
   })
 
-  it('« Tout déplier » rend accessible ce qui était replié', async () => {
+  it('filtre les droits sur la recherche, tous domaines confondus', async () => {
     const clavier = afficher()
     await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('button', { name: 'Tout déplier' }))
+    await clavier.type(screen.getByLabelText('Chercher un droit'), 'comptes')
 
     expect(screen.getByLabelText(/Gérer les comptes/)).toBeDefined()
+    expect(screen.queryByLabelText(/Voir les dossiers/), 'droit hors recherche encore affiché').toBeNull()
+  })
+
+  it('cherche aussi dans l’explication, pas seulement dans le nom', async () => {
+    const clavier = afficher()
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await clavier.type(screen.getByLabelText('Chercher un droit'), 'Fermer un dossier')
+
+    expect(screen.getByLabelText(/Clôturer un dossier/)).toBeDefined()
+  })
+
+  it('garde le compte du domaine ENTIER pendant une recherche', async () => {
+    // « 2/9 » qui deviendrait « 1/1 » ferait croire à des droits perdus.
+    const clavier = afficher()
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+
+    const avant = screen.getByRole('button', { name: /Dossiers/ }).textContent
+    await clavier.type(screen.getByLabelText('Chercher un droit'), 'clôturer')
+
+    expect(screen.getByRole('button', { name: /Dossiers/ }).textContent).toBe(avant)
+  })
+
+  it('le dit quand rien ne correspond', async () => {
+    const clavier = afficher()
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await clavier.type(screen.getByLabelText('Chercher un droit'), 'marmotte')
+
+    expect(screen.getByText(/Aucun droit ne correspond/)).toBeDefined()
   })
 })
 

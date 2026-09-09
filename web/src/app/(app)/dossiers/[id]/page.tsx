@@ -30,7 +30,10 @@ import {
   actionsDuDossier,
   investigationsValidees,
 } from '@/server/services/action-corrective/action-corrective'
-import { investigationsDuDossier } from '@/server/services/investigation/investigation'
+import {
+  investigationsDuDossier,
+  rolesValidateurs,
+} from '@/server/services/investigation/investigation'
 import { marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
 import { utilisateursAffectables } from '@/server/services/dossier/affectation'
 import {
@@ -97,6 +100,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     investigationsValidees_,
     messages,
     responsablesPossibles,
+    validateurs,
   ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
@@ -123,6 +127,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
+    rolesValidateurs(pourPolicy.parcoursCode),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -153,6 +158,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           ...contexteParcours,
           enqueteurId: i.enqueteur_id,
         }),
+        estLEnqueteur: i.enqueteur_id === utilisateur.id,
       }))
     : []
 
@@ -396,6 +402,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 enqueteurId: utilisateur.id,
               })}
               dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
+              validateurs={validateurs}
             />
           </section>
 
