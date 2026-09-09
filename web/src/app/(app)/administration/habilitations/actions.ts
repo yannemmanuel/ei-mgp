@@ -6,8 +6,10 @@ import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import {
   changerActivationRole,
+  creerRole,
   modifierIdentiteRole,
   modifierPermissionsRole,
+  supprimerRole,
 } from '@/server/services/administration/habilitations'
 
 /**
@@ -123,4 +125,72 @@ export async function actionChangerActivationRole(
       ? 'Rôle réactivé. Les comptes qui le portent retrouvent leurs droits.'
       : 'Rôle désactivé. Il ne confère plus aucun droit, dès la requête suivante.',
   }
+}
+
+/**
+ * Création d'un rôle.
+ *
+ * L'identifiant technique est dérivé du libellé par le service, jamais saisi : il devient une clé
+ * dans `model_has_roles` et dans le journal d'audit, et ne changera plus.
+ */
+export async function actionCreerRole(
+  _precedent: EtatHabilitation,
+  donnees: FormData
+): Promise<EtatHabilitation> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'roles.manage')) {
+    return { erreur: "Vous n'êtes pas autorisé à créer un rôle." }
+  }
+
+  const libelle = String(donnees.get('libelle') ?? '')
+  const description = String(donnees.get('description') ?? '')
+  const permissions = donnees.getAll('permissions').map((p) => String(p))
+
+  try {
+    await creerRole(acteur, { libelle, description, permissions })
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Création du rôle en échec', erreur)
+    return { erreur: "La création n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revalidatePath('/administration/habilitations')
+
+  return {
+    succes: `Rôle « ${libelle.trim()} » créé. Attribuez-le depuis la console des comptes.`,
+  }
+}
+
+/**
+ * Suppression d'un rôle.
+ *
+ * Le service refuse un rôle livré — le code s'y réfère — et un rôle encore porté par un compte.
+ * Ce sont les deux seules formes de suppression qui retireraient un accès sans le dire.
+ */
+export async function actionSupprimerRole(
+  _precedent: EtatHabilitation,
+  donnees: FormData
+): Promise<EtatHabilitation> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'roles.manage')) {
+    return { erreur: "Vous n'êtes pas autorisé à supprimer un rôle." }
+  }
+
+  const role = String(donnees.get('role') ?? '').trim()
+  if (role === '') return { erreur: 'Rôle manquant.' }
+
+  try {
+    await supprimerRole(acteur, role)
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Suppression du rôle en échec', erreur)
+    return { erreur: "La suppression n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revalidatePath('/administration/habilitations')
+  return { succes: 'Rôle supprimé. Le journal en garde la trace.' }
 }

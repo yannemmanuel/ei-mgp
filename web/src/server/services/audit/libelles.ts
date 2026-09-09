@@ -36,12 +36,15 @@ const OBJETS: Record<string, string> = {
 }
 
 const VERBES: Record<string, string> = {
+  active: 'réactivé',
   anonymise: 'anonymisé',
   archive: 'archivé',
   connexion: 'ouverte',
   cree: 'créé',
   creee: 'créée',
   deconnexion: 'fermée',
+  desactive: 'désactivé',
+  detachee: 'détachée de son site',
   envoyee: 'envoyée',
   identite_modifiee: 'renommé',
   modifie: 'modifié',

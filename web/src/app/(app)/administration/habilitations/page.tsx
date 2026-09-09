@@ -72,6 +72,9 @@ export default async function PageHabilitations() {
           comptes: ligne.comptes,
           retirees: ecartParRole.get(ligne.role)?.retirees ?? [],
           ajoutees: ecartParRole.get(ligne.role)?.ajoutees ?? [],
+          livre: ligne.livre,
+          rattachements: ligne.rattachements,
+          parcours: [...ligne.parcours],
         }))}
         domaines={domaines}
       />

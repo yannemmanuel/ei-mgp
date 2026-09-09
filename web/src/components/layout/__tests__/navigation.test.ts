@@ -67,6 +67,37 @@ describe('Filtrage par permission', () => {
 })
 
 describe('Le sommaire de l’administration ne propose pas d’impasse', () => {
+  /**
+   * Le lien et la garde doivent s'ouvrir sur EXACTEMENT les mêmes rôles.
+   *
+   * `/administration` n'exigeait aucune permission : la barre masquait bien le lien, mais
+   * l'adresse tapée à la main répondait 200 à n'importe quel compte connecté. Le lien et la garde
+   * étant maintenant tous deux dérivés des permissions des consoles, ce cas vérifie qu'ils ne
+   * divergent pas — dans un sens comme dans l'autre, un lien proposé sans accès étant un défaut
+   * d'interface, et un accès sans lien un défaut de découvrabilité.
+   */
+  it('s’ouvre aux mêmes rôles que le lien qui y mène', async () => {
+    const source = await import('node:fs/promises')
+    const page = await source.readFile('src/app/(app)/administration/page.tsx', 'utf8')
+
+    const requises = [...page.matchAll(/permission: '([a-z.]+)'/g)].map((m) => m[1])
+    expect(requises.length, 'aucune permission lue : la lecture a échoué').toBeGreaterThan(5)
+
+    for (const role of Object.keys(ROLES) as Role[]) {
+      const utilisateur = utilisateurAvecRoles(role)
+
+      const lien = navigationPour(utilisateur)
+        .flatMap((section) => section.liens)
+        .some((l) => l.href === '/administration')
+
+      const garde = requises.some((permission) =>
+        utilisateur.permissions.has(permission as Parameters<typeof utilisateur.permissions.has>[0])
+      )
+
+      expect(lien, `${role} : le lien et la garde ne s’accordent pas`).toBe(garde)
+    }
+  })
+
   it('chaque console listée a bien sa page', async () => {
     // Même défaut que pour la barre latérale, à un autre endroit : le sommaire de
     // `/administration` porte ses propres liens, qu'aucun test ne reliait à l'arborescence. Deux

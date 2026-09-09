@@ -18,8 +18,10 @@ import type { DomaineVue, RoleVue } from '../editeur'
  */
 vi.mock('../actions', () => ({
   actionChangerActivationRole: async () => ({}),
+  actionCreerRole: async () => ({}),
   actionModifierHabilitations: async () => ({}),
   actionModifierIdentiteRole: async () => ({}),
+  actionSupprimerRole: async () => ({}),
 }))
 
 const { EditeurHabilitations } = await import('../editeur')
@@ -68,6 +70,24 @@ const ROLE: RoleVue = {
   comptes: 2,
   retirees: [],
   ajoutees: [],
+  livre: true,
+  rattachements: 2,
+  parcours: ['ei_employe'],
+}
+
+/** Rôle créé depuis l'interface : supprimable, et sans accès aux dossiers. */
+const ROLE_CREE: RoleVue = {
+  role: 'gestionnaire_des_supports',
+  libelle: 'Gestionnaire des supports',
+  description: null,
+  actif: true,
+  permissions: ['users.manage'],
+  comptes: 0,
+  retirees: [],
+  ajoutees: [],
+  livre: false,
+  rattachements: 0,
+  parcours: [],
 }
 
 function afficher(roles: RoleVue[] = [ROLE]) {
@@ -175,6 +195,58 @@ describe('Ce qu’un onglet ne doit pas faire disparaître', () => {
     ).map((champ) => champ.value)
 
     expect(envoyes.sort()).toEqual(['dossiers.close', 'dossiers.view'])
+  })
+})
+
+describe('Créer et supprimer un rôle', () => {
+  it('prévient, avant la création, qu’un rôle créé ici n’ouvre aucun dossier', async () => {
+    const clavier = afficher()
+    await clavier.click(screen.getByRole('button', { name: 'Nouveau rôle' }))
+
+    expect(screen.getByLabelText('Nom affiché')).toBeDefined()
+    expect(screen.getByText(/aucun dossier/)).toBeDefined()
+  })
+
+  it('ne propose pas la suppression d’un rôle livré', async () => {
+    // Le code s'y réfère par son nom : la désactivation est la seule opération de retrait.
+    const clavier = afficher([ROLE])
+
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+
+    expect(screen.getByRole('button', { name: 'Désactiver…' })).toBeDefined()
+    expect(screen.queryByText('Supprimer ce rôle')).toBeNull()
+  })
+
+  it('propose la suppression d’un rôle créé ici', async () => {
+    const clavier = afficher([ROLE_CREE])
+
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+
+    expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Supprimer…' })).toBeDefined()
+  })
+
+  it('retire le bouton de suppression tant que des comptes portent le rôle', async () => {
+    // Supprimer un rôle rattaché retirerait un accès sans le dire : l'écran indique quoi faire
+    // d'abord, plutôt que d'offrir un bouton que le serveur refusera.
+    const rattache = { ...ROLE_CREE, rattachements: 3 }
+    const clavier = afficher([rattache])
+
+    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+
+    expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Supprimer…' })).toBeNull()
+    expect(screen.getByText(/3 compte\(s\) portent encore/)).toBeDefined()
+  })
+
+  it('signale un rôle qui n’ouvre aucun dossier', () => {
+    afficher([ROLE_CREE])
+
+    expect(screen.getByText('Créé ici')).toBeDefined()
+    expect(screen.getByText(/N’ouvre aucun dossier/)).toBeDefined()
   })
 })
 

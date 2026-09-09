@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { prisma } from '@/lib/prisma'
-import { exigerUtilisateur } from '@/server/auth'
+import { exigerUnePermissionParmi } from '@/server/auth'
 import { aPermission, type Permission } from '@/server/authz'
 
 export const metadata: Metadata = { title: 'Administration' }
@@ -140,8 +140,28 @@ const GROUPES: Groupe[] = [
   },
 ]
 
+/**
+ * Les droits qui ouvrent ce sommaire — dérivés des consoles elles-mêmes.
+ *
+ * Écrire la liste une seconde fois à la main aurait laissé la garde se désaligner du contenu à la
+ * première console ajoutée. Elle est donc calculée : la page s'ouvre exactement à qui peut voir
+ * au moins une carte, jamais à moins, jamais à plus.
+ */
+export const PERMISSIONS_CONSOLES = GROUPES.flatMap((groupe) =>
+  groupe.entrees.map((entree) => entree.permission)
+)
+
 export default async function PageAdministration() {
-  const utilisateur = await exigerUtilisateur()
+  /*
+    ⚠️ Cette page n'exigeait RIEN : `exigerUtilisateur()` seul.
+
+    La barre latérale masquait bien le lien à qui n'a aucun droit d'administration, et chaque
+    console vérifie le sien — mais l'adresse tapée à la main répondait 200 à n'importe quel compte
+    connecté, qui découvrait un sommaire vide et le nombre d'entrées de chaque référentiel. Or
+    masquer un lien n'est pas un contrôle d'accès : c'est écrit en tête de `navigation.ts`, et le
+    contrôle manquait ici.
+  */
+  const utilisateur = await exigerUnePermissionParmi(PERMISSIONS_CONSOLES)
 
   const groupes = GROUPES.map((groupe) => ({
     titre: groupe.titre,

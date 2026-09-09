@@ -11,8 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   actionChangerActivationRole,
+  actionCreerRole,
   actionModifierHabilitations,
   actionModifierIdentiteRole,
+  actionSupprimerRole,
   type EtatHabilitation,
 } from './actions'
 
@@ -41,6 +43,12 @@ export type RoleVue = {
   comptes: number
   retirees: string[]
   ajoutees: string[]
+  /** Rôle du CDC, nommé par le code : modifiable et désactivable, jamais supprimable. */
+  livre: boolean
+  /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
+  rattachements: number
+  /** Parcours ouverts. Vide = ce rôle ne donne accès à aucun dossier. */
+  parcours: string[]
 }
 
 const ETAT: EtatHabilitation = {}
@@ -85,6 +93,7 @@ export function EditeurHabilitations({
   }, [roles, recherche])
 
   const inactifs = roles.filter((r) => !r.actif).length
+  const [creation, setCreation] = useState(false)
 
   return (
     <div className="space-y-4">
@@ -102,7 +111,17 @@ export function EditeurHabilitations({
             {inactifs} rôle{inactifs > 1 ? 's' : ''} désactivé{inactifs > 1 ? 's' : ''}.
           </p>
         )}
+        <Button
+          size="sm"
+          variant={creation ? 'outline' : 'default'}
+          className="ms-auto"
+          onClick={() => setCreation((v) => !v)}
+        >
+          {creation ? 'Annuler' : 'Nouveau rôle'}
+        </Button>
       </div>
+
+      {creation && <FormulaireCreation onFerme={() => setCreation(false)} />}
 
       {filtres.length === 0 && (
         <p className="text-sm text-muted-foreground">Aucun rôle ne correspond.</p>
@@ -119,6 +138,79 @@ export function EditeurHabilitations({
         ))}
       </div>
     </div>
+  )
+}
+
+/**
+ * Création d'un rôle.
+ *
+ * ⚠️ L'avertissement sur les parcours n'est pas décoratif. Les permissions cochées plus tard
+ * s'appliqueront bel et bien, mais le cloisonnement par parcours est décrit par le code et ne
+ * nomme que les rôles livrés : un rôle créé ici ne donne accès à AUCUN dossier. Le dire avant la
+ * création évite de découvrir après coup un rôle qui semble tout permettre et ne montre rien.
+ */
+function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
+  const [etat, envoyer, enCours] = useActionState(actionCreerRole, ETAT)
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <form action={envoyer} className="space-y-3">
+          <p className="text-sm font-medium text-secondary-900">Nouveau rôle</p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="nouveau-libelle" className="text-caption text-muted-foreground">
+                Nom affiché
+              </Label>
+              <Input
+                id="nouveau-libelle"
+                name="libelle"
+                required
+                minLength={3}
+                maxLength={255}
+                placeholder="Gestionnaire des supports"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="nouveau-description" className="text-caption text-muted-foreground">
+                Description (facultative)
+              </Label>
+              <Input
+                id="nouveau-description"
+                name="description"
+                maxLength={1000}
+                placeholder="À quoi sert ce rôle, pour qui"
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <Alert>
+            <AlertDescription className="text-caption">
+              Un rôle créé ici sert à répartir des tâches d’administration — QR codes, gabarits,
+              journal. Il ne donne accès à <strong>aucun dossier</strong> : les dossiers sont
+              répartis par type de déclaration, et cette répartition est fixée dans l’application.
+            </AlertDescription>
+          </Alert>
+
+          <Retour etat={etat} />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" size="sm" disabled={enCours}>
+              {enCours ? 'Création…' : 'Créer le rôle'}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onFerme}>
+              Annuler
+            </Button>
+            <span className="text-caption text-muted-foreground">
+              Ses droits se cochent ensuite, en l’ouvrant dans la liste.
+            </span>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -154,6 +246,7 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                 {role.libelle}
               </p>
               {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+              {!role.livre && <EtiquetteStatut ton="attention">Créé ici</EtiquetteStatut>}
             </div>
             {role.description && (
               <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-secondary-600">
@@ -219,6 +312,14 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                 Dont : {sensibles.map((p) => p.libelle.toLowerCase()).join(', ')}.
               </p>
             )}
+
+            {/* Un rôle sans parcours ne verra jamais un dossier, quoi qu'on lui coche. Le taire
+                laisserait chercher longtemps pourquoi la liste reste vide. */}
+            {role.actif && role.parcours.length === 0 && resume.length > 0 && (
+              <p className="text-caption text-muted-foreground">
+                N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.
+              </p>
+            )}
           </div>
         )}
 
@@ -258,8 +359,10 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
                 role="tabpanel"
                 aria-labelledby={`onglet-${role.role}-activation`}
                 hidden={onglet !== 'activation'}
+                className="space-y-4"
               >
                 <FormulaireActivation role={role} />
+                {!role.livre && <FormulaireSuppression role={role} />}
               </div>
             </div>
           </div>
@@ -606,6 +709,65 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
           {enCours ? 'Réactivation…' : 'Réactiver'}
         </Button>
       )}
+    </form>
+  )
+}
+
+/**
+ * Suppression définitive — réservée aux rôles créés depuis cette interface.
+ *
+ * Les rôles livrés sont nommés par le code : le cloisonnement par parcours, la table des acteurs
+ * d'étape et l'habilitation par site s'y réfèrent. Pour eux, la désactivation est la bonne
+ * opération, et elle est juste au-dessus.
+ *
+ * Le service refuse en outre un rôle encore rattaché à un compte : le supprimer retirerait un
+ * accès sans que rien ne le dise, et l'association partirait avec lui. Le bouton n'est donc même
+ * pas proposé dans ce cas — l'écran dit quoi faire d'abord.
+ */
+function FormulaireSuppression({ role }: { role: RoleVue }) {
+  const [etat, envoyer, enCours] = useActionState(actionSupprimerRole, ETAT)
+  const [confirme, setConfirme] = useState(false)
+
+  return (
+    <form action={envoyer} className="space-y-3 border-t border-border pt-4">
+      <input type="hidden" name="role" value={role.role} />
+
+      <p className="text-sm font-medium text-secondary-900">Supprimer ce rôle</p>
+
+      {role.rattachements > 0 ? (
+        <p className="text-caption text-muted-foreground">
+          {role.rattachements} compte(s) portent encore ce rôle. Retirez-le-leur depuis les
+          comptes, puis revenez ici.
+        </p>
+      ) : (
+        <p className="text-caption text-muted-foreground">
+          Personne ne le porte : la suppression ne retirera d’accès à personne. Le journal en
+          gardera la trace.
+        </p>
+      )}
+
+      <Retour etat={etat} />
+
+      {role.rattachements === 0 &&
+        (confirme ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <p className="text-sm text-secondary-900">
+              « {role.libelle} » sera supprimé définitivement. Cette action ne s’annule pas.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="submit" size="sm" variant="destructive" disabled={enCours}>
+                {enCours ? 'Suppression…' : 'Confirmer la suppression'}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(false)}>
+                Annuler
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(true)}>
+            Supprimer…
+          </Button>
+        ))}
     </form>
   )
 }

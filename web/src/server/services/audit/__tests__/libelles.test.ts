@@ -37,6 +37,56 @@ describe('Libellés du journal d’audit', () => {
     expect(bruts, 'ces objets s’affichent encore avec leur nom de classe').toEqual([])
   })
 
+  it('nomme chaque action que le code sait écrire, pas seulement celles déjà en base', async () => {
+    /*
+      Les deux cas précédents ne voient que le passé. `role.active` et `role.desactive` étaient
+      ainsi passés au travers : le code les écrit, aucune ligne n'existait encore, et le journal
+      les aurait affichés en clair technique le jour où quelqu'un désactive un rôle.
+    */
+    const { readdir, readFile } = await import('node:fs/promises')
+    const { join } = await import('node:path')
+
+    async function fichiers(racine: string): Promise<string[]> {
+      const entrees = await readdir(racine, { withFileTypes: true })
+
+      const listes = await Promise.all(
+        entrees.map(async (e) => {
+          const chemin = join(racine, e.name)
+          if (e.isDirectory()) return e.name === '__tests__' ? [] : fichiers(chemin)
+          return e.name.endsWith('.ts') ? [chemin] : []
+        })
+      )
+
+      return listes.flat()
+    }
+
+    const sources = await fichiers(join(process.cwd(), 'src', 'server'))
+    const emises = new Set<string>()
+
+    for (const chemin of sources) {
+      const source = await readFile(chemin, 'utf8')
+      /*
+        ⚠️ La valeur de `action:` n'est pas toujours un littéral.
+
+        `changerActivationRole` écrit `action: actif ? 'role.active' : 'role.desactive'`. Une
+        expression qui n'accepterait qu'un littéral collé à `action:` aurait laissé passer ces
+        deux codes — les deux qui manquaient réellement. On lit donc la fin de ligne, puis on y
+        cherche toutes les chaînes de la forme attendue.
+      */
+      for (const ligne of source.matchAll(/action:([^\n]*)/g)) {
+        for (const code of ligne[1].matchAll(/'([a-z_]+\.[a-z_]+)'/g)) emises.add(code[1])
+      }
+    }
+
+    expect(emises.size, 'aucune action lue : la lecture a échoué').toBeGreaterThan(10)
+
+    const muettes = [...emises]
+      .filter((code) => !code.startsWith('test.'))
+      .filter((code) => libelleAction(code) === code)
+
+    expect(muettes.sort(), 'ces actions s’afficheraient avec leur code technique').toEqual([])
+  })
+
   it('rend le code brut plutôt que rien quand il ne sait pas traduire', () => {
     // Une action ajoutée ailleurs dans le code, sans entrée ici : elle doit rester VISIBLE.
     expect(libelleAction('marmotte.emballee')).toBe('marmotte.emballee')

@@ -1,6 +1,11 @@
 import { redirect } from 'next/navigation'
 import type { Permission } from '@/server/authz'
-import { aPermission, chargerUtilisateurAutorise, type UtilisateurAutorise } from '@/server/authz'
+import {
+  aPermission,
+  aUnePermissionParmi,
+  chargerUtilisateurAutorise,
+  type UtilisateurAutorise,
+} from '@/server/authz'
 import { auth } from './config'
 
 /**
@@ -88,6 +93,30 @@ export async function exigerPermission(permission: Permission): Promise<Utilisat
      * ce soit.
      */
     redirect(`/acces-refuse?droit=${encodeURIComponent(permission)}`)
+  }
+
+  return utilisateur
+}
+
+/**
+ * Même garde, pour une page qui s'ouvre à QUI DÉTIENT AU MOINS UN droit d'une famille.
+ *
+ * Le sommaire de l'administration est le cas : il regroupe dix consoles dont chacune a sa propre
+ * permission, et n'en exige aucune en particulier. Faute de cette variante, il n'exigeait
+ * RIEN — la barre latérale masquait bien le lien à qui n'y avait pas droit, mais l'adresse
+ * tapée à la main répondait 200 à n'importe quel compte connecté. Masquer un lien n'est pas un
+ * contrôle d'accès ; c'est écrit en tête de `navigation.ts`, et il manquait le contrôle.
+ *
+ * Le droit nommé dans la redirection est le PREMIER de la liste : celui qui ouvre la page dans
+ * le cas le plus courant. Les énumérer tous ne dirait pas mieux ce qu'il faut demander.
+ */
+export async function exigerUnePermissionParmi(
+  permissions: readonly Permission[]
+): Promise<UtilisateurAutorise> {
+  const utilisateur = await exigerUtilisateur()
+
+  if (!aUnePermissionParmi(utilisateur, permissions)) {
+    redirect(`/acces-refuse?droit=${encodeURIComponent(permissions[0])}`)
   }
 
   return utilisateur

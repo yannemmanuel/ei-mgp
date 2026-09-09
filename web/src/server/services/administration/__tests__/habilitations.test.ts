@@ -1,8 +1,14 @@
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { PERMISSIONS, ROLES, ROLE_NAMES, type Role } from '@/server/authz'
 import { ErreurWorkflow } from '../../dossier/workflow'
-import { chargerHabilitations, modifierPermissionsRole } from '../habilitations'
+import {
+  chargerHabilitations,
+  creerRole,
+  modifierPermissionsRole,
+  nomTechnique,
+  supprimerRole,
+} from '../habilitations'
 
 /**
  * Matrice des habilitations.
@@ -48,7 +54,10 @@ describe('Lecture de la matrice', () => {
       expect([...ligne.permissions].sort(), `rôle ${ligne.role}`).toEqual(
         (enBase?.role_has_permissions ?? []).map((r) => r.permissions.name).sort()
       )
-      expect(ligne.reference, `référence du rôle ${ligne.role}`).toEqual(ROLES[ligne.role])
+      // Un rôle créé depuis l'interface n'a pas de référence livrée : le code ne le connaît pas.
+      expect(ligne.reference, `référence du rôle ${ligne.role}`).toEqual(
+        ligne.livre ? ROLES[ligne.role as Role] : []
+      )
     }
   })
 
@@ -147,11 +156,34 @@ describe('Modification des habilitations', () => {
     return ligne.role_has_permissions.map((r) => r.permissions.name).sort()
   }
 
+  /**
+   * Plancher d'identifiant : tout ce qui est écrit APRÈS appartient à ces cas de test.
+   *
+   * ⚠️ Le nettoyage supprimait toutes les lignes `role.permissions_modifiees`, sans distinguer
+   * celles qu'il venait d'écrire de celles qu'un administrateur avait produites depuis l'écran.
+   * Chaque exécution de la suite effaçait donc l'historique réel des ajustements de droits — sur
+   * la base de développement, il n'en restait aucune, alors que l'écran signalait un rôle ajusté
+   * et renvoyait vers un journal vide. Le journal est en ajout seul : c'est écrit sur l'écran
+   * d'audit, et un test n'a pas à faire exception.
+   */
+  let plancherAudit = 0n
+
+  beforeAll(async () => {
+    const derniere = await prisma.audit_logs.findFirst({
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    })
+
+    plancherAudit = derniere?.id ?? 0n
+  })
+
   /** Rétablit l'état d'un rôle après un test : cette table décide de droits réels. */
   async function retablir(role: string, permissions: string[]) {
     const qui = await acteur()
     await modifierPermissionsRole(qui, role, permissions)
-    await prisma.audit_logs.deleteMany({ where: { action: 'role.permissions_modifiees' } })
+    await prisma.audit_logs.deleteMany({
+      where: { action: 'role.permissions_modifiees', id: { gt: plancherAudit } },
+    })
   }
 
   it('retire et ajoute une permission, avec effet en base', async () => {
@@ -241,5 +273,178 @@ describe('Modification des habilitations', () => {
     ).rejects.toThrow(/dernier rôle actif habilité|aucun compte actif/i)
 
     expect(await permissionsDe('administrateur_digital')).toEqual(avant)
+  })
+})
+
+/**
+ * Création et suppression de rôles.
+ *
+ * Ces cas ÉCRIVENT réellement : ils créent un rôle, le manipulent et le suppriment. Ils ne
+ * touchent jamais un rôle existant — le nettoyage ne vise que ce qu'ils ont eux-mêmes créé, et le
+ * nom choisi ne peut pas entrer en collision avec un rôle du CDC.
+ */
+describe('Création et suppression de rôles', () => {
+  const LIBELLE = 'Rôle d’essai automatisé'
+  const NOM = 'role_d_essai_automatise'
+
+  async function acteur() {
+    const u = await prisma.users.findFirstOrThrow({ orderBy: { id: 'asc' }, select: { id: true } })
+    return { id: u.id }
+  }
+
+  async function effacerLesTraces() {
+    const ligne = await prisma.roles.findFirst({ where: { name: NOM }, select: { id: true } })
+
+    if (ligne) {
+      await prisma.model_has_roles.deleteMany({ where: { role_id: ligne.id } })
+      await prisma.role_has_permissions.deleteMany({ where: { role_id: ligne.id } })
+      await prisma.roles.delete({ where: { id: ligne.id } })
+    }
+
+    // Seules les lignes écrites DEPUIS le début de ce bloc : le reste du journal est en ajout
+    // seul, et un nettoyage par action seule effacerait l'historique réel des administrateurs.
+    await prisma.audit_logs.deleteMany({
+      where: { action: { in: ['role.cree', 'role.supprime'] }, id: { gt: plancherAudit } },
+    })
+  }
+
+  let plancherAudit = 0n
+
+  beforeAll(async () => {
+    const derniere = await prisma.audit_logs.findFirst({
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    })
+
+    plancherAudit = derniere?.id ?? 0n
+  })
+
+  afterEach(effacerLesTraces)
+
+  it('dérive un identifiant technique lisible du libellé', () => {
+    expect(nomTechnique('Rôle d’essai automatisé')).toBe(NOM)
+    expect(nomTechnique('  Gestionnaire   des SUPPORTS  ')).toBe('gestionnaire_des_supports')
+    expect(nomTechnique('Référent HSE (site A)')).toBe('referent_hse_site_a')
+  })
+
+  it('crée un rôle qui apparaît dans la liste et s’applique en base', async () => {
+    const qui = await acteur()
+    const nom = await creerRole(qui, {
+      libelle: LIBELLE,
+      description: 'Créé par la suite de tests.',
+      permissions: ['qrcodes.manage'],
+    })
+
+    expect(nom).toBe(NOM)
+
+    // La liste partait de `ROLE_NAMES` : un rôle créé n'y figurait pas, alors qu'il s'appliquait.
+    const { lignes } = await chargerHabilitations()
+    const ligne = lignes.find((l) => l.role === NOM)
+
+    expect(ligne, 'le rôle créé n’apparaît pas dans la liste').toBeDefined()
+    expect(ligne?.livre).toBe(false)
+    expect(ligne?.permissions).toEqual(['qrcodes.manage'])
+    expect(ligne?.actif).toBe(true)
+
+    // Il n'ouvre aucun parcours : l'écran doit pouvoir le dire.
+    expect(ligne?.parcours).toEqual([])
+  })
+
+  it('n’invente aucun écart pour un rôle sans référence livrée', async () => {
+    const qui = await acteur()
+    await creerRole(qui, { libelle: LIBELLE, description: null, permissions: ['qrcodes.manage'] })
+
+    const { ecarts } = await chargerHabilitations()
+
+    // Comparé à une référence vide, tout aurait été « ajouté » — un rôle créé serait apparu
+    // « ajusté » dès sa naissance.
+    expect(ecarts.some((e) => e.role === NOM)).toBe(false)
+  })
+
+  it('refuse un doublon de nom', async () => {
+    const qui = await acteur()
+    await creerRole(qui, { libelle: LIBELLE, description: null, permissions: [] })
+
+    await expect(
+      creerRole(qui, { libelle: LIBELLE, description: null, permissions: [] })
+    ).rejects.toThrow(/porte déjà ce nom/i)
+  })
+
+  it('garde le catalogue des permissions fermé', async () => {
+    const qui = await acteur()
+
+    await expect(
+      creerRole(qui, { libelle: LIBELLE, description: null, permissions: ['dossiers.supprimer'] })
+    ).rejects.toThrow(/inconnue/i)
+
+    // Et rien n'a été créé au passage.
+    expect(await prisma.roles.count({ where: { name: NOM } })).toBe(0)
+  })
+
+  it('refuse un libellé qui ne donne aucun identifiant', async () => {
+    const qui = await acteur()
+
+    await expect(
+      creerRole(qui, { libelle: '—— ——', description: null, permissions: [] })
+    ).rejects.toThrow(/trois lettres ou chiffres/i)
+  })
+
+  it('supprime un rôle créé, et le journal en garde la trace', async () => {
+    const qui = await acteur()
+    await creerRole(qui, { libelle: LIBELLE, description: null, permissions: ['qrcodes.manage'] })
+
+    await supprimerRole(qui, NOM)
+
+    expect(await prisma.roles.count({ where: { name: NOM } })).toBe(0)
+
+    // La ligne d'audit est écrite AVANT la suppression : après, plus rien ne relierait
+    // l'identifiant au nom du rôle.
+    const trace = await prisma.audit_logs.findFirst({
+      where: { action: 'role.supprime' },
+      orderBy: { id: 'desc' },
+      select: { old_values: true },
+    })
+
+    const conserve = JSON.stringify(trace?.old_values)
+    expect(conserve).toContain(NOM)
+    expect(conserve).toContain('qrcodes.manage')
+  })
+
+  it('refuse de supprimer un rôle livré', async () => {
+    const qui = await acteur()
+
+    // Le code nomme ces rôles : cloisonnement par parcours, acteurs d'étape, habilitation par
+    // site. Les supprimer romprait ces règles sans qu'aucune erreur ne le signale.
+    for (const role of ['service_mgp', 'secretaire_csst', 'administrateur_digital']) {
+      await expect(supprimerRole(qui, role)).rejects.toThrow(/rôles livrés/i)
+    }
+
+    expect(await prisma.roles.count({ where: { name: 'service_mgp' } })).toBe(1)
+  })
+
+  it('refuse de supprimer un rôle encore porté par un compte', async () => {
+    const qui = await acteur()
+    await creerRole(qui, { libelle: LIBELLE, description: null, permissions: [] })
+
+    const ligne = await prisma.roles.findFirstOrThrow({
+      where: { name: NOM },
+      select: { id: true },
+    })
+
+    await prisma.model_has_roles.create({
+      data: { role_id: ligne.id, model_type: MODEL_TYPE_USER, model_id: qui.id },
+    })
+
+    // Sans ce refus, le compte aurait perdu un accès sans que rien ne le dise, et l'association
+    // aurait disparu avec le rôle : on ne saurait plus à qui rendre quoi.
+    await expect(supprimerRole(qui, NOM)).rejects.toThrow(/portent encore/i)
+
+    expect(await prisma.roles.count({ where: { name: NOM } })).toBe(1)
+  })
+
+  it('refuse de supprimer un rôle inconnu', async () => {
+    const qui = await acteur()
+
+    await expect(supprimerRole(qui, 'role_qui_n_existe_pas')).rejects.toThrow(/inconnu/i)
   })
 })
