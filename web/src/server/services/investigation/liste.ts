@@ -24,6 +24,8 @@ export type FiltresInvestigations = {
   statut?: string
   enqueteurId?: string
   parcoursId?: string
+  /** Statut du DOSSIER, à ne pas confondre avec `statut`, qui est celui de la fiche. */
+  statutDossierId?: string
   periodeDebut?: string
   periodeFin?: string
   /** Raccourci de navigation : les investigations dont je suis l'enquêteur. */
@@ -48,9 +50,12 @@ function clauseFiltres(
     where.enqueteur_id = BigInt(filtres.enqueteurId)
   }
 
-  if (filtres.parcoursId) {
-    where.dossiers = { parcours_id: BigInt(filtres.parcoursId) }
-  }
+  // ⚠️ Les deux filtres portent sur la MÊME relation : les écrire l'un après l'autre dans
+  // `where.dossiers` ferait perdre le premier. Ils s'accumulent donc dans un seul objet.
+  const surLeDossier: Prisma.dossiersWhereInput = {}
+  if (filtres.parcoursId) surLeDossier.parcours_id = BigInt(filtres.parcoursId)
+  if (filtres.statutDossierId) surLeDossier.statut_id = BigInt(filtres.statutDossierId)
+  if (Object.keys(surLeDossier).length > 0) where.dossiers = surLeDossier
 
   if (filtres.periodeDebut || filtres.periodeFin) {
     where.date_ouverture = {
@@ -91,6 +96,10 @@ export async function listerInvestigations(
             reference: true,
             parcours: { select: { libelle: true } },
             categories: { select: { libelle: true } },
+            // Sans lui, la seule colonne « Statut » de l'écran était celle de la FICHE, et une
+            // fiche validée sur un dossier déjà résolu se lisait comme un dossier en cours
+            // d'investigation.
+            statuts_dossier: { select: { code: true, libelle_interne: true } },
           },
         },
       },
@@ -108,7 +117,7 @@ export async function listerInvestigations(
 
 /** Référentiels alimentant les listes déroulantes de filtres. */
 export async function referentielsInvestigations() {
-  const [parcours, enqueteurs] = await Promise.all([
+  const [parcours, enqueteurs, statutsDossier] = await Promise.all([
     prisma.parcours.findMany({
       where: { actif: true },
       orderBy: { ordre: 'asc' },
@@ -122,9 +131,16 @@ export async function referentielsInvestigations() {
       orderBy: { name: 'asc' },
       select: { id: true, name: true },
     }),
+    // Même règle : seuls les statuts qu'un dossier sous investigation porte réellement. Proposer
+    // les dix statuts en offrirait huit qui ne ramènent rien.
+    prisma.statuts_dossier.findMany({
+      where: { dossiers: { some: { investigations: { some: {} } } } },
+      orderBy: { ordre: 'asc' },
+      select: { id: true, libelle_interne: true },
+    }),
   ])
 
-  return { parcours, enqueteurs }
+  return { parcours, enqueteurs, statutsDossier }
 }
 
 export const LIBELLES_STATUT_INVESTIGATION: Record<StatutInvestigation, string> = {

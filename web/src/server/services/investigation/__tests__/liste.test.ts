@@ -101,6 +101,60 @@ describe('Filtres', () => {
       }
     }
   })
+
+  it('filtre sur le statut du DOSSIER, distinct de celui de la fiche', async () => {
+    const utilisateur = utilisateurAvecRoles('service_mgp')
+    const { statutsDossier } = await referentielsInvestigations()
+
+    expect(statutsDossier.length, 'aucun statut proposé : le cas ne prouverait rien').toBeGreaterThan(0)
+
+    for (const statut of statutsDossier) {
+      const { investigations } = await listerInvestigations(
+        utilisateur,
+        { statutDossierId: String(statut.id) },
+        1
+      )
+
+      for (const investigation of investigations) {
+        expect(
+          investigation.dossiers.statuts_dossier.libelle_interne,
+          `${investigation.dossiers.reference} ne devrait pas figurer sous « ${statut.libelle_interne} »`
+        ).toBe(statut.libelle_interne)
+      }
+    }
+  })
+
+  /**
+   * Les deux filtres portent sur la même relation `dossiers`.
+   *
+   * Les écrire l'un après l'autre dans `where.dossiers` faisait perdre le premier — sans erreur,
+   * sans liste vide : juste des lignes en trop, que personne ne recompte. C'est la forme de
+   * défaut la plus difficile à voir à l'écran.
+   */
+  it('cumule le filtre de parcours et celui du statut du dossier', async () => {
+    const utilisateur = utilisateurAvecRoles('service_mgp')
+    const { parcours, statutsDossier } = await referentielsInvestigations()
+
+    for (const p of parcours) {
+      for (const s of statutsDossier) {
+        const { investigations } = await listerInvestigations(
+          utilisateur,
+          { parcoursId: String(p.id), statutDossierId: String(s.id) },
+          1
+        )
+
+        for (const investigation of investigations) {
+          const reel = await prisma.investigations.findUniqueOrThrow({
+            where: { id: investigation.id },
+            select: { dossiers: { select: { parcours_id: true, statut_id: true } } },
+          })
+
+          expect(reel.dossiers.parcours_id, 'le filtre de parcours a été écrasé').toBe(p.id)
+          expect(reel.dossiers.statut_id, 'le filtre de statut a été écrasé').toBe(s.id)
+        }
+      }
+    }
+  })
 })
 
 describe('Référentiels de filtre', () => {
@@ -114,5 +168,19 @@ describe('Référentiels de filtre', () => {
     // Proposer les comptes actifs au complet donnerait une liste déroulante dont la quasi-totalité
     // des entrées ne ramènerait rien.
     expect(enqueteurs.length).toBe(menees.length)
+  })
+
+  it('ne propose que des statuts de dossier réellement portés par une fiche', async () => {
+    const { statutsDossier } = await referentielsInvestigations()
+    const portes = await prisma.dossiers.findMany({
+      where: { investigations: { some: {} } },
+      distinct: ['statut_id'],
+      select: { statut_id: true },
+    })
+
+    // Même raison que pour les enquêteurs : sur dix statuts, huit ne ramèneraient rien.
+    expect(statutsDossier.map((s) => s.id).sort()).toEqual(
+      portes.map((d) => d.statut_id).sort()
+    )
   })
 })

@@ -37,6 +37,24 @@ const TONS: Record<StatutInvestigation, TonStatut> = {
 }
 
 /**
+ * Où en est le DOSSIER, par opposition à où en est la fiche.
+ *
+ * Une fiche reste dans ce registre après que le dossier a poursuivi son chemin : « Validée » sur
+ * un dossier depuis longtemps résolu est une ligne parfaitement normale. Encore faut-il pouvoir
+ * le lire — le ton neutre distingue d'un coup d'œil ce qui est encore ouvert de ce qui ne l'est
+ * plus.
+ */
+const TONS_DOSSIER: Record<string, TonStatut> = {
+  en_investigation: 'encours',
+  en_attente_information: 'attention',
+  action_corrective_en_cours: 'attention',
+  reouvert: 'attention',
+  resolu: 'succes',
+  cloture: 'neutre',
+  rejete: 'neutre',
+}
+
+/**
  * Vue transverse des investigations — port de `App\Livewire\Investigations\InvestigationListPage`.
  *
  * Chaque ligne mène au dossier, à sa section « Investigations » : c'est là que la fiche se
@@ -62,6 +80,7 @@ export default async function PageInvestigations({
 
   const filtres = {
     statut: lire('statut'),
+    statutDossierId: lire('statutDossierId'),
     enqueteurId: lire('enqueteurId'),
     parcoursId: lire('parcoursId'),
     periodeDebut: lire('periodeDebut'),
@@ -82,9 +101,19 @@ export default async function PageInvestigations({
   const champs: ChampFiltre[] = [
     {
       type: 'select',
+      cle: 'statutDossierId',
+      libelle: 'Où en est le dossier',
+      tous: 'Peu importe',
+      options: referentiels.statutsDossier.map((s) => ({
+        valeur: String(s.id),
+        libelle: s.libelle_interne,
+      })),
+    },
+    {
+      type: 'select',
       cle: 'statut',
-      libelle: 'Statut',
-      tous: 'Tous',
+      libelle: 'Où en est la fiche',
+      tous: 'Peu importe',
       options: Object.entries(LIBELLES_STATUT_INVESTIGATION).map(([valeur, libelle]) => ({
         valeur,
         libelle,
@@ -114,7 +143,7 @@ export default async function PageInvestigations({
     <div className="space-y-5">
       <EnTetePage
         titre="Investigations"
-        lede="Les investigations en cours, de la plus récente à la plus ancienne."
+        lede="Toutes les fiches ouvertes à ce jour, y compris sur des dossiers qui ont depuis avancé. Filtrez sur « Où en est le dossier » pour ne voir que ceux encore en investigation."
         compteur={`${resultat.total} ${resultat.total > 1 ? 'fiches' : 'fiche'}`}
       />
 
@@ -150,7 +179,8 @@ export default async function PageInvestigations({
                   <TableHead>Catégorie</TableHead>
                   <TableHead>Enquêteur</TableHead>
                   <TableHead>Ouverte le</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <TableHead>Où en est le dossier</TableHead>
+                  <TableHead>Où en est la fiche</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -183,6 +213,13 @@ export default async function PageInvestigations({
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {dateFr(investigation.date_ouverture)}
+                      </TableCell>
+                      <TableCell>
+                        <EtiquetteStatut
+                          ton={TONS_DOSSIER[investigation.dossiers.statuts_dossier.code] ?? 'neutre'}
+                        >
+                          {investigation.dossiers.statuts_dossier.libelle_interne}
+                        </EtiquetteStatut>
                       </TableCell>
                       <TableCell>
                         <EtiquetteStatut ton={TONS[statut] ?? 'neutre'}>
