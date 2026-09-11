@@ -177,6 +177,9 @@ export async function traiterSoumission(
         propositionMesureCorrective: (dossierSpecifique.propositionMesureCorrective ?? null) as
           | string
           | null,
+        // Toujours un booléen quand le champ est visible — une case non cochée vaut `false`, pas
+        // `undefined` — donc `null` ne subsiste que pour les déclarations antérieures au champ.
+        declarantEstVictime: (dossierSpecifique.declarantEstVictime ?? null) as boolean | null,
         // Conservée même pour une déclaration anonyme : elle porte le rattachement au site, donc
         // l'acheminement vers le bon secrétaire. Ce n'est pas une donnée d'identité — elle vit sur
         // `dossiers`, jamais dans `declaration_identites`.

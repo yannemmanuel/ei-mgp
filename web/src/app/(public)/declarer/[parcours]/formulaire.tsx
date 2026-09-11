@@ -11,7 +11,11 @@ import {
   MAX_MEGAOCTETS_TOTAL,
   verifierLotSuperficiellement,
 } from '@/lib/limites-pieces-jointes'
-import type { Champ, ParcoursConfig } from '@/server/services/declaration/parcours-config'
+import {
+  champsVisibles,
+  type Champ,
+  type ParcoursConfig,
+} from '@/server/services/declaration/parcours-config'
 import { soumettreDeclaration, type EtatSoumission } from './actions'
 import { Recepisse } from './recepisse'
 
@@ -150,12 +154,17 @@ export function FormulaireDeclaration({
    */
   const [reduction, setReduction] = useState<'inactive' | 'en-cours'>('inactive')
 
-  // RGI-03 : les champs d'identité ne sont pas rendus du tout si l'anonymat est coché — pas
-  // seulement masqués en CSS, ils ne peuvent donc pas être soumis.
-  const visibles = useMemo(
-    () => config.champs.filter((c) => !anonymat || !c.identite || c.nom === 'statutPlaignant'),
-    [config.champs, anonymat]
-  )
+  /*
+    RGI-03 : les champs d'identité ne sont pas rendus du tout si l'anonymat est coché — pas
+    seulement masqués en CSS, ils ne peuvent donc pas être soumis.
+
+    ⚠️ La règle est appelée, pas recopiée. Elle vivait ici en double du serveur, sous forme d'un
+    filtre écrit à la main ; un second motif de masquage l'a rendue fausse d'un côté seulement.
+    Deux filtres, dont l'un décide de ce qui est RENDU et l'autre de ce qui est ACCEPTÉ, ne
+    peuvent que finir par se contredire — et l'écart se lit alors comme un champ affiché puis
+    refusé, ou, dans le mauvais sens, comme un champ masqué qu'on peut quand même soumettre.
+  */
+  const visibles = useMemo(() => champsVisibles(config, anonymat), [config, anonymat])
 
   const categorieEstAutre = categoriesAutre.includes(categorieId)
 

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { ROLE_NAMES } from '@/server/authz'
+import { ROLE_NAMES, etapesSansActeur, type Role } from '@/server/authz'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
@@ -66,7 +66,9 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     }),
     prisma.model_has_roles.findMany({
       where: { model_type: MODEL_TYPE_USER },
-      select: { role_id: true, model_id: true },
+      // Le NOM et l'activation du rôle en plus de son identifiant : un rôle désactivé ne confère
+      // plus rien, il ne compte donc comme preneur d'aucune étape.
+      select: { role_id: true, model_id: true, roles: { select: { name: true, actif: true } } },
     }),
     prisma.users.findMany({ where: { actif: true }, select: { id: true } }),
   ])
@@ -82,6 +84,20 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
   }
 
   const sansRole = comptesActifs.filter((u) => !rolesParCompte.has(u.id)).length
+
+  /*
+    Les étapes que plus personne ne peut franchir.
+
+    Le trou le plus coûteux du dispositif, et le plus silencieux : le dossier n'affiche aucune
+    erreur, il n'avance simplement jamais. Il s'ouvre mécaniquement dès qu'on réorganise les
+    rôles avant d'avoir réattribué les comptes — ce qui vient de se produire.
+  */
+  const rolesPortes = new Set<Role>(
+    associations
+      .filter((l) => actifs.has(l.model_id) && l.roles.actif)
+      .map((l) => l.roles.name as Role)
+  )
+  const orphelines = etapesSansActeur(rolesPortes)
 
   /*
     Un rôle actif que personne ne porte n'est pas qu'une curiosité de configuration.
@@ -118,6 +134,14 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
       valeur: rolesSansPorteur,
       consequence: 'Les écrans et les affectations qui en dépendent restent hors d’atteinte.',
       href: '/administration/habilitations',
+      bloquant: true,
+    },
+    {
+      cle: 'etapes-orphelines',
+      libelle: 'Étapes que personne ne peut franchir',
+      valeur: orphelines.length,
+      consequence: 'Les dossiers qui y parviennent s’arrêtent définitivement, sans message.',
+      href: '/administration/utilisateurs',
       bloquant: true,
     },
     {

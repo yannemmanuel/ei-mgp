@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PARCOURS_CODES } from '../parcours'
 import { ROLES, type Role } from '../roles'
-import { acteursDeLEtape, peutFaireAvancerDepuis } from '../etapes'
+import { acteursDeLEtape, etapesSansActeur, peutFaireAvancerDepuis } from '../etapes'
 import { peutChangerStatutDossier, type DossierPourAutorisation } from '../policies/dossier'
 import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
 import { utilisateurAvecRoles } from './aide'
@@ -122,47 +122,56 @@ describe('Une étape appartient à ses acteurs', () => {
 })
 
 describe('Aucune étape ne doit rester sans preneur', () => {
-  it('chaque étape désignée a au moins un compte actif capable de la franchir', async () => {
-    // Le revers d'une restriction : une étape dont aucun compte actif ne porte le rôle bloque le
-    // dossier pour toujours, sans message et sans recours — un défaut pire que la permissivité
-    // qu'on vient de corriger. Ce cas lit la base réelle, parce que c'est la CONFIGURATION des
-    // comptes qui décide, pas le code.
-    const { prisma } = await import('@/lib/prisma')
+  /*
+    Une étape sans preneur bloque le dossier pour toujours, sans message et sans recours.
 
-    const liens = await prisma.model_has_roles.findMany({
-      where: { model_type: String.raw`App\Models\User` },
-      select: { model_id: true, roles: { select: { name: true, actif: true } } },
-    })
+    ⚠️ Ce cas a d'abord LU LA BASE et exigé qu'aucune étape ne soit orpheline. Il avait raison sur
+    le fond et tort sur la forme : il mesurait l'effectif du jour, pas le code. Réorganiser les
+    rôles avant de réattribuer les comptes le faisait virer au rouge alors que rien n'était cassé
+    — et, symétriquement, il serait resté vert sur un trou réel le jour où quelqu'un aurait porté
+    par hasard le bon rôle.
 
-    const comptesActifs = new Set(
-      (
-        await prisma.users.findMany({
-          where: { actif: true, id: { in: liens.map((l) => l.model_id) } },
-          select: { id: true },
-        })
-      ).map((u) => u.id)
-    )
+    La détection, elle, est du code, et c'est elle qu'on vérifie ici. Le constat sur la base
+    réelle a sa place là où un administrateur peut agir : le tableau de bord la fait remonter par
+    `santeAdministration()`, sous « Étapes que personne ne peut franchir ».
+  */
+  it('repère une étape dont plus aucun rôle n’est porté', () => {
+    // Personne, nulle part : toute étape désignée doit ressortir.
+    const toutesOrphelines = etapesSansActeur(new Set())
 
-    // Un rôle désactivé ne confère plus rien : il ne compte pas comme preneur.
-    const rolesPortes = new Set(
-      liens
-        .filter((l) => comptesActifs.has(l.model_id) && l.roles.actif)
-        .map((l) => l.roles.name as Role)
-    )
+    expect(toutesOrphelines.length, 'aucune étape désignée : le cas ne prouverait rien').toBeGreaterThan(0)
 
-    const orphelines: string[] = []
+    // Et le message doit NOMMER qui est attendu : « une étape est bloquée » n'aide personne à la
+    // débloquer, alors que « attend charge_securite » désigne le rôle à attribuer.
+    for (const ligne of toutesOrphelines) {
+      expect(ligne, ligne).toMatch(/^\w+\/\w+ \(attend .+\)$/)
+    }
+  })
+
+  it('ne signale rien quand tous les rôles désignés sont portés', () => {
+    const tous = new Set<Role>(Object.keys(ROLES) as Role[])
+
+    expect(etapesSansActeur(tous)).toEqual([])
+  })
+
+  it('suffit d’UN rôle porté par étape', () => {
+    /*
+      La règle est un OU, pas un ET : une étape confiée à trois rôles est tenue dès que l'un
+      d'eux est porté. L'exiger tous rendrait presque toute configuration orpheline, et l'alerte
+      cesserait d'être lue.
+
+      Le cas vaut quelle que soit la table des acteurs : on prend, pour chaque étape désignée, son
+      premier rôle — sans citer aucun slug, qui deviendrait faux à la prochaine réorganisation.
+    */
+    const unParEtape = new Set<Role>()
 
     for (const parcours of PARCOURS_CODES) {
       for (const statut of STATUTS) {
         const acteurs = acteursDeLEtape(parcours, statut)
-        if (acteurs === null) continue
-
-        if (!acteurs.some((role) => rolesPortes.has(role))) {
-          orphelines.push(`${parcours}/${statut} (attend ${acteurs.join(' ou ')})`)
-        }
+        if (acteurs && acteurs.length > 0) unParEtape.add(acteurs[0])
       }
     }
 
-    expect(orphelines, `étapes sans acteur disponible : ${orphelines.join(' — ')}`).toEqual([])
+    expect(etapesSansActeur(unParEtape)).toEqual([])
   })
 })

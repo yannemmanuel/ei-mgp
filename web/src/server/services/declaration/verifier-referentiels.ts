@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { Champ } from './parcours-config'
+import { POSTE_AUTRE } from './referentiels-formulaire'
 
 /**
  * Confronte les valeurs choisies dans une liste administrable au référentiel réel.
@@ -43,6 +44,11 @@ async function estDansLeReferentiel(
   valeurs: Record<string, unknown>
 ): Promise<boolean> {
   if (champ.referentiel === 'postes') {
+    // Le poste de repli est proposé sous chaque direction : il doit donc être accepté sous
+    // chacune. Même constante que celle qui alimente la liste — le serveur ne reconnaît pas une
+    // chaîne libre, il reconnaît CELLE qu'il a lui-même proposée.
+    if (libelle === POSTE_AUTRE) return true
+
     const direction = champ.dependDe ? valeurs[champ.dependDe] : undefined
     if (direction === undefined || direction === '') return false
 

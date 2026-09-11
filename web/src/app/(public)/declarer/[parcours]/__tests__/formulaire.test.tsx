@@ -460,22 +460,21 @@ describe('Faire une autre déclaration', () => {
 })
 
 /**
- * Direction et poste survivent à l'anonymat (retour métier du 11/09).
+ * La direction survit à l'anonymat sur les deux parcours de salariés ; le poste, sur l'EI seul.
  *
- * ⚠️ Ce sont les deux seuls champs de l'étape 1 dans ce cas, et la raison diffère pour chacun.
+ * La direction porte le rattachement au site, donc l'acheminement vers le service compétent : la
+ * masquer ferait de chaque signalement anonyme un dossier que personne ne voit. Elle n'est pas
+ * marquée `identite` — elle est stockée sur le dossier, `declaration_identites` n'étant pas créée
+ * quand l'anonymat est coché, et un champ resté `identite` aurait été affiché puis perdu.
  *
- * La direction porte le rattachement au site, donc l'acheminement vers le secrétaire compétent :
- * la masquer ferait de chaque signalement anonyme un dossier que personne ne voit. Le poste, lui,
- * est demandé parce que le métier en a besoin pour instruire — et il reste FACULTATIF, parce que
- * dans une direction restreinte un poste unique désigne une seule personne.
- *
- * Ni l'un ni l'autre n'est marqué `identite` : ils sont stockés sur le dossier, `declaration_
- * identites` n'étant pas créée quand l'anonymat est coché. Un champ resté `identite` aurait été
- * affiché puis perdu.
+ * Le poste, lui, s'est dédoublé au second retour métier du 11/09 : conservé en anonyme sur
+ * l'évènement indésirable, où il éclaire l'exposition au risque, RETIRÉ du grief anonyme, où
+ * direction + poste resserrent assez pour reconnaître quelqu'un dans un effectif restreint. Les
+ * deux cas sont donc vérifiés séparément — c'est toute la différence entre les deux parcours.
  */
 describe('Direction et poste en mode anonyme', () => {
   for (const parcours of ['ei_employe', 'grief_employe'] as const) {
-    it(`reste choisissable sur ${parcours}, anonymat coché`, async () => {
+    it(`garde la direction sur ${parcours}, anonymat coché`, async () => {
       const { utilisateur } = afficher(parcours)
 
       await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
@@ -484,19 +483,38 @@ describe('Direction et poste en mode anonyme', () => {
       expect(screen.queryByLabelText(/Matricule/i), 'le matricule survit à l’anonymat').toBeNull()
 
       const direction = screen.getByLabelText(/Direction concernée/i) as HTMLSelectElement
-      const poste = screen.getByLabelText(/^Poste/i) as HTMLSelectElement
-
       expect(direction.required, 'la direction n’est pas exigée').toBe(true)
-      expect(poste.required, 'le poste est exigé d’un déclarant anonyme').toBe(false)
-      expect(poste.disabled, 'le poste s’ouvre sans direction').toBe(true)
-
-      // La cascade fonctionne aussi en anonyme.
-      await utilisateur.selectOptions(direction, '1')
-
-      expect(poste.disabled).toBe(false)
-      expect(
-        Array.from(poste.options).map((o) => o.value).filter((v) => v !== '')
-      ).toEqual(['Technicien réseau', 'Agent de maintenance'])
     })
   }
+
+  it('retire le poste du GRIEF anonyme', async () => {
+    const { utilisateur } = afficher('grief_employe')
+
+    await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+
+    expect(
+      screen.queryByLabelText(/^Poste/i),
+      'le poste est encore demandé à un déclarant anonyme'
+    ).toBeNull()
+  })
+
+  it('garde le poste sur l’ÉVÉNEMENT INDÉSIRABLE anonyme, avec sa cascade', async () => {
+    const { utilisateur } = afficher('ei_employe')
+
+    await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+
+    const direction = screen.getByLabelText(/Direction concernée/i) as HTMLSelectElement
+    const poste = screen.getByLabelText(/^Poste/i) as HTMLSelectElement
+
+    expect(poste.required, 'le poste est exigé d’un déclarant anonyme').toBe(false)
+    expect(poste.disabled, 'le poste s’ouvre sans direction').toBe(true)
+
+    // La cascade fonctionne aussi en anonyme.
+    await utilisateur.selectOptions(direction, '1')
+
+    expect(poste.disabled).toBe(false)
+    expect(
+      Array.from(poste.options).map((o) => o.value).filter((v) => v !== '')
+    ).toEqual(['Technicien réseau', 'Agent de maintenance'])
+  })
 })

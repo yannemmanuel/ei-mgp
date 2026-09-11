@@ -36,6 +36,19 @@ export type Champ = {
   readonly aide?: string
   /** Champ d'identité : jamais rendu ni collecté si l'anonymat est coché (RG-06, RGI-03). */
   readonly identite?: boolean
+  /**
+   * Champ retiré en anonymat SANS être une donnée d'identité.
+   *
+   * ⚠️ Distinct de `identite`, et il faut que les deux le restent. `identite` commande aussi le
+   * STOCKAGE : le champ part dans `declaration_identites`, table qui n'est pas créée pour une
+   * déclaration anonyme. Un champ rangé sur `dossiers` mais marqué `identite` serait affiché
+   * puis perdu sans le moindre signal — le piège déjà rencontré sur l'entreprise et la ville.
+   *
+   * Ce drapeau ne dit qu'une chose : ne pas le demander quand on ne se nomme pas. Le seul cas
+   * aujourd'hui est le poste sur le grief employé, où il resserre trop pour être demandé sous
+   * couvert d'anonymat, alors qu'il reste utile sur l'évènement indésirable.
+   */
+  readonly masqueSiAnonyme?: boolean
   /** Référentiel à charger côté serveur pour alimenter les options. */
   readonly referentiel?: 'directions' | 'postes' | 'lieux' | 'villes' | 'tranchesAnciennete'
   /**
@@ -80,6 +93,35 @@ const CANAUX_RETOUR = [
   { valeur: 'entretien', libelle: 'Entretien' },
   { valeur: 'page_de_suivi', libelle: 'Page de suivi' },
 ] as const
+
+/**
+ * « Êtes-vous la personne concernée ? », sur les quatre parcours.
+ *
+ * Une déclaration est souvent déposée POUR quelqu'un d'autre : un témoin, un collègue, un agent
+ * relais, un chef coutumier pour un riverain. Rien ne le disait, et le traitement ne pouvait donc
+ * pas savoir à qui il s'adressait — ce qui change ce qu'on peut écrire en retour sans exposer la
+ * situation d'un tiers à un intermédiaire.
+ *
+ * Posé en étape 1, à côté de l'anonymat : les deux relèvent de la même décision préalable — qui
+ * parle, et pour qui.
+ *
+ * ⚠️ Pas marqué `identite`. La question se pose AUSSI en anonyme, où elle est même la plus utile :
+ * savoir qu'un signalement anonyme émane d'un témoin plutôt que de la personne concernée oriente
+ * l'instruction sans rien révéler de l'un ni de l'autre. Stocké sur `dossiers`, donc, jamais dans
+ * `declaration_identites`.
+ *
+ * ⚠️ Facultatif, et sans valeur par défaut en base : `declarant_est_victime` reste NULL tant que
+ * la case n'a pas été vue. Une case non cochée ne vaut pas « non » — elle vaut « pas répondu », et
+ * les 37 dossiers antérieurs à ce champ doivent rester distinguables de ceux qui ont dit non.
+ */
+const DECLARANT_VICTIME = {
+  nom: 'declarantEstVictime',
+  libelle: 'Je suis la personne concernée par les faits',
+  type: 'case',
+  etape: 1,
+  colonne: 'declarantEstVictime',
+  aide: 'Laissez décoché si vous déclarez pour quelqu’un d’autre.',
+} as const satisfies Champ
 
 /** Retour métier : mêmes trois valeurs pour l'EI et le grief employé. */
 const CARACTERE_REPETITIF = [
@@ -158,8 +200,23 @@ const POSTE = {
   etape: 1,
   referentiel: 'postes',
   dependDe: 'directionId',
-  aide: 'Facultatif. Dans une petite direction, un poste peut suffire à vous reconnaître.',
+  aide: 'Facultatif. « Autre » si le vôtre n’y figure pas.',
 } as const satisfies Champ
+
+/**
+ * Le poste sur le GRIEF employé : proposé seulement à qui se nomme.
+ *
+ * Retour métier du 11/09 (second passage). Il reste demandé en anonyme sur l'évènement
+ * indésirable, où il sert à comprendre l'exposition au risque, mais il est retiré du grief
+ * anonyme : un grief vise une situation vécue par une personne, et poste + direction y resserrent
+ * assez pour reconnaître quelqu'un dans un effectif restreint — ce que l'anonymat sert
+ * précisément à empêcher.
+ *
+ * ⚠️ `masqueSiAnonyme` et non `identite` : le poste est stocké sur `dossiers.poste`, hors de
+ * `declaration_identites`. Le marquer `identite` l'aurait fait disparaître du formulaire ET de
+ * l'enregistrement des déclarations NON anonymes, où il est toujours attendu.
+ */
+const POSTE_SI_IDENTIFIE = { ...POSTE, masqueSiAnonyme: true } as const satisfies Champ
 
 export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
   ei_employe: {
@@ -170,6 +227,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
+      DECLARANT_VICTIME,
       /*
         Retour métier du 11/09/2026 : nom, prénom, téléphone et e-mail ne sont plus demandés.
 
@@ -206,10 +264,10 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         // Renommé « Mesure immédiate » (retour métier) : ce qui a été fait sur le moment, et non
         // une suggestion pour plus tard. Reste facultatif.
         nom: 'propositionMesureCorrective',
-        libelle: 'Mesure immédiate',
+        libelle: 'Solution souhaitée',
         type: 'zone',
         etape: 3,
-        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+        aide: 'Facultatif — ce que vous attendez comme suite.',
       },
     ],
   },
@@ -222,6 +280,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
+      DECLARANT_VICTIME,
       {
         // RGI-14. `'siIdentifie'` et non `true` : le matricule est une donnée d'IDENTITÉ. Exigé sans
         // condition, il rendrait toute déclaration anonyme impossible — or l'anonymat est une
@@ -237,7 +296,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         colonne: 'matricule',
       },
       DIRECTION,
-      POSTE,
+      POSTE_SI_IDENTIFIE,
       {
         // Une tranche plutôt qu'un nombre d'années : le métier raisonne par paliers, et une
         // ancienneté exacte rapproche d'une personne identifiable dans un petit effectif.
@@ -269,10 +328,10 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
         // moment, et non une suggestion pour plus tard.
         nom: 'propositionMesureCorrective',
-        libelle: 'Mesure immédiate',
+        libelle: 'Solution souhaitée',
         type: 'zone',
         etape: 3,
-        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+        aide: 'Facultatif — ce que vous attendez comme suite.',
       },
     ],
   },
@@ -285,6 +344,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
+      DECLARANT_VICTIME,
       {
         // Placé EN TÊTE, donc juste sous la case d'anonymat que le formulaire rend avant les
         // champs de l'étape 1 (retour métier) : on décide d'abord de se nommer ou non, puis on
@@ -337,10 +397,10 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
         // moment, et non une suggestion pour plus tard.
         nom: 'propositionMesureCorrective',
-        libelle: 'Mesure immédiate',
+        libelle: 'Solution souhaitée',
         type: 'zone',
         etape: 3,
-        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+        aide: 'Facultatif — ce que vous attendez comme suite.',
       },
     ],
   },
@@ -353,6 +413,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
+      DECLARANT_VICTIME,
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       {
         /*
@@ -403,16 +464,18 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         obligatoire: true,
         options: CARACTERE_REPETITIF,
       },
+      /*
+        Un SEUL champ « Solution souhaitée » ici, et c'est celui d'origine.
+
+        La plainte riveraine portait les deux : « Solution souhaitée » et « Mesure immédiate ».
+        Le retour métier demande de renommer la seconde en « Solution souhaitée » sur les autres
+        parcours et de la retirer d'ici — sans quoi ce formulaire aurait posé deux fois la même
+        question sous le même intitulé.
+
+        La colonne `proposition_mesure_corrective` reste en base et porte ce que les plaintes
+        déjà déposées y ont écrit : c'est la collecte qui cesse, pas l'historique qui s'efface.
+      */
       { nom: 'solutionSouhaitee', libelle: 'Solution souhaitée', type: 'zone', etape: 3 },
-      {
-        // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
-        // moment, et non une suggestion pour plus tard.
-        nom: 'propositionMesureCorrective',
-        libelle: 'Mesure immédiate',
-        type: 'zone',
-        etape: 3,
-        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
-      },
     ],
   },
 }
@@ -435,9 +498,20 @@ export function estParcoursValide(code: string): code is ParcoursCode {
  */
 const IDENTITE_CONSERVEE_EN_ANONYME = new Set(['statutPlaignant'])
 
-/** Champs réellement affichés, une fois l'anonymat pris en compte (RGI-03). */
+/**
+ * Champs réellement affichés, une fois l'anonymat pris en compte (RGI-03).
+ *
+ * ⚠️ Règle UNIQUE, appelée aussi bien par le rendu du formulaire que par la validation serveur.
+ * Elle vivait en double — une copie dans le composant client — jusqu'à ce qu'un second motif de
+ * masquage apparaisse : deux filtres à tenir en phase, dont l'un décide de ce qui est rendu et
+ * l'autre de ce qui est accepté, finissent par diverger, et l'écart se lit alors comme un champ
+ * affiché puis refusé, ou pire, refusé puis accepté.
+ */
 export function champsVisibles(config: ParcoursConfig, anonyme: boolean): Champ[] {
-  return config.champs.filter(
-    (c) => !anonyme || !c.identite || IDENTITE_CONSERVEE_EN_ANONYME.has(c.nom)
-  )
+  return config.champs.filter((c) => {
+    if (!anonyme) return true
+    if (c.masqueSiAnonyme) return false
+
+    return !c.identite || IDENTITE_CONSERVEE_EN_ANONYME.has(c.nom)
+  })
 }

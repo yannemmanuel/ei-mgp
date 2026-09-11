@@ -32,6 +32,18 @@ export type EtapeDelai =
  * pour que l'écran d'administration ne laisse pas régler un paramètre sans effet.
  */
 const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
+  /*
+    « Reçu » compte désormais pour l'analyse préliminaire.
+
+    L'évènement indésirable n'est plus affecté à personne : il reste à « reçu » jusqu'à ce que le
+    chargé de sécurité le traite. Sans cette ligne, il n'entrait dans AUCUNE étape suivie — donc
+    aucune échéance, aucune relance, aucune escalade, et rien à afficher là où le métier demande
+    précisément de voir le délai. Le dossier serait resté indéfiniment à l'heure.
+
+    C'est aussi la lecture la plus juste du délai : il court depuis le dépôt, qui est le moment
+    que le déclarant connaît, et non depuis une affectation interne dont il n'a jamais rien su.
+  */
+  recu: 'analyse_preliminaire',
   affecte: 'analyse_preliminaire',
   en_analyse: 'analyse_preliminaire',
   en_investigation: 'traitement_enquete',
@@ -40,12 +52,20 @@ const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
   resolu: 'retour_resolution',
 }
 
-/** Statut dont l'ENTRÉE démarre le chronomètre de chaque étape suivie. */
-const ETAPE_VERS_STATUT_DE_DEPART: Partial<Record<EtapeDelai, StatutCode>> = {
-  analyse_preliminaire: 'affecte',
-  traitement_enquete: 'en_investigation',
-  mise_en_oeuvre_mesures: 'action_corrective_en_cours',
-  retour_resolution: 'resolu',
+/**
+ * Statuts dont l'ENTRÉE démarre le chronomètre de chaque étape suivie, par ordre de préférence.
+ *
+ * ⚠️ Une LISTE, et l'ordre y est la règle : on retient le premier statut dont l'historique porte
+ * une entrée. L'analyse préliminaire démarre donc à l'affectation quand il y en a une — le
+ * comportement de toujours, inchangé pour les griefs — et à défaut à la réception, pour les
+ * dossiers qui ne sont jamais affectés. Sans ce repli, un évènement indésirable aurait eu une
+ * étape mais pas de point de départ, ce qui revient à n'avoir pas d'échéance du tout.
+ */
+const ETAPE_VERS_STATUTS_DE_DEPART: Partial<Record<EtapeDelai, readonly StatutCode[]>> = {
+  analyse_preliminaire: ['affecte', 'recu'],
+  traitement_enquete: ['en_investigation'],
+  mise_en_oeuvre_mesures: ['action_corrective_en_cours'],
+  retour_resolution: ['resolu'],
 }
 
 type SlaDelai = {
@@ -96,6 +116,19 @@ export function etapeActuelle(statut: StatutCode): EtapeDelai | null {
  */
 export function etapesSuivies(): ReadonlySet<EtapeDelai> {
   return new Set(Object.values(STATUT_VERS_ETAPE))
+}
+
+/**
+ * Statuts dont un dossier peut porter une échéance courante.
+ *
+ * ⚠️ DÉRIVÉ de `STATUT_VERS_ETAPE`, jamais écrit à la main. La liste l'était, dans `aTraiter()`,
+ * et elle a cessé d'être vraie à la première étape ajoutée : « reçu » est entré dans l'analyse
+ * préliminaire sans y entrer, si bien que le calcul unitaire trouvait des dossiers en retard que
+ * le décompte du tableau de bord ne voyait pas. Un écart de ce genre ne se lit jamais comme une
+ * erreur : il se lit comme un dossier à l'heure.
+ */
+export function statutsAvecEcheance(): StatutCode[] {
+  return Object.keys(STATUT_VERS_ETAPE) as StatutCode[]
 }
 
 /**
@@ -157,19 +190,39 @@ export async function dateDebutEtape(dossier: {
   const etape = etapeActuelle(dossier.statutCode)
   if (!etape) return null
 
-  const statutDepart = ETAPE_VERS_STATUT_DE_DEPART[etape]
-  if (!statutDepart) return null
+  const candidats = ETAPE_VERS_STATUTS_DE_DEPART[etape]
+  if (!candidats || candidats.length === 0) return null
 
-  const entree = await prisma.historique_statuts.findFirst({
+  // L'ORDRE fait la règle : on s'arrête au premier statut dont l'historique porte une entrée.
+  // Une seule requête pour tous les candidats, puis le choix se fait en mémoire — les interroger
+  // l'un après l'autre multiplierait les allers-retours sur le chemin le plus emprunté.
+  const entrees = await prisma.historique_statuts.findMany({
     where: {
       dossier_id: dossier.id,
-      statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: { code: statutDepart },
+      statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
+        code: { in: [...candidats] },
+      },
     },
     orderBy: { created_at: 'desc' },
-    select: { created_at: true },
+    select: {
+      created_at: true,
+      statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
+        select: { code: true },
+      },
+    },
   })
 
-  return entree?.created_at ?? null
+  for (const candidat of candidats) {
+    // Décroissant : la première trouvée est la plus récente. Un dossier rouvert repasse par les
+    // mêmes étapes, et c'est le dernier passage qui fait foi.
+    const entree = entrees.find(
+      (e) => e.statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier.code === candidat
+    )
+
+    if (entree?.created_at) return entree.created_at
+  }
+
+  return null
 }
 
 /**
@@ -198,8 +251,8 @@ export async function datesLimites(
   const aChercher = dossiers
     .map((d) => {
       const etape = etapeActuelle(d.statutCode)
-      const depart = etape ? ETAPE_VERS_STATUT_DE_DEPART[etape] : undefined
-      return depart ? { ...d, etape: etape!, depart } : null
+      const candidats = etape ? ETAPE_VERS_STATUTS_DE_DEPART[etape] : undefined
+      return candidats && candidats.length > 0 ? { ...d, etape: etape!, candidats } : null
     })
     .filter((d) => d !== null)
 
@@ -210,7 +263,7 @@ export async function datesLimites(
       where: {
         dossier_id: { in: aChercher.map((d) => d.id) },
         statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
-          code: { in: [...new Set(aChercher.map((d) => d.depart))] },
+          code: { in: [...new Set(aChercher.flatMap((d) => [...d.candidats]))] },
         },
       },
       // Décroissant : la PREMIÈRE ligne vue pour un couple (dossier, statut) est donc la plus
@@ -237,7 +290,16 @@ export async function datesLimites(
   }
 
   for (const dossier of aChercher) {
-    const debut = derniereEntree.get(`${dossier.id}|${dossier.depart}`)
+    // Même ordre de préférence que `dateDebutEtape` : l'affectation d'abord, la réception à
+    // défaut. La règle est lue au même endroit, `ETAPE_VERS_STATUTS_DE_DEPART`, et appliquée
+    // pareillement — deux définitions de la même échéance finiraient par diverger, et l'écart se
+    // verrait d'abord sur une alerte qui ne part pas.
+    let debut: Date | undefined
+    for (const candidat of dossier.candidats) {
+      debut = derniereEntree.get(`${dossier.id}|${candidat}`)
+      if (debut) break
+    }
+
     if (!debut) continue
 
     const delai = delais.find(

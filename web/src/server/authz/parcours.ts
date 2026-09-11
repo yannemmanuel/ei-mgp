@@ -22,11 +22,26 @@ export type ParcoursCode = (typeof PARCOURS_CODES)[number]
  * (ex. `administrateur_digital`, `agent_relais` qui ne fait que saisir).
  */
 const ROLES_PAR_PARCOURS: Partial<Record<Role, readonly ParcoursCode[]>> = {
+  // L'évènement indésirable revient au chargé de sécurité du site. `secretaire_csst` et `rqse`,
+  // qu'il remplace, gardent leur ligne : désactivés en base, ils ne confèrent plus rien, mais les
+  // retirer d'ici rendrait leur historique illisible si on les réactivait.
+  charge_securite: ['ei_employe'],
   secretaire_csst: ['ei_employe'],
   rqse: ['ei_employe'],
+
+  // Un correspondant par type de grief — la demande métier, exprimée au niveau du rôle.
+  correspondant_drh: ['grief_employe'],
+  correspondant_dadd: ['grief_communaute'],
+  correspondant_dl: ['grief_sous_traitant'],
+
+  // Les trois types de grief, bornés à son site par `ROLES_CLOISONNES_PAR_SITE`.
+  responsable_mgp_structure: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
+
   rgp: ['grief_employe'],
   responsable_grief_employe: ['grief_employe'],
   comite_ethique: ['grief_employe'],
+  // ⚠️ Remplacé par les trois correspondants ci-dessus, désactivé en base. Conservé pour la même
+  // raison que `secretaire_csst`.
   correspondant_mgp: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
   captage_grief_soustraitant: ['grief_sous_traitant'],
   captage_grief_communaute: ['grief_communaute'],

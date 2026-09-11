@@ -373,9 +373,21 @@ describe('EX-DEC-07 — le formulaire en plusieurs étapes ne perd pas les saisi
     const source = await import('node:fs/promises')
     const formulaire = await source.readFile(CHEMIN, 'utf8')
 
-    // Garder les étapes montées ne doit PAS avoir transformé cette garantie structurelle en
-    // simple masquage : un champ présent dans le DOM est un champ soumissible.
-    expect(formulaire).toMatch(/config\.champs\.filter\(\(c\) => !anonymat \|\| !c\.identite/)
+    /*
+      Deux garanties, et il faut les deux.
+
+      1. Le formulaire FILTRE ses champs — garder les étapes montées ne doit pas avoir transformé
+         cette garantie structurelle en simple masquage : un champ présent dans le DOM est un
+         champ soumissible.
+      2. Il filtre avec la règle PARTAGÉE, `champsVisibles`, et non avec une copie locale. La
+         copie a existé, et elle est devenue fausse le jour où un second motif de masquage est
+         apparu côté serveur sans être reporté ici.
+    */
+    expect(formulaire).toMatch(/champsVisibles\(config, anonymat\)/)
+    expect(
+      formulaire,
+      'le filtre d’anonymat est de nouveau recopié à la main dans le composant'
+    ).not.toMatch(/config\.champs\.filter\(\(c\) => !anonymat/)
   })
 })
 

@@ -42,9 +42,11 @@ import {
   piecesJointesDossier,
 } from '@/server/services/dossier/fiche'
 import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
+import { estEvenementIndesirable, suiviEi } from '@/server/services/dossier/suivi-ei'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { FilAriane } from '@/components/layout/fil-ariane'
 import { SommaireDossier, type SectionDossier } from './sommaire'
+import { BlocSuiviEi } from './bloc-suivi-ei'
 import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
@@ -102,6 +104,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     responsablesPossibles,
     validateurs,
     gravitesActives,
+    suivi,
   ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
@@ -136,6 +139,11 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       orderBy: { niveau: 'asc' },
       select: { id: true, libelle: true },
     }),
+    // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
+    // les trois quarts des fiches.
+    estEvenementIndesirable(pourPolicy.parcoursCode)
+      ? suiviEi(id, dossier.site_id)
+      : Promise.resolve(null),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -276,6 +284,22 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           </div>
         </div>
       </Card>
+
+      {suivi !== null && (
+        <BlocSuiviEi
+          enCharge={suivi.enCharge.map((c) => c.nom)}
+          gravite={dossier.niveaux_gravite?.libelle ?? null}
+          joursRestants={restants}
+          actionsOuvertes={suivi.actionsOuvertes}
+          actionsTotal={suivi.actionsTotal}
+          actionsEnRetard={suivi.actionsEnRetard}
+          // `dateCourteFr` rend « — » sur `null` : ici l'absence doit rester `null`, pour que
+          // l'encadré taise la ligne au lieu d'annoncer « prochaine échéance le — ».
+          prochaineEcheance={
+            suivi.prochaineEcheance ? dateCourteFr(suivi.prochaineEcheance) : null
+          }
+        />
+      )}
 
       <SommaireDossier sections={sections} />
 

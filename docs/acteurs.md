@@ -43,16 +43,41 @@ correspondance.
 > La règle vit dans `src/server/authz/parcours.ts` : `parcoursDuRole()` répond sur le rôle,
 > `parcoursAutorises()` sur la personne.
 
+> ### Réorganisation du 11/09/2026 (second retour métier)
+>
+> **L'évènement indésirable n'est plus affecté.** Son traitement revient au **Chargé de sécurité
+> du site**, qui complète le dossier après chaque comité. Il voit tous les EI de son site par le
+> cloisonnement, sans qu'aucun ne lui soit affecté, et **ne détient ni `dossiers.assign` ni
+> `dossiers.reassign`** : il ne peut le confier à personne, il le traite.
+>
+> Conséquence : un EI reste au statut « reçu ». Son délai court donc **depuis la réception** et
+> non depuis une affectation qui n'a plus lieu (`STATUT_VERS_ETAPE`, `delais.ts`) — sans quoi il
+> n'aurait eu aucune échéance, donc aucune relance ni escalade.
+>
+> **Les griefs se répartissent par type** : un correspondant par parcours, plus un Responsable MGP
+> de structure qui voit les trois mais sur son seul site. « Structure » = **site**, seul découpage
+> que porte chaque dossier — les griefs sous-traitant et communautaire n'ont pas de direction.
+>
+> Les rôles remplacés sont **désactivés, jamais supprimés** : ils ne confèrent plus rien dès le
+> prochain appel, mais `model_has_roles` est conservée et les réactiver rend leurs droits sans
+> réattribution. Ils restent nommés dans `ROLES`, `ROLES_PAR_PARCOURS` et la table des acteurs
+> pour que leur historique se lise.
+
 | Acteur CDC | Rôle applicatif (slug) | Compte requis | Périmètre dossiers | Niveau d'accès CDC |
 |---|---|---|---|---|
 | Déclarant (employé identifié) | `employe_declarant` | Optionnel (SSO futur) | Ses propres dossiers non-anonymes uniquement | Aucun compte requis / SSO conditionnel |
 | Déclarant (sous-traitant / communauté) | *(aucun — accès public par référence + code)* | Aucun | Son dossier via référence + donnée de vérification | Accès libre |
 | Employé / agent relais | `agent_relais` | Oui | Formulaire de saisie relais uniquement | Accès restreint au formulaire de saisie |
-| Secrétaire CSST / Comité SST | `secretaire_csst` | Oui | Dossiers `ei_employe` | Lecture/écriture EI |
-| RQSE | `rqse` | Oui | Dossiers `ei_employe` | Lecture/écriture EI |
+| **Chargé de sécurité du site** | `charge_securite` | Oui | Dossiers `ei_employe` **de son site**, sans affectation | Traitement complet de l'EI — **ne peut affecter à personne** |
+| ~~Secrétaire CSST / Comité SST~~ | `secretaire_csst` | — | ⚠️ **Rôle désactivé** — remplacé par le Chargé de sécurité | — |
+| ~~RQSE~~ | `rqse` | — | ⚠️ **Rôle désactivé** — remplacé par le Chargé de sécurité | — |
 | RGP | `rgp` | Oui | Captage `grief_employe` | Écriture captage, lecture de ses dossiers |
 | DRH / Directeurs / DR (griefs employés) | `responsable_grief_employe` | Oui | Dossiers `grief_employe` | Lecture/écriture |
-| Correspondant MGP / Enquêteur | `correspondant_mgp` | Oui | Dossiers `grief_employe`, `grief_sous_traitant`, `grief_communaute` + module Investigations | Lecture/écriture + Investigations |
+| **Correspondant DRH** | `correspondant_drh` | Oui | Dossiers `grief_employe` + module Investigations | Lecture/écriture + Investigations |
+| **Correspondant DADD** | `correspondant_dadd` | Oui | Dossiers `grief_communaute` + module Investigations | Lecture/écriture + Investigations |
+| **Correspondant DL** | `correspondant_dl` | Oui | Dossiers `grief_sous_traitant` + module Investigations | Lecture/écriture + Investigations |
+| **Responsable MGP de structure** | `responsable_mgp_structure` | Oui | Les 3 types de grief, **de son site uniquement** | Lecture/écriture + validation d'investigation |
+| ~~Correspondant MGP / Enquêteur~~ | `correspondant_mgp` | — | ⚠️ **Rôle désactivé** — remplacé par les trois correspondants ci-dessus | — |
 | Service MGP / DADD | `service_mgp` | Oui | **Tous les dossiers, 4 parcours** | Lecture/écriture transverse + administration fonctionnelle (référentiels métier) |
 | Comité éthique / Syndicats | `comite_ethique` | Oui | Dossiers sensibles `grief_employe` (lecture) | Lecture restreinte, **sans données nominatives** |
 | DP / Directions régionales | `captage_grief_communaute` | Oui | Captage `grief_communaute` | Écriture captage, lecture de ses dossiers |

@@ -274,12 +274,30 @@ describe('Harmonisation des quatre formulaires', () => {
     }
   })
 
-  it('propose partout « Mesure immédiate », et jamais l’ancien libellé', () => {
-    for (const [code, config] of tous) {
-      const mesure = config.champs.find((c) => c.nom === 'propositionMesureCorrective')
+  it('demande « Solution souhaitée » une fois, et sous ce libellé seul', () => {
+    /*
+      Le champ a porté trois noms successifs : « Proposition de mesure corrective », puis
+      « Mesure immédiate », puis « Solution souhaitée » (retour métier du 11/09, second passage).
+      Ce qui est vérifié ici n'est aucun de ces libellés en particulier, mais deux invariants qui
+      survivront au suivant :
 
-      expect(mesure, `${code} ne propose pas de mesure immédiate`).toBeDefined()
-      expect(mesure?.libelle, code).toBe('Mesure immédiate')
+      1. Aucun ancien libellé ne subsiste quelque part — un formulaire renommé à moitié pose la
+         même question sous deux noms selon le parcours.
+      2. La question n'est posée QU'UNE FOIS par formulaire. La plainte riveraine portait déjà un
+         champ « Solution souhaitée » ; y renommer « Mesure immédiate » l'aurait dédoublée, et un
+         déclarant aurait vu deux zones de texte identiques l'une sous l'autre.
+    */
+    const ABANDONNES = ['Mesure immédiate', 'Proposition de mesure corrective']
+
+    for (const [code, config] of tous) {
+      const libelles = config.champs.map((c) => c.libelle)
+
+      for (const ancien of ABANDONNES) {
+        expect(libelles, `${code} porte encore « ${ancien} »`).not.toContain(ancien)
+      }
+
+      const solutions = libelles.filter((l) => l === 'Solution souhaitée')
+      expect(solutions, `${code} pose deux fois la même question`).toHaveLength(1)
     }
   })
 

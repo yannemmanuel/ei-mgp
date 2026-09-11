@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { UtilisateurAutorise } from '@/server/authz'
-import { datesLimites, etapesSuivies, etapeActuelle } from '../dossier/delais'
+import { datesLimites, statutsAvecEcheance } from '../dossier/delais'
 import { perimetreDossiers } from '../dossier/liste'
 import type { StatutCode } from '../dossier/statuts'
 
@@ -35,13 +35,10 @@ export type ADTraiter = {
  * toute façon aucune échéance courante — la borne ne cache donc rien qu'on voudrait voir.
  */
 export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
-  const suivis = [...etapesSuivies()]
-  const statutsSuivis = (
-    ['affecte', 'en_analyse', 'en_investigation', 'en_attente_information', 'action_corrective_en_cours', 'resolu'] as const
-  ).filter((statut) => {
-    const etape = etapeActuelle(statut)
-    return etape !== null && suivis.includes(etape)
-  })
+  // Lue à la source, jamais recopiée : une liste écrite ici en doublon a déjà cessé d'être vraie
+  // le jour où « reçu » est devenu une étape suivie, et le tableau de bord annonçait alors moins
+  // de retards qu'il n'y en avait.
+  const statutsSuivis = statutsAvecEcheance()
 
   const perimetre = perimetreDossiers(u)
 

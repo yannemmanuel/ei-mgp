@@ -17,6 +17,13 @@ const ROLES_CLOISONNES_PAR_SITE = [
   'rgp',
   'captage_grief_communaute',
   'captage_grief_soustraitant',
+  // Le chargé de sécurité est celui DU SITE : il voit tous les évènements indésirables du sien,
+  // et aucun de ceux d'ailleurs. C'est ce qui remplace l'affectation, supprimée pour ce parcours.
+  'charge_securite',
+  // « Responsable MGP de structure → griefs de sa structure » : la structure est le site, seul
+  // découpage que porte chaque dossier, y compris ceux des sous-traitants et des riverains — qui
+  // n'ont, eux, aucune direction.
+  'responsable_mgp_structure',
 ] as const satisfies readonly Role[]
 
 export function estCloisonneParSite(role: Role): boolean {

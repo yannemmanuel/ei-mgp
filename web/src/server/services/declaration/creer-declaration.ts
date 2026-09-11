@@ -15,9 +15,21 @@ import { surDeclarationCritique } from '../notification/evenements'
  * historique, affectation automatique et anonymat sont systématiquement appliqués ensemble.
  */
 
-/** Rôles auto-affectés au captage selon le parcours (CDC §5.1/§5.2, EX-GES-02). */
+/**
+ * Rôles auto-affectés au captage selon le parcours (CDC §5.1/§5.2, EX-GES-02).
+ *
+ * ⚠️ L'ÉVÈNEMENT INDÉSIRABLE N'EST PLUS AFFECTÉ — liste vide, et c'est une décision, pas un oubli.
+ *
+ * Son traitement revient au chargé de sécurité du site, qui complète le dossier après chaque
+ * comité. Il voit tous les évènements de son site par le cloisonnement (`authz/site.ts`) et n'a
+ * besoin d'aucune affectation pour cela : en créer une n'aurait nommé qu'un responsable de plus
+ * dans un circuit qui n'en demande pas, et lui en aurait masqué d'autres dans « mes dossiers ».
+ *
+ * Conséquence assumée : un évènement indésirable reste au statut « reçu » à sa création. Il
+ * n'est pas en attente d'un destinataire — il attend d'être traité par qui le voit déjà.
+ */
 const ROLES_AFFECTATION_AUTOMATIQUE: Record<ParcoursCode, readonly string[]> = {
-  ei_employe: ['secretaire_csst', 'rqse'],
+  ei_employe: [],
   grief_employe: ['rgp'],
   grief_sous_traitant: ['captage_grief_soustraitant'],
   grief_communaute: ['captage_grief_communaute'],
@@ -47,6 +59,14 @@ export type DonneesDossier = {
   directionId?: bigint | null
   caractereRepetitif?: string | null
   propositionMesureCorrective?: string | null
+  /**
+   * Le déclarant parle-t-il pour lui-même ?
+   *
+   * ⚠️ Trois états, pas deux. `null` n'est PAS « non » : il désigne les déclarations antérieures à
+   * ce champ, à qui la question n'a jamais été posée. Les confondre ferait passer 37 dossiers
+   * pour des signalements déposés par des tiers.
+   */
+  declarantEstVictime?: boolean | null
   /**
    * Exigés même en anonyme, donc stockés sur le dossier et non dans `declaration_identites`.
    *
@@ -157,6 +177,8 @@ export async function creerDeclaration(params: {
         attentes_declarant: d.attentesDeclarant ?? null,
         caractere_repetitif: d.caractereRepetitif ?? null,
         proposition_mesure_corrective: d.propositionMesureCorrective ?? null,
+        // `?? null` et non `?? false` : une question non posée reste sans réponse.
+        declarant_est_victime: d.declarantEstVictime ?? null,
         created_at: maintenant,
         updated_at: maintenant,
       },

@@ -181,6 +181,7 @@ model dossiers {
   precision_localisation        String?
   entreprise                    String?
   poste                         String?
+  declarant_est_victime         Boolean?
   actions_correctives           actions_correctives[]
   declaration_identites         declaration_identites?
   dossier_affectations          dossier_affectations[]

@@ -13,6 +13,21 @@ import { prisma } from '@/lib/prisma'
 export type OptionFormulaire = { valeur: string; libelle: string }
 export type OptionLieeFormulaire = OptionFormulaire & { parent: string }
 
+/**
+ * Le poste de repli, proposé sous CHAQUE direction.
+ *
+ * Le référentiel des postes ne peut pas être exhaustif : un intérimaire, un prestataire, un poste
+ * créé la semaine dernière n'y figurent pas. Sans issue, le déclarant laissait le champ vide — et
+ * l'information se perdait au lieu d'être imprécise.
+ *
+ * ⚠️ Ce n'est PAS une ligne du référentiel, et cela doit le rester. L'ajouter en base obligerait à
+ * la créer, la maintenir et la désactiver sous chacune des directions, et un administrateur
+ * pourrait la renommer en autre chose — alors que le serveur, lui, l'attend sous ce libellé exact
+ * pour l'accepter. Une constante partagée par le chargement et la validation ne peut pas diverger
+ * d'elle-même.
+ */
+export const POSTE_AUTRE = 'Autre'
+
 export type ReferentielsFormulaire = {
   directions: OptionFormulaire[]
   postes: OptionLieeFormulaire[]
@@ -62,13 +77,33 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
   */
   const parLibelle = (l: { libelle: string }) => ({ valeur: l.libelle, libelle: l.libelle })
 
+  /*
+    « Autre » clôt la liste de chaque direction.
+
+    Ajouté ici plutôt qu'en base (cf. `POSTE_AUTRE`), et seulement là où il manque : si une
+    direction porte déjà un poste ainsi nommé, on ne le double pas — deux entrées identiques dans
+    une liste déroulante n'ont aucun sens, et la seconde ne serait choisissable que par hasard.
+  */
+  const postesParDirection = postes.map((p) => ({
+    valeur: p.libelle,
+    libelle: p.libelle,
+    parent: String(p.direction_id),
+  }))
+
+  for (const direction of directions) {
+    const parent = String(direction.id)
+    const dejaPresent = postesParDirection.some(
+      (p) => p.parent === parent && p.libelle === POSTE_AUTRE
+    )
+
+    if (!dejaPresent) {
+      postesParDirection.push({ valeur: POSTE_AUTRE, libelle: POSTE_AUTRE, parent })
+    }
+  }
+
   return {
     directions: directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle })),
-    postes: postes.map((p) => ({
-      valeur: p.libelle,
-      libelle: p.libelle,
-      parent: String(p.direction_id),
-    })),
+    postes: postesParDirection,
     lieux: lieux.map(parLibelle),
     villes: villes.map(parLibelle),
     tranchesAnciennete: tranches.map(parLibelle),

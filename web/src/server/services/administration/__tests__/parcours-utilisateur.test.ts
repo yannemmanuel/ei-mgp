@@ -66,7 +66,7 @@ afterAll(async () => {
 
 describe('L’attribution voyage jusqu’à la décision d’accès', () => {
   it('confie un parcours, le relit, puis le retire', async () => {
-    const id = await creerCompte(['correspondant_mgp'], ['grief_employe'])
+    const id = await creerCompte(['correspondant_drh'], ['grief_employe'])
 
     const apresCreation = await chargerUtilisateurAutorise(id)
     expect(parcoursAutorises(apresCreation!)).toEqual(['grief_employe'])
@@ -83,7 +83,7 @@ describe('L’attribution voyage jusqu’à la décision d’accès', () => {
         siteId: null,
         responsableHierarchiqueId: null,
         actif: true,
-        roles: ['correspondant_mgp'],
+        roles: ['correspondant_drh'],
         parcours: [],
       },
       id
@@ -162,7 +162,7 @@ describe('L’attribution voyage jusqu’à la décision d’accès', () => {
 
   it('refuse un code de parcours fabriqué', async () => {
     // Le formulaire n'offre que des cases valides ; un appel direct peut en envoyer d'autres.
-    const id = await creerCompte(['correspondant_mgp'], ['grief_employe', 'parcours_invente'])
+    const id = await creerCompte(['correspondant_drh'], ['grief_employe', 'parcours_invente'])
 
     const compte = (await listerUtilisateurs()).find((c) => c.id === id)
     expect(compte?.parcours).toEqual(['grief_employe'])
