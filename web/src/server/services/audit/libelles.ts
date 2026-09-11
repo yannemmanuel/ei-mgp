@@ -32,6 +32,7 @@ const OBJETS: Record<string, string> = {
   site: 'Site',
   sla_delai: 'Délai',
   statut_dossier: 'Statut',
+  suivi: 'Suivi de dossier',
   user: 'Compte',
 }
 
@@ -56,6 +57,7 @@ const VERBES: Record<string, string> = {
   roles_modifies: '— rôles modifiés',
   statut_change: '— statut changé',
   supprime: 'supprimé',
+  tentative_echouee: '— tentative échouée',
 }
 
 /**
