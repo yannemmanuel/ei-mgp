@@ -195,12 +195,20 @@ désactivé ne peut plus se connecter (Laravel l'autorisait), un refus d'autoris
 `/acces-refuse` au lieu d'un 403, les exports nominatifs et les exécutions de tâches sont
 journalisés.
 
-⚠️ **Le statut HTTP ne dit pas si l'accès a été refusé.** La coquille `(app)/layout.tsx` commence
-à diffuser avant que la page n'appelle `exigerPermission()` : quand celle-ci redirige, l'en-tête
-est déjà parti en **200**, et la redirection voyage dans la charge RSC sous la forme
-`acces-refuse;307`. Un contrôle qui lit le code de retour conclura à un accès autorisé alors qu'il
-ne l'est pas — c'est arrivé en vérifiant la désactivation des rôles. Chercher le marqueur dans le
-corps, pas le statut. Un 307 en en-tête vient du proxy (absence de cookie), jamais d'une policy.
+⚠️ **Le statut HTTP ne dit pas si l'accès a été refusé**, et le refus prend TROIS formes. La
+coquille `(app)/layout.tsx` commence à diffuser avant que la page n'appelle `exigerPermission()` :
+quand celle-ci redirige, l'en-tête est souvent déjà parti en **200**.
+
+| Forme | Quand | Où la lire |
+|---|---|---|
+| En-tête `307` | Rien n'a encore été diffusé | `location` |
+| `acces-refuse?droit=…;307` | La coquille diffusait déjà | charge RSC, dans le corps |
+| `<meta http-equiv="refresh" content="1;url=/acces-refuse?…">` | Rendu streamé | corps, en tête de document |
+
+N'en guetter qu'une conclut à un accès autorisé alors qu'il ne l'est pas — c'est arrivé deux fois :
+en vérifiant la désactivation des rôles, puis pendant l'audit lui-même, où les trois quarts des
+refus passaient pour des accès. Un 307 en en-tête peut aussi venir du proxy (absence de cookie) :
+il ne suffit donc pas de le voir, il faut regarder vers où il pointe.
 
 ---
 
@@ -236,8 +244,9 @@ couvertes **structurellement** (lecture du source) plutôt que par exécution, f
 appeler une Server Action hors requête HTTP.
 
 **Une seule exception à l'environnement `node`** : `declarer/[parcours]/__tests__/formulaire.test.tsx`
-s'exécute dans un DOM (jsdom). Deux défauts s'y sont succédé — des étapes démontées qui effaçaient
+s'exécute dans un DOM (jsdom). Trois défauts s'y sont succédé — des étapes démontées qui effaçaient
 les saisies, puis un double-clic sur « Continuer » qui envoyait la déclaration en sautant les
-pièces jointes — et aucun n'était visible en lisant le source ni en inspectant le HTML servi : ils
-vivent dans l'interaction. Le module de Server Action y est le seul remplacé, parce qu'il franchit
+pièces jointes, puis le même envoi atteint par les autres répétitions du geste (clavier, second
+clic hors rafale) que le premier correctif laissait passer — et aucun n'était visible en lisant le
+source ni en inspectant le HTML servi : ils vivent dans l'interaction. Le module de Server Action y est le seul remplacé, parce qu'il franchit
 la frontière serveur ; rien de la logique du formulaire ne l'est.

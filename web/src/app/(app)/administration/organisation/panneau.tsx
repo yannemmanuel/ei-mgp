@@ -97,10 +97,25 @@ export function PanneauOrganisation({
       />
 
       {creation === 'site' && <FormulaireSite onFermer={fermer} />}
-      {siteEnEdition && <FormulaireSite site={siteEnEdition} onFermer={fermer} />}
+      {/*
+        `key` : même raison qu'au panneau des comptes (`utilisateurs/panneau.tsx`).
+
+        Les champs sont non contrôlés, donc initialisés au seul montage. Passer d'un site à un
+        autre sans refermer — « Modifier » reste cliquable — laissait le formulaire en place :
+        l'identifiant caché suivait la sélection, le code et le libellé restaient ceux du site
+        précédent, et enregistrer écrivait les valeurs de l'un SUR l'autre.
+      */}
+      {siteEnEdition && (
+        <FormulaireSite key={siteEnEdition.id} site={siteEnEdition} onFermer={fermer} />
+      )}
       {creation === 'direction' && <FormulaireDirection sites={sitesActifs} onFermer={fermer} />}
       {directionEnEdition && (
-        <FormulaireDirection direction={directionEnEdition} sites={sitesActifs} onFermer={fermer} />
+        <FormulaireDirection
+          key={directionEnEdition.id}
+          direction={directionEnEdition}
+          sites={sitesActifs}
+          onFermer={fermer}
+        />
       )}
 
       {orphelines.length > 0 && (

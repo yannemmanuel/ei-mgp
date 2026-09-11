@@ -3,20 +3,33 @@ import path from 'node:path'
 import { magasinCourant } from '../stockage/magasin'
 import { fileTypeFromBuffer } from 'file-type'
 import { ulid } from 'ulid'
+import {
+  MAX_FICHIERS,
+  MAX_OCTETS_TOTAL,
+  MESSAGE_LOT_TROP_LOURD,
+  MESSAGE_TROP_DE_FICHIERS,
+} from '@/lib/limites-pieces-jointes'
 
 /**
- * EX-DEC-06 / RGI-04 : 5 fichiers maximum, 50 Mo au total par déclaration.
+ * EX-DEC-06 / RGI-04 : 10 fichiers maximum, 50 Mo au total par déclaration.
  *
  * Port de `App\Services\Declaration\PieceJointeUploadService`. Le type RÉEL de chaque fichier
  * est revérifié à partir de ses octets d'en-tête (équivalent de `finfo` côté PHP) : le type MIME
  * annoncé par le navigateur n'est jamais une preuve suffisante
  * (docs/exigences-securite.md §3).
  */
-export const MAX_FICHIERS = 5
-export const MAX_OCTETS_TOTAL = 50 * 1024 * 1024
+// Réexportés pour les appelants historiques ; ils sont définis dans `@/lib/limites-pieces-jointes`,
+// que le formulaire importe aussi — le navigateur et le serveur appliquent les mêmes bornes.
+export { MAX_FICHIERS, MAX_OCTETS_TOTAL }
 
-/** Extension attendue → type MIME réel accepté. Repris à l'identique du service Laravel. */
-const TYPES_AUTORISES: Record<string, string> = {
+/**
+ * Extension attendue → type MIME réel accepté. Repris à l'identique du service Laravel.
+ *
+ * Exporté pour que l'aperçu du tableau de bord puisse être confronté à cette liste : tout type
+ * accepté ici doit être affichable, sans quoi une pièce déposée deviendrait consultable seulement
+ * en la téléchargeant (voir `lib/__tests__/apercu-pieces-jointes.test.ts`).
+ */
+export const TYPES_AUTORISES: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
@@ -60,13 +73,13 @@ function extensionDe(nom: string): string {
  */
 export async function verifierLot(fichiers: readonly FichierAValider[]): Promise<void> {
   if (fichiers.length > MAX_FICHIERS) {
-    throw new ErreurPieceJointe(`Un maximum de ${MAX_FICHIERS} fichiers est autorisé par déclaration.`)
+    throw new ErreurPieceJointe(MESSAGE_TROP_DE_FICHIERS)
   }
 
   const tailleTotale = fichiers.reduce((somme, f) => somme + f.octets.byteLength, 0)
 
   if (tailleTotale > MAX_OCTETS_TOTAL) {
-    throw new ErreurPieceJointe('La taille totale des pièces jointes dépasse 50 Mo.')
+    throw new ErreurPieceJointe(MESSAGE_LOT_TROP_LOURD)
   }
 
   for (const fichier of fichiers) {

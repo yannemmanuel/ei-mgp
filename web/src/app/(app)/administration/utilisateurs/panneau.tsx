@@ -95,7 +95,21 @@ export function PanneauComptes({
       />
 
       {(creation || edition !== null) && (
+        /*
+         * `key` : le formulaire est REMONTÉ dès qu'il change de compte.
+         *
+         * Ses champs sont non contrôlés — ils reçoivent `defaultValue`, que React ne lit qu'au
+         * montage. Sans cette clé, cliquer « Modifier » sur une seconde ligne alors que le
+         * formulaire est déjà ouvert le laissait en place : l'identifiant caché, lui contrôlé,
+         * suivait la sélection, tandis que le nom et l'adresse restaient ceux du compte
+         * précédent. Enregistrer écrivait alors les valeurs d'un compte SUR un autre. Base UI
+         * signalait le symptôme en console ; le défaut, lui, était silencieux et destructeur.
+         *
+         * Remonter réinitialise aussi l'état de la Server Action — le mot de passe initial
+         * affiché ne peut plus survivre à un changement de compte.
+         */
         <FormulaireCompte
+          key={edition?.id ?? 'creation'}
           compte={edition}
           roles={roles}
           directions={directions}

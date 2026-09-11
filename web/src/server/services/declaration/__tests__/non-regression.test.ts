@@ -146,7 +146,7 @@ describe('EX-DEC-06 / RGI-04 — limites des pièces jointes', () => {
     ]),
   })
 
-  it('accepte exactement 5 fichiers, refuse le sixième', async () => {
+  it('accepte exactement 10 fichiers, refuse le onzième', async () => {
     await expect(
       verifierLot(Array.from({ length: MAX_FICHIERS }, () => fichier(64)))
     ).resolves.toBeUndefined()
@@ -376,5 +376,33 @@ describe('EX-DEC-07 — le formulaire en plusieurs étapes ne perd pas les saisi
     // Garder les étapes montées ne doit PAS avoir transformé cette garantie structurelle en
     // simple masquage : un champ présent dans le DOM est un champ soumissible.
     expect(formulaire).toMatch(/config\.champs\.filter\(\(c\) => !anonymat \|\| !c\.identite/)
+  })
+})
+
+describe('Page de refus — ce qu’elle dit, et ce qu’elle refuse d’afficher', () => {
+  const CHEMIN = 'src/app/(app)/acces-refuse/page.tsx'
+
+  it('valide le droit reçu contre le catalogue fermé avant de l’afficher', async () => {
+    const source = await import('node:fs/promises')
+    const page = await source.readFile(CHEMIN, 'utf8')
+
+    // Le paramètre vient de l'URL. Sans cette validation, n'importe qui pourrait faire afficher
+    // n'importe quel texte sur une page de l'application — et le libellé rendu proviendrait d'une
+    // clé inexistante du catalogue, donc d'un plantage ou d'une chaîne arbitraire.
+    expect(page).toContain('PERMISSIONS as readonly string[]).includes(brut)')
+
+    // Seul le libellé lisible est rendu, jamais la valeur brute.
+    expect(page).toContain('LIBELLES[droit].libelle')
+    expect(page).not.toMatch(/\{brut\}/)
+  })
+
+  it('nomme le droit manquant plutôt que de laisser deviner', async () => {
+    const source = await import('node:fs/promises')
+    const session = await source.readFile('src/server/auth/session.ts', 'utf8')
+
+    // Sans le droit dans la redirection, la page ne pouvait dire ni ce qui manque ni à qui le
+    // demander. Ce n'est pas la fuite que redoute exigences-securite.md §5 : celle-là porte sur
+    // l'EXISTENCE d'un dossier, et un dossier hors périmètre répond `notFound()`.
+    expect(session).toContain('/acces-refuse?droit=')
   })
 })

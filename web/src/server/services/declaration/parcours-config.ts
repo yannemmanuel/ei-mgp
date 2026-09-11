@@ -71,7 +71,20 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     accroche: 'Signalez un incident, un presque-accident ou une situation dangereuse.',
     champs: [
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
-      { nom: 'matricule', libelle: 'Matricule', type: 'texte', etape: 1, max: 100, identite: true, colonne: 'matricule' },
+      {
+        // RGI-14. `'siIdentifie'` et non `true` : le matricule est une donnée d'IDENTITÉ. Exigé sans
+        // condition, il rendrait toute déclaration anonyme impossible — or l'anonymat est une
+        // exigence critique (RG-06, RGI-03), et le champ n'est même pas rendu quand il est
+        // coché. Obligatoire donc pour qui se nomme, inexistant pour qui ne se nomme pas.
+        nom: 'matricule',
+        libelle: 'Matricule',
+        type: 'texte',
+        etape: 1,
+        obligatoire: 'siIdentifie',
+        max: 100,
+        identite: true,
+        colonne: 'matricule',
+      },
       { nom: 'posteOccupe', libelle: 'Poste occupé', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'fonction' },
       {
         // La direction N'EST PAS une donnée d'identité, et le devenir a des conséquences : elle
@@ -111,7 +124,20 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     accroche: 'Signalez une situation professionnelle que vous jugez préjudiciable.',
     champs: [
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
-      { nom: 'matricule', libelle: 'Matricule', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'matricule' },
+      {
+        // RGI-14. `'siIdentifie'` et non `true` : le matricule est une donnée d'IDENTITÉ. Exigé sans
+        // condition, il rendrait toute déclaration anonyme impossible — or l'anonymat est une
+        // exigence critique (RG-06, RGI-03), et le champ n'est même pas rendu quand il est
+        // coché. Obligatoire donc pour qui se nomme, inexistant pour qui ne se nomme pas.
+        nom: 'matricule',
+        libelle: 'Matricule',
+        type: 'texte',
+        etape: 1,
+        obligatoire: 'siIdentifie',
+        max: 255,
+        identite: true,
+        colonne: 'matricule',
+      },
       { nom: 'posteOccupe', libelle: 'Poste occupé', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'fonction' },
       { nom: 'ancienneteAnnees', libelle: 'Ancienneté (années)', type: 'nombre', etape: 1, min: 0, max: 60, identite: true, colonne: 'ancienneteAnnees' },
       ...CONTACT,

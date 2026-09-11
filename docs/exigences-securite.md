@@ -37,7 +37,7 @@ concrets Laravel.
 | Upload de fichier malveillant | Validation Laravel (`mimes:`, `max:`), **revalidation du type réel** via `finfo`/`getMimeType()` côté serveur (ne jamais faire confiance au `Content-Type` envoyé par le navigateur) |
 | Exécution de script uploadé | Stockage hors `public/`, noms de fichiers générés (UUID), aucune exécution possible depuis le disque de stockage |
 | Accès non autorisé à une pièce confidentielle | Téléchargement exclusivement via un contrôleur qui vérifie la Policy du dossier parent avant de streamer le fichier (`Storage::response()` derrière `Gate`), jamais d'URL Storage publique directe pour les pièces jointes de dossiers non-anonymes sensibles |
-| Dépassement de quota | Limite 5 fichiers / 50 Mo appliquée côté Form Request **et** côté configuration serveur (`upload_max_filesize`, `post_max_size`) |
+| Dépassement de quota | Limite 10 fichiers / 50 Mo appliquée côté Form Request **et** côté configuration serveur (`upload_max_filesize`, `post_max_size`) |
 
 ## 4. Durcissement des routes publiques de déclaration
 

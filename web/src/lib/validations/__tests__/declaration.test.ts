@@ -25,19 +25,29 @@ describe('Socle de déclaration', () => {
     expect(socleDeclaration.safeParse(base).success).toBe(true)
   })
 
-  it('accepte une description courte, et même absente', () => {
-    // Arbitrage du 08/09/2026 : le plancher de 20 caractères (RGI-02) écartait des signalements
-    // légitimes tenant en trois mots — « Fuite gaz zone B » en fait 16.
-    expect(socleDeclaration.safeParse({ ...base, description: 'Fuite gaz' }).success).toBe(true)
-    expect(socleDeclaration.safeParse({ ...base, description: '' }).success).toBe(true)
+  it('accepte une description COURTE — le plancher de RGI-02 reste levé', () => {
+    // Les deux arbitrages du 08/09/2026 doivent tenir ensemble : le champ est redevenu
+    // obligatoire, mais sans minimum de longueur. « Fuite gaz zone B » fait 16 caractères et
+    // reste un signalement recevable — c'est précisément ce que le plancher écartait.
+    expect(socleDeclaration.safeParse({ ...base, description: 'Fuite gaz zone B' }).success).toBe(
+      true
+    )
+    expect(socleDeclaration.safeParse({ ...base, description: 'Fumée' }).success).toBe(true)
+  })
+
+  it('REFUSE une description absente ou vide', () => {
+    // Un dossier sans aucun récit des faits n'est ni qualifiable ni affectable.
+    expect(socleDeclaration.safeParse({ ...base, description: '' }).success).toBe(false)
+
+    // Des espaces ne sont pas un récit : le schéma élague avant de mesurer.
+    expect(socleDeclaration.safeParse({ ...base, description: '   ' }).success).toBe(false)
 
     const sansChamp = { ...base }
     delete (sansChamp as { description?: string }).description
     const r = socleDeclaration.safeParse(sansChamp)
 
-    expect(r.success).toBe(true)
-    // Jamais `undefined` : la colonne est `TEXT NOT NULL`, c'est une chaîne vide qui est écrite.
-    expect(r.data?.description).toBe('')
+    expect(r.success).toBe(false)
+    expect(r.error?.issues.some((i) => i.path[0] === 'description')).toBe(true)
   })
 
   it('refuse une description de plus de 200 caractères', () => {

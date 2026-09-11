@@ -3,7 +3,11 @@
     // ES2020 minimum : les identifiants entiers de la base (bigint PostgreSQL) sont exposes
     // par Prisma en BigInt, dont les litteraux (1n) exigent cette cible.
     "target": "ES2020",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -21,7 +25,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [
@@ -30,11 +36,16 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    ".next-verif/types/**/*.ts",
+    ".next-verif/dev/types/**/*.ts"
   ],
   // `netlify/functions` est une AUTRE cible de compilation : ces fichiers sont empaquetés par
   // Netlify, qui exige des chemins d'import avec extension explicite (`./x.mts`) — ce que le
   // résolveur « bundler » de Next refuse. Les exclure évite d'assouplir la configuration du
   // projet entier pour six fichiers qu'il ne compile pas.
-  "exclude": ["node_modules", "netlify"]
+  "exclude": [
+    "node_modules",
+    "netlify"
+  ]
 }

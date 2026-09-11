@@ -4,9 +4,10 @@ import { utilisateurCourant } from '@/server/auth'
 import { peutVoirDossier, type ParcoursCode } from '@/server/authz'
 import type { StatutCode } from '@/server/services/dossier/statuts'
 import { magasinNomme } from '@/server/services/stockage/magasin'
+import { reponsePieceJointe } from '@/server/services/stockage/reponse-piece-jointe'
 
 /**
- * Téléchargement d'une pièce jointe — port de `PieceJointeDownloadController` (Laravel).
+ * Téléchargement — et aperçu — d'une pièce jointe. Port de `PieceJointeDownloadController`.
  *
  * `docs/exigences-securite.md` §3 : **aucune pièce n'est jamais servie par une URL de stockage
  * publique**. Le fichier transite par cette route, qui revérifie la Policy du DOSSIER parent —
@@ -14,6 +15,10 @@ import { magasinNomme } from '@/server/services/stockage/magasin'
  *
  * Un gestionnaire de route n'est couvert par aucun layout : l'authentification et l'autorisation
  * se font ici, explicitement.
+ *
+ * `?apercu=1` demande un affichage plutôt qu'un téléchargement. Le paramètre ne relâche AUCUN
+ * contrôle : il est lu après l'autorisation, et ne décide que des en-têtes de la réponse
+ * (`reponse-piece-jointe.ts`, où l'arbitrage est commenté et testé).
  */
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,7 +56,7 @@ async function dossierParent(type: string, id: string) {
 }
 
 export async function GET(
-  _requete: NextRequest,
+  requete: NextRequest,
   contexte: RouteContext<'/api/pieces-jointes/[id]'>
 ): Promise<Response> {
   const utilisateur = await utilisateurCourant()
@@ -126,16 +131,7 @@ export async function GET(
     return new Response('Pièce jointe indisponible.', { status: 500 })
   }
 
-  return new Response(new Uint8Array(octets), {
-    headers: {
-      'Content-Type': piece.mime_type,
-      // `attachment` et non `inline` : un fichier téléversé par un tiers ne doit jamais être
-      // rendu dans le contexte de l'application.
-      'Content-Disposition': `attachment; filename="${piece.nom_original.replace(/"/g, '')}"`,
-      'Content-Length': String(piece.taille_octets),
-      'Cache-Control': 'no-store, private',
-      // Défense supplémentaire contre l'interprétation d'un type deviné par le navigateur.
-      'X-Content-Type-Options': 'nosniff',
-    },
+  return reponsePieceJointe(octets, piece, {
+    apercu: requete.nextUrl.searchParams.get('apercu') === '1',
   })
 }

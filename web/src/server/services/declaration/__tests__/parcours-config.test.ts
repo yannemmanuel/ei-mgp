@@ -66,6 +66,55 @@ describe('Schéma dérivé de la configuration', () => {
     expect(resultat.success).toBe(true)
   })
 
+  describe('Matricule obligatoire — sans jamais entamer l’anonymat', () => {
+    const CONCERNES = ['ei_employe', 'grief_employe'] as const
+
+    const contexteComplet = {
+      dateSurvenance: new Date().toISOString().slice(0, 10),
+      dateHeureFaits: new Date().toISOString().slice(0, 16),
+      lieu: 'Atelier de concassage',
+      directionId: '1',
+      // Propre au parcours Grief, obligatoire et sans rapport avec l'identité : sans lui, le
+      // schéma échouerait pour une raison qui n'est pas celle qu'on veut observer ici.
+      caractereRepetitif: 'premiere_fois',
+    }
+
+    it.each(CONCERNES)('exige le matricule quand le déclarant se nomme (%s)', (code) => {
+      const resultat = schemaParcours(PARCOURS[code], false).safeParse({
+        ...socle,
+        ...contexteComplet,
+        anonymat: false,
+        nomPrenom: 'Alice Kouamé',
+        posteOccupe: 'Opératrice',
+      })
+
+      expect(resultat.success).toBe(false)
+      expect(resultat.error?.issues.map((i) => String(i.path[0]))).toContain('matricule')
+    })
+
+    it.each(CONCERNES)('n’exige RIEN de tel en anonyme (%s)', (code) => {
+      // Le point qui compte. Le matricule est une donnée d'identité : exigé sans condition, il
+      // rendrait toute déclaration anonyme impossible — l'anonymat est une exigence critique
+      // (RG-06, RGI-03), et le champ n'est pas même rendu quand il est coché.
+      const resultat = schemaParcours(PARCOURS[code], true).safeParse({
+        ...socle,
+        ...contexteComplet,
+        anonymat: true,
+      })
+
+      expect(resultat.success, JSON.stringify(resultat.error?.issues)).toBe(true)
+    })
+
+    it('n’invente pas de matricule là où le parcours n’en demande pas', () => {
+      // Un visiteur ou un tiers n'a pas de matricule : la règle ne doit pas déborder sur eux.
+      for (const code of CODES_PARCOURS) {
+        const aUnMatricule = PARCOURS[code].champs.some((c) => c.nom === 'matricule')
+
+        expect(aUnMatricule, code).toBe((CONCERNES as readonly string[]).includes(code))
+      }
+    })
+  })
+
   it('exige la direction, anonyme ou non (EI Employé)', () => {
     /**
      * La direction était facultative en anonyme, et nulle en base. Depuis qu'elle porte le

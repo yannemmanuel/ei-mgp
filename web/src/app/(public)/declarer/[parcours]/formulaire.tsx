@@ -1,10 +1,16 @@
 'use client'
 
-import { useActionState, useMemo, useRef, useState } from 'react'
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { compresserLot } from '@/lib/compression-images'
+import {
+  MAX_FICHIERS,
+  MAX_MEGAOCTETS_TOTAL,
+  verifierLotSuperficiellement,
+} from '@/lib/limites-pieces-jointes'
 import type { Champ, ParcoursConfig } from '@/server/services/declaration/parcours-config'
 import { soumettreDeclaration, type EtatSoumission } from './actions'
 import { Recepisse } from './recepisse'
@@ -29,7 +35,22 @@ type Props = {
 const LIBELLES_ETAPES = ['Votre identité', 'Contexte', 'Nature de l’évènement', 'Pièces jointes']
 const NB_ETAPES = 4
 
-/** Plafond de la description (arbitrage du 08/09/2026, en remplacement du plancher RGI-02). */
+/**
+ * Délai pendant lequel « Envoyer ma déclaration » reste inerte après son apparition (ms).
+ *
+ * Il ne mesure pas un intervalle de double-clic — celui-là dépend du réglage du système. Il mesure
+ * le temps qu'il faut à un œil pour prendre acte d'un bouton qui vient d'apparaître : en deçà,
+ * l'activation visait ce qui occupait la place avant, c'est-à-dire « Continuer ».
+ */
+const DELAI_ARMEMENT_ENVOI = 700
+
+/**
+ * Plafond de la description — un plafond, pas un plancher.
+ *
+ * Le champ est obligatoire, mais aucune longueur minimale n'est exigée : « Fuite gaz zone B » est
+ * un signalement recevable. C'est le plancher de 20 caractères de RGI-02 qui a été levé le
+ * 08/09/2026, pas le caractère obligatoire du champ, rétabli depuis.
+ */
 const LONGUEUR_MAX_DESCRIPTION = 200
 const ETAT_INITIAL: EtatSoumission = {}
 
@@ -44,7 +65,22 @@ export function FormulaireDeclaration({
 }: Props) {
   const [etat, action, enCours] = useActionState(soumettre, ETAT_INITIAL)
   const viaRelais = canauxRelais.length > 0
-  const [etape, setEtape] = useState(1)
+  /**
+   * L'étape affichée, et le nombre de déplacements demandés.
+   *
+   * Le compteur n'est pas décoratif : redemander l'étape où l'on se trouve déjà — ce que fait
+   * `validerEtapes()` quand le champ fautif appartient à l'étape courante — doit tout de même
+   * replacer le curseur. Sans lui, l'état ne changerait pas et l'effet de focus ne s'exécuterait
+   * pas.
+   */
+  const [{ etape, deplacements }, setPosition] = useState({ etape: 1, deplacements: 0 })
+  const allerA = (numero: number) => {
+    // Tout déplacement désarme l'envoi — y compris un retour vers l'étape 4, qui doit se mériter
+    // à nouveau. Le désarmement est posé ici, dans le geste, plutôt que dans l'effet qui arme :
+    // un effet n'a pas à modifier l'état qu'il observe.
+    setEnvoiArme(false)
+    setPosition((p) => ({ etape: numero, deplacements: p.deplacements + 1 }))
+  }
   /**
    * Anti-robot par delai minimal de remplissage (DT-14) : pose au MONTAGE, cote client.
    *
@@ -70,6 +106,24 @@ export function FormulaireDeclaration({
    */
   const [erreursClient, setErreursClient] = useState<Record<string, string>>({})
   const formulaireRef = useRef<HTMLFormElement>(null)
+  /** Champ à focaliser au prochain déplacement, quand il ne s'agit pas du premier de l'étape. */
+  const cibleFocus = useRef<HTMLElement | null>(null)
+  /**
+   * `false` tant que le bouton d'envoi n'a pas été affiché pour lui-même.
+   *
+   * Porté par l'attribut `disabled`, et non par un test dans le gestionnaire de clic : désarmé,
+   * le bouton est alors inatteignable par TOUTES les routes d'activation — souris, clavier,
+   * tactile, technologie d'assistance — et non par les seules que l'on a pensé à intercepter.
+   */
+  const [envoiArme, setEnvoiArme] = useState(false)
+  /**
+   * Où en est la réduction des images.
+   *
+   * `en-cours` barre l'envoi : partir pendant la réduction déposerait les fichiers d'origine —
+   * exactement ce que la réduction cherche à éviter — et la course se gagnerait au hasard du
+   * débit et de la taille des photos.
+   */
+  const [reduction, setReduction] = useState<'inactive' | 'en-cours'>('inactive')
 
   // RGI-03 : les champs d'identité ne sont pas rendus du tout si l'anonymat est coché — pas
   // seulement masqués en CSS, ils ne peuvent donc pas être soumis.
@@ -79,6 +133,46 @@ export function FormulaireDeclaration({
   )
 
   const categorieEstAutre = categoriesAutre.includes(categorieId)
+
+  /*
+   * Le curseur suit l'étape affichée.
+   *
+   * Deux raisons, dont une corrige un défaut. La bonne pratique d'abord : après un changement
+   * d'étape, un utilisateur au clavier ou au lecteur d'écran doit se retrouver DANS ce qui vient
+   * d'apparaître, pas sur le bouton qu'il vient de presser. Le défaut ensuite : rester sur ce
+   * bouton, c'est garder le doigt sur la détente — une seconde pression sur Entrée atteignait
+   * l'envoi (voir le bouton de soumission plus bas).
+   *
+   * `deplacements` et non `etape` en dépendance : voir sa déclaration.
+   */
+  useEffect(() => {
+    if (deplacements === 0) return // montage : ne pas arracher le curseur au chargement de la page
+
+    const conteneur = formulaireRef.current?.querySelector<HTMLElement>(`[data-etape="${etape}"]`)
+    const aFocaliser =
+      cibleFocus.current ??
+      conteneur?.querySelector<HTMLElement>(
+        'input:not([type="hidden"]), select, textarea'
+      ) ??
+      null
+
+    cibleFocus.current = null
+    aFocaliser?.focus()
+  }, [deplacements, etape])
+
+  /*
+   * Le bouton d'envoi s'arme après coup, jamais à l'instant où il apparaît.
+   *
+   * Le minuteur part du RENDU de l'étape 4, pas du clic qui y a mené : sur un appareil lent, le
+   * geste « il ne s'est rien passé, je reclique » arrive tard après le premier clic, mais tôt
+   * après l'apparition du bouton. C'est cette seconde distance qui compte.
+   */
+  useEffect(() => {
+    if (etape !== NB_ETAPES) return
+
+    const minuteur = setTimeout(() => setEnvoiArme(true), DELAI_ARMEMENT_ENVOI)
+    return () => clearTimeout(minuteur)
+  }, [etape, deplacements])
 
   if (etat.succes) {
     return <Recepisse reference={etat.succes.reference} codeAcces={etat.succes.codeAcces} />
@@ -125,10 +219,10 @@ export function FormulaireDeclaration({
     setErreursClient(messages)
 
     if (premiereEnDefaut !== null) {
-      setEtape(premiereEnDefaut)
-      // Le focus attend que l'étape fautive soit rendue : le placer avant reviendrait à viser un
-      // champ encore masqué, que le navigateur refuse de focaliser.
-      requestAnimationFrame(() => premierChampInvalide?.focus())
+      // Le focus n'est pas posé ici : viser un champ encore masqué, que le navigateur refuse de
+      // focaliser. Il est confié au déplacement, qui l'applique une fois l'étape fautive rendue.
+      cibleFocus.current = premierChampInvalide
+      allerA(premiereEnDefaut)
     }
 
     return premiereEnDefaut
@@ -136,7 +230,50 @@ export function FormulaireDeclaration({
 
   function continuer() {
     if (validerEtapes([etape]) !== null) return
-    setEtape((e) => Math.min(NB_ETAPES, e + 1))
+    allerA(Math.min(NB_ETAPES, etape + 1))
+  }
+
+  /**
+   * Remplace le contenu du champ fichier par les images réduites.
+   *
+   * `DataTransfer` est le seul moyen d'écrire dans un `FileList`. S'il manque, on n'y touche pas :
+   * ce sont alors les fichiers d'origine qui partent, plus lourds mais intacts. Une pièce non
+   * réduite vaut mieux qu'une pièce perdue.
+   */
+  function remplacerFichiers(champ: HTMLInputElement, fichiers: File[]) {
+    if (typeof DataTransfer !== 'function') return
+
+    const transfert = new DataTransfer()
+    for (const fichier of fichiers) transfert.items.add(fichier)
+    champ.files = transfert.files
+  }
+
+  /**
+   * Réduit les images choisies, puis pèse le lot RÉELLEMENT déposé.
+   *
+   * L'ordre compte : peser avant la réduction refuserait des lots que la réduction aurait rendus
+   * acceptables — dix photos de téléphone dépassent les bornes à l'état brut, presque jamais une
+   * fois réduites.
+   */
+  async function reduirePuisVerifier(champ: HTMLInputElement) {
+    const choisis = Array.from(champ.files ?? [])
+
+    if (choisis.length === 0) {
+      champ.setCustomValidity('')
+      return
+    }
+
+    setReduction('en-cours')
+
+    try {
+      remplacerFichiers(champ, await compresserLot(choisis))
+    } finally {
+      setReduction('inactive')
+    }
+
+    // Ce qui est pesé est ce que contient le champ : si le remplacement n'a pas pu avoir lieu, ce
+    // sont les fichiers d'origine qui partiront, et ce sont eux qui doivent tenir dans les bornes.
+    champ.setCustomValidity(verifierLotSuperficiellement(Array.from(champ.files ?? [])) ?? '')
   }
 
   return (
@@ -324,18 +461,21 @@ export function FormulaireDeclaration({
           />
 
           <div className="space-y-1.5">
-            <Label htmlFor="description">Description des faits</Label>
+            <Label htmlFor="description">
+              Description des faits <span className="text-destructive">*</span>
+            </Label>
             <textarea
               id="description"
               name="description"
               rows={5}
+              required
               maxLength={LONGUEUR_MAX_DESCRIPTION}
               onChange={(e) => setDescriptionLongueur(e.target.value.length)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="text-caption text-muted-foreground">
-                Facultatif. L’essentiel en quelques phrases ; vous pourrez compléter plus tard.
+                L’essentiel en quelques phrases ; vous pourrez compléter plus tard.
               </p>
               <p
                 className={`text-caption tabular-nums ${
@@ -363,10 +503,39 @@ export function FormulaireDeclaration({
 
         <div data-etape={4} className={etape === 4 ? 'space-y-1.5' : 'hidden'}>
           <Label htmlFor="fichiers">Pièces jointes</Label>
-          <Input id="fichiers" name="fichiers" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf" />
+          <Input
+            id="fichiers"
+            name="fichiers"
+            type="file"
+            multiple
+            accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf"
+            /*
+             * Le lot est pesé DANS LE NAVIGATEUR, avant l'envoi.
+             *
+             * Sans ce contrôle, un lot trop lourd part quand même : il est refusé après que tous
+             * les octets ont été transmis — au mieux par le serveur, au pire par le plafond de
+             * transport de la Server Action, dont le rejet ne produit aucun message que le
+             * formulaire sache afficher. Sur un téléphone en 3G, c'est une longue attente pour
+             * une erreur.
+             *
+             * `setCustomValidity` plutôt qu'un état à part : le message rejoint ainsi la
+             * mécanique de `validerEtapes()`, qui affiche l'étape fautive et y pose le curseur,
+             * et il barre l'envoi comme le ferait un champ obligatoire vide.
+             *
+             * La pesée a lieu APRÈS la réduction des images : c'est le lot réellement déposé qui
+             * doit tenir dans les bornes, pas celui d'avant.
+             */
+            onChange={(e) => reduirePuisVerifier(e.currentTarget)}
+          />
           <p className="text-caption text-muted-foreground">
-            5 fichiers maximum, 50 Mo au total. Images, vidéos ou PDF.
+            {MAX_FICHIERS} fichiers maximum, {MAX_MEGAOCTETS_TOTAL} Mo au total. Images, vidéos ou
+            PDF. Les photos sont réduites automatiquement avant l’envoi.
           </p>
+          {reduction === 'en-cours' && (
+            <p role="status" className="text-caption text-muted-foreground">
+              Réduction des images en cours…
+            </p>
+          )}
           {erreur('fichiers') && <Erreur message={erreur('fichiers')!} />}
         </div>
       </div>
@@ -375,34 +544,45 @@ export function FormulaireDeclaration({
         <Button
           type="button"
           variant="outline"
-          onClick={() => setEtape((e) => Math.max(1, e - 1))}
+          onClick={() => allerA(Math.max(1, etape - 1))}
           disabled={etape === 1}
         >
           Précédent
         </Button>
 
+        {/*
+          Un envoi ne peut pas être déclenché par le geste qui vient de le faire apparaître.
+
+          « Continuer » et « Envoyer ma déclaration » occupent la même place : à la dernière étape,
+          le premier cède la place au second. Toute répétition du geste d'activation — double-clic,
+          seconde pression sur Entrée, « il ne s'est rien passé, je reclique » — atteint donc
+          l'envoi, et l'étape des pièces jointes est franchie sans avoir été vue. C'est le défaut
+          signalé, reproduit puis figé par des tests, geste par geste.
+
+          Trois dispositions distinctes le referment, aucune ne suffisant seule :
+
+          1. `key` — les deux boutons ne partagent plus leur nœud du DOM. React remplaçait
+             l'attribut `type` sur place, et le bouton d'envoi héritait ainsi du FOCUS de
+             « Continuer » : une seconde pression sur Entrée envoyait la déclaration. Deux clés
+             distinctes en font deux éléments, et le focus ne se transmet plus.
+          2. `envoiArme` — désarmé pendant un court instant après son apparition, le bouton est
+             inatteignable par toutes les routes d'activation à la fois (voir sa déclaration).
+             C'est la seule qui couvre le pointeur : la souris, elle, ne suit pas le focus, et le
+             second clic tombe sur les mêmes coordonnées quel que soit le nœud qui s'y trouve.
+          3. `e.detail` — une rafale de clics reste une rafale même passé le délai d'armement, si
+             le système est réglé sur un intervalle long. Au-delà de 1, le clic appartient au geste
+             précédent.
+        */}
         {etape < NB_ETAPES ? (
-          <Button type="button" onClick={continuer}>
+          <Button key="continuer" type="button" onClick={continuer}>
             Continuer
           </Button>
         ) : (
           <Button
+            key="envoyer"
             type="submit"
-            disabled={enCours}
+            disabled={enCours || !envoiArme || reduction === 'en-cours'}
             onClick={(e) => {
-              /*
-               * Un envoi ne peut pas être déclenché par le geste qui vient de le faire apparaître.
-               *
-               * « Continuer » et « Envoyer ma déclaration » occupent la même place : à la dernière
-               * étape, le premier est remplacé SUR PLACE par le second. Un double-clic sur
-               * « Continuer » à l'étape 3 fait donc partir la déclaration — le second clic atteint
-               * un bouton qui n'existait pas au premier, et l'étape des pièces jointes est sautée
-               * sans avoir été vue. C'est le défaut signalé, reproduit puis figé par un test.
-               *
-               * `detail` compte les clics d'une même rafale : au-delà de 1, le clic appartient au
-               * geste précédent et ne vaut pas décision d'envoyer. Un critère de temps aurait fait
-               * dépendre la correction du réglage du système ; celui-ci non.
-               */
               if (e.detail > 1) {
                 e.preventDefault()
                 return

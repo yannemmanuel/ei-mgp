@@ -10,24 +10,30 @@ import { z } from 'zod'
  */
 
 /**
- * Description factuelle : facultative, 200 caractères au plus.
+ * Description factuelle : OBLIGATOIRE, 200 caractères au plus.
  *
- * Arbitrage métier du 08/09/2026, qui remplace RGI-02 (« obligatoire, 20 caractères minimum »).
- * Le plancher écartait des signalements légitimes tenant en une phrase — « Extincteur vide,
- * atelier 3 » fait 27 caractères, mais « Fuite gaz zone B » n'en fait que 16. Le plafond tient à
- * la lecture : au-delà de deux ou trois phrases, l'essentiel se dilue, et la messagerie du
- * dossier existe pour le détail.
+ * Deux arbitrages successifs, qu'il faut lire ensemble pour ne pas défaire l'un en appliquant
+ * l'autre :
  *
- * ⚠️ Conséquence assumée : un dossier peut désormais être créé SANS description. La colonne
- * `dossiers.description` est `TEXT NOT NULL` — c'est une chaîne vide qui y est écrite, jamais
- * NULL, et les écrans de traitement doivent rester lisibles dans ce cas.
+ * - 08/09/2026 — RGI-02 exigeait « obligatoire, 20 caractères minimum ». Le PLANCHER a été levé :
+ *   il écartait des signalements légitimes tenant en trois mots (« Fuite gaz zone B » : 16
+ *   caractères). Le plafond de 200 a été posé, parce qu'au-delà de deux ou trois phrases
+ *   l'essentiel se dilue, et que la messagerie du dossier existe pour le détail.
+ * - 08/09/2026 (postérieur) — le champ redevient OBLIGATOIRE. Un dossier sans aucun récit des
+ *   faits n'est pas traitable : ni qualifiable, ni affectable.
+ *
+ * Le champ est donc exigé, mais SANS plancher de longueur : « Fuite gaz zone B » reste accepté.
+ * Rétablir un minimum de caractères reviendrait à réintroduire ce que le premier arbitrage a
+ * écarté pour de bonnes raisons.
+ *
+ * Exporté : `formulaire-parcours.ts` réutilise ce schéma plutôt que d'en décrire un second. Les
+ * deux ont déjà existé côte à côte, et deux définitions d'une même règle finissent par diverger.
  */
-const description = z
+export const description = z
   .string()
   .trim()
+  .min(1, 'Merci de décrire les faits.')
   .max(200, 'La description ne peut pas dépasser 200 caractères.')
-  .optional()
-  .default('')
 
 /**
  * RGI-01 : la date des faits ne peut jamais être postérieure à la date de soumission.

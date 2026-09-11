@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { description } from './declaration'
 import type { Champ, ParcoursConfig } from '@/server/services/declaration/parcours-config'
 import { champsVisibles } from '@/server/services/declaration/parcours-config'
 
@@ -85,13 +86,11 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     categorieId: z.string().regex(/^\d+$/, 'Merci de sélectionner une catégorie.'),
     categorieAutrePrecision: z.string().trim().max(500).optional(),
     niveauGraviteId: z.string().regex(/^\d+$/, 'Merci de sélectionner un niveau de gravité.'),
-    // Facultative, 200 caractères au plus — arbitrage du 08/09/2026 remplaçant RGI-02.
-    description: z
-      .string()
-      .trim()
-      .max(200, 'La description ne peut pas dépasser 200 caractères.')
-      .optional()
-      .default(''),
+    // Obligatoire, 200 caractères au plus, sans plancher de longueur. La règle et ses deux
+    // arbitrages sont énoncés là où le schéma est défini — ici on le RÉUTILISE, on ne le redécrit
+    // pas : les deux définitions ont déjà coexisté, et une règle écrite deux fois finit par
+    // diverger.
+    description,
     attentesDeclarant: z.string().trim().max(255).optional(),
     // Anti-spam (DT-14).
     piegeAraignee: z.string().max(0, 'Soumission refusée.').optional(),

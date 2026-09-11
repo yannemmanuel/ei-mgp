@@ -33,9 +33,9 @@ listées ici pour ne pas être perdues lors du codage.
 | ID interne | Règle | Source CDC |
 |---|---|---|
 | RGI-01 | La date de survenue/des faits ne peut pas être postérieure à la date de soumission | §9.1, §9.2, §9.3, §9.4 (règle répétée sur chaque formulaire) |
-| RGI-02 | ~~La description factuelle est obligatoire avec un minimum de 20 caractères~~ → **Révisée le 08/09/2026** : description **facultative**, **200 caractères au plus**. Le plancher écartait des signalements légitimes tenant en trois mots (« Fuite gaz zone B » : 16 caractères) ; le plafond tient à la lecture, le détail passant par la messagerie du dossier. Conséquence assumée : un dossier peut exister sans description. | §9.1 à §9.6 (champ « Description ») |
+| RGI-02 | ~~La description factuelle est obligatoire avec un minimum de 20 caractères~~ → **Révisée le 08/09/2026** : description **obligatoire**, **sans longueur minimale**, **200 caractères au plus**. Seul le PLANCHER est levé — il écartait des signalements légitimes tenant en trois mots (« Fuite gaz zone B » : 16 caractères) ; le plafond tient à la lecture, le détail passant par la messagerie du dossier. Un dossier ne peut pas exister sans description : sans récit des faits, il n'est ni qualifiable ni affectable. | §9.1 à §9.6 (champ « Description ») |
 | RGI-03 | Champs d'identification (nom, matricule/entreprise, coordonnées) obligatoirement masqués/non collectés si la case anonymat est cochée, quel que soit le parcours | §9.1–9.4, note `*` en bas de chaque tableau de formulaire |
-| RGI-04 | Une pièce jointe est limitée à 5 fichiers et 50 Mo au total par déclaration | §9.1–9.4 (règle répétée), EX-DEC-06 |
+| RGI-04 | Une pièce jointe est limitée à 10 fichiers et 50 Mo au total par déclaration (arbitrage du 08/09/2026, en remplacement de « 5 fichiers » ; les images sont réduites dans le navigateur avant le dépôt, l'image réduite devenant l'original de référence sur lequel porte le `checksum_sha256`) | §9.1–9.4 (règle répétée), EX-DEC-06 |
 | RGI-05 | La date d'ouverture d'une investigation ne peut être antérieure à la date de recevabilité du dossier | §9.5 |
 | RGI-06 | La validation hiérarchique d'une investigation ne peut jamais être renseignée par l'enquêteur lui-même | §9.5 (« Ne peut être renseignée par l'enquêteur lui-même ») |
 | RGI-07 | La date d'échéance d'une action corrective doit être postérieure à sa date de création | §9.6 |
@@ -45,6 +45,7 @@ listées ici pour ne pas être perdues lors du codage.
 | RGI-11 | Un dossain « Rejeté (non recevable) » est un statut terminal côté interne mais s'affiche comme « Clôturé » côté déclarant | §7.1, §7.2 |
 | RGI-12 | Un numéro de référence et, si anonyme, un code secondaire sont **la seule** clé de consultation — pas de récupération par email/téléphone puisque ces champs peuvent être absents | §5.3, §5.4, §6.6 |
 | RGI-13 | Une déclaration « Autre » suit le délai d'analyse préliminaire du parcours d'origine (pas un délai spécifique) le temps d'être requalifiée | §6.8 |
+| RGI-14 | Le matricule est obligatoire dès lors que le déclarant s'identifie (arbitrage du 08/09/2026), et n'est ni demandé ni collecté en déclaration anonyme — c'est une donnée d'identité, soumise à RGI-03 et RG-06. Concerne les seuls parcours qui en comportent un : EI Employé et Grief Employé. | §9.1–9.2, RGI-03 |
 
 ## C. Règles de circuit accéléré (CDC §6.5, reprises en §12.3)
 

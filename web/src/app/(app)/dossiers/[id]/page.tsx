@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { Paperclip } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { EtiquetteStatut, type TonStatut } from '@/components/ui/etiquette-statut'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +49,7 @@ import { PanneauActions } from './panneau-actions'
 import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
 import { PanneauMessagerie } from './panneau-messagerie'
+import { PanneauPiecesJointes } from './panneau-pieces-jointes'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -361,36 +361,14 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           )}
 
           <section id="pieces-jointes" className="scroll-mt-28">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-h3">Pièces jointes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {pieces.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucune pièce jointe.</p>
-                ) : (
-                  <ul className="divide-y divide-border">
-                    {pieces.map((p) => (
-                      <li key={p.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-                        <Paperclip className="h-4 w-4 shrink-0 text-secondary-400" aria-hidden />
-                        {/* Le fichier transite par une route qui revérifie la Policy du dossier :
-                            jamais par une URL de stockage directe (exigences-securite.md §3). */}
-                        <a
-                          href={`/api/pieces-jointes/${p.id}`}
-                          className="min-w-0 flex-1 truncate text-sm text-secondary-800 underline-offset-2 hover:text-primary-700 hover:underline"
-                          download={p.nom_original}
-                        >
-                          {p.nom_original}
-                        </a>
-                        <span className="shrink-0 text-caption text-muted-foreground">
-                          {Math.round(Number(p.taille_octets) / 1024)} Ko
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+            <PanneauPiecesJointes
+              pieces={pieces.map((p) => ({
+                id: p.id,
+                nomOriginal: p.nom_original,
+                mimeType: p.mime_type,
+                tailleOctets: Number(p.taille_octets),
+              }))}
+            />
           </section>
 
           <section id="investigations" className="scroll-mt-28">
