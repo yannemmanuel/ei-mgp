@@ -89,8 +89,13 @@ const CARACTERE_REPETITIF = [
 ] as const
 
 /*
-  Nom, prénom et adresse e-mail ne sont plus collectés nulle part. Le TÉLÉPHONE, lui, subsiste —
-  mais uniquement là où un rappel est proposé.
+  L'adresse e-mail n'est plus collectée nulle part. Le NOM et le TÉLÉPHONE, eux, subsistent — mais
+  chacun sur les seuls parcours où il sert.
+
+  Le nom et le prénom restent demandés au sous-traitant et au riverain. Ces deux-là ne figurent
+  dans aucun fichier du personnel : ni matricule, ni direction pour les désigner. S'ils
+  choisissent de se nommer, leur nom est le seul point de reprise dont dispose le traitement. Les
+  salariés, eux, ont leur matricule — le nom n'y ajoutait rien qu'une donnée de plus à protéger.
 
   Les retirer tous les quatre laissait « Je souhaite être recontacté » et « Canal de retour
   préféré » promettre un rappel que plus rien ne permettait d'honorer : un écran qui demande
@@ -294,6 +299,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         etape: 1,
         obligatoire: true,
       },
+      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       { nom: 'fonction', libelle: 'Fonction', type: 'texte', etape: 1, identite: true, colonne: 'fonction' },
       TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
@@ -330,6 +336,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
+      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       {
         /*
           « Ville », obligatoire, en remplacement de la localité libre et facultative.

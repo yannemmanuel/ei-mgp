@@ -210,12 +210,27 @@ describe('Schéma dérivé de la configuration', () => {
 describe('Harmonisation des quatre formulaires', () => {
   const tous = CODES_PARCOURS.map((code) => [code, PARCOURS[code]] as const)
 
-  it('ne collecte plus ni nom, ni prénom, ni adresse e-mail', () => {
+  it('ne collecte plus d’adresse e-mail, nulle part', () => {
     for (const [code, config] of tous) {
-      const noms = config.champs.map((c) => c.nom)
+      expect(config.champs.map((c) => c.nom), code).not.toContain('contactEmail')
+    }
+  })
 
-      expect(noms, code).not.toContain('nomPrenom')
-      expect(noms, code).not.toContain('contactEmail')
+  it('ne demande le nom qu’à ceux que le matricule ne désigne pas', () => {
+    /*
+      Sous-traitants et riverains ne figurent dans aucun fichier du personnel : s'ils choisissent
+      de se nommer, leur nom est le seul point de reprise dont dispose le traitement. Les
+      salariés, eux, ont leur matricule — le nom n'y ajoutait qu'une donnée de plus à protéger.
+
+      Le champ reste marqué `identite` : l'anonymat le fait disparaître, comme les autres.
+    */
+    const externes = new Set(['grief_sous_traitant', 'grief_communaute'])
+
+    for (const [code, config] of tous) {
+      const nom = config.champs.find((c) => c.nom === 'nomPrenom')
+
+      expect(nom !== undefined, code).toBe(externes.has(code))
+      if (nom) expect(nom.identite, `${code} : le nom survivrait à l’anonymat`).toBe(true)
     }
   })
 
