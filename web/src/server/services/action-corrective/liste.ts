@@ -17,7 +17,7 @@ import { STATUTS_ACTION, type StatutAction } from './action-corrective'
  */
 
 export function perimetreActions(u: UtilisateurAutorise): Prisma.actions_correctivesWhereInput {
-  return { dossiers: { parcours: { code: { in: parcoursAutorises(u.roles) } } } }
+  return { dossiers: { parcours: { code: { in: parcoursAutorises(u) } } } }
 }
 
 export type FiltresActions = {

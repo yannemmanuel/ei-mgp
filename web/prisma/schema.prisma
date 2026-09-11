@@ -371,6 +371,7 @@ model parcours {
   qr_codes                qr_codes[]
   sla_delais              sla_delais[]
   statistiques_mensuelles statistiques_mensuelles[]
+  utilisateur_parcours    utilisateur_parcours[]
 }
 
 model password_reset_tokens {
@@ -550,6 +551,7 @@ model users {
   users                                                        users?                 @relation("usersTousers", fields: [responsable_hierarchique_id], references: [id], onUpdate: NoAction, map: "users_responsable_hierarchique_id_foreign")
   other_users                                                  users[]                @relation("usersTousers")
   sites                                                        sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "users_site_id_foreign")
+  utilisateur_parcours                                         utilisateur_parcours[]
 }
 
 model lieux {
@@ -591,4 +593,18 @@ model villes {
   actif      Boolean   @default(true)
   created_at DateTime? @db.Timestamp(0)
   updated_at DateTime? @db.Timestamp(0)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model utilisateur_parcours {
+  id          BigInt    @id @default(autoincrement())
+  user_id     BigInt
+  parcours_id BigInt
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  parcours    parcours  @relation(fields: [parcours_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users       users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, parcours_id], map: "utilisateur_parcours_unique")
+  @@index([user_id], map: "utilisateur_parcours_user_id_index")
 }

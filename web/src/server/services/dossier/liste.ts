@@ -36,7 +36,7 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
   const parSite: Prisma.dossiersWhereInput = site === null ? {} : { site_id: site }
 
   if (aPermission(u, 'dossiers.view')) {
-    return { ...parSite, parcours: { code: { in: parcoursAutorises(u.roles) } } }
+    return { ...parSite, parcours: { code: { in: parcoursAutorises(u) } } }
   }
 
   // `dossiers.view.own` : SES dossiers, pas tout son parcours. Traduction en SQL de la branche
@@ -45,7 +45,7 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
   if (aPermission(u, 'dossiers.view.own')) {
     return {
       ...parSite,
-      parcours: { code: { in: parcoursAutorises(u.roles) } },
+      parcours: { code: { in: parcoursAutorises(u) } },
       OR: [
         { dossier_affectations: { some: { user_id: u.id, actif: true } } },
         { declarant_user_id: u.id },
@@ -86,7 +86,7 @@ function clauseAMoiDAgir(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
     return { id: { in: [] } }
   }
 
-  const branches = parcoursAutorises(u.roles).map((parcours) => ({
+  const branches = parcoursAutorises(u).map((parcours) => ({
     parcours: { code: parcours },
     statuts_dossier: {
       code: {

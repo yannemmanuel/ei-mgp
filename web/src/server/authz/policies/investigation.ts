@@ -13,15 +13,15 @@ export function peutVoirListeInvestigations(u: UtilisateurAutorise): boolean {
 }
 
 export function peutVoirInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.view') && peutVoirParcours(u.roles, i.parcoursCode)
+  return aPermission(u, 'investigations.view') && peutVoirParcours(u, i.parcoursCode)
 }
 
 export function peutCreerInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.create') && peutVoirParcours(u.roles, i.parcoursCode)
+  return aPermission(u, 'investigations.create') && peutVoirParcours(u, i.parcoursCode)
 }
 
 export function peutModifierInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.update') && peutVoirParcours(u.roles, i.parcoursCode)
+  return aPermission(u, 'investigations.update') && peutVoirParcours(u, i.parcoursCode)
 }
 
 /** RGI-06 : la validation ne peut JAMAIS être effectuée par l'enquêteur lui-même. */
@@ -29,6 +29,6 @@ export function peutValiderInvestigation(u: UtilisateurAutorise, i: Investigatio
   return (
     aPermission(u, 'investigations.validate') &&
     i.enqueteurId !== u.id &&
-    peutVoirParcours(u.roles, i.parcoursCode)
+    peutVoirParcours(u, i.parcoursCode)
   )
 }

@@ -1,6 +1,6 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
-import { peutVoirParcours, type ParcoursCode, type Role } from '@/server/authz'
+import { parcoursDuRole, type ParcoursCode, type Role } from '@/server/authz'
 import { dateDebutEtape } from '../dossier/delais'
 import { ErreurWorkflow } from '../dossier/workflow'
 import type { StatutCode } from '../dossier/statuts'
@@ -223,6 +223,11 @@ export async function investigationsDuDossier(dossierId: string) {
  *
  * Lu en BASE, pas dans le code : les droits sont administrables, et un rôle qui vient de recevoir
  * « valider une investigation » doit apparaître ici sans redéploiement.
+ *
+ * Ce sont bien des RÔLES qui sont nommés, pas des personnes — d'où `parcoursDuRole`. Depuis que le
+ * parcours s'attribue compte par compte, porter le rôle est nécessaire mais plus suffisant : la
+ * personne doit aussi s'être vu confier ce parcours. Nommer le rôle reste le bon niveau pour un
+ * message d'attente, et le seul qui ne divulgue l'identité de personne.
  */
 export async function rolesValidateurs(parcours: ParcoursCode): Promise<string[]> {
   const roles = await prisma.roles.findMany({
@@ -236,6 +241,6 @@ export async function rolesValidateurs(parcours: ParcoursCode): Promise<string[]
   })
 
   return roles
-    .filter((r) => peutVoirParcours([r.name as Role], parcours))
+    .filter((r) => parcoursDuRole([r.name as Role]).includes(parcours))
     .map((r) => r.libelle)
 }

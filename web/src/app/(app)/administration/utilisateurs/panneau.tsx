@@ -26,9 +26,17 @@ export type CompteVue = {
   siteId: string
   responsableId: string
   roles: string[]
-  /** Types de déclaration que ce compte peut voir, en clair — déduits de ses rôles. */
+  /** Codes des parcours confiés à ce compte — ce que le formulaire rouvre coché. */
+  parcoursAttribues: string[]
+  /**
+   * Ce que ce compte voit VRAIMENT, en clair : l'attribution croisée avec ce que ses rôles
+   * ouvrent. Peut être vide alors que des parcours lui sont attribués, si aucun de ses rôles ne
+   * les ouvre — c'est justement le cas qu'il faut voir.
+   */
   parcours: string[]
   tousLesParcours: boolean
+  /** Les parcours que ses rôles permettent de lui confier : le formulaire n'offre que ceux-là. */
+  parcoursPossibles: { code: string; libelle: string }[]
   /** Rattachement lisible, `null` s'il n'est pas renseigné. */
   site: string | null
   direction: string | null
@@ -47,7 +55,23 @@ export type CompteVue = {
 type Option = { id: string; libelle: string }
 
 /** Un rôle proposé à l'attribution : son identifiant technique, son nom lisible, son activation. */
-export type RoleOption = { nom: string; libelle: string; actif: boolean }
+export type RoleOption = {
+  nom: string
+  libelle: string
+  actif: boolean
+  /**
+   * Les parcours que ce rôle permet de confier.
+   *
+   * Porté par le rôle plutôt que par le compte parce que le formulaire en a besoin AVANT
+   * l'enregistrement : cocher « Correspondant MGP » doit faire apparaître sur-le-champ les trois
+   * types de grief qu'on peut alors lui confier. Un calcul côté serveur ne connaîtrait que les
+   * rôles déjà enregistrés, et l'administrateur devrait enregistrer deux fois.
+   */
+  parcours: string[]
+}
+
+/** Un type de déclaration proposé à l'attribution. */
+export type ParcoursOption = { code: string; libelle: string }
 
 const ETAT: EtatCompte = {}
 const champ = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
@@ -55,12 +79,14 @@ const champ = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-
 export function PanneauComptes({
   comptes,
   roles,
+  parcours,
   directions,
   sites,
   recherche,
 }: {
   comptes: CompteVue[]
   roles: RoleOption[]
+  parcours: ParcoursOption[]
   directions: Option[]
   sites: Option[]
   recherche: string
@@ -115,6 +141,7 @@ export function PanneauComptes({
           key={edition?.id ?? 'creation'}
           compte={edition}
           roles={roles}
+          parcours={parcours}
           directions={directions}
           sites={sites}
           comptes={comptes}
@@ -187,18 +214,33 @@ export function PanneauComptes({
                         {/*
                           CE QUE LA PERSONNE VOIT, et non plus seulement les rôles qu'elle porte.
 
-                          Deux comptes peuvent détenir « consulter les dossiers » et ne pas voir
-                          les mêmes déclarations : le cloisonnement par parcours les sépare, sans
-                          qu'aucun écran ne le dise. On lisait donc une liste de rôles sans
-                          pouvoir répondre à « qui est habilité sur quoi ».
+                          Deux comptes peuvent détenir « consulter les dossiers », porter le MÊME
+                          rôle, et ne pas voir les mêmes déclarations : le parcours se confie
+                          personne par personne. C'est la demande métier — chaque type de grief a
+                          son référent — et cette ligne est le seul endroit qui la rend lisible.
+
+                          « À habiliter » n'est pas une erreur mais une ÉTAPE MANQUANTE : le compte
+                          a un rôle qui pourrait ouvrir des dossiers, on ne lui en a confié aucun,
+                          il ne voit donc rien. Sans ce signal, la personne se plaindrait d'un
+                          écran vide et l'administrateur chercherait un bug.
                         */}
-                        <p className="mt-1 text-caption text-muted-foreground">
-                          {compte.parcours.length === 0
-                            ? 'Aucun dossier'
-                            : compte.tousLesParcours
-                              ? 'Tous les types de déclaration'
-                              : compte.parcours.join(' · ')}
-                        </p>
+                        {compte.parcours.length === 0 && compte.parcoursPossibles.length > 0 ? (
+                          <Badge
+                            variant="destructive"
+                            className="mt-1 font-normal"
+                            title="Ce compte porte un rôle qui ouvre des dossiers, mais aucun type de déclaration ne lui a été confié : il ne voit rien. Modifiez-le pour lui en attribuer."
+                          >
+                            À habiliter
+                          </Badge>
+                        ) : (
+                          <p className="mt-1 text-caption text-muted-foreground">
+                            {compte.parcours.length === 0
+                              ? 'Aucun dossier'
+                              : compte.tousLesParcours
+                                ? 'Tous les types de déclaration'
+                                : compte.parcours.join(' · ')}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-2">
                         {compte.site === null && compte.direction === null ? (
@@ -254,6 +296,7 @@ export function PanneauComptes({
 function FormulaireCompte({
   compte,
   roles,
+  parcours,
   directions,
   sites,
   comptes,
@@ -261,6 +304,7 @@ function FormulaireCompte({
 }: {
   compte: CompteVue | null
   roles: RoleOption[]
+  parcours: ParcoursOption[]
   directions: Option[]
   sites: Option[]
   comptes: CompteVue[]
@@ -270,6 +314,24 @@ function FormulaireCompte({
 
   // Un compte ne peut pas être son propre responsable hiérarchique.
   const responsables = comptes.filter((c) => c.id !== compte?.id)
+
+  /*
+    Les rôles cochés, suivis en état — le seul champ du formulaire qui le soit.
+
+    Tous les autres sont non contrôlés (`defaultValue`), et c'est très bien : personne n'a besoin
+    de savoir ce qu'on tape dans « Nom » avant l'envoi. Les rôles, si — ils commandent la liste des
+    parcours attribuables juste en dessous. Cocher « Correspondant MGP » doit faire apparaître les
+    trois types de grief tout de suite, sans passer par un enregistrement intermédiaire.
+  */
+  const [rolesCoches, setRolesCoches] = useState<Set<string>>(new Set(compte?.roles ?? []))
+
+  const parcoursParRole = new Map(roles.map((r) => [r.nom, r.parcours]))
+  const attribuables = new Set<string>()
+  for (const role of rolesCoches) {
+    for (const code of parcoursParRole.get(role) ?? []) attribuables.add(code)
+  }
+
+  const proposes = parcours.filter((p) => attribuables.has(p.code))
 
   return (
     <Card>
@@ -398,6 +460,14 @@ function FormulaireCompte({
                       name="roles"
                       value={role.nom}
                       defaultChecked={detenu}
+                      onChange={(e) =>
+                        setRolesCoches((avant) => {
+                          const apres = new Set(avant)
+                          if (e.target.checked) apres.add(role.nom)
+                          else apres.delete(role.nom)
+                          return apres
+                        })
+                      }
                       className="mt-1"
                     />
                     <span className="min-w-0">
@@ -415,6 +485,53 @@ function FormulaireCompte({
                 )
               })}
             </div>
+          </fieldset>
+
+          {/*
+            LE SECOND VERROU, et celui qui manquait.
+
+            Le rôle dit ce que la personne sait faire ; ces cases disent SUR QUOI. Trois
+            correspondants MGP portent le même rôle et suivent chacun un type de grief : c'est
+            exactement ce que cette section permet, et rien d'autre ne le permettait.
+
+            Ce qui est proposé dépend des rôles cochés au-dessus, et se limite à ce qu'ils
+            ouvrent : proposer un parcours que le rôle n'ouvre pas laisserait cocher une case sans
+            effet. Les rôles transverses — Service MGP, Direction générale, Auditeur, DPO — ne sont
+            pas concernés : ils voient tout par construction, et la section le dit plutôt que de
+            faire croire à un choix.
+          */}
+          <fieldset>
+            <legend className="text-caption text-muted-foreground">
+              Types de déclaration confiés
+            </legend>
+
+            {proposes.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {rolesCoches.size === 0
+                  ? 'Cochez d’abord un rôle : les types de déclaration qu’il permet de confier apparaîtront ici.'
+                  : 'Aucun des rôles cochés n’ouvre de dossier. Rien à confier.'}
+              </p>
+            ) : (
+              <>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {proposes.map((p) => (
+                    <label key={p.code} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="parcours"
+                        value={p.code}
+                        defaultChecked={compte?.parcoursAttribues.includes(p.code) ?? false}
+                        className="mt-1"
+                      />
+                      <span className="min-w-0 text-secondary-900">{p.libelle}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-caption text-muted-foreground">
+                  Sans aucune case cochée, ce compte ne verra aucun dossier.
+                </p>
+              </>
+            )}
           </fieldset>
 
           <label className="flex items-center gap-2 text-sm">

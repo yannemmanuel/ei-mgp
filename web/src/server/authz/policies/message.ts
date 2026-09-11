@@ -14,9 +14,9 @@ export type MessagePourAutorisation = {
 }
 
 export function peutVoirMessagerie(u: UtilisateurAutorise, m: MessagePourAutorisation): boolean {
-  return aPermission(u, 'messagerie.view') && peutVoirParcours(u.roles, m.parcoursCode)
+  return aPermission(u, 'messagerie.view') && peutVoirParcours(u, m.parcoursCode)
 }
 
 export function peutEnvoyerMessage(u: UtilisateurAutorise, m: MessagePourAutorisation): boolean {
-  return aPermission(u, 'messagerie.send') && peutVoirParcours(u.roles, m.parcoursCode)
+  return aPermission(u, 'messagerie.send') && peutVoirParcours(u, m.parcoursCode)
 }

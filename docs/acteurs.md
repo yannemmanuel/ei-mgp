@@ -22,6 +22,27 @@ correspondance.
 
 ## 2. Matrice acteurs → rôle → accès (base sur CDC §3)
 
+> ⚠️ **La colonne « Périmètre dossiers » dit ce que le rôle PERMET, pas ce que la personne voit.**
+>
+> Depuis l'ajout de la table `utilisateur_parcours`, le parcours se confie compte par compte,
+> dans `/administration/utilisateurs`. Le périmètre effectif est l'**intersection** des deux : le
+> rôle doit ouvrir le parcours, ET le parcours doit avoir été attribué.
+>
+> Conséquences :
+> - **Un compte sans attribution ne voit aucun dossier**, quel que soit son rôle. C'est l'état
+>   d'un compte nouvellement créé, et c'est délibéré : l'habilitation est explicite.
+> - Trois personnes portant `correspondant_mgp` peuvent suivre chacune un type de grief
+>   différent — c'est précisément ce que la colonne ci-dessous ne pouvait pas exprimer.
+> - Les **rôles transverses** (`service_mgp`, `dg`, `auditeur`, `dpo`) échappent à la règle et
+>   gardent les 4 parcours sans attribution. Sans cette exception, un dossier dont le parcours
+>   n'est confié à personne deviendrait invisible de tous.
+> - ⚠️ La permission `dossiers.view.all` **court-circuite ce cloisonnement** : elle donne accès à
+>   tous les dossiers sans consulter ni rôle ni attribution. Un rôle censé être cloisonné par
+>   parcours doit donc passer par `dossiers.view`, jamais par `dossiers.view.all`.
+>
+> La règle vit dans `src/server/authz/parcours.ts` : `parcoursDuRole()` répond sur le rôle,
+> `parcoursAutorises()` sur la personne.
+
 | Acteur CDC | Rôle applicatif (slug) | Compte requis | Périmètre dossiers | Niveau d'accès CDC |
 |---|---|---|---|---|
 | Déclarant (employé identifié) | `employe_declarant` | Optionnel (SSO futur) | Ses propres dossiers non-anonymes uniquement | Aucun compte requis / SSO conditionnel |

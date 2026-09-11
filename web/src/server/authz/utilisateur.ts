@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import type { ParcoursCode } from './parcours'
 import type { Permission } from './permissions'
 import type { Role } from './roles'
 
@@ -34,6 +35,15 @@ export type UtilisateurAutorise = {
   readonly doitChangerMotDePasse: boolean
   readonly roles: readonly Role[]
   readonly permissions: ReadonlySet<Permission>
+  /**
+   * Types de déclaration confiés à cette personne, attribués un par un dans
+   * `/administration/utilisateurs`.
+   *
+   * ⚠️ Ce n'est PAS le périmètre effectif : celui-ci est le croisement de cette liste avec ce que
+   * les rôles ouvrent, et seul `parcoursAutorises()` sait le calculer. Ne jamais filtrer sur ce
+   * champ directement — ce serait ignorer le rôle, donc accorder plus que prévu.
+   */
+  readonly parcours: readonly ParcoursCode[]
 }
 
 export function aRole(u: UtilisateurAutorise, role: Role): boolean {
@@ -76,7 +86,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     return null
   }
 
-  const [liensRoles, permissionsDirectes] = await Promise.all([
+  const [liensRoles, permissionsDirectes, liensParcours] = await Promise.all([
     prisma.model_has_roles.findMany({
       where: { model_type: MODEL_TYPE_USER, model_id: userId },
       select: {
@@ -93,6 +103,14 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     prisma.model_has_permissions.findMany({
       where: { model_type: MODEL_TYPE_USER, model_id: userId },
       select: { permissions: { select: { name: true, guard_name: true } } },
+    }),
+    // Les parcours confiés à cette personne. Relus ici, à chaque requête, comme les rôles : une
+    // attribution retirée coupe l'accès tout de suite, sans attendre une reconnexion.
+    //
+    // `actif` est filtré côté parcours : un parcours désactivé en base ne s'ouvre à personne.
+    prisma.utilisateur_parcours.findMany({
+      where: { user_id: userId, parcours: { actif: true } },
+      select: { parcours: { select: { code: true } } },
     }),
   ])
 
@@ -136,5 +154,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     doitChangerMotDePasse: utilisateur.doit_changer_mot_de_passe,
     roles,
     permissions,
+    parcours: liensParcours.map((lien) => lien.parcours.code as ParcoursCode),
   }
 }

@@ -14,6 +14,7 @@ import {
   parcoursAutorises,
   peutExporter,
   peutExporterNominatif,
+  type UtilisateurAutorise,
 } from '@/server/authz'
 import { calculerIndicateurs, type LigneRepartition } from '@/server/services/reporting/indicateurs'
 import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
@@ -128,7 +129,7 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
         <VueConsolidee
           filtre={filtre}
           parametres={parametres}
-          roles={utilisateur.roles}
+          utilisateur={utilisateur}
           peutVoirInvestigations={aPermission(utilisateur, 'investigations.view')}
           peutVoirActions={aPermission(utilisateur, 'actions.view')}
         />
@@ -326,17 +327,19 @@ function BandeAdministration({
 async function VueConsolidee({
   filtre,
   parametres,
-  roles,
+  utilisateur,
   peutVoirInvestigations,
   peutVoirActions,
 }: {
   filtre: ReturnType<typeof filtreDepuisParametres>
   parametres: Record<string, string | string[] | undefined>
-  roles: readonly string[]
+  utilisateur: UtilisateurAutorise
   peutVoirInvestigations: boolean
   peutVoirActions: boolean
 }) {
-  const codes = parcoursAutorises(roles as Parameters<typeof parcoursAutorises>[0])
+  // Le compte entier, et non ses seuls rôles : le périmètre dépend aussi des parcours qui lui ont
+  // été confiés. Deux personnes portant les mêmes rôles n'ont plus les mêmes chiffres.
+  const codes = parcoursAutorises(utilisateur)
 
   const [indicateurs, historique, referentiels, compteurs] = await Promise.all([
     calculerIndicateurs(filtre),

@@ -24,7 +24,7 @@ describe('Cloisonnement par parcours', () => {
 
     for (const roles of [['rqse'], ['correspondant_mgp'], ['service_mgp'], ['administrateur_digital']] as const) {
       const utilisateur = utilisateurAvecRoles(...roles)
-      const autorises = parcoursAutorises(utilisateur.roles)
+      const autorises = parcoursAutorises(utilisateur)
 
       const { actions } = await listerActions(utilisateur, {}, 1)
 

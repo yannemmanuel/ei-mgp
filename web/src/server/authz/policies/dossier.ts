@@ -56,7 +56,7 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
   }
 
   if (aPermission(u, 'dossiers.view')) {
-    return peutVoirParcours(u.roles, dossier.parcoursCode)
+    return peutVoirParcours(u, dossier.parcoursCode)
   }
 
   /**
@@ -72,7 +72,7 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
    * confie précisément les déclarations qu'ils captent — ou ceux qu'il a lui-même déclarés.
    */
   if (aPermission(u, 'dossiers.view.own')) {
-    if (!peutVoirParcours(u.roles, dossier.parcoursCode)) return false
+    if (!peutVoirParcours(u, dossier.parcoursCode)) return false
 
     return dossier.estAffecteAuLecteur || dossier.declarantUserId === u.id
   }

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
-import { parcoursAutorises, siteManquant, type Role } from '@/server/authz'
+import { parcoursAutorises, parcoursDuRole, siteManquant, type ParcoursCode, type Role } from '@/server/authz'
 import {
   listerUtilisateurs,
   referentielsComptes,
@@ -31,6 +31,12 @@ export default async function PageComptes({
   // Les codes ne disent rien à personne : l'écran affiche les libellés du référentiel.
   const libelleParcours = new Map(tousLesParcours.map((p) => [p.code, p.libelle]))
 
+  // Le périmètre réel du compte, calculé par le même code que celui qui décide en production.
+  // Le recopier ici — « rôle ∩ attribution » — reviendrait à créer une seconde vérité, qui
+  // finirait par afficher autre chose que ce que l'application applique.
+  const perimetre = (c: { roles: string[]; parcours: string[] }) =>
+    parcoursAutorises({ roles: c.roles as Role[], parcours: c.parcours as ParcoursCode[] })
+
   return (
     <PanneauComptes
       comptes={comptes.map((c) => ({
@@ -48,12 +54,18 @@ export default async function PageComptes({
         site: c.sites?.libelle ?? null,
         direction: c.directions?.libelle ?? null,
         siteManquant: siteManquant(c.roles as Role[], c.site_id),
-        // Ce que la personne voit réellement, déduit de ses rôles — la moitié invisible de ses
-        // habilitations, celle qu'aucun écran ne disait.
-        parcours: parcoursAutorises(c.roles as Role[]).map(
-          (code) => libelleParcours.get(code) ?? code
-        ),
-        tousLesParcours: parcoursAutorises(c.roles as Role[]).length === tousLesParcours.length,
+        // Ce qui lui a été confié, tel quel : c'est ce que le formulaire doit rouvrir coché.
+        parcoursAttribues: c.parcours,
+        // Ce qu'elle voit VRAIMENT — l'attribution croisée avec ce que ses rôles ouvrent. Les deux
+        // listes diffèrent dès qu'on lui a confié un parcours que son rôle n'ouvre pas, et c'est
+        // précisément ce qu'il faut montrer plutôt que laisser croire à un accès.
+        parcours: perimetre(c).map((code) => libelleParcours.get(code) ?? code),
+        tousLesParcours: perimetre(c).length === tousLesParcours.length,
+        // Les parcours que ses rôles permettent de lui confier : le formulaire n'offre que ceux-là.
+        parcoursPossibles: parcoursDuRole(c.roles as Role[]).map((code) => ({
+          code,
+          libelle: libelleParcours.get(code) ?? code,
+        })),
         // Le compte est rattaché à un site ET à une direction qui relève d'un AUTRE site. Rien
         // ne l'interdit techniquement, mais l'un des deux est faux — et le dossier qu'on croira
         // lui adresser partira ailleurs.
@@ -62,7 +74,14 @@ export default async function PageComptes({
           c.directions?.site_id != null &&
           c.directions.site_id !== c.site_id,
       }))}
-      roles={roles.map((r) => ({ nom: r.name, libelle: r.libelle, actif: r.actif }))}
+      roles={roles.map((r) => ({
+        nom: r.name,
+        libelle: r.libelle,
+        actif: r.actif,
+        // Ce que ce rôle permet de confier — pour les rôles transverses, les 4 parcours.
+        parcours: parcoursDuRole([r.name as Role]),
+      }))}
+      parcours={tousLesParcours.map((p) => ({ code: p.code, libelle: p.libelle }))}
       directions={referentiels.directions.map((d) => ({ id: String(d.id), libelle: d.libelle }))}
       sites={referentiels.sites.map((s) => ({ id: String(s.id), libelle: s.libelle }))}
       recherche={recherche}

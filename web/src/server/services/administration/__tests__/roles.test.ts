@@ -62,6 +62,7 @@ async function creerCompte(roles: string[]) {
     responsableHierarchiqueId: null,
     actif: true,
     roles,
+    parcours: [],
   })
 
   comptesCrees.push(resultat.utilisateurId)

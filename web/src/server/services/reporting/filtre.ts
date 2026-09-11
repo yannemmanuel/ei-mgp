@@ -102,7 +102,7 @@ export function filtreDepuisParametres(
   lecteur?: UtilisateurAutorise
 ): FiltreReporting {
   return {
-    parcoursDuLecteur: lecteur ? parcoursAutorises(lecteur.roles) : undefined,
+    parcoursDuLecteur: lecteur ? parcoursAutorises(lecteur) : undefined,
     parcoursId: entier(parametres.parcoursId),
     categorieId: entier(parametres.categorieId),
     statutId: entier(parametres.statutId),

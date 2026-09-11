@@ -133,9 +133,18 @@ describe('Détection d’écart', () => {
     const { ecarts } = await chargerHabilitations()
     const ecart = ecarts.find((e) => e.role === 'service_mgp')
 
-    // Le sens compte : une permission retirée PRIVE d'un accès prévu à la livraison.
+    /*
+      Le sens compte : une permission retirée PRIVE d'un accès prévu à la livraison, et doit donc
+      être annoncée comme retirée — jamais comme ajoutée.
+
+      On n'exige PAS que `ajoutees` soit vide. Les habilitations sont administrables : un
+      administrateur peut légitimement accorder à un rôle une permission absente de la référence,
+      et l'écart est précisément là pour le dire. L'exiger vide reviendrait à figer en règle la
+      configuration d'un jour donné — le test virerait au rouge à la première décision d'un
+      administrateur, sans qu'aucun code ait changé.
+    */
     expect(ecart?.retirees).toContain('reporting.export.nominatif')
-    expect(ecart?.ajoutees).toEqual([])
+    expect(ecart?.ajoutees).not.toContain('reporting.export.nominatif')
   })
 })
 

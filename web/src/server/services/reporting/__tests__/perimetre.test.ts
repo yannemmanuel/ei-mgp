@@ -35,7 +35,7 @@ describe('Le périmètre du lecteur plafonne les indicateurs', () => {
 
       // Recompte indépendant, à partir des codes de parcours du rôle.
       const attendu = await prisma.dossiers.count({
-        where: { parcours: { code: { in: parcoursAutorises(u.roles) } } },
+        where: { parcours: { code: { in: parcoursAutorises(u) } } },
       })
 
       expect(annonce, `${role} : le total ne correspond pas à son périmètre`).toBe(attendu)
@@ -53,7 +53,7 @@ describe('Le périmètre du lecteur plafonne les indicateurs', () => {
     const transverse = await nbDeclarations(filtreDepuisParametres({}, utilisateurAvecRoles(TRANSVERSE)))
 
     const horsPerimetre = await prisma.dossiers.count({
-      where: { parcours: { code: { notIn: parcoursAutorises(utilisateurAvecRoles(CLOISONNE).roles) } } },
+      where: { parcours: { code: { notIn: parcoursAutorises(utilisateurAvecRoles(CLOISONNE)) } } },
     })
 
     expect(horsPerimetre, 'aucun dossier hors du périmètre restreint : le cas ne prouverait rien')
@@ -66,7 +66,7 @@ describe('Le périmètre du lecteur plafonne les indicateurs', () => {
     // l'ouvre pas, cela ne renvoie rien.
     const u = utilisateurAvecRoles(CLOISONNE)
     const interdit = await prisma.parcours.findFirst({
-      where: { code: { notIn: parcoursAutorises(u.roles) } },
+      where: { code: { notIn: parcoursAutorises(u) } },
       select: { id: true, code: true },
     })
 
@@ -90,7 +90,7 @@ describe('Le périmètre du lecteur plafonne les indicateurs', () => {
     const indicateurs = await calculerIndicateurs(filtreDepuisParametres({}, u))
 
     // La répartition par parcours ne doit nommer que les parcours ouverts.
-    const autorises = new Set(parcoursAutorises(u.roles))
+    const autorises = new Set(parcoursAutorises(u))
     const codes = await prisma.parcours.findMany({ select: { code: true, libelle: true } })
     const libellesAutorises = new Set(
       codes.filter((p) => autorises.has(p.code as never)).map((p) => p.libelle)
@@ -112,7 +112,7 @@ describe('L’export ne rouvre pas ce que l’écran ferme', () => {
       const lignes = await lignesExport(filtreDepuisParametres({}, u), false)
 
       const attendu = await prisma.dossiers.count({
-        where: { parcours: { code: { in: parcoursAutorises(u.roles) } } },
+        where: { parcours: { code: { in: parcoursAutorises(u) } } },
       })
 
       expect(lignes.length, `${role} : l’export déborde de son périmètre`).toBe(attendu)

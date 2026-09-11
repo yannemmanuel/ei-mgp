@@ -1,6 +1,6 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
-import type { ParcoursCode } from '@/server/authz'
+import { peutVoirParcours, type ParcoursCode, type Role } from '@/server/authz'
 import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
 import { referenceSuivante } from './reference'
@@ -311,6 +311,15 @@ async function siteDeLaDirection(
  *
  * Tous les utilisateurs actifs portant le rôle sont affectés : le CDC ne borne pas leur nombre
  * et ne décrit aucun algorithme de répartition, qu'il serait donc arbitraire d'inventer.
+ *
+ * ⚠️ Mais porter le rôle ne suffit plus : depuis que le parcours se confie personne par personne,
+ * seuls les comptes RÉELLEMENT habilités sur ce parcours sont affectés. Sans ce filtre, le
+ * dossier serait confié à quelqu'un dont le périmètre l'empêche de l'ouvrir — affecté et
+ * introuvable à la fois, ce qui est pire que non affecté : personne ne le réclamerait.
+ *
+ * Conséquence à connaître : tant qu'aucun compte n'est habilité sur un parcours, ses déclarations
+ * restent au statut « reçu », sans destinataire. C'est visible — le tableau de bord compte les
+ * dossiers non affectés — là où une affectation à un aveugle ne l'était pas.
  */
 async function affecterAutomatiquement(
   tx: ClientTransaction,
@@ -337,10 +346,49 @@ async function affecterAutomatiquement(
     return false
   }
 
-  const utilisateurs = await tx.users.findMany({
+  const candidats = await tx.users.findMany({
     where: { actif: true, id: { in: liens.map((l) => l.model_id) } },
-    select: { id: true },
+    select: {
+      id: true,
+      utilisateur_parcours: { select: { parcours: { select: { code: true } } } },
+    },
   })
+
+  /*
+    TOUS les rôles de chaque candidat, pas seulement celui du captage.
+
+    `model_has_roles` est la table polymorphe de spatie : reliée par `model_id` + `model_type`,
+    elle n'est pas une relation Prisma et se lit à part. Elle est nécessaire ici parce qu'un rôle
+    transverse dispense d'attribution — le lire depuis `liens`, filtré sur les rôles de captage,
+    ne le montrerait jamais.
+  */
+  const tousLesLiens = await tx.model_has_roles.findMany({
+    where: { model_type: MODEL_TYPE_USER, model_id: { in: candidats.map((c) => c.id) } },
+    select: { model_id: true, roles: { select: { name: true, actif: true, guard_name: true } } },
+  })
+
+  const rolesParCompte = new Map<bigint, Role[]>()
+  for (const lien of tousLesLiens) {
+    // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
+    if (!lien.roles.actif || lien.roles.guard_name !== 'web') continue
+
+    rolesParCompte.set(lien.model_id, [
+      ...(rolesParCompte.get(lien.model_id) ?? []),
+      lien.roles.name as Role,
+    ])
+  }
+
+  // Filtré par la MÊME fonction que celle qui décide de l'accès en lecture. Recopier la règle ici
+  // la ferait diverger au premier ajustement, et l'écart ne se verrait que sur un dossier perdu.
+  const utilisateurs = candidats.filter((u) =>
+    peutVoirParcours(
+      {
+        roles: rolesParCompte.get(u.id) ?? [],
+        parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
+      },
+      parcours
+    )
+  )
 
   if (utilisateurs.length === 0) {
     return false

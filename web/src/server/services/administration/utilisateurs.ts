@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { hacherMotDePasse } from '@/server/auth/identifiants'
+import { PARCOURS_CODES, type ParcoursCode } from '@/server/authz'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, attributsCrees, difference, journaliser, sansChangement } from '../audit/journal'
 
@@ -27,6 +28,16 @@ export type DonneesUtilisateur = {
   responsableHierarchiqueId: bigint | null
   actif: boolean
   roles: string[]
+  /**
+   * Codes des parcours confiés à cette personne.
+   *
+   * Stockés TELS QUELS, sans être rabotés par ce que ses rôles ouvrent aujourd'hui. Le croisement
+   * se fait à la lecture (`parcoursAutorises`), pour la même raison que `model_has_roles` survit à
+   * la désactivation d'un rôle : retirer un rôle ne doit pas effacer en silence une habilitation
+   * qu'il faudrait ressaisir si on le rendait. Une attribution hors du champ des rôles n'ouvre
+   * rien en attendant — l'écran le signale plutôt que de la supprimer.
+   */
+  parcours: string[]
 }
 
 export async function listerUtilisateurs(recherche = '') {
@@ -58,9 +69,17 @@ export async function listerUtilisateurs(recherche = '') {
     },
   })
 
-  const roles = await rolesParUtilisateur(utilisateurs.map((u) => u.id))
+  const ids = utilisateurs.map((u) => u.id)
+  const [roles, parcours] = await Promise.all([
+    rolesParUtilisateur(ids),
+    parcoursParUtilisateur(ids),
+  ])
 
-  return utilisateurs.map((u) => ({ ...u, roles: roles.get(u.id) ?? [] }))
+  return utilisateurs.map((u) => ({
+    ...u,
+    roles: roles.get(u.id) ?? [],
+    parcours: parcours.get(u.id) ?? [],
+  }))
 }
 
 /** Une seule requête pour tous les comptes : une par ligne serait un N+1 sur la console. */
@@ -81,6 +100,27 @@ async function rolesParUtilisateur(ids: bigint[]): Promise<Map<bigint, string[]>
   }
 
   for (const liste of parUtilisateur.values()) liste.sort()
+
+  return parUtilisateur
+}
+
+/** Idem pour les parcours confiés : une seule requête pour toute la console. */
+async function parcoursParUtilisateur(ids: bigint[]): Promise<Map<bigint, string[]>> {
+  if (ids.length === 0) return new Map()
+
+  const attributions = await prisma.utilisateur_parcours.findMany({
+    where: { user_id: { in: ids } },
+    select: { user_id: true, parcours: { select: { code: true } } },
+    orderBy: { parcours: { ordre: 'asc' } },
+  })
+
+  const parUtilisateur = new Map<bigint, string[]>()
+
+  for (const attribution of attributions) {
+    const liste = parUtilisateur.get(attribution.user_id) ?? []
+    liste.push(attribution.parcours.code)
+    parUtilisateur.set(attribution.user_id, liste)
+  }
 
   return parUtilisateur
 }
@@ -143,6 +183,12 @@ export async function enregistrerUtilisateur(
   const rolesConnus = new Set((await rolesDisponibles()).map((r) => r.name))
   const rolesDemandes = [...new Set(donnees.roles)].filter((r) => rolesConnus.has(r)).sort()
 
+  // Les parcours sont un référentiel fermé (4 codes, CDC §2.1) : tout ce qui n'en fait pas partie
+  // vient d'un formulaire trafiqué et se jette ici, côté serveur.
+  const parcoursDemandes = [...new Set(donnees.parcours)]
+    .filter((code): code is ParcoursCode => (PARCOURS_CODES as readonly string[]).includes(code))
+    .sort()
+
   const valeurs = {
     name: donnees.name,
     email: donnees.email,
@@ -157,6 +203,7 @@ export async function enregistrerUtilisateur(
   let cible: bigint
   let motDePasse: string | null = null
   let rolesAvant: string[] = []
+  let parcoursAvant: string[] = []
 
   if (utilisateurId === undefined) {
     motDePasse = motDePasseInitial()
@@ -188,6 +235,7 @@ export async function enregistrerUtilisateur(
   } else {
     const avant = await prisma.users.findUniqueOrThrow({ where: { id: utilisateurId } })
     rolesAvant = (await rolesParUtilisateur([utilisateurId])).get(utilisateurId) ?? []
+    parcoursAvant = ((await parcoursParUtilisateur([utilisateurId])).get(utilisateurId) ?? []).sort()
 
     await prisma.users.update({
       where: { id: utilisateurId },
@@ -211,6 +259,7 @@ export async function enregistrerUtilisateur(
   }
 
   await synchroniserRoles(cible, rolesDemandes)
+  await synchroniserParcours(cible, parcoursDemandes)
 
   // La table pivot `model_has_roles` échappe au différentiel des colonnes : elle est auditée à
   // part, comme le fait Laravel (docs/exigences-audit.md §2 — « modification des permissions et
@@ -223,6 +272,20 @@ export async function enregistrerUtilisateur(
       auditableId: String(cible),
       anciennes: { roles: rolesAvant },
       nouvelles: { roles: rolesDemandes },
+    })
+  }
+
+  // Même traitement pour les parcours, et pour la même raison : c'est une habilitation, et une
+  // habilitation qui change sans laisser de trace est exactement ce que l'audit doit empêcher.
+  // Un parcours retiré coupe l'accès à tout un type de dossier — il faut pouvoir dire qui l'a fait.
+  if (JSON.stringify(parcoursAvant) !== JSON.stringify(parcoursDemandes)) {
+    await journaliser({
+      action: 'user.parcours_modifies',
+      acteurId: acteur.id,
+      auditableType: MODELES.utilisateur,
+      auditableId: String(cible),
+      anciennes: { parcours: parcoursAvant },
+      nouvelles: { parcours: parcoursDemandes },
     })
   }
 
@@ -257,6 +320,40 @@ async function synchroniserRoles(utilisateurId: bigint, roles: string[]): Promis
         role_id,
         model_type: MODEL_TYPE_USER,
         model_id: utilisateurId,
+      })),
+    })
+  }
+}
+
+/** Même principe que `synchroniserRoles` : ajoute ce qui manque, retire ce qui n'est plus voulu. */
+async function synchroniserParcours(utilisateurId: bigint, codes: string[]): Promise<void> {
+  const disponibles = await prisma.parcours.findMany({ select: { id: true, code: true } })
+  const parCode = new Map(disponibles.map((p) => [p.code, p.id]))
+
+  const voulus = new Set(codes.map((code) => parCode.get(code)).filter((id): id is bigint => id != null))
+
+  const actuels = await prisma.utilisateur_parcours.findMany({
+    where: { user_id: utilisateurId },
+    select: { parcours_id: true },
+  })
+  const existants = new Set(actuels.map((a) => a.parcours_id))
+
+  const aRetirer = [...existants].filter((id) => !voulus.has(id))
+  const aAjouter = [...voulus].filter((id) => !existants.has(id))
+
+  if (aRetirer.length > 0) {
+    await prisma.utilisateur_parcours.deleteMany({
+      where: { user_id: utilisateurId, parcours_id: { in: aRetirer } },
+    })
+  }
+
+  if (aAjouter.length > 0) {
+    await prisma.utilisateur_parcours.createMany({
+      data: aAjouter.map((parcours_id) => ({
+        parcours_id,
+        user_id: utilisateurId,
+        created_at: new Date(),
+        updated_at: new Date(),
       })),
     })
   }

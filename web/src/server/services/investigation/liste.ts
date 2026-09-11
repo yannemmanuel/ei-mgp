@@ -13,7 +13,7 @@ import { STATUTS_INVESTIGATION, type StatutInvestigation } from './investigation
  */
 
 export function perimetreInvestigations(u: UtilisateurAutorise): Prisma.investigationsWhereInput {
-  const codes = parcoursAutorises(u.roles)
+  const codes = parcoursAutorises(u)
 
   // `in: []` est une clause impossible, et c'est voulu : un rôle sans parcours ne voit rien,
   // plutôt que de retomber par défaut sur « tout voir ».

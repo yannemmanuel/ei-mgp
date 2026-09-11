@@ -12,21 +12,21 @@ export function peutVoirListeActions(u: UtilisateurAutorise): boolean {
 }
 
 export function peutVoirAction(u: UtilisateurAutorise, a: ActionCorrectivePourAutorisation): boolean {
-  return aPermission(u, 'actions.view') && peutVoirParcours(u.roles, a.parcoursCode)
+  return aPermission(u, 'actions.view') && peutVoirParcours(u, a.parcoursCode)
 }
 
 export function peutCreerAction(u: UtilisateurAutorise, a: ActionCorrectivePourAutorisation): boolean {
-  return aPermission(u, 'actions.create') && peutVoirParcours(u.roles, a.parcoursCode)
+  return aPermission(u, 'actions.create') && peutVoirParcours(u, a.parcoursCode)
 }
 
 export function peutModifierAction(u: UtilisateurAutorise, a: ActionCorrectivePourAutorisation): boolean {
-  return aPermission(u, 'actions.update') && peutVoirParcours(u.roles, a.parcoursCode)
+  return aPermission(u, 'actions.update') && peutVoirParcours(u, a.parcoursCode)
 }
 
 export function peutVerifierEfficacite(u: UtilisateurAutorise, a: ActionCorrectivePourAutorisation): boolean {
-  return aPermission(u, 'actions.verify_efficacite') && peutVoirParcours(u.roles, a.parcoursCode)
+  return aPermission(u, 'actions.verify_efficacite') && peutVoirParcours(u, a.parcoursCode)
 }
 
 export function peutCloturerAction(u: UtilisateurAutorise, a: ActionCorrectivePourAutorisation): boolean {
-  return aPermission(u, 'actions.close') && peutVoirParcours(u.roles, a.parcoursCode)
+  return aPermission(u, 'actions.close') && peutVoirParcours(u, a.parcoursCode)
 }

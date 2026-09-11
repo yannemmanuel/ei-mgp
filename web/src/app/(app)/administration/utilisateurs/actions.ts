@@ -55,6 +55,10 @@ export async function actionEnregistrerCompte(
   // contre les rôles réellement existants — un nom fabriqué ne peut pas être attribué.
   const roles = donnees.getAll('roles').map((r) => String(r))
 
+  // Même principe pour les parcours confiés. Le service les confronte au référentiel fermé des 4
+  // codes : une case ajoutée à la main dans le navigateur n'ouvre aucun accès.
+  const parcours = donnees.getAll('parcours').map((p) => String(p))
+
   try {
     const resultat = await enregistrerUtilisateur(
       acteur,
@@ -68,6 +72,7 @@ export async function actionEnregistrerCompte(
         responsableHierarchiqueId: identifiant(donnees, 'responsableHierarchiqueId'),
         actif: donnees.get('actif') === '1',
         roles,
+        parcours,
       },
       identifiant(donnees, 'id') ?? undefined
     )

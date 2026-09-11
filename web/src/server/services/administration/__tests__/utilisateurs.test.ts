@@ -42,6 +42,7 @@ async function creerCompte(roles: string[] = []) {
     responsableHierarchiqueId: null,
     actif: true,
     roles,
+    parcours: [],
   })
 
   comptesCrees.push(resultat.utilisateurId)
@@ -122,6 +123,7 @@ describe('Création de compte', () => {
         responsableHierarchiqueId: null,
         actif: true,
         roles: [],
+        parcours: [],
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
@@ -151,6 +153,7 @@ describe('Attribution des rôles', () => {
         responsableHierarchiqueId: null,
         actif: true,
         roles: [second],
+        parcours: [],
       },
       resultat.utilisateurId
     )
@@ -202,6 +205,7 @@ describe('Garde-fous', () => {
           responsableHierarchiqueId: compte.responsable_hierarchique_id,
           actif: false,
           roles: [],
+          parcours: [],
         },
         qui.id
       )

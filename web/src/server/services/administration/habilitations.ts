@@ -4,7 +4,7 @@ import {
   PERMISSIONS,
   ROLES,
   ROLE_NAMES,
-  parcoursAutorises,
+  parcoursDuRole,
   type Permission,
   type Role,
 } from '@/server/authz'
@@ -144,7 +144,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       comptes: effectifs.get(role) ?? 0,
       livre,
       rattachements: rattachements.get(role) ?? 0,
-      parcours: parcoursAutorises([role as Role]),
+      parcours: parcoursDuRole([role as Role]),
     }
   })
 

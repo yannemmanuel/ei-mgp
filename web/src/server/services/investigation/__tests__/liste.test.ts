@@ -30,7 +30,7 @@ describe('Cloisonnement par parcours', () => {
     // Un rôle par périmètre : restreint à un parcours, restreint à trois, transverse, et aucun.
     for (const roles of [['rqse'], ['correspondant_mgp'], ['service_mgp'], ['administrateur_digital']] as const) {
       const utilisateur = utilisateurAvecRoles(...roles)
-      const autorises = parcoursAutorises(utilisateur.roles)
+      const autorises = parcoursAutorises(utilisateur)
 
       const { investigations } = await listerInvestigations(utilisateur, {}, 1)
 
