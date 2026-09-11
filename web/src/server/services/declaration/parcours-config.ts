@@ -68,8 +68,14 @@ export type ParcoursConfig = {
   readonly attentesDeclarant: boolean
 }
 
+/*
+  L'e-mail a quitté cette liste avec le champ qui l'alimentait.
+
+  Le proposer comme canal de retour alors qu'aucune adresse n'est plus collectée aurait recréé, à
+  un choix près, le défaut que le retour du téléphone corrige : une promesse sans moyen de la
+  tenir.
+*/
 const CANAUX_RETOUR = [
-  { valeur: 'email', libelle: 'E-mail' },
   { valeur: 'telephone', libelle: 'Téléphone' },
   { valeur: 'entretien', libelle: 'Entretien' },
   { valeur: 'page_de_suivi', libelle: 'Page de suivi' },
@@ -82,11 +88,29 @@ const CARACTERE_REPETITIF = [
   { valeur: 'recurrent', libelle: 'Récurrent' },
 ] as const
 
-/** Champs d'identité communs aux parcours qui les partagent. */
-const CONTACT = [
-  { nom: 'contactEmail', libelle: 'Adresse e-mail', type: 'email', etape: 1, max: 255, identite: true, colonne: 'contactEmail' },
-  { nom: 'contactTelephone', libelle: 'Téléphone', type: 'tel', etape: 1, max: 50, identite: true, colonne: 'contactTelephone' },
-] as const satisfies readonly Champ[]
+/*
+  Nom, prénom et adresse e-mail ne sont plus collectés nulle part. Le TÉLÉPHONE, lui, subsiste —
+  mais uniquement là où un rappel est proposé.
+
+  Les retirer tous les quatre laissait « Je souhaite être recontacté » et « Canal de retour
+  préféré » promettre un rappel que plus rien ne permettait d'honorer : un écran qui demande
+  comment joindre quelqu'un sans jamais lui demander où. Le téléphone revient donc sur les deux
+  parcours qui posent la question, et sur eux seuls — l'évènement indésirable et la plainte
+  riveraine n'offrent pas de rappel et n'en ont pas besoin.
+
+  Les colonnes retirées restent en base et portent ce qui a déjà été déclaré : c'est la collecte
+  qui cesse, pas l'historique qui s'efface.
+*/
+const TELEPHONE = {
+  nom: 'contactTelephone',
+  libelle: 'Téléphone',
+  type: 'tel',
+  etape: 1,
+  max: 50,
+  identite: true,
+  colonne: 'contactTelephone',
+  aide: 'Pour être rappelé. Laissé vide, le suivi se fait avec votre référence et votre code d’accès.',
+} as const satisfies Champ
 
 export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
   ei_employe: {
@@ -174,10 +198,9 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     libelle: 'Grief — Employé',
     titre: 'Déposer un grief',
     accroche: 'Signalez une situation professionnelle que vous jugez préjudiciable.',
-    graviteSaisieParLeDeclarant: true,
-    attentesDeclarant: true,
+    graviteSaisieParLeDeclarant: false,
+    attentesDeclarant: false,
     champs: [
-      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       {
         // RGI-14. `'siIdentifie'` et non `true` : le matricule est une donnée d'IDENTITÉ. Exigé sans
         // condition, il rendrait toute déclaration anonyme impossible — or l'anonymat est une
@@ -205,9 +228,9 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         identite: true,
         colonne: 'ancienneteTranche',
       },
-      ...CONTACT,
+      TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu', type: 'texte', etape: 2, obligatoire: true },
+      { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',
@@ -220,6 +243,15 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       { nom: 'temoinsEventuels', libelle: 'Témoins éventuels', type: 'zone', etape: 3, identite: true, colonne: 'temoins' },
       { nom: 'souhaitEtreRecontacte', libelle: 'Je souhaite être recontacté', type: 'case', etape: 3, identite: true, colonne: 'souhaitRecontact' },
       { nom: 'preferenceCanalRetour', libelle: 'Canal de retour préféré', type: 'select', etape: 3, options: CANAUX_RETOUR, identite: true, colonne: 'canalRetourPrefere' },
+      {
+        // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
+        // moment, et non une suggestion pour plus tard.
+        nom: 'propositionMesureCorrective',
+        libelle: 'Mesure immédiate',
+        type: 'zone',
+        etape: 3,
+        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+      },
     ],
   },
 
@@ -228,8 +260,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     libelle: 'Grief — Sous-traitant',
     titre: 'Déposer un grief',
     accroche: 'Signalez une difficulté rencontrée dans le cadre de votre prestation.',
-    graviteSaisieParLeDeclarant: true,
-    attentesDeclarant: true,
+    graviteSaisieParLeDeclarant: false,
+    attentesDeclarant: false,
     champs: [
       {
         // Placé EN TÊTE, donc juste sous la case d'anonymat que le formulaire rend avant les
@@ -262,15 +294,31 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         etape: 1,
         obligatoire: true,
       },
-      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       { nom: 'fonction', libelle: 'Fonction', type: 'texte', etape: 1, identite: true, colonne: 'fonction' },
-      ...CONTACT,
+      TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieuSite', libelle: 'Lieu / site', type: 'texte', etape: 2, obligatoire: true },
+      { nom: 'lieuSite', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      {
+        nom: 'caractereRepetitif',
+        libelle: 'Caractère répétitif',
+        type: 'select',
+        etape: 2,
+        obligatoire: true,
+        options: CARACTERE_REPETITIF,
+      },
       { nom: 'personnesOuServicesImpliques', libelle: 'Personnes ou services impliqués', type: 'zone', etape: 3, identite: true, colonne: 'personnesImpliquees' },
       { nom: 'temoinsEventuels', libelle: 'Témoins éventuels', type: 'zone', etape: 3, identite: true, colonne: 'temoins' },
       { nom: 'souhaitEtreInforme', libelle: 'Je souhaite être informé des suites', type: 'case', etape: 3, identite: true, colonne: 'souhaitRecontact' },
       { nom: 'canalRetourSouhaite', libelle: 'Canal de retour souhaité', type: 'select', etape: 3, options: CANAUX_RETOUR, identite: true, colonne: 'canalRetourPrefere' },
+      {
+        // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
+        // moment, et non une suggestion pour plus tard.
+        nom: 'propositionMesureCorrective',
+        libelle: 'Mesure immédiate',
+        type: 'zone',
+        etape: 3,
+        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+      },
     ],
   },
 
@@ -279,10 +327,9 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     libelle: 'Grief — Communauté',
     titre: 'Déposer une plainte',
     accroche: 'Signalez une nuisance ou un préjudice lié au service de l’eau.',
-    graviteSaisieParLeDeclarant: true,
-    attentesDeclarant: true,
+    graviteSaisieParLeDeclarant: false,
+    attentesDeclarant: false,
     champs: [
-      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       {
         /*
           « Ville », obligatoire, en remplacement de la localité libre et facultative.
@@ -306,7 +353,6 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         etape: 1,
         aide: 'Facultatif — quartier, campement, point de repère.',
       },
-      ...CONTACT,
       {
         nom: 'statutPlaignant',
         libelle: 'Vous êtes',
@@ -324,8 +370,25 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         ],
       },
       { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu', type: 'texte', etape: 2, obligatoire: true },
+      { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      {
+        nom: 'caractereRepetitif',
+        libelle: 'Caractère répétitif',
+        type: 'select',
+        etape: 2,
+        obligatoire: true,
+        options: CARACTERE_REPETITIF,
+      },
       { nom: 'solutionSouhaitee', libelle: 'Solution souhaitée', type: 'zone', etape: 3 },
+      {
+        // Même champ et même libellé que sur l'évènement indésirable : ce qui a été fait sur le
+        // moment, et non une suggestion pour plus tard.
+        nom: 'propositionMesureCorrective',
+        libelle: 'Mesure immédiate',
+        type: 'zone',
+        etape: 3,
+        aide: 'Facultatif — ce qui a été fait immédiatement, s’il y a lieu.',
+      },
     ],
   },
 }

@@ -157,8 +157,9 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       anonymat: false,
       dateHeureFaits: new Date().toISOString().slice(0, 16),
-      lieuSite: 'Chantier nord',
-      nomPrenom: 'Awa Koffi',
+      // Le lieu est devenu une liste ; le nom et prénom ne sont plus demandés (11/09).
+      lieuSite: 'Siège',
+      caractereRepetitif: 'premiere_fois',
       entreprise: 'Entreprise X',
     }
 
@@ -194,6 +195,114 @@ describe('Schéma dérivé de la configuration', () => {
 
       expect(resultat.success, code).toBe(false)
       expect(resultat.error?.issues.map((i) => String(i.path[0])), code).toContain(champDate.nom)
+    }
+  })
+})
+
+/**
+ * Ce que les QUATRE formulaires ont désormais en commun (retour métier du 11/09).
+ *
+ * Ces règles ont d'abord visé le seul évènement indésirable, puis ont été étendues à tous. Les
+ * vérifier parcours par parcours, et non sur un échantillon, est le seul moyen qu'un cinquième
+ * parcours — ou une retouche sur l'un des quatre — ne réintroduise pas discrètement ce qui vient
+ * d'être retiré.
+ */
+describe('Harmonisation des quatre formulaires', () => {
+  const tous = CODES_PARCOURS.map((code) => [code, PARCOURS[code]] as const)
+
+  it('ne collecte plus ni nom, ni prénom, ni adresse e-mail', () => {
+    for (const [code, config] of tous) {
+      const noms = config.champs.map((c) => c.nom)
+
+      expect(noms, code).not.toContain('nomPrenom')
+      expect(noms, code).not.toContain('contactEmail')
+    }
+  })
+
+  it('ne demande plus la gravité au déclarant', () => {
+    // Elle est qualifiée au traitement. ⚠️ Si ce drapeau repassait à `true` quelque part, le
+    // circuit accéléré partirait DEUX fois : à la création et à la qualification.
+    for (const [code, config] of tous) {
+      expect(config.graviteSaisieParLeDeclarant, code).toBe(false)
+      expect(config.champs.map((c) => c.nom), code).not.toContain('niveauGraviteId')
+    }
+  })
+
+  it('ne porte plus de bloc « Vos attentes »', () => {
+    for (const [code, config] of tous) {
+      expect(config.attentesDeclarant, code).toBe(false)
+    }
+  })
+
+  it('demande partout le caractère répétitif, avec les trois mêmes valeurs', () => {
+    for (const [code, config] of tous) {
+      const champ = config.champs.find((c) => c.nom === 'caractereRepetitif')
+
+      expect(champ, `${code} ne demande pas le caractère répétitif`).toBeDefined()
+      expect(champ?.obligatoire, code).toBe(true)
+      expect(champ?.options?.map((o) => o.valeur), code).toEqual([
+        'premiere_fois',
+        'deja_signale',
+        'recurrent',
+      ])
+    }
+  })
+
+  it('choisit le lieu dans le référentiel, jamais en saisie libre', () => {
+    for (const [code, config] of tous) {
+      const lieu = config.champs.find((c) => c.nom === 'lieu' || c.nom === 'lieuSite')
+
+      expect(lieu, `${code} n’a aucun champ de lieu`).toBeDefined()
+      expect(lieu?.type, code).toBe('select')
+      expect(lieu?.referentiel, code).toBe('lieux')
+      expect(lieu?.obligatoire, code).toBe(true)
+    }
+  })
+
+  it('propose partout « Mesure immédiate », et jamais l’ancien libellé', () => {
+    for (const [code, config] of tous) {
+      const mesure = config.champs.find((c) => c.nom === 'propositionMesureCorrective')
+
+      expect(mesure, `${code} ne propose pas de mesure immédiate`).toBeDefined()
+      expect(mesure?.libelle, code).toBe('Mesure immédiate')
+    }
+  })
+
+  it('ne réserve les champs de salarié qu’aux parcours de salariés', () => {
+    // Un sous-traitant n'a pas de matricule SODECI, un riverain n'a ni direction ni poste : les
+    // leur demander produirait des champs que personne ne peut remplir.
+    const salarie = new Set(['matricule', 'directionId', 'posteOccupe'])
+
+    for (const [code, config] of tous) {
+      const porte = config.champs.filter((c) => salarie.has(c.nom)).map((c) => c.nom)
+      const attendu = code === 'ei_employe' || code === 'grief_employe'
+
+      expect(porte.length > 0, `${code} : champs de salarié ${porte.join(', ')}`).toBe(attendu)
+    }
+  })
+
+  it('ne promet un rappel que là où il collecte de quoi rappeler', () => {
+    /*
+      L'invariant qui a motivé le retour du téléphone.
+
+      Retirer toutes les coordonnées laissait « Je souhaite être recontacté » et « Canal de retour
+      préféré » sur deux formulaires qui ne demandaient plus où joindre qui que ce soit. Un canal
+      de retour proposé sans support est une promesse que le dispositif ne peut pas tenir.
+    */
+    for (const [code, config] of tous) {
+      const noms = config.champs.map((c) => c.nom)
+      const proposeUnRappel = noms.some((n) => n.startsWith('souhaitEtre'))
+      const collecteUneCoordonnee = noms.includes('contactTelephone')
+
+      expect(collecteUneCoordonnee, `${code} : rappel proposé sans coordonnée`).toBe(proposeUnRappel)
+    }
+
+    // Et les canaux proposés doivent tous rester praticables.
+    for (const [code, config] of tous) {
+      const canal = config.champs.find((c) => c.nom.startsWith('canalRetour') || c.nom.startsWith('preferenceCanal'))
+      const valeurs = canal?.options?.map((o) => o.valeur) ?? []
+
+      expect(valeurs, `${code} propose un retour par e-mail sans collecter d’adresse`).not.toContain('email')
     }
   })
 })
