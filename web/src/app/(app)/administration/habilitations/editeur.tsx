@@ -47,8 +47,10 @@ export type RoleVue = {
   livre: boolean
   /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
   rattachements: number
-  /** Parcours ouverts. Vide = ce rôle ne donne accès à aucun dossier. */
+  /** Parcours ouverts, en clair. Vide = ce rôle ne donne accès à aucun dossier. */
   parcours: string[]
+  /** Le rôle est transverse : il les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
+  tousLesParcours: boolean
 }
 
 const ETAT: EtatHabilitation = {}
@@ -310,11 +312,21 @@ function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }
               </p>
             )}
 
-            {/* Un rôle sans parcours ne verra jamais un dossier, quoi qu'on lui coche. Le taire
-                laisserait chercher longtemps pourquoi la liste reste vide. */}
-            {role.actif && role.parcours.length === 0 && resume.length > 0 && (
+            {/*
+              CE QUE LE RÔLE OUVRE, toujours affiché — c'est la moitié invisible des habilitations.
+
+              Un rôle peut détenir « consulter les dossiers » et ne voir qu'un seul type de
+              déclaration : la permission est cochée, le cloisonnement par parcours la restreint,
+              et rien à l'écran ne le disait. On lisait donc la liste des droits sans pouvoir
+              savoir sur QUOI ils portent.
+            */}
+            {role.actif && (
               <p className="text-caption text-muted-foreground">
-                N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.
+                {role.parcours.length === 0
+                  ? 'N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.'
+                  : role.tousLesParcours
+                    ? 'Ouvre tous les types de déclaration.'
+                    : `Ouvre : ${role.parcours.join(' · ')}.`}
               </p>
             )}
           </div>

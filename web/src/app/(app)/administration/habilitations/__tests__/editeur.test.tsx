@@ -1,286 +1,137 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { DomaineVue, RoleVue } from '../editeur'
+import type { EtatHabilitation } from '../actions'
 
 /**
- * Regroupement de l'écran des habilitations, exercé dans un vrai DOM.
+ * L'éditeur des rôles, exercé dans un vrai DOM.
  *
- * L'écran déroulait trente-six droits et trois formulaires par rôle ouvert. Les replier tient de
- * la mise en page — sauf sur un point, qui n'en est pas un : ⚠️ les formulaires masqués doivent
- * rester MONTÉS. Un onglet qui démonte le formulaire des droits vide les cases cochées dès qu'on
- * va vérifier le nom du rôle, sans le dire et sans erreur. Le formulaire public de déclaration a
- * perdu des saisies exactement ainsi.
+ * Motif : Base UI signalait « a component is changing the default value state of an uncontrolled
+ * FieldControl after being initialized ». Ici l'identité du rôle n'est jamais confondue — la fiche
+ * est indexée par `role.role`. Ce qui change, ce sont les DONNÉES du même rôle : l'enregistrement
+ * appelle `revalidatePath()`, et la page revient avec ce que le serveur a retenu, espaces élagués.
  *
- * Seul le module d'actions est remplacé : il franchit la frontière serveur. Rien de la logique
- * de l'éditeur ne l'est.
+ * L'invariant vérifié ici est donc : le formulaire montre ce qui est ENREGISTRÉ, pas ce qui a été
+ * tapé. Il se teste en rejouant le rendu avec des données rafraîchies, comme le ferait la
+ * revalidation.
  */
+const inerte = async (): Promise<EtatHabilitation> => ({})
+
 vi.mock('../actions', () => ({
-  actionChangerActivationRole: async () => ({}),
-  actionCreerRole: async () => ({}),
-  actionModifierHabilitations: async () => ({}),
-  actionModifierIdentiteRole: async () => ({}),
-  actionSupprimerRole: async () => ({}),
+  actionChangerActivationRole: inerte,
+  actionCreerRole: inerte,
+  actionModifierHabilitations: inerte,
+  actionModifierIdentiteRole: inerte,
+  actionSupprimerRole: inerte,
 }))
 
 const { EditeurHabilitations } = await import('../editeur')
 
-const DOMAINES: DomaineVue[] = [
+const DOMAINES = [
   {
     cle: 'dossiers',
     titre: 'Dossiers',
-    description: 'Consulter et faire avancer les déclarations.',
+    description: 'Consultation et traitement.',
     permissions: [
       {
         nom: 'dossiers.view',
-        libelle: 'Voir les dossiers',
-        explication: 'Ouvrir la liste et le détail.',
-        sensibilite: 'ordinaire',
-      },
-      {
-        nom: 'dossiers.close',
-        libelle: 'Clôturer un dossier',
-        explication: 'Fermer un dossier traité.',
-        sensibilite: 'ordinaire',
-      },
-    ],
-  },
-  {
-    cle: 'technique',
-    titre: 'Administration technique',
-    description: 'Comptes, rôles et supports.',
-    permissions: [
-      {
-        nom: 'users.manage',
-        libelle: 'Gérer les comptes',
-        explication: 'Créer, activer, désactiver.',
-        sensibilite: 'gouvernance',
+        libelle: 'Consulter',
+        explication: 'Voir les dossiers de son parcours.',
+        sensibilite: 'ordinaire' as const,
       },
     ],
   },
 ]
 
-const ROLE: RoleVue = {
-  role: 'secretaire_csst',
-  libelle: 'Secrétaire CSST',
-  description: 'Reçoit les déclarations de son site.',
+const role = (libelle: string, description: string | null, permissions: string[] = []) => ({
+  role: 'agent',
+  libelle,
+  description,
   actif: true,
-  permissions: ['dossiers.view'],
-  comptes: 2,
-  retirees: [],
-  ajoutees: [],
-  livre: true,
-  rattachements: 2,
-  parcours: ['ei_employe'],
-}
-
-/** Rôle créé depuis l'interface : supprimable, et sans accès aux dossiers. */
-const ROLE_CREE: RoleVue = {
-  role: 'gestionnaire_des_supports',
-  libelle: 'Gestionnaire des supports',
-  description: null,
-  actif: true,
-  permissions: ['users.manage'],
+  permissions,
   comptes: 0,
   retirees: [],
   ajoutees: [],
   livre: false,
   rattachements: 0,
   parcours: [],
-}
-
-function afficher(roles: RoleVue[] = [ROLE]) {
-  render(<EditeurHabilitations roles={roles} domaines={DOMAINES} />)
-  return userEvent.setup()
-}
+  tousLesParcours: false,
+})
 
 afterEach(cleanup)
 
-describe('Ce que l’écran montre au repos', () => {
-  it('n’affiche aucune case à cocher tant qu’aucun rôle n’est ouvert', () => {
-    afficher()
+const champNom = () => screen.getByLabelText(/Nom affiché/i) as HTMLInputElement
+const champDescription = () => screen.getByLabelText(/Description/i) as HTMLInputElement
 
-    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
-    expect(screen.getByText('Secrétaire CSST')).toBeDefined()
-  })
+describe('Le formulaire d’identité montre ce qui est enregistré', () => {
+  async function ouvrirOngletNom(utilisateur: ReturnType<typeof userEvent.setup>) {
+    await utilisateur.click(screen.getByRole('button', { name: 'Modifier' }))
+    await utilisateur.click(screen.getByRole('tab', { name: 'Nom' }))
+  }
 
-  it('ouvre les droits d’abord, et un seul formulaire à la fois', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+  it('reprend le libellé tel que le serveur l’a retenu', async () => {
+    const utilisateur = userEvent.setup()
+    const { rerender } = render(
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} />
+    )
 
-    // L'onglet des droits est celui qui est actif à l'ouverture.
-    expect(screen.getByRole('tab', { name: /Droits/ }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tab', { name: 'Nom' }).getAttribute('aria-selected')).toBe('false')
+    await ouvrirOngletNom(utilisateur)
+    expect(champNom().value).toBe('Agent')
 
-    // Le champ « Nom affiché » existe, mais dans une section masquée.
-    const nom = screen.getByLabelText('Nom affiché')
-    expect(estVisible(nom)).toBe(false)
-  })
-})
+    // Ce que fait `revalidatePath()` après un enregistrement : la page revient avec les valeurs
+    // stockées. Le serveur élague — « Agent terrain   » a été rangé sans ses espaces.
+    rerender(
+      <EditeurHabilitations
+        roles={[role('Agent terrain', 'Traite les dossiers.')]}
+        domaines={DOMAINES}
+      />
+    )
 
-describe('Navigation au clavier', () => {
-  it('passe d’un onglet à l’autre aux flèches, comme le rôle « tablist » l’annonce', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-
-    const droits = screen.getByRole('tab', { name: /Droits/ })
-    droits.focus()
-
-    await clavier.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Nom' }).getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Nom' }))
-
-    await clavier.keyboard('{End}')
-    expect(screen.getByRole('tab', { name: 'Désactiver' }).getAttribute('aria-selected')).toBe(
-      'true'
+    await waitFor(() =>
+      expect(champNom().value, 'le champ affiche autre chose que ce qui est enregistré').toBe(
+        'Agent terrain'
+      )
     )
   })
-})
 
-describe('Trouver un droit précis', () => {
-  it('montre tous les droits à l’ouverture, y compris ceux que le rôle n’a pas', async () => {
-    /*
-      Replier les domaines que le rôle ne touche pas cachait justement le droit qu'on venait
-      accorder : on ouvre cet écran pour donner un droit que le rôle n'a PAS. Le retour reçu
-      était qu'on s'y perdait.
-    */
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+  it('reflète une description ramenée à vide par le serveur', async () => {
+    // Le cas qui trompe le plus : une description de trois espaces est stockée `null`. Sans
+    // remontage, l'administrateur croit qu'une description existe.
+    const utilisateur = userEvent.setup()
+    const { rerender } = render(
+      <EditeurHabilitations roles={[role('Agent', 'Ancienne description.')]} domaines={DOMAINES} />
+    )
 
-    expect(screen.getByLabelText(/Voir les dossiers/)).toBeDefined()
-    expect(screen.getByLabelText(/Gérer les comptes/), 'un droit non détenu reste caché').toBeDefined()
+    await ouvrirOngletNom(utilisateur)
+    expect(champDescription().value).toBe('Ancienne description.')
+
+    rerender(<EditeurHabilitations roles={[role('Agent', null)]} domaines={DOMAINES} />)
+
+    await waitFor(() => expect(champDescription().value).toBe(''))
   })
 
-  it('filtre les droits sur la recherche, tous domaines confondus', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.type(screen.getByLabelText('Chercher un droit'), 'comptes')
+  it('ne se remonte PAS quand rien d’enregistré n’a changé', async () => {
+    // La contrepartie. Un enregistrement voisin — les droits, l'activation — provoque lui aussi
+    // une revalidation. Si le formulaire se remontait à chaque rendu, une saisie en cours
+    // disparaîtrait sans un mot.
+    const utilisateur = userEvent.setup()
+    const { rerender } = render(
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} />
+    )
 
-    expect(screen.getByLabelText(/Gérer les comptes/)).toBeDefined()
-    expect(screen.queryByLabelText(/Voir les dossiers/), 'droit hors recherche encore affiché').toBeNull()
-  })
+    await ouvrirOngletNom(utilisateur)
+    await utilisateur.clear(champNom())
+    await utilisateur.type(champNom(), 'Saisie en cours')
 
-  it('cherche aussi dans l’explication, pas seulement dans le nom', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.type(screen.getByLabelText('Chercher un droit'), 'Fermer un dossier')
+    // Mêmes valeurs enregistrées, objet neuf : exactement ce que produit une revalidation.
+    rerender(
+      <EditeurHabilitations
+        roles={[role('Agent', 'Traite les dossiers.', ['dossiers.view'])]}
+        domaines={DOMAINES}
+      />
+    )
 
-    expect(screen.getByLabelText(/Clôturer un dossier/)).toBeDefined()
-  })
-
-  it('garde le compte du domaine ENTIER pendant une recherche', async () => {
-    // « 2/9 » qui deviendrait « 1/1 » ferait croire à des droits perdus.
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-
-    const avant = screen.getByRole('button', { name: /Dossiers/ }).textContent
-    await clavier.type(screen.getByLabelText('Chercher un droit'), 'clôturer')
-
-    expect(screen.getByRole('button', { name: /Dossiers/ }).textContent).toBe(avant)
-  })
-
-  it('le dit quand rien ne correspond', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.type(screen.getByLabelText('Chercher un droit'), 'marmotte')
-
-    expect(screen.getByText(/Aucun droit ne correspond/)).toBeDefined()
+    expect(champNom().value, 'une saisie en cours a été effacée').toBe('Saisie en cours')
   })
 })
-
-describe('Ce qu’un onglet ne doit pas faire disparaître', () => {
-  it('conserve les cases cochées quand on passe à l’onglet du nom et qu’on revient', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-
-    // On coche un droit que le rôle n'avait pas.
-    const clore = screen.getByLabelText(/Clôturer un dossier/) as HTMLInputElement
-    await clavier.click(clore)
-    expect(clore.checked).toBe(true)
-
-    // Aller-retour par l'onglet du nom : le formulaire des droits est masqué, pas démonté.
-    await clavier.click(screen.getByRole('tab', { name: 'Nom' }))
-    await clavier.click(screen.getByRole('tab', { name: /Droits/ }))
-
-    expect(
-      (screen.getByLabelText(/Clôturer un dossier/) as HTMLInputElement).checked,
-      'la case cochée a été perdue au passage par un autre onglet'
-    ).toBe(true)
-  })
-
-  it('soumet bien le droit ajouté, et pas seulement à l’écran', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByLabelText(/Clôturer un dossier/))
-    await clavier.click(screen.getByRole('tab', { name: 'Nom' }))
-
-    // Les champs réellement envoyés sont les champs cachés du formulaire des droits : ce sont eux
-    // que le serveur lira, pas l'état des cases.
-    const envoyes = Array.from(
-      document.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="permissions"]')
-    ).map((champ) => champ.value)
-
-    expect(envoyes.sort()).toEqual(['dossiers.close', 'dossiers.view'])
-  })
-})
-
-describe('Créer et supprimer un rôle', () => {
-  it('prévient, avant la création, qu’un rôle créé ici n’ouvre aucun dossier', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Nouveau rôle' }))
-
-    expect(screen.getByLabelText('Nom affiché')).toBeDefined()
-    expect(screen.getByText(/aucun dossier/)).toBeDefined()
-  })
-
-  it('ne propose pas la suppression d’un rôle livré', async () => {
-    // Le code s'y réfère par son nom : la désactivation est la seule opération de retrait.
-    const clavier = afficher([ROLE])
-
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
-
-    expect(screen.getByRole('button', { name: 'Désactiver…' })).toBeDefined()
-    expect(screen.queryByText('Supprimer ce rôle')).toBeNull()
-  })
-
-  it('propose la suppression d’un rôle créé ici', async () => {
-    const clavier = afficher([ROLE_CREE])
-
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
-
-    expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Supprimer…' })).toBeDefined()
-  })
-
-  it('retire le bouton de suppression tant que des comptes portent le rôle', async () => {
-    // Supprimer un rôle rattaché retirerait un accès sans le dire : l'écran indique quoi faire
-    // d'abord, plutôt que d'offrir un bouton que le serveur refusera.
-    const rattache = { ...ROLE_CREE, rattachements: 3 }
-    const clavier = afficher([rattache])
-
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
-
-    expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
-    expect(screen.queryByRole('button', { name: 'Supprimer…' })).toBeNull()
-    expect(screen.getByText(/3 compte\(s\) portent encore/)).toBeDefined()
-  })
-
-  it('signale un rôle qui n’ouvre aucun dossier', () => {
-    afficher([ROLE_CREE])
-
-    expect(screen.getByText('Créé ici')).toBeDefined()
-    expect(screen.getByText(/N’ouvre aucun dossier/)).toBeDefined()
-  })
-})
-
-/** `hidden` sur un ancêtre : jsdom n'applique pas la feuille de style, on lit l'attribut. */
-function estVisible(element: HTMLElement): boolean {
-  for (let n: HTMLElement | null = element; n !== null; n = n.parentElement) {
-    if (n.hasAttribute('hidden')) return false
-  }
-  return true
-}

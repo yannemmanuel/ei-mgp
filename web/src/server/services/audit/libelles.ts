@@ -37,6 +37,19 @@ const OBJETS: Record<string, string> = {
   lieu: 'Lieu',
   ville: 'Ville',
   trancheAnciennete: 'Tranche d’ancienneté',
+  /*
+    ⚠️ Deux écritures pour le même objet, et il faut garder les deux.
+
+    Le code d'action est composé par interpolation de la clé de liste — `trancheAnciennete` — et
+    arrive en base tout en minuscules, contrairement à toutes les autres actions, qui suivent le
+    serpent : `niveau_gravite`, `canal_captage`, `notification_template`. Deux lignes portent déjà
+    la forme aplatie ; le journal étant en ajout seul, elle doit rester lisible pour toujours.
+
+    La forme conventionnelle est prévue ici pour le jour où l'émetteur sera aligné. Les deux
+    cohabiteront alors sans que rien ne se perde.
+  */
+  trancheanciennete: 'Tranche d’ancienneté',
+  tranche_anciennete: 'Tranche d’ancienneté',
   suivi: 'Suivi de dossier',
   user: 'Compte',
 }

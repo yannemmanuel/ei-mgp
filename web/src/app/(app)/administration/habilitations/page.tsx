@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { EnTetePage } from '@/components/layout/en-tete-page'
+import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { DOMAINES, LIBELLES } from '@/server/authz'
 import { chargerHabilitations } from '@/server/services/administration/habilitations'
@@ -20,7 +21,13 @@ export const dynamic = 'force-dynamic'
 export default async function PageHabilitations() {
   await exigerPermission('roles.manage')
 
-  const { lignes, permissions, ecarts } = await chargerHabilitations()
+  const [{ lignes, permissions, ecarts }, parcours] = await Promise.all([
+    chargerHabilitations(),
+    prisma.parcours.findMany({ orderBy: { ordre: 'asc' }, select: { code: true, libelle: true } }),
+  ])
+
+  // Les codes de parcours ne disent rien à personne : l'écran affiche les libellés.
+  const libelleParcours = new Map(parcours.map((p) => [p.code, p.libelle]))
   const ecartParRole = new Map(ecarts.map((e) => [e.role, e]))
 
   // Les libellés sont résolus ici, côté serveur : le composant d'édition reçoit du texte prêt à
@@ -74,7 +81,8 @@ export default async function PageHabilitations() {
           ajoutees: ecartParRole.get(ligne.role)?.ajoutees ?? [],
           livre: ligne.livre,
           rattachements: ligne.rattachements,
-          parcours: [...ligne.parcours],
+          parcours: ligne.parcours.map((code) => libelleParcours.get(code) ?? code),
+          tousLesParcours: ligne.parcours.length === parcours.length,
         }))}
         domaines={domaines}
       />

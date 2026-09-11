@@ -1,4 +1,5 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import { parcoursAutorises, type ParcoursCode, type UtilisateurAutorise } from '@/server/authz'
 
 /**
  * EX-REP-02 : filtre unique du module Reporting — port de `App\Support\ReportingFilter`.
@@ -19,6 +20,20 @@ export type FiltreReporting = {
   /** Bornes incluses, sur la date de soumission. */
   readonly periodeDebut?: Date | null
   readonly periodeFin?: Date | null
+  /**
+   * Parcours que le LECTEUR a le droit de voir. `undefined` = aucune restriction.
+   *
+   * ⚠️ Ce n'est pas un critère de recherche, c'est un plafond. Il n'est jamais lu depuis l'URL —
+   * seul `filtreDepuisParametres()` le pose, d'après les rôles du lecteur — et il se COMBINE aux
+   * autres critères au lieu de s'y substituer : demander un parcours hors de son périmètre ne
+   * l'ouvre pas, cela ne renvoie rien.
+   *
+   * Le reporting l'ignorait entièrement. Tant que `reporting.view` n'était porté que par des
+   * rôles transverses, l'omission restait sans effet ; le jour où il a été accordé à un rôle
+   * cloisonné, celui-ci s'est mis à lire les volumes de tous les parcours — alors que sa liste de
+   * dossiers, elle, continuait de n'en montrer qu'un.
+   */
+  readonly parcoursDuLecteur?: readonly ParcoursCode[]
 }
 
 export const FILTRE_VIDE: FiltreReporting = {}
@@ -34,6 +49,13 @@ export function clauseFiltre(filtre: FiltreReporting): Prisma.dossiersWhereInput
   const clause: Prisma.dossiersWhereInput = {}
 
   if (filtre.parcoursId != null) clause.parcours_id = filtre.parcoursId
+
+  // Le plafond du lecteur s'ajoute aux critères, il ne les remplace pas. Un `in: []` est une
+  // clause impossible, et c'est voulu : un rôle sans parcours ne compte rien, plutôt que de
+  // retomber par défaut sur « tout voir ».
+  if (filtre.parcoursDuLecteur !== undefined) {
+    clause.parcours = { code: { in: [...filtre.parcoursDuLecteur] } }
+  }
   if (filtre.categorieId != null) clause.categorie_id = filtre.categorieId
   if (filtre.statutId != null) clause.statut_id = filtre.statutId
   if (filtre.niveauGraviteId != null) clause.niveau_gravite_id = filtre.niveauGraviteId
@@ -69,9 +91,18 @@ function finDeJournee(date: Date): Date {
 
 /** Lecture d'un filtre depuis des paramètres d'URL — valeurs invalides ignorées, jamais fatales. */
 export function filtreDepuisParametres(
-  parametres: Record<string, string | string[] | undefined>
+  parametres: Record<string, string | string[] | undefined>,
+  /**
+   * Le lecteur, dont le périmètre plafonne le résultat.
+   *
+   * Optionnel pour les appels qui n'ont pas de lecteur — une tâche planifiée, un test. Omis, le
+   * filtre ne plafonne rien : c'est le comportement d'avant, et il ne doit subsister que là où
+   * personne ne lit.
+   */
+  lecteur?: UtilisateurAutorise
 ): FiltreReporting {
   return {
+    parcoursDuLecteur: lecteur ? parcoursAutorises(lecteur.roles) : undefined,
     parcoursId: entier(parametres.parcoursId),
     categorieId: entier(parametres.categorieId),
     statutId: entier(parametres.statutId),

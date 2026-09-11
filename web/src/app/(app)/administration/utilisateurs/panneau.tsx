@@ -26,6 +26,9 @@ export type CompteVue = {
   siteId: string
   responsableId: string
   roles: string[]
+  /** Types de déclaration que ce compte peut voir, en clair — déduits de ses rôles. */
+  parcours: string[]
+  tousLesParcours: boolean
   /** Rattachement lisible, `null` s'il n'est pas renseigné. */
   site: string | null
   direction: string | null
@@ -180,6 +183,22 @@ export function PanneauComptes({
                             </Badge>
                           )}
                         </div>
+
+                        {/*
+                          CE QUE LA PERSONNE VOIT, et non plus seulement les rôles qu'elle porte.
+
+                          Deux comptes peuvent détenir « consulter les dossiers » et ne pas voir
+                          les mêmes déclarations : le cloisonnement par parcours les sépare, sans
+                          qu'aucun écran ne le dise. On lisait donc une liste de rôles sans
+                          pouvoir répondre à « qui est habilité sur quoi ».
+                        */}
+                        <p className="mt-1 text-caption text-muted-foreground">
+                          {compte.parcours.length === 0
+                            ? 'Aucun dossier'
+                            : compte.tousLesParcours
+                              ? 'Tous les types de déclaration'
+                              : compte.parcours.join(' · ')}
+                        </p>
                       </td>
                       <td className="px-4 py-2">
                         {compte.site === null && compte.direction === null ? (

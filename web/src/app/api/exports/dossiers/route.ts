@@ -45,7 +45,8 @@ export async function GET(requete: NextRequest): Promise<Response> {
   const demandeNominatif = parametres.nominatif === '1'
   const inclureNominatif = demandeNominatif && peutExporterNominatif(utilisateur)
 
-  const filtre = filtreDepuisParametres(parametres)
+  // Même plafond que le tableau de bord : un export ne doit pas ouvrir ce que l'écran ferme.
+  const filtre = filtreDepuisParametres(parametres, utilisateur)
   const lignes = await lignesExport(filtre, inclureNominatif)
 
   // Ajout par rapport à Laravel : un export de données nominatives sort des données personnelles

@@ -76,7 +76,8 @@ const ROLE: RoleVue = {
   ajoutees: [],
   livre: true,
   rattachements: 2,
-  parcours: ['ei_employe'],
+  parcours: ['Événement Indésirable (Employé)'],
+  tousLesParcours: false,
 }
 
 /** Rôle créé depuis l'interface : supprimable, et sans accès aux dossiers. */
@@ -92,6 +93,7 @@ const ROLE_CREE: RoleVue = {
   livre: false,
   rattachements: 0,
   parcours: [],
+  tousLesParcours: false,
 }
 
 function afficher(roles: RoleVue[] = [ROLE]) {

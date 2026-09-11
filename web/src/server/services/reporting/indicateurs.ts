@@ -81,6 +81,27 @@ function conditionsSql(filtre: FiltreReporting): Prisma.Sql {
   const fragments: Prisma.Sql[] = []
 
   if (filtre.parcoursId != null) fragments.push(Prisma.sql`AND parcours_id = ${filtre.parcoursId}`)
+
+  /*
+    ⚠️ Le plafond du lecteur, ici aussi.
+
+    `delaiMoyenJours` est la seule mesure qui n'emprunte pas `clauseFiltre` : elle passe par ce
+    SQL brut. Poser le périmètre dans le filtre sans l'appliquer ici aurait cloisonné six
+    indicateurs sur sept, et laissé le septième dire la vérité de tout le monde — l'écart
+    n'aurait sauté aux yeux de personne.
+
+    Sous-requête sur les CODES plutôt que sur des identifiants : le périmètre est exprimé en codes
+    partout ailleurs, les convertir ici ouvrirait une seconde traduction à maintenir.
+  */
+  if (filtre.parcoursDuLecteur !== undefined) {
+    const codes = [...filtre.parcoursDuLecteur]
+
+    fragments.push(
+      codes.length === 0
+        ? Prisma.sql`AND FALSE`
+        : Prisma.sql`AND parcours_id IN (SELECT id FROM parcours WHERE code IN (${Prisma.join(codes)}))`
+    )
+  }
   if (filtre.categorieId != null) fragments.push(Prisma.sql`AND categorie_id = ${filtre.categorieId}`)
   if (filtre.statutId != null) fragments.push(Prisma.sql`AND statut_id = ${filtre.statutId}`)
   if (filtre.niveauGraviteId != null) {

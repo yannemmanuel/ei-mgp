@@ -47,6 +47,8 @@ const compte = (id: string, name: string, email: string) => ({
   direction: null,
   siteManquant: false,
   rattachementIncoherent: false,
+  parcours: [],
+  tousLesParcours: false,
 })
 
 const ALICE = compte('01', 'Alice Kouamé', 'alice@example.ci')

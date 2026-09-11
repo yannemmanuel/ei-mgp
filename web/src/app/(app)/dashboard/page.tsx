@@ -51,7 +51,8 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
   const parametres = await searchParams
 
   const voitLeRapport = aPermission(utilisateur, 'reporting.view')
-  const filtre = filtreDepuisParametres(parametres)
+  // Le périmètre du lecteur plafonne les indicateurs, comme il plafonne déjà sa liste.
+  const filtre = filtreDepuisParametres(parametres, utilisateur)
 
   // Qui administre ne voit pas les mêmes choses que qui traite — et certains, comme
   // l'administrateur digital, ne traitent RIEN par construction (DT-02).
@@ -339,7 +340,7 @@ async function VueConsolidee({
 
   const [indicateurs, historique, referentiels, compteurs] = await Promise.all([
     calculerIndicateurs(filtre),
-    historiqueMensuel(),
+    historiqueMensuel(codes),
     chargerReferentiels(filtre.parcoursId ?? null),
     blocATraiter(codes),
   ])

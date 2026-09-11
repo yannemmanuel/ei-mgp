@@ -134,7 +134,25 @@ export type LigneHistoriqueMensuel = {
  * une seule ligne mensuelle. `SUM` pour les volumes, `AVG` pour les taux et délais — moyenne non
  * pondérée, comme la version Laravel, dont le tableau de bord reste l'unique consommateur.
  */
-export async function historiqueMensuel(limite = 12): Promise<LigneHistoriqueMensuel[]> {
+export async function historiqueMensuel(
+  /**
+   * Parcours que le lecteur a le droit de voir. `undefined` = aucune restriction.
+   *
+   * ⚠️ Les lignes archivées portent `parcours_id` : l'historique se cloisonne donc, exactement
+   * comme les indicateurs du moment. Sans cela, un rôle restreint à un parcours lirait chaque
+   * mois le total de tous les autres — et le tableau du bas contredirait silencieusement les
+   * chiffres du haut.
+   */
+  parcoursDuLecteur?: readonly string[],
+  limite = 12
+): Promise<LigneHistoriqueMensuel[]> {
+  const perimetre =
+    parcoursDuLecteur === undefined
+      ? Prisma.empty
+      : parcoursDuLecteur.length === 0
+        ? Prisma.sql`WHERE FALSE`
+        : Prisma.sql`WHERE parcours_id IN (SELECT id FROM parcours WHERE code IN (${Prisma.join([...parcoursDuLecteur])}))`
+
   const lignes = await prisma.$queryRaw<
     {
       periode: Date
@@ -150,6 +168,7 @@ export async function historiqueMensuel(limite = 12): Promise<LigneHistoriqueMen
            AVG(delai_moyen_jours) AS delai_moyen,
            AVG(taux_resolution)   AS taux_resolution
     FROM statistiques_mensuelles
+    ${perimetre}
     GROUP BY periode
     ORDER BY periode DESC
     LIMIT ${limite}
