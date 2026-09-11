@@ -54,6 +54,13 @@ export type DonneesDossier = {
    * là aurait été demandée à l'écran puis perdue, sans le moindre signal.
    */
   entreprise?: string | null
+  /**
+   * Poste occupé, choisi dans le référentiel et rattaché à la direction du dossier.
+   *
+   * Sur `dossiers` et non dans `declaration_identites` : le retour métier du 11/09 demande de
+   * pouvoir le choisir EN ANONYME, or cette table n'est pas créée dans ce cas.
+   */
+  poste?: string | null
   ville?: string | null
   precisionLocalisation?: string | null
 }
@@ -126,6 +133,7 @@ export async function creerDeclaration(params: {
         categorie_autre_precision: d.categorieAutrePrecision ?? null,
         niveau_gravite_id: d.niveauGraviteId,
         entreprise: d.entreprise ?? null,
+        poste: d.poste ?? null,
         ville: d.ville ?? null,
         precision_localisation: d.precisionLocalisation ?? null,
         statut_id: statutRecu.id,

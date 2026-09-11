@@ -117,6 +117,50 @@ const TELEPHONE = {
   aide: 'Pour être rappelé. Laissé vide, le suivi se fait avec votre référence et votre code d’accès.',
 } as const satisfies Champ
 
+/**
+ * Direction et poste, communs aux deux parcours de salariés.
+ *
+ * ⚠️ AUCUN des deux n'est une donnée d'IDENTITÉ au sens de la table, et ce n'est pas un oubli.
+ *
+ * La direction détermine le site, donc le secrétaire qui recevra le signalement. Marquée
+ * `identite`, elle disparaîtrait de toute déclaration anonyme — qui deviendrait alors un dossier
+ * que personne ne voit, l'inverse exact de ce que l'anonymat sert à obtenir. Une direction compte
+ * des centaines de personnes : la connaître n'identifie personne, pas plus que le lieu, déjà
+ * obligatoire et collecté anonymement.
+ *
+ * Le poste suit la même règle depuis le retour métier du 11/09, qui demande de pouvoir le
+ * choisir EN ANONYME. Il est donc stocké sur `dossiers.poste` et non dans
+ * `declaration_identites` — cette table n'étant pas créée quand l'anonymat est coché, l'y laisser
+ * aurait produit un champ demandé à l'écran puis perdu sans le moindre signal.
+ *
+ * ⚠️ Le poste reste FACULTATIF, et cela le restera tant que le métier ne tranche pas autrement :
+ * dans une direction restreinte, un poste unique désigne une seule personne. Le rendre
+ * obligatoire reviendrait à exiger d'un déclarant anonyme qu'il se resserre lui-même jusqu'à
+ * devenir reconnaissable.
+ */
+const DIRECTION = {
+  nom: 'directionId',
+  libelle: 'Direction concernée',
+  type: 'select',
+  etape: 1,
+  obligatoire: true,
+  referentiel: 'directions',
+  aide: 'Sert à transmettre le signalement au site compétent. Ne permet pas de vous identifier.',
+} as const satisfies Champ
+
+const POSTE = {
+  // Le poste vient APRÈS la direction, et en dépend : ses options sont les postes rattachés à la
+  // direction choisie. L'ordre n'est pas cosmétique — une cascade dont le déclencheur vient après
+  // la liste qu'il remplit se lit à l'envers.
+  nom: 'posteOccupe',
+  libelle: 'Poste',
+  type: 'select',
+  etape: 1,
+  referentiel: 'postes',
+  dependDe: 'directionId',
+  aide: 'Facultatif. Dans une petite direction, un poste peut suffire à vous reconnaître.',
+} as const satisfies Champ
+
 export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
   ei_employe: {
     code: 'ei_employe',
@@ -146,36 +190,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         identite: true,
         colonne: 'matricule',
       },
-      {
-        // La direction N'EST PAS une donnée d'identité, et le devenir a des conséquences : elle
-        // détermine le site, donc le secrétaire CSST qui recevra le signalement. Nulle pour une
-        // déclaration anonyme, elle ferait de chaque signalement anonyme un dossier que personne
-        // ne voit — l'inverse exact de ce que l'anonymat sert à obtenir.
-        //
-        // Une direction compte des centaines de personnes : la connaître n'identifie personne,
-        // pas plus que le lieu, déjà obligatoire et collecté anonymement. Elle est stockée sur
-        // `dossiers.direction_id`, jamais dans `declaration_identites`.
-        nom: 'directionId',
-        libelle: 'Direction concernée',
-        type: 'select',
-        etape: 1,
-        obligatoire: true,
-        referentiel: 'directions',
-        aide: 'Sert à transmettre le signalement au site compétent. Ne permet pas de vous identifier.',
-      },
-      {
-        // Le poste vient APRÈS la direction, et en dépend : ses options sont les postes rattachés
-        // à la direction choisie. L'ordre n'est pas cosmétique — une cascade dont le déclencheur
-        // vient après la liste qu'il remplit se lit à l'envers.
-        nom: 'posteOccupe',
-        libelle: 'Poste',
-        type: 'select',
-        etape: 1,
-        referentiel: 'postes',
-        dependDe: 'directionId',
-        identite: true,
-        colonne: 'fonction',
-      },
+      DIRECTION,
+      POSTE,
       { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
       { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
@@ -220,7 +236,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         identite: true,
         colonne: 'matricule',
       },
-      { nom: 'posteOccupe', libelle: 'Poste occupé', type: 'texte', etape: 1, identite: true, colonne: 'fonction' },
+      DIRECTION,
+      POSTE,
       {
         // Une tranche plutôt qu'un nombre d'années : le métier raisonne par paliers, et une
         // ancienneté exacte rapproche d'une personne identifiable dans un petit effectif.

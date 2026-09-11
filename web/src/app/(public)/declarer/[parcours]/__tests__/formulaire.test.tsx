@@ -458,3 +458,45 @@ describe('Faire une autre déclaration', () => {
     )
   })
 })
+
+/**
+ * Direction et poste survivent à l'anonymat (retour métier du 11/09).
+ *
+ * ⚠️ Ce sont les deux seuls champs de l'étape 1 dans ce cas, et la raison diffère pour chacun.
+ *
+ * La direction porte le rattachement au site, donc l'acheminement vers le secrétaire compétent :
+ * la masquer ferait de chaque signalement anonyme un dossier que personne ne voit. Le poste, lui,
+ * est demandé parce que le métier en a besoin pour instruire — et il reste FACULTATIF, parce que
+ * dans une direction restreinte un poste unique désigne une seule personne.
+ *
+ * Ni l'un ni l'autre n'est marqué `identite` : ils sont stockés sur le dossier, `declaration_
+ * identites` n'étant pas créée quand l'anonymat est coché. Un champ resté `identite` aurait été
+ * affiché puis perdu.
+ */
+describe('Direction et poste en mode anonyme', () => {
+  for (const parcours of ['ei_employe', 'grief_employe'] as const) {
+    it(`reste choisissable sur ${parcours}, anonymat coché`, async () => {
+      const { utilisateur } = afficher(parcours)
+
+      await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+
+      // Le matricule, lui, disparaît bien : c'est une donnée d'identité.
+      expect(screen.queryByLabelText(/Matricule/i), 'le matricule survit à l’anonymat').toBeNull()
+
+      const direction = screen.getByLabelText(/Direction concernée/i) as HTMLSelectElement
+      const poste = screen.getByLabelText(/^Poste/i) as HTMLSelectElement
+
+      expect(direction.required, 'la direction n’est pas exigée').toBe(true)
+      expect(poste.required, 'le poste est exigé d’un déclarant anonyme').toBe(false)
+      expect(poste.disabled, 'le poste s’ouvre sans direction').toBe(true)
+
+      // La cascade fonctionne aussi en anonyme.
+      await utilisateur.selectOptions(direction, '1')
+
+      expect(poste.disabled).toBe(false)
+      expect(
+        Array.from(poste.options).map((o) => o.value).filter((v) => v !== '')
+      ).toEqual(['Technicien réseau', 'Agent de maintenance'])
+    })
+  }
+})

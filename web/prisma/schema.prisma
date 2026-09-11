@@ -180,6 +180,7 @@ model dossiers {
   ville                         String?
   precision_localisation        String?
   entreprise                    String?
+  poste                         String?
   actions_correctives           actions_correctives[]
   declaration_identites         declaration_identites?
   dossier_affectations          dossier_affectations[]

@@ -131,3 +131,55 @@ describe('La cascade est vérifiée côté serveur, pas seulement à l’écran'
     expect(erreurs?.posteOccupe).toBeDefined()
   })
 })
+
+/**
+ * Le poste et la direction survivent à une déclaration ANONYME — jusqu'en base.
+ *
+ * ⚠️ C'est le piège que ce déplacement évite, et il a déjà coûté deux fois : `declaration_
+ * identites` n'est PAS créée quand l'anonymat est coché, si bien qu'un champ rangé là est demandé
+ * à l'écran puis perdu, sans erreur ni trace. Vérifier qu'il s'affiche ne prouve donc rien ; il
+ * faut le relire après écriture.
+ */
+describe('Une déclaration anonyme conserve direction et poste', () => {
+  it('les retrouve sur le dossier, et non dans une table qui n’existe pas', async () => {
+    const { categoriePour } = await import('./aide-base')
+    const { nettoyerDossiers } = await import('./aide-base')
+    const { creerDeclaration } = await import('../creer-declaration')
+
+    const categorie = await categoriePour('grief_employe')
+    const direction = await prisma.directions.findFirstOrThrow({
+      where: { actif: true },
+      select: { id: true },
+    })
+
+    const { dossierId } = await creerDeclaration({
+      parcours: 'grief_employe',
+      canalCaptageCode: 'qr_code',
+      anonyme: true,
+      donneesDossier: {
+        categorieId: categorie.id,
+        niveauGraviteId: null,
+        description: 'Grief déposé sans se nommer.',
+        directionId: direction.id,
+        poste: 'Technicien réseau',
+      },
+    })
+
+    try {
+      const dossier = await prisma.dossiers.findUniqueOrThrow({
+        where: { id: dossierId },
+        select: { direction_id: true, poste: true, is_anonymous: true },
+      })
+
+      expect(dossier.is_anonymous).toBe(true)
+      expect(dossier.direction_id, 'la direction a été perdue').toBe(direction.id)
+      expect(dossier.poste, 'le poste a été perdu').toBe('Technicien réseau')
+
+      // Et rien n'a été écrit dans la table d'identité : l'anonymat reste entier.
+      const identite = await prisma.declaration_identites.count({ where: { dossier_id: dossierId } })
+      expect(identite, 'une identité a été créée pour une déclaration anonyme').toBe(0)
+    } finally {
+      await nettoyerDossiers([dossierId])
+    }
+  })
+})

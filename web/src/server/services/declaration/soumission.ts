@@ -184,6 +184,7 @@ export async function traiterSoumission(
         // Demandés même en anonyme, donc portés par le dossier : l'entreprise du sous-traitant
         // (GST2) et la ville du riverain (GR1), avec son complément libre (GR2).
         entreprise: (dossierSpecifique.entreprise ?? null) as string | null,
+        poste: (dossierSpecifique.posteOccupe ?? null) as string | null,
         ville: (dossierSpecifique.ville ?? null) as string | null,
         precisionLocalisation: (dossierSpecifique.precisionLocalisation ?? null) as string | null,
       },
