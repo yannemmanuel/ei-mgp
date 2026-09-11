@@ -23,6 +23,7 @@ vi.mock('../actions', () => ({
 }))
 
 const { FormulaireDeclaration } = await import('../formulaire')
+const { Recepisse } = await import('../recepisse')
 
 const REFERENTIELS = {
   categories: [{ valeur: '1', libelle: 'Condition dangereuse' }],
@@ -415,5 +416,45 @@ describe('Poste dépendant de la direction', () => {
 
     expect(poste().value, 'un poste de l’ancienne direction est resté sélectionné').toBe('')
     expect(optionsDuPoste()).toEqual(['Comptable'])
+  })
+})
+
+/**
+ * Repartir sur une nouvelle déclaration depuis le récépissé.
+ *
+ * ⚠️ Le code d'accès n'est affiché qu'ICI, et jamais plus : il n'est conservé que haché. Le
+ * bouton ne doit donc pas quitter l'écran d'un seul geste — un pouce qui glisse priverait le
+ * déclarant du seul moyen de suivre son dossier, sans aucun recours.
+ */
+describe('Faire une autre déclaration', () => {
+  it('ne quitte pas l’écran au premier geste, et rappelle ce qui est en jeu', async () => {
+    const utilisateur = userEvent.setup()
+    render(<Recepisse reference="EI-2026-000042" codeAcces="ABCD-1234" />)
+
+    // Le récépissé porte bien ce qu'il ne réaffichera jamais.
+    expect(screen.getByText('EI-2026-000042')).toBeDefined()
+    expect(screen.getByText('ABCD-1234')).toBeDefined()
+
+    const declencheur = screen.getByText('Faire une autre déclaration')
+    const repli = declencheur.closest('details') as HTMLDetailsElement
+
+    /*
+      ⚠️ C'est `open` qui fait foi, pas la présence du lien dans le DOM.
+
+      Le contenu d'un `<details>` fermé reste dans le document — le navigateur le rend
+      inatteignable, au clic comme à la tabulation, et le masque aux lecteurs d'écran. Un test
+      qui chercherait le lien par son texte le trouverait donc toujours, et ne prouverait rien.
+    */
+    expect(repli.open, 'la confirmation est offerte sans être demandée').toBe(false)
+
+    await utilisateur.click(declencheur)
+
+    expect(repli.open, 'le premier geste n’a rien déplié').toBe(true)
+    expect(screen.getByText(/Avez-vous noté votre numéro de référence/)).toBeDefined()
+
+    const lien = screen.getByText(/Oui, faire une autre déclaration/).closest('a')
+    expect(lien?.getAttribute('href'), 'la confirmation ne ramène pas au choix du type').toBe(
+      '/declarer'
+    )
   })
 })
