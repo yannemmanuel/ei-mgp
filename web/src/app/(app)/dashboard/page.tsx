@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { AlertTriangle, ArrowRight, Inbox } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Inbox, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EtatVide } from '@/components/ui/etat-vide'
 import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
   aPermission,
+  aUnePermissionParmi,
   parcoursAutorises,
   peutExporter,
   peutExporterNominatif,
@@ -17,7 +18,16 @@ import {
 import { calculerIndicateurs, type LigneRepartition } from '@/server/services/reporting/indicateurs'
 import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
 import { historiqueMensuel } from '@/server/services/reporting/statistiques-mensuelles'
-import { aTraiter, type ADTraiter } from '@/server/services/reporting/a-traiter'
+import {
+  aTraiter,
+  dossiersATraiter,
+  type ADTraiter,
+} from '@/server/services/reporting/a-traiter'
+import {
+  santeAdministration,
+  type AlerteAdministration,
+} from '@/server/services/reporting/sante-administration'
+import { PERMISSIONS_CONSOLES } from '../administration/page'
 import { BoutonsExport } from './boutons-export'
 
 export const metadata: Metadata = { title: 'Tableau de bord' }
@@ -43,9 +53,19 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
   const voitLeRapport = aPermission(utilisateur, 'reporting.view')
   const filtre = filtreDepuisParametres(parametres)
 
-  const [mesDossiers, urgences] = await Promise.all([
-    dossiersATraiter(utilisateur.id),
+  // Qui administre ne voit pas les mêmes choses que qui traite — et certains, comme
+  // l'administrateur digital, ne traitent RIEN par construction (DT-02).
+  const administre = aUnePermissionParmi(utilisateur, PERMISSIONS_CONSOLES)
+  const traiteDesDossiers = aUnePermissionParmi(utilisateur, [
+    'dossiers.view',
+    'dossiers.view.all',
+    'dossiers.view.own',
+  ])
+
+  const [mesDossiers, urgences, alertes] = await Promise.all([
+    dossiersATraiter(utilisateur),
     aTraiter(utilisateur),
+    administre ? santeAdministration() : Promise.resolve([]),
   ])
 
   return (
@@ -53,9 +73,11 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
       <EnTetePage
         titre="Tableau de bord"
         lede={
-          voitLeRapport
-            ? 'Ce qui vous attend, puis la vue d’ensemble.'
-            : 'Les dossiers qui vous sont confiés.'
+          traiteDesDossiers
+            ? voitLeRapport
+              ? 'Ce qui vous attend, puis la vue d’ensemble.'
+              : 'Les dossiers qui vous sont confiés.'
+            : 'L’état du paramétrage dont vous répondez.'
         }
         actions={
           voitLeRapport && peutExporter(utilisateur) ? (
@@ -65,6 +87,8 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
       />
 
       <BandeUrgences urgences={urgences} peutVoirTout={aPermission(utilisateur, 'dossiers.view.all')} />
+
+      {administre && <BandeAdministration alertes={alertes} traiteDesDossiers={traiteDesDossiers} />}
 
       {mesDossiers.length > 0 && (
         <Card>
@@ -108,6 +132,14 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           peutVoirActions={aPermission(utilisateur, 'actions.view')}
         />
       ) : (
+        /*
+          L'attente de dossiers ne se dit qu'à qui peut en recevoir.
+
+          L'administrateur digital n'a accès à aucun dossier, et n'en aura jamais : DT-02 le lui
+          refuse délibérément. Lui annoncer que « ceux qui vous seront confiés apparaîtront ici »
+          était une promesse que son propre rôle interdit de tenir.
+        */
+        traiteDesDossiers &&
         mesDossiers.length === 0 &&
         urgences.enRetard === 0 &&
         urgences.nonAffectes === 0 && (
@@ -217,19 +249,77 @@ function BandeUrgences({
   )
 }
 
-/** Aperçu borné par construction (les affectations d'un seul compte) : pas de risque de N+1. */
-async function dossiersATraiter(utilisateurId: bigint) {
-  return prisma.dossiers.findMany({
-    where: { dossier_affectations: { some: { user_id: utilisateurId, actif: true } } },
-    orderBy: { updated_at: 'desc' },
-    take: 5,
-    select: {
-      id: true,
-      reference: true,
-      categories: { select: { libelle: true } },
-      statuts_dossier: { select: { libelle_interne: true } },
-    },
-  })
+/**
+ * Ce qui appelle une décision d'administrateur.
+ *
+ * Même règle que la bande des urgences, et pour la même raison : rien ne s'affiche quand il n'y
+ * a rien à dire. Un écran d'administration qui annonce « 0 délai non validé » tous les matins
+ * finit par ne plus être lu le jour où le chiffre change.
+ *
+ * Chaque ligne nomme sa CONSÉQUENCE, jamais ce qu'elle compte : « 3 directions sans site » ne
+ * dit rien à qui ne connaît pas le rôle du rattachement, « leurs déclarations n'atteignent aucun
+ * secrétaire habilité » se comprend sans rien savoir du modèle de données.
+ */
+function BandeAdministration({
+  alertes,
+  traiteDesDossiers,
+}: {
+  alertes: AlerteAdministration[]
+  /** Le lecteur a-t-il par ailleurs des dossiers ? Décide du ton de l'écran quand tout va bien. */
+  traiteDesDossiers: boolean
+}) {
+  if (alertes.length === 0) {
+    // Qui traite des dossiers a déjà de quoi lire plus haut : on ne lui ajoute pas une carte
+    // pour dire que rien ne cloche. Qui n'administre QUE, si — sans cela son écran serait vide.
+    if (traiteDesDossiers) return null
+
+    return (
+      <Card className="p-0">
+        <EtatVide
+          icone={ShieldCheck}
+          titre="Le paramétrage est complet."
+          description="Rien n’appelle d’intervention de votre part aujourd’hui."
+        />
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-h3">À régler</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y divide-border">
+          {alertes.map((alerte) => (
+            <li key={alerte.cle} className="relative py-3">
+              <Link
+                href={alerte.href}
+                className="flex items-start justify-between gap-3 after:absolute after:inset-0 hover:underline"
+              >
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    {alerte.bloquant && (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
+                    )}
+                    <span className="text-sm font-medium text-secondary-900">{alerte.libelle}</span>
+                  </span>
+                  <span className="mt-0.5 block text-caption text-muted-foreground">
+                    {alerte.consequence}
+                  </span>
+                </span>
+                <span
+                  className={`shrink-0 text-h3 ${alerte.bloquant ? 'text-destructive' : 'text-secondary-900'}`}
+                >
+                  {alerte.valeur}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  )
 }
 
 async function VueConsolidee({

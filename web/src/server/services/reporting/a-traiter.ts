@@ -101,3 +101,36 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
 
   return { enRetard, nonAffectes, miensEnRetard, miens }
 }
+
+/**
+ * Aperçu borné par construction (les affectations d'un seul compte) : pas de risque de N+1.
+ *
+ * ⚠️ Le PÉRIMÈTRE s'applique ici comme partout ailleurs, et pas seulement l'affectation.
+ *
+ * Cet aperçu ne regardait que `dossier_affectations`, sans vérifier aucun droit. L'administrateur
+ * digital, à qui DT-02 refuse délibérément tout accès aux déclarations, se voyait ainsi présenter
+ * la référence, la catégorie et le statut de deux dossiers qui lui avaient été affectés — sur un
+ * écran d'où la liste et la fiche, elles, lui étaient bien refusées. Chaque ligne menait de
+ * surcroît vers une page qui répondait « introuvable ».
+ *
+ * La même clause que la liste des dossiers, donc : ce que cet aperçu montre est exactement ce que
+ * `/dossiers` montrerait.
+ */
+export async function dossiersATraiter(utilisateur: UtilisateurAutorise) {
+  return prisma.dossiers.findMany({
+    where: {
+      AND: [
+        perimetreDossiers(utilisateur),
+        { dossier_affectations: { some: { user_id: utilisateur.id, actif: true } } },
+      ],
+    },
+    orderBy: { updated_at: 'desc' },
+    take: 5,
+    select: {
+      id: true,
+      reference: true,
+      categories: { select: { libelle: true } },
+      statuts_dossier: { select: { libelle_interne: true } },
+    },
+  })
+}
