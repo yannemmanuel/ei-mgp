@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { PARCOURS, estParcoursValide } from '@/server/services/declaration/parcours-config'
+import { chargerReferentiels } from '@/server/services/declaration/referentiels-formulaire'
 import { FormulaireDeclaration } from './formulaire'
 
 /**
@@ -39,7 +40,7 @@ export default async function PageDeclaration({ params }: PageProps<'/declarer/[
   const config = PARCOURS[parcours]
   const ligneParcours = await prisma.parcours.findFirstOrThrow({ where: { code: parcours } })
 
-  const [categories, niveaux, directions] = await Promise.all([
+  const [categories, niveaux, referentiels] = await Promise.all([
     prisma.categories.findMany({
       where: { parcours_id: ligneParcours.id, actif: true },
       orderBy: { ordre: 'asc' },
@@ -50,11 +51,7 @@ export default async function PageDeclaration({ params }: PageProps<'/declarer/[
       orderBy: { niveau: 'asc' },
       select: { id: true, libelle: true },
     }),
-    prisma.directions.findMany({
-      where: { actif: true },
-      orderBy: { libelle: 'asc' },
-      select: { id: true, libelle: true },
-    }),
+    chargerReferentiels(),
   ])
 
   return (
@@ -63,7 +60,7 @@ export default async function PageDeclaration({ params }: PageProps<'/declarer/[
       categories={categories.map((c) => ({ valeur: String(c.id), libelle: c.libelle }))}
       categoriesAutre={categories.filter((c) => c.is_autre).map((c) => String(c.id))}
       niveauxGravite={niveaux.map((n) => ({ valeur: String(n.id), libelle: n.libelle }))}
-      directions={directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle }))}
+      referentiels={referentiels}
     />
   )
 }

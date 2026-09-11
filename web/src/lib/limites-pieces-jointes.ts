@@ -1,10 +1,14 @@
 /**
- * EX-DEC-06 / RGI-04 : 10 fichiers maximum, 50 Mo au total par déclaration.
+ * EX-DEC-06 / RGI-04 : 3 fichiers maximum, 5 Mo au total par déclaration.
  *
- * Le plafond est passé de 5 à 10 fichiers (arbitrage du 08/09/2026). Il s'accompagne de la
- * réduction des images dans le navigateur (`compression-images.ts`) : doubler le nombre de pièces
- * autorisées tout en stockant moins qu'avant n'est pas contradictoire — dix photos réduites
- * pèsent une fraction de ce que pesaient cinq photos brutes.
+ * Le plafond a varié deux fois en trois jours. Il est passé de 5 à 10 fichiers et de 10 à 50 Mo
+ * le 08/09/2026, la réduction des images dans le navigateur (`compression-images.ts`) rendant la
+ * hausse tenable ; le retour métier du 11/09 l'a ramené à 3 fichiers et 5 Mo, pour les quatre
+ * formulaires. C'est ce dernier arbitrage qui s'applique.
+ *
+ * La réduction des images, elle, reste en place : elle n'était pas la contrepartie du plafond
+ * haut mais une amélioration à part entière, et elle rend ce plafond bas d'autant plus facile à
+ * tenir — trois photos réduites passent là où une seule photo brute ne passait pas.
  *
  * Ces constantes vivent ici, et non dans le service serveur, parce que le formulaire les annonce
  * (« 10 fichiers maximum, 50 Mo au total ») et doit les faire respecter AVANT l'envoi. Un module
@@ -15,8 +19,8 @@
  * Aucune dépendance : ce module est importé par un composant client, il ne doit rien entraîner
  * du serveur dans le bundle du navigateur.
  */
-export const MAX_FICHIERS = 10
-export const MAX_MEGAOCTETS_TOTAL = 50
+export const MAX_FICHIERS = 3
+export const MAX_MEGAOCTETS_TOTAL = 5
 export const MAX_OCTETS_TOTAL = MAX_MEGAOCTETS_TOTAL * 1024 * 1024
 
 export const MESSAGE_TROP_DE_FICHIERS = `Un maximum de ${MAX_FICHIERS} fichiers est autorisé par déclaration.`

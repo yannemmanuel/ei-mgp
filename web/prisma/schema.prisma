@@ -95,9 +95,9 @@ model declaration_identites {
   nom_prenom           String?   @db.VarChar(255)
   matricule            String?   @db.VarChar(255)
   entreprise           String?   @db.VarChar(255)
-  fonction             String?   @db.VarChar(255)
+  fonction             String?
   anciennete_annees    Int?      @db.SmallInt
-  localite             String?   @db.VarChar(255)
+  localite             String?
   statut_plaignant     String?   @db.VarChar(255)
   contact_email        String?   @db.VarChar(255)
   contact_telephone    String?   @db.VarChar(255)
@@ -108,6 +108,7 @@ model declaration_identites {
   consentement_rgpd    Boolean?
   created_at           DateTime? @db.Timestamp(0)
   updated_at           DateTime? @db.Timestamp(0)
+  anciennete_tranche   String?
   dossiers             dossiers  @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "declaration_identites_dossier_id_foreign")
 }
 
@@ -121,6 +122,7 @@ model directions {
   site_id    BigInt?
   sites      sites?     @relation(fields: [site_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "directions_site_id_foreign")
   dossiers   dossiers[]
+  postes     postes[]
   users      users[]
 
   @@index([site_id], map: "directions_site_id_index")
@@ -151,8 +153,8 @@ model dossiers {
   reference                     String                 @unique(map: "dossiers_reference_unique") @db.VarChar(255)
   parcours_id                   BigInt
   categorie_id                  BigInt
-  categorie_autre_precision     String?                @db.VarChar(255)
-  niveau_gravite_id             BigInt
+  categorie_autre_precision     String?
+  niveau_gravite_id             BigInt?
   statut_id                     BigInt
   canal_captage_id              BigInt
   is_anonymous                  Boolean
@@ -161,9 +163,9 @@ model dossiers {
   direction_id                  BigInt?
   declarant_user_id             BigInt?
   description                   String
-  lieu                          String?                @db.VarChar(255)
+  lieu                          String?
   date_survenance               DateTime?              @db.Timestamp(0)
-  attentes_declarant            String?                @db.VarChar(255)
+  attentes_declarant            String?
   synthese_resolution           String?
   motif_reouverture             String?
   motif_rejet                   String?
@@ -175,6 +177,9 @@ model dossiers {
   contentieux                   Boolean                @default(false)
   archive_le                    DateTime?              @db.Timestamp(0)
   anonymise_le                  DateTime?              @db.Timestamp(0)
+  ville                         String?
+  precision_localisation        String?
+  entreprise                    String?
   actions_correctives           actions_correctives[]
   declaration_identites         declaration_identites?
   dossier_affectations          dossier_affectations[]
@@ -182,7 +187,7 @@ model dossiers {
   categories                    categories             @relation(fields: [categorie_id], references: [id], onUpdate: NoAction, map: "dossiers_categorie_id_foreign")
   users                         users?                 @relation(fields: [declarant_user_id], references: [id], onUpdate: NoAction, map: "dossiers_declarant_user_id_foreign")
   directions                    directions?            @relation(fields: [direction_id], references: [id], onUpdate: NoAction, map: "dossiers_direction_id_foreign")
-  niveaux_gravite               niveaux_gravite        @relation(fields: [niveau_gravite_id], references: [id], onUpdate: NoAction, map: "dossiers_niveau_gravite_id_foreign")
+  niveaux_gravite               niveaux_gravite?       @relation(fields: [niveau_gravite_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "dossiers_niveau_gravite_id_foreign")
   parcours                      parcours               @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "dossiers_parcours_id_foreign")
   sites                         sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "dossiers_site_id_foreign")
   statuts_dossier               statuts_dossier        @relation(fields: [statut_id], references: [id], onUpdate: NoAction, map: "dossiers_statut_id_foreign")
@@ -544,4 +549,45 @@ model users {
   users                                                        users?                 @relation("usersTousers", fields: [responsable_hierarchique_id], references: [id], onUpdate: NoAction, map: "users_responsable_hierarchique_id_foreign")
   other_users                                                  users[]                @relation("usersTousers")
   sites                                                        sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "users_site_id_foreign")
+}
+
+model lieux {
+  id         BigInt    @id @default(autoincrement())
+  libelle    String    @unique(map: "lieux_libelle_unique") @db.VarChar(255)
+  ordre      Int       @default(1)
+  actif      Boolean   @default(true)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+}
+
+model postes {
+  id           BigInt     @id @default(autoincrement())
+  direction_id BigInt
+  libelle      String     @db.VarChar(255)
+  ordre        Int        @default(1)
+  actif        Boolean    @default(true)
+  created_at   DateTime?  @db.Timestamp(0)
+  updated_at   DateTime?  @db.Timestamp(0)
+  directions   directions @relation(fields: [direction_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([direction_id, libelle], map: "postes_direction_libelle_unique")
+  @@index([direction_id], map: "postes_direction_id_index")
+}
+
+model tranches_anciennete {
+  id         BigInt    @id @default(autoincrement())
+  libelle    String    @unique(map: "tranches_anciennete_libelle_unique") @db.VarChar(255)
+  ordre      Int       @default(1)
+  actif      Boolean   @default(true)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+}
+
+model villes {
+  id         BigInt    @id @default(autoincrement())
+  libelle    String    @unique(map: "villes_libelle_unique") @db.VarChar(255)
+  ordre      Int       @default(1)
+  actif      Boolean   @default(true)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }

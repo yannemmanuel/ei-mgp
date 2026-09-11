@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { schemaParcours } from '@/lib/validations/formulaire-parcours'
 import { prisma } from '@/lib/prisma'
+import { verifierReferentiels } from './verifier-referentiels'
 import { creerDeclaration, type DonneesIdentite } from './creer-declaration'
 import { ErreurPieceJointe, type FichierAValider } from './pieces-jointes'
 import { PARCOURS, champsVisibles, estParcoursValide, type Champ } from './parcours-config'
@@ -130,6 +131,15 @@ export async function traiterSoumission(
     return { erreurs: { categorieAutrePrecision: 'Merci de préciser la catégorie « Autre ».' } }
   }
 
+  // Les listes administrables sont transmises en clair : elles doivent être confrontées au
+  // référentiel réel avant d'être écrites. Fait AVANT de lire les fichiers, pour ne pas
+  // déballer des octets qu'on s'apprête à refuser.
+  const erreursReferentiel = await verifierReferentiels(visibles, valide)
+
+  if (erreursReferentiel) {
+    return { erreurs: erreursReferentiel }
+  }
+
   const fichiers = await lireFichiers(donnees)
 
   const identite: DonneesIdentite = {}
@@ -154,7 +164,8 @@ export async function traiterSoumission(
       anonyme,
       donneesDossier: {
         categorieId: categorie.id,
-        niveauGraviteId: BigInt(String(valide.niveauGraviteId)),
+        // Absente du formulaire EI : elle sera qualifiée au traitement (EI8).
+        niveauGraviteId: valide.niveauGraviteId ? BigInt(String(valide.niveauGraviteId)) : null,
         description: String(valide.description),
         categorieAutrePrecision: (valide.categorieAutrePrecision as string) ?? null,
         attentesDeclarant: (valide.attentesDeclarant as string) ?? null,
@@ -170,6 +181,11 @@ export async function traiterSoumission(
         // l'acheminement vers le bon secrétaire. Ce n'est pas une donnée d'identité — elle vit sur
         // `dossiers`, jamais dans `declaration_identites`.
         directionId: valide.directionId ? BigInt(String(valide.directionId)) : null,
+        // Demandés même en anonyme, donc portés par le dossier : l'entreprise du sous-traitant
+        // (GST2) et la ville du riverain (GR1), avec son complément libre (GR2).
+        entreprise: (dossierSpecifique.entreprise ?? null) as string | null,
+        ville: (dossierSpecifique.ville ?? null) as string | null,
+        precisionLocalisation: (dossierSpecifique.precisionLocalisation ?? null) as string | null,
       },
       donneesIdentite: anonyme ? undefined : identite,
       fichiers,

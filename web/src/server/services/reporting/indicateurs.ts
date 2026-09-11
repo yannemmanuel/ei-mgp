@@ -157,13 +157,19 @@ export async function repartitionParGravite(filtre: FiltreReporting): Promise<Li
   })
   const parId = new Map(gravites.map((g) => [g.id, g]))
 
+  // Un dossier peut n'avoir aucune gravité tant qu'elle n'est pas qualifiée au traitement (EI8) :
+  // ces dossiers forment leur propre ligne plutôt que de disparaître de la répartition.
   return groupes
-    .map((g) => ({
-      libelle: parId.get(g.niveau_gravite_id)?.libelle ?? '—',
-      couleur: parId.get(g.niveau_gravite_id)?.couleur ?? null,
-      niveau: parId.get(g.niveau_gravite_id)?.niveau ?? 0,
-      total: g._count._all,
-    }))
+    .map((g) => {
+      const gravite = g.niveau_gravite_id === null ? undefined : parId.get(g.niveau_gravite_id)
+
+      return {
+        libelle: gravite?.libelle ?? 'À qualifier',
+        couleur: gravite?.couleur ?? null,
+        niveau: gravite?.niveau ?? 0,
+        total: g._count._all,
+      }
+    })
     .sort((a, b) => a.niveau - b.niveau)
     .map(({ libelle, couleur, total }) => ({ libelle, couleur, total }))
 }

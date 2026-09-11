@@ -183,9 +183,13 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
                     <TableCell className="text-sm">{d.parcours.libelle}</TableCell>
                     <TableCell className="text-sm">{d.categories.libelle}</TableCell>
                     <TableCell>
-                      <EtiquetteStatut ton={tonGravite(d.niveaux_gravite.niveau)}>
-                        {d.niveaux_gravite.libelle}
-                      </EtiquetteStatut>
+                      {d.niveaux_gravite ? (
+                        <EtiquetteStatut ton={tonGravite(d.niveaux_gravite.niveau)}>
+                          {d.niveaux_gravite.libelle}
+                        </EtiquetteStatut>
+                      ) : (
+                        <EtiquetteStatut ton="attention">À qualifier</EtiquetteStatut>
+                      )}
                     </TableCell>
                     <TableCell>
                       <EtiquetteStatut ton="encours">

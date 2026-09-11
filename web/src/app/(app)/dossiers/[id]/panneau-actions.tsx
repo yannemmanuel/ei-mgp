@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
   actionChangerStatut,
+  actionQualifierGravite,
   actionCloturer,
   actionBasculerContentieux,
   actionReaffecter,
@@ -28,6 +29,8 @@ type Props = {
    * n'en désigne aucun.
    */
   acteursDeLEtape: string[]
+  /** Niveaux proposés à la qualification. Vide si le dossier en porte déjà un. */
+  gravitesAQualifier: { valeur: string; libelle: string }[]
   droits: {
     reaffecter: boolean
     changerStatut: boolean
@@ -56,6 +59,7 @@ export function PanneauActions({
   affectables,
   transitions,
   acteursDeLEtape,
+  gravitesAQualifier,
   droits,
   contentieux,
 }: Props) {
@@ -124,6 +128,41 @@ export function PanneauActions({
             <p className="mt-1 text-caption text-muted-foreground">
               Vous pouvez le consulter et échanger par la messagerie.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/*
+        Qualifier la gravité vient AVANT de faire avancer le dossier, et se voit d'abord.
+
+        Le déclarant ne la renseigne plus sur un évènement indésirable (EI8). Tant qu'elle
+        manque, le dossier n'a déclenché aucune alerte : c'est l'acte le plus urgent de l'écran,
+        et il occupe donc la première carte.
+      */}
+      {droits.changerStatut && gravitesAQualifier.length > 0 && (
+        <Card className="border-accent-300">
+          <CardHeader>
+            <CardTitle className="text-h3">Qualifier la gravité</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-caption text-muted-foreground">
+              Ce dossier n’a pas encore de gravité. Un niveau critique alerte la Direction
+              immédiatement.
+            </p>
+            <FormulaireAction
+              action={actionQualifierGravite}
+              dossierId={dossierId}
+              libelleBouton="Enregistrer la gravité"
+            >
+              <select name="niveauGraviteId" className={champ} required>
+                <option value="">— Sélectionner —</option>
+                {gravitesAQualifier.map((g) => (
+                  <option key={g.valeur} value={g.valeur}>
+                    {g.libelle}
+                  </option>
+                ))}
+              </select>
+            </FormulaireAction>
           </CardContent>
         </Card>
       )}

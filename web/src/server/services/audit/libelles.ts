@@ -32,6 +32,10 @@ const OBJETS: Record<string, string> = {
   site: 'Site',
   sla_delai: 'Délai',
   statut_dossier: 'Statut',
+  poste: 'Poste',
+  lieu: 'Lieu',
+  ville: 'Ville',
+  trancheAnciennete: 'Tranche d’ancienneté',
   suivi: 'Suivi de dossier',
   user: 'Compte',
 }
@@ -47,6 +51,7 @@ const VERBES: Record<string, string> = {
   desactive: 'désactivé',
   detachee: 'détachée de son site',
   envoyee: 'envoyée',
+  gravite_qualifiee: '— gravité qualifiée',
   identite_modifiee: 'renommé',
   modifie: 'modifié',
   modifiee: 'modifiée',
@@ -91,6 +96,10 @@ const TYPES: Record<string, string> = {
   Site: 'Site',
   SlaDelai: 'Délai',
   StatutDossier: 'Statut',
+  Poste: 'Poste',
+  Lieu: 'Lieu',
+  Ville: 'Ville',
+  TrancheAnciennete: 'Tranche d’ancienneté',
   User: 'Compte',
 }
 

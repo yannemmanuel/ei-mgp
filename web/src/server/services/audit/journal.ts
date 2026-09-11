@@ -30,6 +30,12 @@ export const MODELES = {
   utilisateur: String.raw`App\Models\User`,
   role: String.raw`Spatie\Permission\Models\Role`,
   dossier: String.raw`App\Models\Dossier`,
+  // Référentiels ajoutés le 11/09/2026. Ils n'ont pas d'équivalent Laravel — le nom suit
+  // néanmoins la même convention, qui est la clé de rapprochement du journal.
+  poste: String.raw`App\Models\Poste`,
+  lieu: String.raw`App\Models\Lieu`,
+  ville: String.raw`App\Models\Ville`,
+  trancheAnciennete: String.raw`App\Models\TrancheAnciennete`,
 } as const
 
 export type ModeleAudite = (typeof MODELES)[keyof typeof MODELES]

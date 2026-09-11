@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { description } from './declaration'
+import { BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE, description } from './declaration'
 import type { Champ, ParcoursConfig } from '@/server/services/declaration/parcours-config'
 import { champsVisibles } from '@/server/services/declaration/parcours-config'
 
@@ -54,15 +54,35 @@ function schemaChamp(champ: Champ, anonyme: boolean): z.ZodTypeAny {
 
     case 'select': {
       const valeurs = champ.options?.map((o) => o.valeur)
+
+      /*
+        Trois formes de select, et elles ne se valident pas pareil.
+
+        - liste figée dans la configuration : la valeur appartient à l'énumération ;
+        - référentiel `directions` : la valeur est un IDENTIFIANT, la direction étant une clé
+          étrangère ;
+        - référentiels ajoutés le 11/09 (postes, lieux, villes, tranches) : la valeur est le
+          LIBELLÉ, conservé tel quel sur le dossier pour que renommer le référentiel ne réécrive
+          pas l'historique.
+
+        ⚠️ Une chaîne libre ne prouve rien : `verifierReferentiels()` confronte ensuite ces
+        libellés au référentiel réel, côté serveur. Ce schéma vérifie la forme, pas l'existence.
+      */
       const base =
         valeurs && valeurs.length > 0
           ? z.enum(valeurs as [string, ...string[]], { message: 'Valeur invalide.' })
-          : z.string().regex(/^\d+$/, 'Valeur invalide.')
+          : champ.referentiel === 'directions'
+            ? z.string().regex(/^\d+$/, 'Valeur invalide.')
+            : z.string().trim().min(1, `« ${champ.libelle} » est obligatoire.`)
+
       return requis ? base : base.or(z.literal('')).optional()
     }
 
     default: {
-      const base = z.string().trim().max(champ.max ?? 255)
+      // `champ.max` ne subsiste que sur les champs courts adossés à une colonne VARCHAR — un
+      // matricule, une entreprise. Le texte libre, lui, n'a plus de plafond (G1) : seule la
+      // borne technique s'applique, et elle ne se voit pas.
+      const base = z.string().trim().max(champ.max ?? BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE)
       return requis
         ? base.min(1, `« ${champ.libelle} » est obligatoire.`)
         : base.optional()
@@ -84,14 +104,26 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
   return z.object({
     anonymat: z.boolean(),
     categorieId: z.string().regex(/^\d+$/, 'Merci de sélectionner une catégorie.'),
-    categorieAutrePrecision: z.string().trim().max(500).optional(),
-    niveauGraviteId: z.string().regex(/^\d+$/, 'Merci de sélectionner un niveau de gravité.'),
-    // Obligatoire, 200 caractères au plus, sans plancher de longueur. La règle et ses deux
-    // arbitrages sont énoncés là où le schéma est défini — ici on le RÉUTILISE, on ne le redécrit
-    // pas : les deux définitions ont déjà coexisté, et une règle écrite deux fois finit par
-    // diverger.
+    categorieAutrePrecision: z.string().trim().max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE).optional(),
+    /*
+      La gravité n'est demandée qu'aux parcours qui la font saisir par le déclarant.
+
+      L'évènement indésirable ne la demande plus : elle y est qualifiée au traitement (EI8). Le
+      schéma doit suivre le formulaire, sans quoi une déclaration EI parfaitement valide serait
+      refusée pour un champ que l'écran ne propose même pas.
+    */
+    ...(config.graviteSaisieParLeDeclarant
+      ? {
+          niveauGraviteId: z
+            .string()
+            .regex(/^\d+$/, 'Merci de sélectionner un niveau de gravité.'),
+        }
+      : {}),
+    // Obligatoire, sans plancher ni plafond visibles. La règle et ses arbitrages successifs sont
+    // énoncés là où le schéma est défini — ici on le RÉUTILISE, on ne le redécrit pas : les deux
+    // définitions ont déjà coexisté, et une règle écrite deux fois finit par diverger.
     description,
-    attentesDeclarant: z.string().trim().max(255).optional(),
+    attentesDeclarant: z.string().trim().max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE).optional(),
     // Anti-spam (DT-14).
     piegeAraignee: z.string().max(0, 'Soumission refusée.').optional(),
     horodatageAffichage: z.coerce.number().int().nonnegative(),

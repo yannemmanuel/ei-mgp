@@ -108,6 +108,25 @@ const GROUPES: Groupe[] = [
         unite: ['direction sans site', 'directions sans site'],
       },
       {
+        libelle: 'Postes',
+        href: '/administration/postes',
+        permission: 'referentiels.sites.manage',
+        description: 'Postes par direction, proposés dans le formulaire.',
+        compter: () => prisma.postes.count({ where: { actif: true } }),
+        unite: ['poste actif', 'postes actifs'],
+      },
+      {
+        libelle: 'Listes des formulaires',
+        href: '/administration/listes-formulaires',
+        permission: 'referentiels.categories.manage',
+        description: 'Lieux, villes et tranches d’ancienneté.',
+        compter: async () =>
+          (await prisma.lieux.count({ where: { actif: true } })) +
+          (await prisma.villes.count({ where: { actif: true } })) +
+          (await prisma.tranches_anciennete.count({ where: { actif: true } })),
+        unite: ['valeur active', 'valeurs actives'],
+      },
+      {
         libelle: 'Canaux de captage',
         href: '/administration/canaux',
         permission: 'canaux.manage',

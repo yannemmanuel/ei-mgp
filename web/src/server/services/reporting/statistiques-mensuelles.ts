@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -84,20 +85,32 @@ export async function calculerPour(mois: Date): Promise<ResultatCalcul> {
   return { creees, ignorees }
 }
 
+/**
+ * ⚠️ `niveauGraviteId` peut être NUL depuis que la gravité se qualifie au traitement (EI8).
+ *
+ * `= NULL` ne vaut jamais vrai en SQL : écrit ainsi, le délai moyen des dossiers non encore
+ * qualifiés aurait toujours été vide, sans erreur ni signal. La comparaison est donc choisie
+ * selon le cas, et non paramétrée.
+ */
 async function delaiMoyenDe(
   parcoursId: bigint,
   categorieId: bigint,
-  niveauGraviteId: bigint,
+  niveauGraviteId: bigint | null,
   debut: Date,
   finExclue: Date
 ): Promise<number | null> {
+  const surLaGravite =
+    niveauGraviteId === null
+      ? Prisma.sql`niveau_gravite_id IS NULL`
+      : Prisma.sql`niveau_gravite_id = ${niveauGraviteId}`
+
   const lignes = await prisma.$queryRaw<{ moyenne: number | null }[]>`
     SELECT AVG(EXTRACT(EPOCH FROM (date_cloture - created_at)) / 86400) AS moyenne
     FROM dossiers
     WHERE date_cloture IS NOT NULL
       AND parcours_id = ${parcoursId}
       AND categorie_id = ${categorieId}
-      AND niveau_gravite_id = ${niveauGraviteId}
+      AND ${surLaGravite}
       AND created_at >= ${debut}
       AND created_at < ${finExclue}
   `

@@ -17,12 +17,29 @@ import { Recepisse } from './recepisse'
 
 type Option = { valeur: string; libelle: string }
 
+/** Une option qui n'apparaît que sous un parent donné — un poste sous sa direction. */
+type OptionLiee = Option & { parent: string }
+
+/**
+ * Les listes administrables qui alimentent les formulaires.
+ *
+ * Regroupées plutôt que passées une par une : quatre nouvelles listes en props séparées auraient
+ * fait une signature que personne ne relit.
+ */
+export type Referentiels = {
+  directions: Option[]
+  postes: OptionLiee[]
+  lieux: Option[]
+  villes: Option[]
+  tranchesAnciennete: Option[]
+}
+
 type Props = {
   config: ParcoursConfig
   categories: Option[]
   categoriesAutre: string[]
   niveauxGravite: Option[]
-  directions: Option[]
+  referentiels: Referentiels
   /**
    * Action de soumission. Injectée plutôt qu'importée en dur : la saisie relais (EX-DEC-10)
    * réutilise ce formulaire avec sa propre action, authentifiée.
@@ -44,14 +61,14 @@ const NB_ETAPES = 4
  */
 const DELAI_ARMEMENT_ENVOI = 700
 
-/**
- * Plafond de la description — un plafond, pas un plancher.
+/*
+ * La description est obligatoire, et sans aucune borne de longueur.
  *
- * Le champ est obligatoire, mais aucune longueur minimale n'est exigée : « Fuite gaz zone B » est
- * un signalement recevable. C'est le plancher de 20 caractères de RGI-02 qui a été levé le
- * 08/09/2026, pas le caractère obligatoire du champ, rétabli depuis.
+ * Le plancher de 20 caractères de RGI-02 a été levé le 08/09/2026 — « Fuite gaz zone B » est un
+ * signalement recevable. Le plafond de 200 caractères et son compteur ont suivi le 11/09 (G1) :
+ * compter les signes de quelqu'un qui décrit un accident le pousse à en dire moins, alors que
+ * c'est le moment où l'on veut qu'il en dise plus.
  */
-const LONGUEUR_MAX_DESCRIPTION = 200
 const ETAT_INITIAL: EtatSoumission = {}
 
 export function FormulaireDeclaration({
@@ -59,7 +76,7 @@ export function FormulaireDeclaration({
   categories,
   categoriesAutre,
   niveauxGravite,
-  directions,
+  referentiels,
   soumettre = soumettreDeclaration,
   canauxRelais = [],
 }: Props) {
@@ -95,7 +112,15 @@ export function FormulaireDeclaration({
   const [horodatageAffichage] = useState(() => Math.floor(Date.now() / 1000))
   const [anonymat, setAnonymat] = useState(false)
   const [categorieId, setCategorieId] = useState('')
-  const [descriptionLongueur, setDescriptionLongueur] = useState(0)
+  /**
+   * Valeurs des champs dont d'autres dépendent — aujourd'hui la seule direction.
+   *
+   * Le formulaire est non contrôlé partout ailleurs ; ces valeurs-là doivent l'être, parce
+   * qu'elles décident du CONTENU d'une autre liste. Changer de direction vide le poste choisi :
+   * garder un poste qui n'appartient plus à la direction retenue enverrait au serveur une
+   * combinaison qui n'existe pas.
+   */
+  const [valeursPilotes, setValeursPilotes] = useState<Record<string, string>>({})
 
   /**
    * Erreurs détectées dans le navigateur, avant tout aller-retour serveur.
@@ -133,6 +158,12 @@ export function FormulaireDeclaration({
   )
 
   const categorieEstAutre = categoriesAutre.includes(categorieId)
+
+  /** Champs dont un autre dépend : eux seuls ont à remonter leur valeur. */
+  const pilotes = useMemo(
+    () => new Set(config.champs.map((c) => c.dependDe).filter((n): n is string => n !== undefined)),
+    [config]
+  )
 
   /*
    * Le curseur suit l'étape affichée.
@@ -421,14 +452,25 @@ export function FormulaireDeclaration({
               key={champ.nom}
               champ={champ}
               erreur={erreur(champ.nom)}
-              directions={directions}
+              referentiels={referentiels}
+              valeursPilotes={valeursPilotes}
+              onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
+              pilote={pilotes.has(champ.nom)}
             />
           ))}
         </div>
 
         <div data-etape={2} className={etape === 2 ? 'space-y-5' : 'hidden'}>
           {champsDe(2).map((champ) => (
-            <ChampFormulaire key={champ.nom} champ={champ} erreur={erreur(champ.nom)} directions={directions} />
+            <ChampFormulaire
+              key={champ.nom}
+              champ={champ}
+              erreur={erreur(champ.nom)}
+              referentiels={referentiels}
+              valeursPilotes={valeursPilotes}
+              onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
+              pilote={pilotes.has(champ.nom)}
+            />
           ))}
         </div>
 
@@ -452,13 +494,16 @@ export function FormulaireDeclaration({
             />
           )}
 
-          <ChampSelect
-            nom="niveauGraviteId"
-            libelle="Niveau de gravité"
-            obligatoire
-            options={niveauxGravite}
-            erreur={erreur('niveauGraviteId')}
-          />
+          {/* L'EI ne la demande plus : elle est qualifiée au traitement (EI8). */}
+          {config.graviteSaisieParLeDeclarant && (
+            <ChampSelect
+              nom="niveauGraviteId"
+              libelle="Niveau de gravité"
+              obligatoire
+              options={niveauxGravite}
+              erreur={erreur('niveauGraviteId')}
+            />
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="description">
@@ -469,36 +514,34 @@ export function FormulaireDeclaration({
               name="description"
               rows={5}
               required
-              maxLength={LONGUEUR_MAX_DESCRIPTION}
-              onChange={(e) => setDescriptionLongueur(e.target.value.length)}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-caption text-muted-foreground">
-                L’essentiel en quelques phrases ; vous pourrez compléter plus tard.
-              </p>
-              <p
-                className={`text-caption tabular-nums ${
-                  descriptionLongueur >= LONGUEUR_MAX_DESCRIPTION
-                    ? 'text-destructive'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {descriptionLongueur}/{LONGUEUR_MAX_DESCRIPTION}
-              </p>
-            </div>
+            <p className="text-caption text-muted-foreground">
+              Décrivez les faits aussi longuement que nécessaire.
+            </p>
             {erreur('description') && <Erreur message={erreur('description')!} />}
           </div>
 
           {champsDe(3).map((champ) => (
-            <ChampFormulaire key={champ.nom} champ={champ} erreur={erreur(champ.nom)} directions={directions} />
+            <ChampFormulaire
+              key={champ.nom}
+              champ={champ}
+              erreur={erreur(champ.nom)}
+              referentiels={referentiels}
+              valeursPilotes={valeursPilotes}
+              onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
+              pilote={pilotes.has(champ.nom)}
+            />
           ))}
 
-          <ChampTexte
-            nom="attentesDeclarant"
-            libelle="Vos attentes"
-            erreur={erreur('attentesDeclarant')}
-          />
+          {/* Propre aux griefs : l'EI ne demande pas au déclarant ce qu'il attend (EI10). */}
+          {config.attentesDeclarant && (
+            <ChampTexte
+              nom="attentesDeclarant"
+              libelle="Vos attentes"
+              erreur={erreur('attentesDeclarant')}
+            />
+          )}
         </div>
 
         <div data-etape={4} className={etape === 4 ? 'space-y-1.5' : 'hidden'}>
@@ -640,6 +683,8 @@ function ChampSelect({
   valeur,
   onChange,
   erreur,
+  aide,
+  desactive = false,
 }: {
   nom: string
   libelle: string
@@ -648,6 +693,8 @@ function ChampSelect({
   valeur?: string
   onChange?: (v: string) => void
   erreur?: string
+  aide?: string
+  desactive?: boolean
 }) {
   return (
     <div className="space-y-1.5">
@@ -658,9 +705,10 @@ function ChampSelect({
         id={nom}
         name={nom}
         required={obligatoire}
+        disabled={desactive}
         value={valeur}
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
         <option value="">— Sélectionner —</option>
         {options.map((o) => (
@@ -669,19 +717,46 @@ function ChampSelect({
           </option>
         ))}
       </select>
+      {aide && <p className="text-caption text-muted-foreground">{aide}</p>}
       {erreur && <Erreur message={erreur} />}
     </div>
   )
 }
 
+/**
+ * Les options d'un select : liste figée de la configuration, ou référentiel administrable.
+ *
+ * Un champ en cascade ne propose que les valeurs rattachées au parent choisi, et RIEN tant qu'il
+ * ne l'est pas — proposer les postes de toute l'entreprise ferait une liste inutilisable et
+ * laisserait choisir un poste incohérent avec la direction.
+ */
+function optionsDe(champ: Champ, referentiels: Referentiels, parent: string | null): Option[] {
+  if (champ.referentiel === undefined) return [...(champ.options ?? [])]
+
+  if (champ.referentiel === 'postes') {
+    if (parent === null || parent === '') return []
+    return referentiels.postes.filter((poste) => poste.parent === parent)
+  }
+
+  return referentiels[champ.referentiel]
+}
+
 function ChampFormulaire({
   champ,
   erreur,
-  directions,
+  referentiels,
+  valeursPilotes,
+  onPilote,
+  pilote,
 }: {
   champ: Champ
   erreur?: string
-  directions: Option[]
+  referentiels: Referentiels
+  /** Valeurs des champs dont d'autres dépendent, par nom de champ. */
+  valeursPilotes: Record<string, string>
+  onPilote: (nom: string, valeur: string) => void
+  /** Un autre champ de ce formulaire dépend de celui-ci : sa valeur doit être remontée. */
+  pilote: boolean
 }) {
   const obligatoire = champ.obligatoire === true || champ.obligatoire === 'siIdentifie'
 
@@ -703,13 +778,20 @@ function ChampFormulaire({
   }
 
   if (champ.type === 'select') {
+    const parent = champ.dependDe ? (valeursPilotes[champ.dependDe] ?? '') : null
+
     return (
       <ChampSelect
         nom={champ.nom}
         libelle={champ.libelle}
         obligatoire={obligatoire}
-        options={champ.referentiel === 'directions' ? directions : [...(champ.options ?? [])]}
+        options={optionsDe(champ, referentiels, parent)}
         erreur={erreur}
+        aide={champ.aide}
+        // Tant que la direction n'est pas choisie, la liste est vide : la désactiver le dit, là
+        // où une liste vide et cliquable laisse croire qu'aucun poste n'existe.
+        desactive={parent === ''}
+        onChange={pilote ? (valeur) => onPilote(champ.nom, valeur) : undefined}
       />
     )
   }

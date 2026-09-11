@@ -95,7 +95,7 @@ export async function lignesExport(
     reference: d.reference,
     parcours: d.parcours.libelle,
     categorie: d.categories.libelle,
-    gravite: d.niveaux_gravite.libelle,
+    gravite: d.niveaux_gravite?.libelle ?? 'À qualifier',
     statut: d.statuts_dossier.libelle_interne,
     anonyme: d.is_anonymous ? 'Oui' : 'Non',
     soumisLe: dateFr(d.created_at),

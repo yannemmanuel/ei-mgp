@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import type { ParcoursCode } from '@/server/authz'
 import { transitionAutorisee, transitionsDepuis, type StatutCode } from './statuts'
-import { surChangementStatut } from '../notification/evenements'
+import { surChangementStatut, surDeclarationCritique } from '../notification/evenements'
+import { MODELES, journaliser } from '../audit/journal'
 
 /**
  * Machine à états des dossiers (CDC §7.1) — port de `App\Services\Workflow\DossierWorkflowService`.
@@ -236,4 +238,70 @@ export async function rejeter(params: {
   // RGI-11 : côté déclarant, un dossier rejeté s'affiche comme « Clôturé » — c'est le libellé
   // affiché qui est notifié, jamais le libellé interne.
   await surChangementStatut(params.dossierId, libelleAffiche)
+}
+
+/**
+ * Qualifie la gravité d'un dossier au TRAITEMENT.
+ *
+ * L'évènement indésirable ne demande plus la gravité au déclarant (retour métier du 11/09) : un
+ * témoin d'incident n'a pas l'échelle en tête, et se tromper de niveau oriente mal le dossier.
+ * Elle est donc posée ici, par quelqu'un qui traite.
+ *
+ * ⚠️ C'EST ICI QUE RG-08 SE DÉCLENCHE DÉSORMAIS. Le circuit accéléré partait à la création, sur
+ * la foi de la gravité saisie par le déclarant ; sans cette gravité, il ne pouvait plus partir du
+ * tout. Le déplacer était la condition pour retirer le champ du formulaire — le retrait seul
+ * aurait éteint l'alerte à la Direction sans que rien ne le signale.
+ *
+ * L'alerte ne part QUE si le dossier n'était pas déjà critique : requalifier « Critique » en
+ * « Critique » ne doit pas re-notifier, et repasser de Critique à Élevé ne déclenche rien.
+ */
+export async function qualifierGravite(params: {
+  dossierId: string
+  niveauGraviteId: bigint
+  acteurId: bigint
+}): Promise<{ readonly devientCritique: boolean }> {
+  const dossier = await prisma.dossiers.findUniqueOrThrow({
+    where: { id: params.dossierId },
+    select: {
+      niveau_gravite_id: true,
+      parcours: { select: { code: true } },
+      niveaux_gravite: { select: { effet_circuit: true } },
+    },
+  })
+
+  const nouvelle = await prisma.niveaux_gravite.findUnique({
+    where: { id: params.niveauGraviteId },
+    select: { id: true, libelle: true, actif: true, effet_circuit: true },
+  })
+
+  if (!nouvelle || !nouvelle.actif) {
+    throw new ErreurWorkflow('Niveau de gravité inconnu ou désactivé.')
+  }
+
+  if (dossier.niveau_gravite_id === nouvelle.id) {
+    return { devientCritique: false }
+  }
+
+  await prisma.dossiers.update({
+    where: { id: params.dossierId },
+    data: { niveau_gravite_id: nouvelle.id, updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: 'dossier.gravite_qualifiee',
+    acteurId: params.acteurId,
+    auditableType: MODELES.dossier,
+    auditableId: params.dossierId,
+    anciennes: { niveau_gravite_id: dossier.niveau_gravite_id?.toString() ?? null },
+    nouvelles: { niveau_gravite_id: nouvelle.id.toString() },
+  })
+
+  const etaitCritique = dossier.niveaux_gravite?.effet_circuit === 'accelere'
+  const devientCritique = nouvelle.effet_circuit === 'accelere' && !etaitCritique
+
+  if (devientCritique) {
+    await surDeclarationCritique(params.dossierId, dossier.parcours.code as ParcoursCode)
+  }
+
+  return { devientCritique }
 }

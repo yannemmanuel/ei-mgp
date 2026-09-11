@@ -101,6 +101,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     messages,
     responsablesPossibles,
     validateurs,
+    gravitesActives,
   ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
@@ -128,6 +129,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
         })
       : Promise.resolve([]),
     rolesValidateurs(pourPolicy.parcoursCode),
+    // Niveaux proposés à la qualification. Chargés sans condition : l'alternative serait une
+    // seconde requête conditionnelle, pour six lignes.
+    prisma.niveaux_gravite.findMany({
+      where: { actif: true },
+      orderBy: { niveau: 'asc' },
+      select: { id: true, libelle: true },
+    }),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -242,9 +250,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             <EtiquetteStatut ton="encours">
               {dossier.statuts_dossier.libelle_interne}
             </EtiquetteStatut>
-            <EtiquetteStatut ton={tonGravite(dossier.niveaux_gravite.niveau)}>
-              Gravité : {dossier.niveaux_gravite.libelle}
-            </EtiquetteStatut>
+            {dossier.niveaux_gravite ? (
+              <EtiquetteStatut ton={tonGravite(dossier.niveaux_gravite.niveau)}>
+                Gravité : {dossier.niveaux_gravite.libelle}
+              </EtiquetteStatut>
+            ) : (
+              <EtiquetteStatut ton="attention">Gravité à qualifier</EtiquetteStatut>
+            )}
             {restants !== null && (
               <EtiquetteStatut
                 ton={restants < 0 ? 'alerte' : restants <= 3 ? 'attention' : 'neutre'}
@@ -460,6 +472,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
               (role) => LIBELLES_ROLE[role] ?? role
             )}
+            // Proposée seulement tant qu'aucune gravité n'est posée : requalifier un dossier déjà
+            // qualifié n'a pas été demandé, et rouvrirait la question du circuit accéléré.
+            gravitesAQualifier={
+              dossier.niveaux_gravite === null
+                ? gravitesActives.map((g) => ({ valeur: String(g.id), libelle: g.libelle }))
+                : []
+            }
             droits={{
               reaffecter: peutReaffecterDossier(utilisateur, pourPolicy),
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),

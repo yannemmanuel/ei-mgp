@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { chargerReferentiels } from '@/server/services/declaration/referentiels-formulaire'
 import { exigerPermission } from '@/server/auth'
 import { PARCOURS, estParcoursValide } from '@/server/services/declaration/parcours-config'
 import { CANAUX_RELAIS } from '@/server/services/declaration/soumission'
@@ -39,7 +40,7 @@ export default async function PageRelais({ params }: PageProps<'/relais/[parcour
   const config = PARCOURS[parcours]
   const ligneParcours = await prisma.parcours.findFirstOrThrow({ where: { code: parcours } })
 
-  const [categories, niveaux, directions, canaux] = await Promise.all([
+  const [categories, niveaux, referentiels, canaux] = await Promise.all([
     prisma.categories.findMany({
       where: { parcours_id: ligneParcours.id, actif: true },
       orderBy: { ordre: 'asc' },
@@ -50,11 +51,7 @@ export default async function PageRelais({ params }: PageProps<'/relais/[parcour
       orderBy: { niveau: 'asc' },
       select: { id: true, libelle: true },
     }),
-    prisma.directions.findMany({
-      where: { actif: true },
-      orderBy: { libelle: 'asc' },
-      select: { id: true, libelle: true },
-    }),
+    chargerReferentiels(),
     prisma.canaux_captage.findMany({
       where: { code: { in: [...CANAUX_RELAIS] }, actif: true },
       orderBy: { libelle: 'asc' },
@@ -73,7 +70,7 @@ export default async function PageRelais({ params }: PageProps<'/relais/[parcour
         categories={categories.map((c) => ({ valeur: String(c.id), libelle: c.libelle }))}
         categoriesAutre={categories.filter((c) => c.is_autre).map((c) => String(c.id))}
         niveauxGravite={niveaux.map((n) => ({ valeur: String(n.id), libelle: n.libelle }))}
-        directions={directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle }))}
+        referentiels={referentiels}
         soumettre={soumettreDeclarationRelais}
         canauxRelais={canaux.map((c) => ({ valeur: c.code, libelle: c.libelle }))}
       />

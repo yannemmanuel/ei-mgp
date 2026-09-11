@@ -29,7 +29,14 @@ const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
 
 export type DonneesDossier = {
   categorieId: bigint
-  niveauGraviteId: bigint
+  /**
+   * Nulle tant que la gravité n'est pas qualifiée.
+   *
+   * L'évènement indésirable ne la demande plus au déclarant (EI8) : elle est renseignée au
+   * traitement. ⚠️ Le circuit accéléré (RG-08) ne peut donc plus se décider ici pour ces
+   * dossiers — il se déclenche à la qualification, dans `qualifierGravite()`.
+   */
+  niveauGraviteId: bigint | null
   description: string
   lieu?: string | null
   dateSurvenance?: Date | null
@@ -40,6 +47,15 @@ export type DonneesDossier = {
   directionId?: bigint | null
   caractereRepetitif?: string | null
   propositionMesureCorrective?: string | null
+  /**
+   * Exigés même en anonyme, donc stockés sur le dossier et non dans `declaration_identites`.
+   *
+   * Cette table n'est pas créée quand l'anonymat est coché : une entreprise ou une ville rangée
+   * là aurait été demandée à l'écran puis perdue, sans le moindre signal.
+   */
+  entreprise?: string | null
+  ville?: string | null
+  precisionLocalisation?: string | null
 }
 
 /** Champs de `declaration_identites`. Ignorés si la déclaration est anonyme (RG-06). */
@@ -49,6 +65,8 @@ export type DonneesIdentite = {
   entreprise?: string | null
   fonction?: string | null
   ancienneteAnnees?: number | null
+  /** Tranche choisie dans le référentiel (GE1). `ancienneteAnnees` reste pour l'historique. */
+  ancienneteTranche?: string | null
   localite?: string | null
   statutPlaignant?: string | null
   contactEmail?: string | null
@@ -107,6 +125,9 @@ export async function creerDeclaration(params: {
         categorie_id: d.categorieId,
         categorie_autre_precision: d.categorieAutrePrecision ?? null,
         niveau_gravite_id: d.niveauGraviteId,
+        entreprise: d.entreprise ?? null,
+        ville: d.ville ?? null,
+        precision_localisation: d.precisionLocalisation ?? null,
         statut_id: statutRecu.id,
         canal_captage_id: canal.id,
         is_anonymous: params.anonyme,
@@ -149,6 +170,7 @@ export async function creerDeclaration(params: {
           entreprise: identite.entreprise ?? null,
           fonction: identite.fonction ?? null,
           anciennete_annees: identite.ancienneteAnnees ?? null,
+          anciennete_tranche: identite.ancienneteTranche ?? null,
           localite: identite.localite ?? null,
           statut_plaignant: identite.statutPlaignant ?? null,
           contact_email: identite.contactEmail ?? null,
@@ -218,15 +240,26 @@ export async function creerDeclaration(params: {
       })
     }
 
-    const gravite = await tx.niveaux_gravite.findUniqueOrThrow({
-      where: { id: d.niveauGraviteId },
-      select: { effet_circuit: true },
-    })
+    /*
+      Sans gravité, aucun circuit accéléré à la création — et c'est voulu.
+
+      L'évènement indésirable n'en porte plus au dépôt (EI8). Le déclenchement de RG-08 se
+      reporte alors sur `qualifierGravite()`, au moment où quelqu'un qui connaît l'échelle la
+      renseigne. Présumer « non critique » ici serait faux ; présumer « critique » alerterait la
+      Direction à chaque signalement. On ne présume rien : on attend de savoir.
+    */
+    const gravite =
+      d.niveauGraviteId === null
+        ? null
+        : await tx.niveaux_gravite.findUniqueOrThrow({
+            where: { id: d.niveauGraviteId },
+            select: { effet_circuit: true },
+          })
 
     return {
       dossierId: dossier.id,
       reference: dossier.reference,
-      estCritique: gravite.effet_circuit === 'accelere',
+      estCritique: gravite?.effet_circuit === 'accelere',
     }
   })
 

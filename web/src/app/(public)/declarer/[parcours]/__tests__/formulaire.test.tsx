@@ -28,7 +28,20 @@ const REFERENTIELS = {
   categories: [{ valeur: '1', libelle: 'Condition dangereuse' }],
   categoriesAutre: [],
   niveauxGravite: [{ valeur: '1', libelle: 'Faible' }],
-  directions: [{ valeur: '1', libelle: 'Direction Exploitation' }],
+  referentiels: {
+    directions: [
+      { valeur: '1', libelle: 'Direction Exploitation' },
+      { valeur: '2', libelle: 'Direction Financière' },
+    ],
+    postes: [
+      { valeur: 'Technicien réseau', libelle: 'Technicien réseau', parent: '1' },
+      { valeur: 'Agent de maintenance', libelle: 'Agent de maintenance', parent: '1' },
+      { valeur: 'Comptable', libelle: 'Comptable', parent: '2' },
+    ],
+    lieux: [{ valeur: 'Station de Yopougon', libelle: 'Station de Yopougon' }],
+    villes: [{ valeur: 'Abidjan', libelle: 'Abidjan' }],
+    tranchesAnciennete: [{ valeur: '1 à 3 ans', libelle: '1 à 3 ans' }],
+  },
 }
 
 function afficher(parcours: keyof typeof PARCOURS = 'ei_employe') {
@@ -77,12 +90,12 @@ async function remplirJusquAEtape3(utilisateur: ReturnType<typeof userEvent.setu
 
   await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
   await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
-  await utilisateur.type(screen.getByLabelText(/^Lieu/i), 'Atelier 3')
+  await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+  await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
   await waitFor(() => expect(visible(screen.getByLabelText(/Catégorie/i))).toBe(true))
   await utilisateur.selectOptions(screen.getByLabelText(/Catégorie/i), '1')
-  await utilisateur.selectOptions(screen.getByLabelText(/Niveau de gravité/i), '1')
   await utilisateur.type(screen.getByLabelText(/Description des faits/i), 'Extincteur vide.')
 }
 
@@ -99,13 +112,13 @@ describe('Progression entre les étapes', () => {
     // Étape 2
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
-    await utilisateur.type(screen.getByLabelText(/^Lieu/i), 'Atelier 3')
+    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Étape 3
     await waitFor(() => expect(visible(screen.getByLabelText(/Catégorie/i))).toBe(true))
     await utilisateur.selectOptions(screen.getByLabelText(/Catégorie/i), '1')
-    await utilisateur.selectOptions(screen.getByLabelText(/Niveau de gravité/i), '1')
     await utilisateur.type(screen.getByLabelText(/Description des faits/i), 'Extincteur vide.')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -140,12 +153,12 @@ describe('Progression entre les étapes', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
-    await utilisateur.type(screen.getByLabelText(/^Lieu/i), 'Atelier 3')
+    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Catégorie/i))).toBe(true))
     await utilisateur.selectOptions(screen.getByLabelText(/Catégorie/i), '1')
-    await utilisateur.selectOptions(screen.getByLabelText(/Niveau de gravité/i), '1')
     await utilisateur.type(screen.getByLabelText(/Description des faits/i), 'Extincteur vide.')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -157,7 +170,7 @@ describe('Progression entre les étapes', () => {
     // Le défaut d'origine : seules les pièces jointes arrivaient, tout le reste ayant été démonté
     // en chemin.
     const envoi = soumissions[0]
-    expect(envoi.get('lieu')).toBe('Atelier 3')
+    expect(envoi.get('lieu')).toBe('Station de Yopougon')
     expect(envoi.get('categorieId')).toBe('1')
     expect(envoi.get('description')).toBe('Extincteur vide.')
     expect(envoi.get('anonymat')).not.toBeNull()
@@ -175,12 +188,12 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
-    await utilisateur.type(screen.getByLabelText(/^Lieu/i), 'Atelier 3')
+    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Catégorie/i))).toBe(true))
     await utilisateur.selectOptions(screen.getByLabelText(/Catégorie/i), '1')
-    await utilisateur.selectOptions(screen.getByLabelText(/Niveau de gravité/i), '1')
 
     // Tout est rempli SAUF la description.
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -198,12 +211,12 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
-    await utilisateur.type(screen.getByLabelText(/^Lieu/i), 'Atelier 3')
+    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Catégorie/i))).toBe(true))
     await utilisateur.selectOptions(screen.getByLabelText(/Catégorie/i), '1')
-    await utilisateur.selectOptions(screen.getByLabelText(/Niveau de gravité/i), '1')
     // 16 caractères : exactement le signalement que le plancher de RGI-02 écartait.
     await utilisateur.type(screen.getByLabelText(/Description des faits/i), 'Fuite gaz zone B')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -218,7 +231,6 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     expect(visible(screen.getByLabelText(/Matricule/i))).toBe(true)
 
-    await utilisateur.type(screen.getByLabelText(/Nom et prénom/i), 'Alice Kouamé')
     await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -352,5 +364,56 @@ describe('Le geste de trop', () => {
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByLabelText(/Pièces jointes/i))
     )
+  })
+})
+
+/**
+ * Cascade Direction → Poste (EI6).
+ *
+ * Le piège n'est pas de remplir la liste, c'est de la VIDER : changer de direction ne doit pas
+ * laisser sélectionné un poste appartenant à l'ancienne, qui partirait au serveur silencieusement
+ * incohérent. Le navigateur s'en charge — une option disparue cesse d'être sélectionnée — mais
+ * rien ne le garantissait jusqu'ici, et une future liste contrôlée le perdrait sans bruit. Ces
+ * cas fixent le comportement attendu plutôt que de faire confiance à un effet de bord.
+ *
+ * ⚠️ Le serveur ne s'en remet pas à cet écran : `verifier-referentiels.ts` refuse un poste réel
+ * rattaché à une autre direction, cascade respectée ou non.
+ */
+describe('Poste dépendant de la direction', () => {
+  const poste = () => screen.getByLabelText(/^Poste/i) as HTMLSelectElement
+
+  const optionsDuPoste = () =>
+    Array.from(poste().options)
+      .map((o) => o.value)
+      .filter((v) => v !== '')
+
+  it('reste vide et désactivé tant qu’aucune direction n’est choisie', () => {
+    afficher()
+
+    expect(poste().disabled, 'la liste des postes est utilisable sans direction').toBe(true)
+    expect(optionsDuPoste()).toEqual([])
+  })
+
+  it('ne propose que les postes de la direction retenue', async () => {
+    const { utilisateur } = afficher()
+
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+
+    expect(poste().disabled).toBe(false)
+    // « Comptable » appartient à la direction 2 : il n'a rien à faire ici.
+    expect(optionsDuPoste()).toEqual(['Technicien réseau', 'Agent de maintenance'])
+  })
+
+  it('oublie le poste choisi quand la direction change', async () => {
+    const { utilisateur } = afficher()
+
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(poste(), 'Technicien réseau')
+    expect(poste().value).toBe('Technicien réseau')
+
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '2')
+
+    expect(poste().value, 'un poste de l’ancienne direction est resté sélectionné').toBe('')
+    expect(optionsDuPoste()).toEqual(['Comptable'])
   })
 })

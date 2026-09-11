@@ -11,7 +11,14 @@ import {
   type ParcoursCode,
 } from '@/server/authz'
 import { reaffecter } from '@/server/services/dossier/affectation'
-import { changerStatut, cloturer, rejeter, reouvrir, ErreurWorkflow } from '@/server/services/dossier/workflow'
+import {
+  changerStatut,
+  cloturer,
+  qualifierGravite,
+  rejeter,
+  reouvrir,
+  ErreurWorkflow,
+} from '@/server/services/dossier/workflow'
 import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
 import { basculerContentieux } from '@/server/services/rgpd/conservation'
 import { aPermission } from '@/server/authz'
@@ -249,5 +256,47 @@ export async function actionBasculerContentieux(
     succes: contentieux
       ? 'Dossier marqué en contentieux : anonymisation automatique bloquée.'
       : 'Blocage contentieux levé.',
+  }
+}
+
+/**
+ * Qualification de la gravité au traitement (EI8).
+ *
+ * Le droit exigé est celui de faire avancer le dossier : qualifier la gravité est un acte de
+ * traitement, pas d'administration du référentiel. Le service, lui, revérifie que le niveau
+ * existe et qu'il est actif.
+ */
+export async function actionQualifierGravite(
+  _precedent: EtatAction,
+  donnees: FormData
+): Promise<EtatAction> {
+  const utilisateur = await exigerUtilisateur()
+  const dossierId = String(donnees.get('dossierId') ?? '')
+  const niveau = String(donnees.get('niveauGraviteId') ?? '')
+
+  if (dossierId === '' || niveau === '') return { erreur: 'Niveau de gravité manquant.' }
+
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
+
+  if (!dossier || !peutChangerStatutDossier(utilisateur, dossier)) {
+    return { erreur: REFUS }
+  }
+
+  try {
+    const { devientCritique } = await qualifierGravite({
+      dossierId,
+      niveauGraviteId: BigInt(niveau),
+      acteurId: utilisateur.id,
+    })
+
+    revalidatePath(`/dossiers/${dossierId}`)
+
+    return {
+      succes: devientCritique
+        ? 'Gravité enregistrée. La Direction est alertée immédiatement.'
+        : 'Gravité enregistrée.',
+    }
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
   }
 }

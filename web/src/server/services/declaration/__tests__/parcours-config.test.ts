@@ -61,6 +61,8 @@ describe('Schéma dérivé de la configuration', () => {
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier de concassage',
       directionId: '1',
+      // Ajouté au formulaire EI le 11/09 (EI9), et obligatoire comme sur le grief employé.
+      caractereRepetitif: 'premiere_fois',
     })
 
     expect(resultat.success).toBe(true)
@@ -128,6 +130,7 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier',
+      caractereRepetitif: 'premiere_fois',
     }
 
     for (const anonyme of [true, false]) {

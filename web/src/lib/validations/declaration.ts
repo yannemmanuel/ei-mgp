@@ -29,11 +29,24 @@ import { z } from 'zod'
  * Exporté : `formulaire-parcours.ts` réutilise ce schéma plutôt que d'en décrire un second. Les
  * deux ont déjà existé côte à côte, et deux définitions d'une même règle finissent par diverger.
  */
+/**
+ * Borne technique, invisible pour le déclarant (G1).
+ *
+ * Le retour métier du 11/09 supprime toute limite de caractères : ni plafond affiché, ni
+ * compteur, ni `maxlength`. Une borne demeure néanmoins côté serveur, très au-delà de ce qu'un
+ * humain écrit — cent mille signes, soit une cinquantaine de pages. Elle ne dit rien à personne
+ * et ne refuse rien de légitime ; elle empêche seulement qu'une requête forgée fasse grossir la
+ * base sans limite. La supprimer tout à fait aurait été confondre « pas de limite pour
+ * l'utilisateur » et « pas de garde-fou ».
+ */
+export const BORNE_TECHNIQUE = 100_000
+export const MESSAGE_BORNE_TECHNIQUE = 'Ce texte est anormalement long.'
+
 export const description = z
   .string()
   .trim()
   .min(1, 'Merci de décrire les faits.')
-  .max(200, 'La description ne peut pas dépasser 200 caractères.')
+  .max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE)
 
 /**
  * RGI-01 : la date des faits ne peut jamais être postérieure à la date de soumission.

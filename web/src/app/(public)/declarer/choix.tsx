@@ -24,17 +24,17 @@ type Option = {
 const PLAINTES: Option[] = [
   {
     code: 'grief_employe',
-    titre: 'Je suis employé de l’entreprise',
+    titre: 'Employé SODECI',
     description: 'Une situation professionnelle que vous jugez préjudiciable.',
   },
   {
     code: 'grief_sous_traitant',
-    titre: 'Je travaille pour un sous-traitant',
+    titre: 'Sous-Traitant SODECI',
     description: 'Conditions de travail, paiement, sécurité sur un chantier.',
   },
   {
     code: 'grief_communaute',
-    titre: 'Je suis riverain ou membre de la communauté',
+    titre: 'Riverain ou membre de la communauté',
     description: 'Nuisance, dommage ou différend lié aux activités de l’entreprise.',
   },
 ]

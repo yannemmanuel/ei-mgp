@@ -7,6 +7,7 @@ import {
   difference,
   journaliser,
   sansChangement,
+  type ModeleAudite,
   type ValeursAudit,
 } from '../audit/journal'
 
@@ -571,4 +572,181 @@ async function journaliserModification(
     anciennes: ecart.anciennes,
     nouvelles: ecart.nouvelles,
   })
+}
+
+/* ==========================================================================
+   Référentiels des formulaires (retour métier du 11/09/2026)
+   ==========================================================================
+
+   Postes, lieux, villes et tranches d'ancienneté alimentent les listes déroulantes des
+   formulaires publics. Tous portent `actif` et AUCUN ne se supprime : une valeur retirée de
+   l'usage se désactive, sans quoi les déclarations qui l'ont retenue perdraient le sens de ce
+   qui y a été choisi. C'est la même règle que pour les sites et les directions.
+*/
+
+export type DonneesPoste = {
+  directionId: bigint
+  libelle: string
+  ordre: number
+  actif: boolean
+}
+
+export async function listerPostes() {
+  return prisma.postes.findMany({
+    orderBy: [{ directions: { libelle: 'asc' } }, { ordre: 'asc' }, { libelle: 'asc' }],
+    select: {
+      id: true,
+      libelle: true,
+      ordre: true,
+      actif: true,
+      direction_id: true,
+      directions: { select: { libelle: true } },
+    },
+  })
+}
+
+export async function enregistrerPoste(
+  acteur: Acteur,
+  donnees: DonneesPoste,
+  posteId?: bigint
+): Promise<bigint> {
+  // L'unicité porte sur le COUPLE (direction, libellé) : deux directions peuvent légitimement
+  // compter un « Responsable d'exploitation ». La contrainte base reste le filet final ; cette
+  // vérification n'est là que pour rendre l'erreur intelligible.
+  const doublon = await prisma.postes.findFirst({
+    where: {
+      direction_id: donnees.directionId,
+      libelle: donnees.libelle,
+      ...(posteId ? { NOT: { id: posteId } } : {}),
+    },
+    select: { id: true },
+  })
+
+  if (doublon) {
+    throw new ErreurWorkflow('Ce poste existe déjà pour cette direction.')
+  }
+
+  const valeurs = {
+    direction_id: donnees.directionId,
+    libelle: donnees.libelle,
+    ordre: donnees.ordre,
+    actif: donnees.actif,
+  }
+  const maintenant = new Date()
+
+  if (posteId === undefined) {
+    const creee = await prisma.postes.create({
+      data: { ...valeurs, created_at: maintenant, updated_at: maintenant },
+      select: { id: true },
+    })
+
+    await journaliser({
+      action: 'poste.cree',
+      acteurId: acteur.id,
+      auditableType: MODELES.poste,
+      auditableId: String(creee.id),
+      nouvelles: attributsCrees(valeurs),
+    })
+
+    return creee.id
+  }
+
+  const avant = await prisma.postes.findUniqueOrThrow({ where: { id: posteId } })
+  await prisma.postes.update({ where: { id: posteId }, data: { ...valeurs, updated_at: maintenant } })
+
+  await journaliserModification(
+    'poste.modifie',
+    MODELES.poste,
+    String(posteId),
+    acteur,
+    avant as unknown as ValeursAudit,
+    valeurs
+  )
+
+  return posteId
+}
+
+export type DonneesListeSimple = { libelle: string; ordre: number; actif: boolean }
+
+/** Les trois listes plates partagent la même forme : un libellé, un ordre, un état. */
+export type ListePlate = 'lieu' | 'ville' | 'trancheAnciennete'
+
+/*
+  ⚠️ Un `switch` explicite, et non un délégué Prisma choisi dynamiquement.
+
+  Regrouper `prisma.lieux`, `prisma.villes` et `prisma.tranches_anciennete` dans une table de
+  correspondance produit une UNION de signatures que TypeScript déclare non appelable : chaque
+  modèle a ses propres types d'entrée. Le contourner par un `any` aurait fait perdre exactement
+  ce qui protège ici — la vérification que les colonnes écrites existent.
+*/
+export async function listerListePlate(liste: ListePlate) {
+  const options = { orderBy: [{ ordre: 'asc' as const }, { libelle: 'asc' as const }] }
+
+  if (liste === 'lieu') return prisma.lieux.findMany(options)
+  if (liste === 'ville') return prisma.villes.findMany(options)
+  return prisma.tranches_anciennete.findMany(options)
+}
+
+const MODELE_DE_LISTE: Record<ListePlate, ModeleAudite> = {
+  lieu: MODELES.lieu,
+  ville: MODELES.ville,
+  trancheAnciennete: MODELES.trancheAnciennete,
+}
+
+export async function enregistrerListePlate(
+  acteur: Acteur,
+  liste: ListePlate,
+  donnees: DonneesListeSimple,
+  ligneId?: bigint
+): Promise<bigint> {
+  const existantes = await listerListePlate(liste)
+  const doublon = existantes.find((l) => l.libelle === donnees.libelle && l.id !== ligneId)
+
+  if (doublon) {
+    throw new ErreurWorkflow('Ce libellé existe déjà.')
+  }
+
+  const valeurs = { libelle: donnees.libelle, ordre: donnees.ordre, actif: donnees.actif }
+  const maintenant = new Date()
+
+  if (ligneId === undefined) {
+    const data = { ...valeurs, created_at: maintenant, updated_at: maintenant }
+
+    const creee =
+      liste === 'lieu'
+        ? await prisma.lieux.create({ data, select: { id: true } })
+        : liste === 'ville'
+          ? await prisma.villes.create({ data, select: { id: true } })
+          : await prisma.tranches_anciennete.create({ data, select: { id: true } })
+
+    await journaliser({
+      action: `${liste}.cree`,
+      acteurId: acteur.id,
+      auditableType: MODELE_DE_LISTE[liste],
+      auditableId: String(creee.id),
+      nouvelles: attributsCrees(valeurs),
+    })
+
+    return creee.id
+  }
+
+  const avant = existantes.find((l) => l.id === ligneId)
+  if (!avant) throw new ErreurWorkflow('Ligne introuvable.')
+
+  const data = { ...valeurs, updated_at: maintenant }
+
+  if (liste === 'lieu') await prisma.lieux.update({ where: { id: ligneId }, data })
+  else if (liste === 'ville') await prisma.villes.update({ where: { id: ligneId }, data })
+  else await prisma.tranches_anciennete.update({ where: { id: ligneId }, data })
+
+  await journaliserModification(
+    `${liste}.modifie`,
+    MODELE_DE_LISTE[liste],
+    String(ligneId),
+    acteur,
+    avant as unknown as ValeursAudit,
+    valeurs
+  )
+
+  return ligneId
 }

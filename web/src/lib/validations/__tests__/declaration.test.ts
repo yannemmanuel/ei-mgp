@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest'
  * EX-DEC-07 : champs obligatoires validés et message d'erreur explicite pour chacun.
  */
 import {
+  BORNE_TECHNIQUE,
   DELAI_MINIMAL_REMPLISSAGE_SECONDES,
+  description,
   identiteSousTraitant,
   precisionAutreManquante,
   socleDeclaration,
@@ -50,11 +52,14 @@ describe('Socle de déclaration', () => {
     expect(r.error?.issues.some((i) => i.path[0] === 'description')).toBe(true)
   })
 
-  it('refuse une description de plus de 200 caractères', () => {
-    const r = socleDeclaration.safeParse({ ...base, description: 'a'.repeat(201) })
+  it('accepte une description aussi longue que nécessaire', () => {
+    // Le plafond de 200 caractères et son compteur ont été retirés le 11/09 (G1) : compter les
+    // signes de quelqu'un qui décrit un accident le pousse à en dire moins, au moment précis où
+    // l'on veut qu'il en dise plus. Seule subsiste une borne technique, invisible.
+    const long = 'a'.repeat(5_000)
 
-    expect(r.success).toBe(false)
-    expect(r.error?.issues.some((i) => i.path[0] === 'description')).toBe(true)
+    expect(description.safeParse(long).success).toBe(true)
+    expect(description.safeParse('a'.repeat(BORNE_TECHNIQUE + 1)).success).toBe(false)
   })
 
   it('accepte exactement 200 caractères (borne incluse)', () => {

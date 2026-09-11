@@ -7,6 +7,9 @@ import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import {
   CANAUX_NOTIFICATION,
   enregistrerCategorie,
+  enregistrerListePlate,
+  type ListePlate,
+  enregistrerPoste,
   enregistrerGabarit,
   enregistrerDirection,
   enregistrerSite,
@@ -393,3 +396,87 @@ export async function actionModifierGravite(
   revalidatePath('/administration/gravites')
   return { succes: 'Niveau de gravité enregistré.' }
 }
+
+/**
+ * Postes rattachés à une direction (ADM2).
+ *
+ * Le droit exigé est celui des sites et directions : un poste est une subdivision de
+ * l'organisation, et non une nomenclature de formulaire. Qui administre les directions
+ * administre leurs postes.
+ */
+export async function actionEnregistrerPoste(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.sites.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const directionId = texte(donnees, 'directionId')
+
+  if (directionId === '' || texte(donnees, 'libelle') === '') {
+    return { erreur: 'Direction et libellé sont obligatoires.' }
+  }
+
+  try {
+    await enregistrerPoste(
+      acteur,
+      {
+        directionId: BigInt(directionId),
+        libelle: texte(donnees, 'libelle'),
+        ordre: entier(donnees, 'ordre', 1),
+        actif: coche(donnees, 'actif'),
+      },
+      identifiant(donnees)
+    )
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/postes')
+  return { succes: 'Poste enregistré.' }
+}
+
+/**
+ * Lieux, villes et tranches d'ancienneté (ADM3, ADM4, ADM5).
+ *
+ * Une seule action paramétrée par la liste visée : trois actions identiques à la ligne près
+ * auraient divergé au premier ajustement.
+ */
+function actionListePlate(liste: ListePlate, succes: string) {
+  return async function enregistrer(
+    _precedent: EtatFormulaire,
+    donnees: FormData
+  ): Promise<EtatFormulaire> {
+    const acteur = await acteurAutorise('referentiels.categories.manage')
+    if (!acteur) return { erreur: REFUS }
+
+    if (texte(donnees, 'libelle') === '') {
+      return { erreur: 'Le libellé est obligatoire.' }
+    }
+
+    try {
+      await enregistrerListePlate(
+        acteur,
+        liste,
+        {
+          libelle: texte(donnees, 'libelle'),
+          ordre: entier(donnees, 'ordre', 1),
+          actif: coche(donnees, 'actif'),
+        },
+        identifiant(donnees)
+      )
+    } catch (erreur) {
+      return { erreur: messageErreur(erreur) }
+    }
+
+    revalidatePath('/administration/listes-formulaires')
+    return { succes }
+  }
+}
+
+export const actionEnregistrerLieu = actionListePlate('lieu', 'Lieu enregistré.')
+export const actionEnregistrerVille = actionListePlate('ville', 'Ville enregistrée.')
+export const actionEnregistrerTranche = actionListePlate(
+  'trancheAnciennete',
+  'Tranche enregistrée.'
+)
