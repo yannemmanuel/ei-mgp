@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { santeAdministration } from '../sante-administration'
 
@@ -110,5 +110,43 @@ describe('Un référentiel vidé se signale', () => {
 
     // Rétabli : l'alerte disparaît.
     expect((await santeAdministration()).some((a) => a.cle === 'lieux')).toBe(false)
+  })
+})
+
+describe('La messagerie éteinte est signalée', () => {
+  /*
+    Le défaut rapporté : « le mail n'est pas reçu après création d'un compte ».
+
+    Il n'y avait pas de panne — il n'y avait pas de messagerie. Sans `MAIL_HOST` ni `MAIL_FROM`,
+    l'application journalise au lieu d'expédier : elle fonctionne, n'affiche aucune erreur, et pas
+    un message ne sort. Rien nulle part ne le disait.
+  */
+  const ORIGINE = { host: process.env.MAIL_HOST, from: process.env.MAIL_FROM }
+
+  afterEach(() => {
+    process.env.MAIL_HOST = ORIGINE.host
+    process.env.MAIL_FROM = ORIGINE.from
+  })
+
+  it('remonte l’alerte quand la configuration manque', async () => {
+    delete process.env.MAIL_HOST
+    delete process.env.MAIL_FROM
+
+    const alerte = (await santeAdministration()).find((a) => a.cle === 'messagerie')
+
+    expect(alerte, 'une messagerie éteinte passe inaperçue').toBeDefined()
+    expect(alerte?.bloquant, 'présenté comme une négligence, pas comme un blocage').toBe(true)
+    // La conséquence doit nommer ce qui ne part plus : « non configurée » seul n'apprend rien à
+    // qui ignore ce qui en dépend.
+    expect(alerte?.consequence).toMatch(/identifiants/i)
+  })
+
+  it('se tait quand le transport est configuré', async () => {
+    process.env.MAIL_HOST = 'smtp.test.invalid'
+    process.env.MAIL_FROM = 'mgp@test.invalid'
+
+    const alerte = (await santeAdministration()).find((a) => a.cle === 'messagerie')
+
+    expect(alerte, 'l’alerte persiste alors que le transport est en place').toBeUndefined()
   })
 })

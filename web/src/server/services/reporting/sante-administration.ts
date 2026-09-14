@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { ROLE_NAMES, etapesSansActeur, type Role } from '@/server/authz'
+import { configurationSmtp } from '../notification/transport'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
@@ -134,6 +135,28 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
       valeur: rolesSansPorteur,
       consequence: 'Les écrans et les affectations qui en dépendent restent hors d’atteinte.',
       href: '/administration/habilitations',
+      bloquant: true,
+    },
+    {
+      /*
+        Une messagerie éteinte ne se voit NULLE PART ailleurs.
+
+        Sans `MAIL_HOST` ni `MAIL_FROM`, l'application journalise au lieu d'expédier : elle
+        fonctionne, n'affiche aucune erreur, et pas un message ne sort. Les identifiants d'un
+        compte neuf ne partent pas, les relances d'échéance non plus, ni le circuit critique.
+        C'est le pendant exact du délai non validé : un réglage absent qui éteint une fonction
+        entière sans rien casser de visible.
+
+        Le renvoi pointe vers les modèles de notification : c'est là qu'on vient quand on
+        s'interroge sur les envois, même si la correction elle-même est dans l'environnement du
+        serveur — aucun écran ne règle une variable d'environnement.
+      */
+      cle: 'messagerie',
+      libelle: 'Messagerie non configurée',
+      valeur: configurationSmtp() === null ? 1 : 0,
+      consequence:
+        'Aucun e-mail ne part : ni identifiants de compte, ni relance de retard, ni alerte critique.',
+      href: '/administration/notifications',
       bloquant: true,
     },
     {

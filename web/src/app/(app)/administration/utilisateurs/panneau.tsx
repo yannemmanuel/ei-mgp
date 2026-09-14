@@ -366,9 +366,20 @@ function FormulaireCompte({
                   passe par un canal sûr.
                 </p>
               ) : (
-                <p className="mt-2 text-caption">
-                  Il n’est affiché qu’une fois et n’est stocké nulle part en clair. Transmettez-le
-                  par un canal sûr ; la personne le changera à sa première connexion.
+                /*
+                  Le cas le plus trompeur, et celui qui manquait.
+
+                  L'écran affichait ici le même texte qu'avant l'envoi par e-mail : « transmettez-le
+                  par un canal sûr ». Rien n'indiquait qu'AUCUN message n'était parti. Un
+                  administrateur qui vient de créer un compte attend le courriel, ne voit rien
+                  arriver, et n'a aucun moyen de savoir si le destinataire l'a manqué, s'il est
+                  dans les indésirables, ou s'il n'a jamais existé. On le dit.
+                */
+                <p className="mt-2 text-caption text-amber-700">
+                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
+                  n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
+                  <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
+                  passe par un canal sûr ; la personne le changera à sa première connexion.
                 </p>
               )}
             </AlertDescription>
