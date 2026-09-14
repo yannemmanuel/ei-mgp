@@ -266,71 +266,70 @@ export async function traiterSoumission(
     }
     console.error('Échec de création de déclaration', erreur)
 
+    // Le diagnostic va dans le TERMINAL, jamais à l'écran : voir `indiceClientPerime`.
+    const indice = indiceClientPerime(erreur)
+    if (indice) console.warn(indice)
+
+    /*
+      ⚠️ Message INVARIABLE, quelle que soit la panne.
+
+      Il a un temps porté la cause en développement. C'était utile à qui débogue et déplacé pour
+      qui déclare : ce formulaire est public, et une personne qui vient signaler un accident n'a
+      que faire d'un nom de colonne — elle a besoin de savoir que rien n'est perdu. Le détail est
+      juste au-dessus, dans la console du serveur, là où il s'adresse à quelqu'un.
+    */
     return {
       erreurGenerale:
-        "Votre déclaration n'a pas pu être enregistrée. Aucune donnée n'a été perdue : merci de réessayer." +
-        indiceDeveloppement(erreur),
+        "Votre déclaration n'a pas pu être enregistrée. Aucune donnée n'a été perdue : merci de réessayer.",
     }
   }
 }
 
 /**
- * Ce qui a réellement échoué — EN DÉVELOPPEMENT SEULEMENT.
+ * Le piège du client Prisma périmé, nommé DANS LA CONSOLE DU SERVEUR.
  *
- * ⚠️ Rien de ceci ne doit atteindre un déclarant. Ce formulaire est la surface la plus exposée
- * de l'application : un message d'erreur de base de données y révèlerait des noms de colonnes et
- * la forme des requêtes. La garde porte sur `NODE_ENV`, pas sur un réglage applicatif — elle ne
- * peut pas être activée par inadvertance depuis l'administration.
+ * Turbopack ne resurveille pas `node_modules` : un serveur de développement démarré AVANT une
+ * migration garde en mémoire le client Prisma d'alors, qui ignore les colonnes ajoutées depuis.
+ * L'écriture est refusée, le code est pourtant juste, la base est à jour, et rien ne le dit. Ce
+ * piège a coûté trois incidents ; le nommer économise une demi-heure à chaque fois.
  *
- * ⚠️ Exportée pour être ÉPROUVÉE, pas pour être appelée ailleurs. La garde de production se
- * vérifie en l'exécutant ; la lire dans le source prouverait qu'elle est écrite, jamais qu'elle
- * s'applique.
+ * ⚠️ Rien de ceci n'atteint l'écran, et c'est délibéré. Ce formulaire est public : un message
+ * d'erreur de base de données y révélerait des noms de colonnes et la forme des requêtes, à
+ * quelqu'un qui vient signaler un accident et n'a besoin que d'une chose — savoir que rien n'est
+ * perdu. Le destinataire de ce texte est celui qui lit le terminal, pas celui qui déclare.
  *
- * En développement, la cause ne partait QUE dans le terminal du serveur. Qui remplit le
- * formulaire dans son navigateur lisait « merci de réessayer », réessayait, et obtenait la même
- * chose — sans jamais savoir que rien ne changerait.
+ * Renvoie `null` quand la panne est d'une autre nature : l'erreur brute, déjà journalisée juste
+ * avant, se suffit alors à elle-même.
  */
-export function indiceDeveloppement(erreur: unknown): string {
-  if (process.env.NODE_ENV === 'production') return ''
-
+export function indiceClientPerime(erreur: unknown): string | null {
   const message = erreur instanceof Error ? erreur.message : String(erreur)
 
-  /*
-    Le piège le plus coûteux, et il s'est produit deux fois.
-
-    Turbopack ne recharge pas `node_modules` : un serveur de développement démarré AVANT une
-    migration garde en mémoire le client Prisma d'alors, qui ignore les colonnes ajoutées depuis.
-    L'écriture est refusée, le code est pourtant juste, et rien dans l'écran ne le dit. Le nommer
-    économise une demi-heure à chaque fois.
-  */
-  const clientPerime =
+  const perime =
     message.includes('Unknown argument') ||
     message.includes('Unknown field') ||
-    erreur instanceof Error && erreur.name === 'PrismaClientValidationError'
+    (erreur instanceof Error && erreur.name === 'PrismaClientValidationError')
+
+  if (!perime) return null
 
   /*
     Une seule ligne, mais la BONNE.
 
-    Les erreurs Prisma tiennent sur trente lignes et s'ouvrent sur un générique — « Invalid
-    `prisma.dossiers.create()` invocation » — tandis que le nom du champ fautif arrive plus bas.
-    Prendre la première par commodité aurait affiché ce qui n'apprend rien et tu ce qui explique
-    tout. On retient donc la ligne qui NOMME, à défaut la première.
-
-    Le message entier part de toute façon dans le terminal du serveur, juste au-dessus.
+    Les erreurs Prisma s'ouvrent sur un générique — « Invalid `prisma.dossiers.create()`
+    invocation » — et gardent le nom du champ fautif pour plus bas. Prendre la première par
+    commodité afficherait ce qui n'apprend rien et tairait ce qui explique tout.
   */
-  const lignes = message.split('\n').map((l) => l.trim()).filter((l) => l !== '')
-  const premiereLigne = lignes.find((l) => /Unknown (argument|field)/.test(l)) ?? lignes[0] ?? message
+  const lignes = message
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+  const nommante = lignes.find((l) => /Unknown (argument|field)/.test(l)) ?? lignes[0] ?? message
 
-  if (clientPerime) {
-    return (
-      '\n\n[développement] Le serveur tourne avec un client Prisma ANTÉRIEUR à la dernière ' +
-      'migration : il ignore des colonnes qui existent pourtant en base. Arrêtez-le et relancez ' +
-      '`npm run dev` — un rechargement à chaud ne suffit pas, `node_modules` n’étant pas ' +
-      `resurveillé.\n\nCause : ${premiereLigne}`
-    )
-  }
-
-  return `\n\n[développement] Cause : ${premiereLigne}`
+  return (
+    'Le serveur tourne avec un client Prisma ANTÉRIEUR à la dernière migration : il ignore des ' +
+    'colonnes qui existent pourtant en base. Arrêtez-le et relancez `npm run dev` — un ' +
+    "rechargement à chaud ne suffit pas, `node_modules` n'étant pas resurveillé.\n  " +
+    nommante
+  )
 }
 
 async function lireFichiers(donnees: FormData): Promise<FichierAValider[]> {
