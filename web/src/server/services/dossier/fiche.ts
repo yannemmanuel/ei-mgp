@@ -32,6 +32,25 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       attentes_declarant: true,
       caractere_repetitif: true,
       proposition_mesure_corrective: true,
+      categorie_autre_precision: true,
+      /*
+        Tout ce que la déclaration a collecté sur `dossiers`.
+
+        ⚠️ Ces colonnes existaient déjà pour la plupart, mais n'étaient ni chargées ni affichées :
+        la ville d'un riverain — obligatoire —, l'entreprise d'un sous-traitant, le poste. Le
+        formulaire les demandait, la base les gardait, et la fiche n'en montrait rien. Une
+        information qu'on exige d'un déclarant sans jamais la relire n'aurait pas dû être demandée.
+      */
+      entreprise: true,
+      poste: true,
+      poste_precision: true,
+      ville: true,
+      precision_localisation: true,
+      statut_plaignant: true,
+      statut_plaignant_precision: true,
+      declarant_est_victime: true,
+      poste_declarant: true,
+      poste_declarant_precision: true,
       synthese_resolution: true,
       motif_reouverture: true,
       motif_rejet: true,
@@ -42,6 +61,10 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       created_at: true,
       site_id: true,
       parcours: { select: { id: true, code: true, libelle: true } },
+      // Les deux rattachements, nommés. `directions` est celui des FAITS — c'est de lui que
+      // découle le site ; l'autre est celui du déclarant quand il n'est pas la personne concernée.
+      directions: { select: { libelle: true } },
+      directions_dossiers_direction_declarant_idTodirections: { select: { libelle: true } },
       categories: { select: { libelle: true } },
       niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },
       statuts_dossier: { select: { id: true, code: true, libelle_interne: true } },

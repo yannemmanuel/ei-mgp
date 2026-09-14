@@ -621,3 +621,30 @@ export function champsVisibles(config: ParcoursConfig, anonyme: boolean): Champ[
     return !c.identite || IDENTITE_CONSERVEE_EN_ANONYME.has(c.nom)
   })
 }
+
+/**
+ * Le libellé lisible d'une valeur stockée sous forme de code.
+ *
+ * `caractere_repetitif` vaut « premiere_fois » en base, `statut_plaignant` vaut « chef_coutumier ».
+ * La fiche affichait ces codes tels quels — lisibles pour qui a écrit le formulaire, obscurs pour
+ * qui traite un dossier six mois plus tard.
+ *
+ * ⚠️ La traduction est lue dans la MÊME configuration que celle qui a produit le formulaire : une
+ * table de correspondance séparée aurait divergé à la première option ajoutée, et l'écart se
+ * serait vu comme un code brut au milieu de libellés français.
+ *
+ * Rend la valeur INCHANGÉE quand aucune option ne correspond — un code inconnu doit rester
+ * visible, jamais devenir un tiret. Le cas se produit pour une option retirée de la
+ * configuration : les dossiers déjà déposés la portent encore.
+ */
+export function libelleValeur(
+  parcours: ParcoursCode,
+  nomChamp: string,
+  valeur: string | null
+): string | null {
+  if (valeur === null || valeur === '') return null
+
+  const champ = PARCOURS[parcours].champs.find((c) => c.nom === nomChamp)
+
+  return champ?.options?.find((o) => o.valeur === valeur)?.libelle ?? valeur
+}

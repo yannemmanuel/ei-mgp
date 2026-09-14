@@ -42,6 +42,8 @@ import {
   piecesJointesDossier,
 } from '@/server/services/dossier/fiche'
 import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
+import { libelleValeur } from '@/server/services/declaration/parcours-config'
+import type { ParcoursCode } from '@/server/authz'
 import { estEvenementIndesirable, suiviEi } from '@/server/services/dossier/suivi-ei'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { FilAriane } from '@/components/layout/fil-ariane'
@@ -216,8 +218,23 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
 
   // Le sommaire ne liste que les sections réellement présentes : proposer « Identité du
   // déclarant » sur un dossier anonyme mènerait à une ancre vide.
+  /*
+    Le rattachement n'est montré que s'il y a quelque chose à montrer.
+
+    ⚠️ Calculé UNE fois, et partagé par le sommaire et la section. Deux conditions écrites
+    séparément auraient fini par diverger, et l'entrée du sommaire aurait pointé vers une ancre
+    absente — un lien qui ne fait rien.
+  */
+  const aUnRattachement =
+    dossier.directions !== null ||
+    dossier.poste !== null ||
+    dossier.declarant_est_victime !== null ||
+    dossier.directions_dossiers_direction_declarant_idTodirections !== null ||
+    dossier.poste_declarant !== null
+
   const sections: SectionDossier[] = [
     { id: 'description', libelle: 'Description' },
+    ...(aUnRattachement ? [{ id: 'rattachement', libelle: 'Rattachement' }] : []),
     ...(dossier.declaration_identites ? [{ id: 'identite', libelle: 'Identité' }] : []),
     { id: 'pieces-jointes', libelle: 'Pièces jointes', nombre: pieces.length },
     { id: 'investigations', libelle: 'Investigations', nombre: investigationsVues.length },
@@ -335,7 +352,42 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                         'Date des faits',
                         dossier.date_survenance ? dateCourteFr(dossier.date_survenance) : null,
                       ],
-                      ['Caractère répétitif', dossier.caractere_repetitif],
+                      // ⚠️ Traduit, et non plus rendu brut : la colonne porte « premiere_fois ».
+                      [
+                        'Caractère répétitif',
+                        libelleValeur(
+                          dossier.parcours.code as ParcoursCode,
+                          'caractereRepetitif',
+                          dossier.caractere_repetitif
+                        ),
+                      ],
+                      ['Précision de la catégorie', dossier.categorie_autre_precision],
+                      ['Ville', dossier.ville],
+                      ['Précision de localisation', dossier.precision_localisation],
+                      /*
+                        L'entreprise et la qualité du plaignant ont CHANGÉ DE TABLE.
+
+                        Elles vivaient dans `declaration_identites`, où une déclaration anonyme ne
+                        crée aucune ligne : elles y étaient demandées puis perdues. Elles sont
+                        désormais sur `dossiers` — mais les déclarations antérieures les portent
+                        encore à l'ancien endroit. On lit donc les deux, la nouvelle d'abord.
+                      */
+                      [
+                        'Entreprise',
+                        dossier.entreprise ?? dossier.declaration_identites?.entreprise ?? null,
+                      ],
+                      [
+                        'Qualité du plaignant',
+                        libelleValeur(
+                          dossier.parcours.code as ParcoursCode,
+                          'statutPlaignant',
+                          dossier.statut_plaignant ??
+                            dossier.declaration_identites?.statut_plaignant ??
+                            null
+                        ),
+                      ],
+                      ['Précision de la qualité', dossier.statut_plaignant_precision],
+                      ['Solution souhaitée', dossier.proposition_mesure_corrective],
                       ['Attentes du déclarant', dossier.attentes_declarant],
                     ] as const
                   ).map(([libelle, valeur]) =>
@@ -350,6 +402,70 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               </CardContent>
             </Card>
           </section>
+
+          {/*
+            Qui a déclaré, et pour qui.
+
+            ⚠️ Rien ici n'est une donnée d'IDENTITÉ : ces champs vivent sur `dossiers` et sont
+            collectés même en anonymat. Une direction compte des centaines de personnes, et savoir
+            qu'un signalement émane d'un témoin plutôt que de la personne concernée oriente
+            l'instruction sans rien révéler de l'un ni de l'autre. Le bloc suivant, lui, porte
+            l'identité et n'est pas même chargé pour qui n'y a pas droit.
+          */}
+          {aUnRattachement && (
+            <section id="rattachement" className="scroll-mt-28">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-h3">Rattachement</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        /*
+                          Trois états, pas deux, et l'écart compte.
+
+                          `null` ne veut pas dire « non » : il désigne les déclarations antérieures
+                          à ce champ, à qui la question n'a jamais été posée. Les confondre ferait
+                          passer des dizaines de dossiers pour des signalements de tiers.
+                        */
+                        [
+                          'Le déclarant est la personne concernée',
+                          dossier.declarant_est_victime === null
+                            ? null
+                            : dossier.declarant_est_victime
+                              ? 'Oui'
+                              : 'Non',
+                        ],
+                        ['Direction de la victime', dossier.directions?.libelle ?? null],
+                        [
+                          'Poste de la victime',
+                          // « Autre » seul n'apprend rien : c'est la précision qu'il faut lire.
+                          dossier.poste_precision ?? dossier.poste,
+                        ],
+                        [
+                          'Direction du déclarant',
+                          dossier.directions_dossiers_direction_declarant_idTodirections?.libelle ??
+                            null,
+                        ],
+                        [
+                          'Poste du déclarant',
+                          dossier.poste_declarant_precision ?? dossier.poste_declarant,
+                        ],
+                      ] as const
+                    ).map(([libelle, valeur]) =>
+                      valeur ? (
+                        <div key={libelle}>
+                          <dt className="text-caption text-muted-foreground">{libelle}</dt>
+                          <dd className="text-sm text-secondary-800">{valeur}</dd>
+                        </div>
+                      ) : null
+                    )}
+                  </dl>
+                </CardContent>
+              </Card>
+            </section>
+          )}
 
           {/* RG-06 / acteurs.md : l'identité n'est même pas chargée pour un rôle qui n'y a pas
               droit — elle ne peut donc pas fuiter par un oubli d'affichage. */}
