@@ -125,6 +125,7 @@ export async function actionModifierStatut(
       libelleInterne: texte(donnees, 'libelleInterne'),
       libelleAffiche: texte(donnees, 'libelleAffiche'),
       ordre: entier(donnees, 'ordre', 1),
+      actif: coche(donnees, 'actif'),
     })
   } catch (erreur) {
     return { erreur: messageErreur(erreur) }

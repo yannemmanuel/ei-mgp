@@ -524,6 +524,7 @@ model statuts_dossier {
   ordre                                                                      Int                  @default(0) @db.SmallInt
   created_at                                                                 DateTime?            @db.Timestamp(0)
   updated_at                                                                 DateTime?            @db.Timestamp(0)
+  actif                                                                      Boolean              @default(true)
   dossiers                                                                   dossiers[]
   historique_statuts_historique_statuts_statut_precedent_idTostatuts_dossier historique_statuts[] @relation("historique_statuts_statut_precedent_idTostatuts_dossier")
   historique_statuts_historique_statuts_statut_suivant_idTostatuts_dossier   historique_statuts[] @relation("historique_statuts_statut_suivant_idTostatuts_dossier")

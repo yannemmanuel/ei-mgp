@@ -209,6 +209,8 @@ describe('Statuts et canaux — modification seule', () => {
         libelleInterne: statut.libelle_interne,
         libelleAffiche: 'Libellé de test',
         ordre: statut.ordre,
+        // Reconduit tel quel : ce cas porte sur le libellé, pas sur l'activation.
+        actif: statut.actif,
       })
 
       const apres = await prisma.statuts_dossier.findUniqueOrThrow({ where: { id: statut.id } })

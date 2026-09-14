@@ -28,8 +28,15 @@ export async function transitionsManuelles(statutActuel: StatutCode) {
 
   if (codes.length === 0) return []
 
+  /*
+    ⚠️ `actif: true` : un statut désactivé n'est plus PROPOSÉ comme destination.
+
+    C'est tout ce que la désactivation signifie, et c'est délibérément peu : les dossiers qui s'y
+    trouvent déjà y restent, l'affichent normalement, et continuent d'en sortir. On retire une
+    valeur du choix FUTUR sans réécrire le passé — exactement comme pour les autres référentiels.
+  */
   return prisma.statuts_dossier.findMany({
-    where: { code: { in: [...codes] } },
+    where: { code: { in: [...codes] }, actif: true },
     orderBy: { ordre: 'asc' },
     select: { id: true, code: true, libelle_interne: true },
   })

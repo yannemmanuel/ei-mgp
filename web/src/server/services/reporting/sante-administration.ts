@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { ROLE_NAMES, etapesSansActeur, type Role } from '@/server/authz'
 import { configurationSmtp } from '../notification/transport'
+import { STATUTS } from '../dossier/statuts'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
@@ -44,6 +45,7 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     rolesEnBase,
     associations,
     comptesActifs,
+    statutsEnBase,
   ] = await Promise.all([
     // Tant qu'un délai n'est pas validé, AUCUNE échéance n'est calculée pour cette étape : ni
     // relance à J-3, ni escalade. C'est le réglage le plus silencieusement bloquant du dispositif.
@@ -72,6 +74,9 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
       select: { role_id: true, model_id: true, roles: { select: { name: true, actif: true } } },
     }),
     prisma.users.findMany({ where: { actif: true }, select: { id: true } }),
+
+    // Les états que le workflow nomme, confrontés à ce que la base porte réellement.
+    prisma.statuts_dossier.findMany({ select: { code: true, actif: true } }),
   ])
 
   const actifs = new Set(comptesActifs.map((u) => u.id))
@@ -112,7 +117,33 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     (r) => (ROLE_NAMES as readonly string[]).includes(r.name) && !porteursParRole.has(r.id)
   ).length
 
+  /*
+    Un état du circuit ABSENT de la base.
+
+    Le plus coûteux des réglages manquants, et le plus muet. `creerDeclaration()` cherche
+    « recu » par son code à chaque dépôt : sans cette ligne, plus aucune déclaration ne peut
+    être enregistrée, et le déclarant ne lit qu'un « merci de réessayer ». Les autres états
+    immobilisent les dossiers qui devraient les atteindre.
+    
+    La suppression d'un statut est autorisée — décision métier — et n'est donc plus barrée en
+    amont. Elle est barrée en AVAL : ce contrôle nomme ce qui manque, et `npm run seed` le
+    restaure à l'identique depuis `referentiels.json`.
+  */
+  const codesEnBase = new Set(statutsEnBase.map((s) => s.code))
+  const etatsManquants = STATUTS.filter((code) => !codesEnBase.has(code))
+
   const alertes: AlerteAdministration[] = [
+    {
+      cle: 'statuts-manquants',
+      libelle: 'États du circuit absents de la base',
+      valeur: etatsManquants.length,
+      consequence:
+        etatsManquants.includes('recu')
+          ? 'Plus AUCUNE déclaration ne peut être enregistrée. « npm run seed » les restaure.'
+          : 'Les dossiers qui devraient les atteindre resteront bloqués. « npm run seed » les restaure.',
+      href: '/administration/statuts',
+      bloquant: true,
+    },
     {
       cle: 'delais',
       libelle: 'Délais non validés',

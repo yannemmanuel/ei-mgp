@@ -124,6 +124,15 @@ export type DonneesStatut = {
   libelleInterne: string
   libelleAffiche: string
   ordre: number
+  /**
+   * Faux = plus proposé comme destination d'une transition manuelle.
+   *
+   * ⚠️ Les dossiers qui s'y trouvent déjà y RESTENT et continuent d'en sortir : on retire une
+   * valeur du choix futur, on ne réécrit pas le passé. La création d'une déclaration ne consulte
+   * pas ce drapeau — « reçu » est attribué quoi qu'il arrive, le premier état d'un dossier
+   * n'étant pas un choix qu'on lui propose.
+   */
+  actif: boolean
 }
 
 export async function listerStatuts() {
@@ -148,6 +157,7 @@ export async function modifierStatut(
     libelle_interne: donnees.libelleInterne,
     libelle_affiche: donnees.libelleAffiche,
     ordre: donnees.ordre,
+    actif: donnees.actif,
   }
 
   await prisma.statuts_dossier.update({

@@ -1,20 +1,17 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { ErreurWorkflow } from '@/server/services/dossier/workflow'
+import { ErreurWorkflow, transitionsManuelles } from '@/server/services/dossier/workflow'
 import { STATUTS } from '@/server/services/dossier/statuts'
+import { santeAdministration } from '@/server/services/reporting/sante-administration'
+import { modifierStatut } from '../referentiels'
 import { supprimerStatut } from '../suppression'
 
 /**
- * La suppression d'un statut, et pourquoi elle refuse presque toujours.
+ * Supprimer et désactiver un statut.
  *
  * ⚠️ Un statut n'est pas une valeur de formulaire : c'est un ÉTAT du workflow, et le code le
- * nomme. `creerDeclaration()` cherche « recu » par son code à chaque dépôt ; `TRANSITIONS_AUTORISEES`
- * décrit qui mène à quoi. Supprimer une ligne que le code attend n'appauvrit pas un affichage —
- * elle empêche toute déclaration d'être créée, ou immobilise pour toujours les dossiers qui l'ont
- * atteinte.
- *
- * D'où une garde qui n'existe pour aucun autre référentiel : le GRAPHE, vérifié avant même les
- * citations.
+ * nomme. La suppression est autorisée — décision métier — mais le risque n'est pas nié : il est
+ * rendu VISIBLE, par un contrôle du tableau de bord qui signale tout état absent.
  */
 const crees: bigint[] = []
 
@@ -24,15 +21,15 @@ async function acteur() {
 }
 
 /**
- * ⚠️ FILET DE SÉCURITÉ : tout statut disparu pendant un cas est recréé à l'identique.
+ * ⚠️ FILET DE SÉCURITÉ : tout statut disparu ou désactivé pendant un cas est remis en état.
  *
- * Ce fichier vérifie des REFUS. Or un cas qui vérifie un refus EXÉCUTE l'action le jour où le
- * refus manque — c'est précisément ce jour-là qu'il ne doit rien coûter. Sans ce filet, une garde
- * cassée faisait effacer pour de bon les statuts qu'aucun dossier ne cite : constaté, « rejete »
- * a disparu de la base de travail et quatre autres fichiers de tests sont tombés avec.
+ * Ce fichier exerce une suppression réelle sur un référentiel dont l'absence casse l'application.
+ * Un cas qui se trompe, ou une garde qui manque, ne doit pas laisser la base de travail amputée —
+ * c'est arrivé une fois : « rejete » a disparu, et quatre autres fichiers de tests sont tombés
+ * avec.
  *
- * L'empreinte est prise AVANT chaque cas plutôt qu'une fois pour toutes : un cas peut légitimement
- * ajouter une ligne, et la restauration ne doit porter que sur ce qui existait.
+ * L'empreinte est prise avant CHAQUE cas : un cas peut légitimement ajouter une ligne, et la
+ * restauration ne doit porter que sur ce qui existait.
  */
 let empreinte: {
   id: bigint
@@ -41,6 +38,7 @@ let empreinte: {
   libelle_affiche: string
   is_terminal: boolean
   ordre: number
+  actif: boolean
 }[] = []
 
 beforeEach(async () => {
@@ -52,20 +50,31 @@ beforeEach(async () => {
       libelle_affiche: true,
       is_terminal: true,
       ordre: true,
+      actif: true,
     },
   })
 })
 
 afterEach(async () => {
-  const restants = new Set(
-    (await prisma.statuts_dossier.findMany({ select: { id: true } })).map((s) => String(s.id))
+  const restants = new Map(
+    (await prisma.statuts_dossier.findMany({ select: { id: true, actif: true } })).map((s) => [
+      String(s.id),
+      s.actif,
+    ])
   )
 
   for (const statut of empreinte) {
-    if (restants.has(String(statut.id))) continue
+    const actifCourant = restants.get(String(statut.id))
 
-    // Recréé avec son identifiant d'origine : les dossiers et l'historique y pointent par `id`.
-    await prisma.statuts_dossier.create({ data: statut })
+    if (actifCourant === undefined) {
+      // Recréé avec son identifiant d'origine : dossiers et historique y pointent par `id`.
+      await prisma.statuts_dossier.create({ data: statut })
+    } else if (actifCourant !== statut.actif) {
+      await prisma.statuts_dossier.update({
+        where: { id: statut.id },
+        data: { actif: statut.actif },
+      })
+    }
   }
 })
 
@@ -73,77 +82,37 @@ afterAll(async () => {
   await prisma.statuts_dossier.deleteMany({ where: { id: { in: crees } } })
 })
 
-describe('⚠️ Un état nommé par le workflow est intouchable', () => {
-  it('refuse CHACUN des dix statuts livrés', async () => {
-    /*
-      Tous, et pas seulement « recu ». Un seul manquant suffirait : le dossier qui l'aurait atteint
-      n'en sortirait jamais, sans erreur ni message — il resterait simplement là.
-    */
-    const moi = await acteur()
-
-    for (const code of STATUTS) {
-      const statut = await prisma.statuts_dossier.findFirst({ where: { code }, select: { id: true } })
-
-      expect(statut, `le statut « ${code} » est absent de la base`).not.toBeNull()
-
-      await expect(
-        supprimerStatut(moi, statut!.id),
-        `« ${code} » a pu être supprimé`
-      ).rejects.toThrow(ErreurWorkflow)
-    }
-  })
-
-  it('refuse MÊME un statut qu’aucun dossier n’a atteint', async () => {
-    /*
-      Le cas que la garde des citations ne couvre pas : le code attend un état que la base ne cite
-      pas encore. Compter les dossiers seul aurait laissé le supprimer, et la panne ne serait
-      apparue qu'au premier dossier qui l'aurait atteint.
-
-      ⚠️ CE CAS SE RÉPARE LUI-MÊME, et il le doit.
-
-      Il vise une vraie ligne — le code est unique, on ne peut pas en fabriquer un doublon. Lors
-      d'une injection de défaut, la garde désactivée, une première version a donc réellement
-      effacé « rejete » de la base de travail, et quatre autres fichiers sont tombés avec.
-
-      Un cas qui vérifie un REFUS exécute l'action le jour où le refus manque : c'est précisément
-      ce jour-là qu'il ne doit rien coûter. Il restaure donc ce qu'il aurait pu détruire, même
-      quand il échoue.
-    */
-    const avant = await prisma.statuts_dossier.findFirst({
-      where: { code: 'rejete' },
-      select: {
-        id: true,
-        code: true,
-        libelle_interne: true,
-        libelle_affiche: true,
-        is_terminal: true,
-        ordre: true,
-        _count: { select: { dossiers: true } },
-      },
+describe('La suppression refuse ce qui est cité', () => {
+  it('refuse un statut atteint par des dossiers', async () => {
+    const cite = await prisma.statuts_dossier.findFirst({
+      where: { dossiers: { some: {} } },
+      select: { id: true },
     })
 
-    if (!avant || avant._count.dossiers > 0) return // déjà cité : ce cas n'y ajouterait rien
+    if (!cite) return // aucun dossier : le cas ne prouverait rien
 
-    // La restauration est assurée par le filet `afterEach` ci-dessus, pour TOUS les cas.
-    await expect(supprimerStatut(await acteur(), avant.id)).rejects.toThrow(/circuit de traitement/)
+    await expect(supprimerStatut(await acteur(), cite.id)).rejects.toThrow(ErreurWorkflow)
+    expect(await prisma.statuts_dossier.findUnique({ where: { id: cite.id } })).not.toBeNull()
   })
 
-  it('dit ce qui reste possible plutôt que de s’arrêter à un refus', async () => {
-    // Renommer est ce que l'administrateur cherche neuf fois sur dix : les libellés interne et
-    // affiché sont modifiables, seul le CODE est figé.
-    const recu = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'recu' } })
+  it('renvoie vers la désactivation, en disant ce qu’elle fait', async () => {
+    // Un refus sans remède est une impasse. Et le remède doit dire ce qu'il change, sans quoi on
+    // le prend pour une suppression déguisée.
+    const cite = await prisma.statuts_dossier.findFirst({
+      where: { dossiers: { some: {} } },
+      select: { id: true },
+    })
 
-    await expect(supprimerStatut(await acteur(), recu.id)).rejects.toThrow(/libellé/)
+    if (!cite) return
+
+    await expect(supprimerStatut(await acteur(), cite.id)).rejects.toThrow(/[Dd]ésactivez/)
+    await expect(supprimerStatut(await acteur(), cite.id)).rejects.toThrow(/y resteront/)
   })
-})
 
-describe('Une ligne hors graphe s’efface, si rien ne la cite', () => {
-  it('supprime un statut ajouté à la main', async () => {
-    // Le seul cas où la suppression aboutit : une ligne que personne n'a prévue, et que rien
-    // n'utilise.
+  it('efface une ligne que rien ne cite', async () => {
     const orphelin = await prisma.statuts_dossier.create({
       data: {
-        code: `hors-graphe-${Date.now()}`,
+        code: `hors-circuit-${Date.now()}`,
         libelle_interne: 'Statut hors circuit',
         libelle_affiche: 'En cours',
         ordre: 99,
@@ -156,33 +125,106 @@ describe('Une ligne hors graphe s’efface, si rien ne la cite', () => {
 
     expect(await prisma.statuts_dossier.findUnique({ where: { id: orphelin.id } })).toBeNull()
   })
+})
 
-  it('⚠️ le refuse dès qu’un dossier l’a atteint', async () => {
-    const orphelin = await prisma.statuts_dossier.create({
-      data: {
-        code: `hors-graphe-cite-${Date.now()}`,
-        libelle_interne: 'Statut hors circuit cité',
-        libelle_affiche: 'En cours',
-        ordre: 98,
-      },
-      select: { id: true },
+describe('La désactivation retire du CHOIX, sans toucher au passé', () => {
+  it('retire le statut des transitions proposées', async () => {
+    /*
+      C'est tout ce que la désactivation signifie, et il fallait que ce soit vérifiable : sans cet
+      effet, la colonne `actif` n'aurait été qu'un drapeau que rien ne lit — la promesse d'une
+      protection inexistante.
+    */
+    const avant = await transitionsManuelles('recu')
+    expect(
+      avant.map((t) => t.code),
+      'rien n’est proposé depuis « reçu » : le cas ne prouverait rien'
+    ).toContain('affecte')
+
+    const affecte = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'affecte' } })
+
+    await modifierStatut(await acteur(), affecte.id, {
+      libelleInterne: affecte.libelle_interne,
+      libelleAffiche: affecte.libelle_affiche,
+      ordre: affecte.ordre,
+      actif: false,
     })
-    crees.push(orphelin.id)
 
-    const dossier = await prisma.dossiers.findFirst({ select: { id: true, statut_id: true } })
-    if (!dossier) return // base vide : le cas ne prouverait rien
+    const apres = await transitionsManuelles('recu')
+    expect(
+      apres.map((t) => t.code),
+      'le statut désactivé est encore proposé'
+    ).not.toContain('affecte')
+  })
 
-    await prisma.dossiers.update({ where: { id: dossier.id }, data: { statut_id: orphelin.id } })
+  it('⚠️ laisse en place les dossiers qui s’y trouvent déjà', async () => {
+    // On retire une valeur du choix FUTUR, on ne réécrit pas le passé. Un dossier déplacé ou vidé
+    // par une désactivation serait une perte silencieuse.
+    const statut = await prisma.statuts_dossier.findFirst({
+      where: { dossiers: { some: {} } },
+      select: { id: true, libelle_interne: true, libelle_affiche: true, ordre: true },
+    })
 
-    try {
-      await expect(supprimerStatut(await acteur(), orphelin.id)).rejects.toThrow(/dossier/)
-    } finally {
-      // ⚠️ Le dossier est remis dans son état d'origine quoi qu'il arrive : un test ne doit pas
-      // laisser une déclaration réelle dans un statut inventé.
-      await prisma.dossiers.update({
-        where: { id: dossier.id },
-        data: { statut_id: dossier.statut_id },
-      })
-    }
+    if (!statut) return
+
+    const avant = await prisma.dossiers.count({ where: { statut_id: statut.id } })
+
+    await modifierStatut(await acteur(), statut.id, {
+      libelleInterne: statut.libelle_interne,
+      libelleAffiche: statut.libelle_affiche,
+      ordre: statut.ordre,
+      actif: false,
+    })
+
+    expect(
+      await prisma.dossiers.count({ where: { statut_id: statut.id } }),
+      'des dossiers ont quitté le statut désactivé'
+    ).toBe(avant)
+  })
+})
+
+describe('⚠️ Un état absent du circuit est SIGNALÉ', () => {
+  it('ne signale rien quand les dix sont là', async () => {
+    const alerte = (await santeAdministration()).find((a) => a.cle === 'statuts-manquants')
+
+    expect(alerte, 'une alerte remonte alors que rien ne manque').toBeUndefined()
+  })
+
+  it('nomme la conséquence quand un état manque', async () => {
+    /*
+      Le contrepoids de la suppression autorisée. La garde du graphe a été retirée sur décision
+      métier ; le risque est donc rendu visible en AVAL plutôt que barré en amont — un dispositif
+      cassé qui s'annonce vaut mieux qu'un dispositif cassé qui se découvre au premier dépôt.
+
+      ⚠️ Le statut supprimé ici est recréé par le filet `afterEach`.
+    */
+    const rejete = await prisma.statuts_dossier.findFirst({
+      where: { code: 'rejete' },
+      select: { id: true, _count: { select: { dossiers: true } } },
+    })
+
+    if (!rejete || rejete._count.dossiers > 0) return // cité : on ne peut pas le supprimer
+
+    await supprimerStatut(await acteur(), rejete.id)
+
+    const alerte = (await santeAdministration()).find((a) => a.cle === 'statuts-manquants')
+
+    expect(alerte, 'un état manquant passe inaperçu').toBeDefined()
+    expect(alerte?.bloquant, 'présenté comme une simple négligence').toBe(true)
+    expect(alerte?.consequence, 'le geste de restauration n’est pas indiqué').toContain('seed')
+  })
+
+  it('distingue « reçu », dont l’absence arrête TOUTE déclaration', async () => {
+    // La conséquence n'est pas la même selon l'état : sans « reçu », plus rien ne peut être
+    // déposé. Le dire distinctement évite de chercher la panne ailleurs.
+    expect((STATUTS as readonly string[]).includes('recu')).toBe(true)
+
+    const recu = await prisma.statuts_dossier.findFirstOrThrow({
+      where: { code: 'recu' },
+      select: { id: true, _count: { select: { dossiers: true } } },
+    })
+
+    // Il est cité en pratique, donc protégé par la garde des citations : c'est ce qui rend le
+    // risque théorique sur cette base-ci, et réel sur une base neuve.
+    expect(recu._count.dossiers).toBeGreaterThan(0)
   })
 })
