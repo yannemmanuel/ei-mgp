@@ -8,6 +8,7 @@ import {
   enregistrerUtilisateur,
   regenererMotDePasse,
 } from '@/server/services/administration/utilisateurs'
+import { envoyerIdentifiants } from '@/server/services/administration/courriel-identifiants'
 
 /**
  * Console des comptes.
@@ -19,6 +20,14 @@ export type EtatCompte = {
   erreur?: string
   succes?: string
   motDePasseInitial?: string
+  /**
+   * Ce qu'il est advenu du courriel d'identifiants.
+   *
+   * ⚠️ Trois états, pas deux. « Non expédié » n'est pas « échec » : sans SMTP configuré, on
+   * s'abstient délibérément plutôt que de replier sur un transport qui recopierait le mot de
+   * passe dans les traces. Les confondre ferait chercher une panne là où il n'y en a pas.
+   */
+  courriel?: 'expedie' | 'sans_transport' | 'echec'
 }
 
 const REFUS = "Vous n'êtes pas autorisé à effectuer cette action."
@@ -79,12 +88,35 @@ export async function actionEnregistrerCompte(
 
     revalidatePath('/administration/utilisateurs')
 
-    return resultat.motDePasseInitial === null
-      ? { succes: 'Compte mis à jour.' }
-      : {
-          succes: 'Compte créé.',
-          motDePasseInitial: resultat.motDePasseInitial,
-        }
+    if (resultat.motDePasseInitial === null) {
+      return { succes: 'Compte mis à jour.' }
+    }
+
+    /*
+      Le courriel part APRÈS l'enregistrement, et son échec ne le remet pas en cause.
+
+      Le compte existe déjà quand on arrive ici. Laisser une panne SMTP ressortir en erreur
+      ferait croire à l'administrateur que la création a échoué : il recommencerait, se
+      heurterait au doublon d'adresse, et perdrait le mot de passe affiché au passage.
+
+      ⚠️ Le mot de passe reste montré à l'écran MÊME quand l'envoi réussit. Un courriel peut
+      être rejeté en silence par le serveur d'en face, ou atterrir dans les indésirables ; le
+      retirer de l'écran dès que le SMTP a dit « accepté » laisserait l'administrateur sans
+      recours, devant un compte inaccessible dont plus personne ne connaît le secret.
+    */
+    const envoi = await envoyerIdentifiants({
+      utilisateurId: resultat.utilisateurId,
+      acteurId: acteur.id,
+      nom,
+      email,
+      motDePasse: resultat.motDePasseInitial,
+    })
+
+    return {
+      succes: 'Compte créé.',
+      motDePasseInitial: resultat.motDePasseInitial,
+      courriel: envoi.etat,
+    }
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 

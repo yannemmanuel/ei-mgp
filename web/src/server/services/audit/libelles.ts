@@ -67,6 +67,7 @@ const VERBES: Record<string, string> = {
   envoyee: 'envoyée',
   export_nominatif: '— export avec les identités',
   gravite_qualifiee: '— gravité qualifiée',
+  identifiants_envoyes: '— identifiants envoyés par e-mail',
   identite_modifiee: 'renommé',
   modifie: 'modifié',
   modifiee: 'modifiée',

@@ -344,10 +344,33 @@ function FormulaireCompte({
             <AlertDescription>
               <p className="font-medium">Mot de passe initial : </p>
               <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
-              <p className="mt-2 text-caption">
-                Il n’est affiché qu’une fois et n’est stocké nulle part en clair. Transmettez-le
-                par un canal sûr ; la personne le changera à sa première connexion.
-              </p>
+
+              {/*
+                Ce que le courriel est devenu, dit sans ambiguïté.
+
+                ⚠️ Le mot de passe reste affiché dans les TROIS cas, y compris quand l'envoi a
+                réussi : un message accepté par le SMTP peut être rejeté plus loin ou finir dans
+                les indésirables. Le retirer de l'écran sur la foi d'un « accepté » laisserait
+                l'administrateur devant un compte inaccessible dont plus personne ne connaît le
+                secret — il n'est affiché qu'une fois.
+              */}
+              {etat.courriel === 'expedie' ? (
+                <p className="mt-2 text-caption">
+                  Ces identifiants viennent d’être envoyés par e-mail. Gardez cette valeur sous les
+                  yeux tant que la personne n’a pas confirmé l’avoir reçue : elle n’est affichée
+                  qu’une fois.
+                </p>
+              ) : etat.courriel === 'echec' ? (
+                <p className="mt-2 text-caption text-destructive">
+                  L’envoi par e-mail a échoué. Le compte, lui, est bien créé : transmettez ce mot de
+                  passe par un canal sûr.
+                </p>
+              ) : (
+                <p className="mt-2 text-caption">
+                  Il n’est affiché qu’une fois et n’est stocké nulle part en clair. Transmettez-le
+                  par un canal sûr ; la personne le changera à sa première connexion.
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         )}
