@@ -16,15 +16,15 @@ const RACINE = join(process.cwd(), 'src', 'app')
 
 const GARDES = ['exigerUtilisateur', 'exigerPermission']
 
-function fichiers(depuis: string, nom: string): string[] {
+function fichiers(depuis: string, correspond: (nom: string) => boolean): string[] {
   const trouves: string[] = []
 
   for (const entree of readdirSync(depuis)) {
     const chemin = join(depuis, entree)
 
     if (statSync(chemin).isDirectory()) {
-      trouves.push(...fichiers(chemin, nom))
-    } else if (entree === nom) {
+      trouves.push(...fichiers(chemin, correspond))
+    } else if (correspond(entree)) {
       trouves.push(chemin)
     }
   }
@@ -36,7 +36,7 @@ const relatif = (chemin: string) => chemin.slice(RACINE.length + 1).split('\\').
 
 describe('Chaque page du back-office revérifie', () => {
   it('appelle une garde serveur, sans exception', () => {
-    const pages = fichiers(join(RACINE, '(app)'), 'page.tsx')
+    const pages = fichiers(join(RACINE, '(app)'), (nom) => nom === 'page.tsx')
 
     expect(pages.length, 'aucune page trouvée : la lecture a échoué').toBeGreaterThan(10)
 
@@ -67,8 +67,26 @@ describe('Chaque Server Action revérifie', () => {
   }
 
   it('appelle une garde, ou figure dans la liste des entrées publiques', () => {
-    const modules = fichiers(RACINE, 'actions.ts').concat(fichiers(RACINE, 'messagerie-actions.ts'))
-    const gardesEtendues = [...GARDES, 'utilisateurCourant', 'acteurAutorise']
+    /*
+      ⚠️ TOUT fichier dont le nom se termine par `actions.ts`, et non deux noms énumérés.
+
+      La liste était `actions.ts` et `messagerie-actions.ts` : un module nommé
+      `suppressions-actions.ts` échappait donc au contrôle, avec ses sept Server Actions qui
+      effacent. Une énumération de noms de fichiers ne protège que ce qu'on a pensé à y mettre,
+      et personne ne pense à l'étendre en créant un fichier.
+    */
+    const modules = fichiers(RACINE, (nom) => nom === 'actions.ts' || nom.endsWith('-actions.ts'))
+
+    expect(modules.length, 'aucun module d’actions trouvé : la lecture a échoué').toBeGreaterThan(5)
+    /*
+      ⚠️ `acteurAutorise` a été RETIRÉ de cette liste, et c'est le point du cas.
+
+      C'est un HELPER LOCAL, pas une garde : un module pouvait le définir, le vider de sa
+      substance, et passer ici au seul motif que son nom apparaissait dans le source. Vérifié en
+      injectant le défaut — le cas restait vert. Seuls comptent désormais les appels qui lisent
+      réellement la session : `exigerUtilisateur`, `exigerPermission`, `utilisateurCourant`.
+    */
+    const gardesEtendues = [...GARDES, 'utilisateurCourant']
 
     for (const chemin of modules) {
       const source = readFileSync(chemin, 'utf8')
