@@ -91,18 +91,39 @@ export function EditeurHabilitations({
   domaines: DomaineVue[]
 }) {
   const [recherche, setRecherche] = useState('')
+  const [creation, setCreation] = useState(false)
+
+  /**
+   * Ordre ALPHABÉTIQUE, sur le libellé lisible.
+   *
+   * L'ordre venait de la base, c'est-à-dire de nulle part : chercher « Comité éthique » parmi
+   * vingt rôles revenait à tous les parcourir. `localeCompare` en français range les accents où
+   * on les attend — « Équipe » après « Employé », là où un tri brut le renverrait en fin de liste.
+   */
+  const tries = useMemo(
+    () => [...roles].sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr')),
+    [roles]
+  )
 
   const filtres = useMemo(() => {
     const terme = recherche.trim().toLowerCase()
-    if (terme === '') return roles
+    if (terme === '') return tries
 
-    return roles.filter(
+    return tries.filter(
       (r) => r.role.toLowerCase().includes(terme) || r.libelle.toLowerCase().includes(terme)
     )
-  }, [roles, recherche])
+  }, [tries, recherche])
+
+  /**
+   * Le rôle en cours d'édition, désigné par son slug.
+   *
+   * ⚠️ Le SLUG et non l'objet : la page se revalide à chaque enregistrement et rend des objets
+   * neufs. Garder l'ancien afficherait indéfiniment les valeurs d'avant la sauvegarde.
+   */
+  const [selection, setSelection] = useState<string | null>(null)
+  const choisi = filtres.find((r) => r.role === selection) ?? null
 
   const inactifs = roles.filter((r) => !r.actif).length
-  const [creation, setCreation] = useState(false)
 
   return (
     <div className="space-y-4">
@@ -132,21 +153,275 @@ export function EditeurHabilitations({
 
       {creation && <FormulaireCreation onFerme={() => setCreation(false)} />}
 
-      {filtres.length === 0 && (
-        <p className="text-sm text-muted-foreground">Aucun rôle ne correspond.</p>
-      )}
-
       {/*
-        Deux colonnes : quinze rôles empilés faisaient une page entière à parcourir avant d'en
-        atteindre un. La fiche ouverte reprend toute la largeur — on lit une liste à deux
-        colonnes, on édite sur une pleine largeur.
+        Maître à gauche, détail à droite.
+
+        Les fiches dépliantes obligeaient à replier l'une pour en ouvrir une autre, et la liste se
+        reconfigurait sous le curseur à chaque fois. Ici elle ne bouge JAMAIS : on passe d'un rôle
+        à l'autre sans perdre le repère de celui qu'on vient de quitter.
       */}
-      <div className="grid items-start gap-3 lg:grid-cols-2">
-        {filtres.map((role) => (
-          <FicheRole key={role.role} role={role} domaines={domaines} />
-        ))}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+        <ListeRoles roles={filtres} selection={selection} onSelectionner={setSelection} />
+
+        {choisi ? (
+          /*
+            `key` : le panneau est REMONTÉ quand on change de rôle.
+
+            Ses formulaires sont amorcés par `defaultValue` et `useState`, lus au seul montage.
+            Sans cette clé, passer d'un rôle à l'autre laisserait les champs du précédent — et
+            enregistrer écrirait les valeurs d'un rôle SUR un autre.
+          */
+          <PanneauRole key={choisi.role} role={choisi} domaines={domaines} />
+        ) : (
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground">
+              {filtres.length === 0
+                ? 'Aucun rôle ne correspond à votre recherche.'
+                : 'Choisissez un rôle à gauche pour voir et modifier ses droits.'}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
+  )
+}
+
+/**
+ * La liste des rôles, à gauche.
+ *
+ * Chaque ligne dit l'essentiel sans qu'on ait à l'ouvrir : le nom, combien de personnes le
+ * portent, et s'il est désactivé ou ajusté par rapport à sa référence. Le reste est à droite.
+ */
+function ListeRoles({
+  roles,
+  selection,
+  onSelectionner,
+}: {
+  roles: RoleVue[]
+  selection: string | null
+  onSelectionner: (role: string) => void
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <ul className="divide-y divide-border">
+        {roles.map((role) => {
+          const estChoisi = role.role === selection
+          const modifie = role.retirees.length > 0 || role.ajoutees.length > 0
+
+          return (
+            <li key={role.role}>
+              {/* Un vrai bouton : tabulation, entrée et espace fonctionnent sans qu'on ait à les
+                  réimplémenter, et `aria-current` annonce lequel est ouvert. */}
+              <button
+                type="button"
+                onClick={() => onSelectionner(role.role)}
+                aria-current={estChoisi ? 'true' : undefined}
+                className={`flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors ${
+                  estChoisi ? 'bg-primary/10' : 'hover:bg-muted/50'
+                }`}
+              >
+                <span className="flex w-full flex-wrap items-center gap-2">
+                  <span
+                    className={`min-w-0 flex-1 truncate text-sm font-medium ${
+                      role.actif ? 'text-secondary-900' : 'text-secondary-500'
+                    }`}
+                  >
+                    {role.libelle}
+                  </span>
+                  {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+                  {/* Le détail de l'ajustement tient dans l'infobulle : énumérer les droits
+                      ajoutés et retirés sur chaque ligne délignerait la liste. */}
+                  {modifie && (
+                    <span
+                      title={[
+                        role.ajoutees.length > 0
+                          ? `${role.ajoutees.length} droit(s) ajouté(s)`
+                          : null,
+                        role.retirees.length > 0
+                          ? `${role.retirees.length} droit(s) retiré(s)`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    >
+                      <EtiquetteStatut ton="attention">Ajusté</EtiquetteStatut>
+                    </span>
+                  )}
+                </span>
+
+                <span className="text-caption text-muted-foreground">
+                  {role.comptes === 0
+                    ? 'Personne'
+                    : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
+                  {' · '}
+                  {role.permissions.length} droit{role.permissions.length > 1 ? 's' : ''}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </Card>
+  )
+}
+
+/**
+ * Le rôle choisi : ce qu'il ouvre, ce qu'il permet, et comment l'éteindre.
+ *
+ * ⚠️ La DÉSACTIVATION est ici, en évidence, plutôt que dans un onglet. C'est le geste qu'on vient
+ * faire quand un rôle pose problème, et le chercher derrière un onglet nommé « Activation »
+ * supposait de deviner où il se trouvait. Sa confirmation, elle, reste : elle énonce combien de
+ * personnes perdent leurs droits d'un coup.
+ */
+function PanneauRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }) {
+  const [onglet, setOnglet] = useState<Onglet>('droits')
+
+  const detenues = new Set(role.permissions)
+
+  // Quels domaines ce rôle touche, et combien de droits dans chacun. Vingt étiquettes techniques
+  // côte à côte n'apprennent rien ; « Dossiers (5) » se lit d'un coup.
+  const resume = domaines
+    .map((d) => ({
+      titre: d.titre,
+      nombre: d.permissions.filter((p) => detenues.has(p.nom)).length,
+    }))
+    .filter((d) => d.nombre > 0)
+
+  return (
+    <Card className={role.actif ? undefined : 'border-dashed bg-muted/30'}>
+      <CardContent className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className={`text-h3 ${role.actif ? 'text-secondary-900' : 'text-secondary-500'}`}>
+                {role.libelle}
+              </p>
+              {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+              {!role.livre && <EtiquetteStatut ton="attention">Créé ici</EtiquetteStatut>}
+            </div>
+            <p className="mt-0.5 font-mono text-caption text-muted-foreground">{role.role}</p>
+            {role.description && (
+              <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
+            )}
+          </div>
+
+          <Badge variant={role.comptes === 0 ? 'secondary' : 'default'}>
+            {role.comptes === 0
+              ? 'Personne'
+              : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
+          </Badge>
+        </div>
+
+        {/*
+          CE QUE LE RÔLE OUVRE — la moitié invisible des habilitations.
+
+          Un rôle peut détenir « consulter les dossiers » et ne voir qu'un seul type de
+          déclaration : la permission est cochée, le cloisonnement par parcours la restreint, et
+          rien à l'écran ne le disait.
+        */}
+        <div className="mt-3 space-y-1">
+          {!role.actif ? (
+            <p className="text-sm text-secondary-600">
+              Ce rôle ne donne plus aucun droit.
+              {role.comptes > 0 && (
+                <>
+                  {' '}
+                  {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
+                </>
+              )}
+            </p>
+          ) : (
+            <>
+              {resume.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Ce rôle ne permet rien pour l’instant.
+                </p>
+              ) : (
+                <p className="text-sm text-secondary-700">
+                  {resume.map((d, index) => (
+                    <span key={d.titre}>
+                      {index > 0 && ' · '}
+                      {d.titre} <span className="text-muted-foreground">({d.nombre})</span>
+                    </span>
+                  ))}
+                </p>
+              )}
+
+              <p className="text-caption text-muted-foreground">
+                {role.parcours.length === 0
+                  ? 'N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.'
+                  : role.tousLesParcours
+                    ? 'Ouvre tous les types de déclaration.'
+                    : `Ouvre : ${role.parcours.join(' · ')}.`}
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Le geste d'extinction, à portée immédiate — il garde sa confirmation. */}
+        <div className="mt-4 border-t border-border pt-4">
+          <FormulaireActivation role={role} />
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <Onglets
+            actif={onglet}
+            onChange={setOnglet}
+            role={role.role}
+            onglets={[
+              { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
+              { cle: 'nom', libelle: 'Nom' },
+              ...(role.livre ? [] : [{ cle: 'activation' as const, libelle: 'Supprimer' }]),
+            ]}
+          />
+
+          <div className="mt-4">
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-droits`}
+              hidden={onglet !== 'droits'}
+            >
+              {/*
+                `key` : remonté quand les permissions ENREGISTRÉES changent. Les cases sont
+                amorcées depuis `role.permissions` par un `useState`, lu au seul montage — un
+                enregistrement mené ailleurs, ou qui n'a pas abouti, laisserait sinon l'écran
+                montrer autre chose que ce que la base contient. Des cases cochées mais NON
+                soumises survivent, elles, à un enregistrement voisin.
+              */}
+              <FormulairePermissions
+                key={role.permissions.join(' ')}
+                role={role}
+                domaines={domaines}
+                onAnnuler={() => setOnglet('droits')}
+              />
+            </div>
+
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-nom`}
+              hidden={onglet !== 'nom'}
+            >
+              {/*
+                `key` : remonté quand les valeurs ENREGISTRÉES changent. Le serveur élague les
+                espaces et ramène une description vide à `null` ; sans remontage, `defaultValue`
+                n'est plus relu et le champ cesse de montrer ce qui est enregistré.
+              */}
+              <FormulaireIdentite key={`${role.libelle}|${role.description ?? ''}`} role={role} />
+            </div>
+
+            {!role.livre && (
+              <div
+                role="tabpanel"
+                aria-labelledby={`onglet-${role.role}-activation`}
+                hidden={onglet !== 'activation'}
+              >
+                <FormulaireSuppression role={role} />
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -218,164 +493,6 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
             </span>
           </div>
         </form>
-      </CardContent>
-    </Card>
-  )
-}
-
-function FicheRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }) {
-  const [ouvert, setOuvert] = useState(false)
-  const [onglet, setOnglet] = useState<Onglet>('droits')
-
-  const detenues = new Set(role.permissions)
-  const modifie = role.retirees.length > 0 || role.ajoutees.length > 0
-
-  // Résumé : quels domaines ce rôle touche, et combien de droits dans chacun. Vingt étiquettes
-  // techniques les unes à côté des autres n'apprennent rien ; « Dossiers (5) » se lit d'un coup.
-  const resume = domaines
-    .map((d) => ({
-      titre: d.titre,
-      nombre: d.permissions.filter((p) => detenues.has(p.nom)).length,
-    }))
-    .filter((d) => d.nombre > 0)
-
-  return (
-    <Card
-      className={`${role.actif ? '' : 'border-dashed bg-muted/30'} ${ouvert ? 'lg:col-span-2' : ''}`}
-    >
-      <CardContent className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className={`text-h3 ${role.actif ? 'text-secondary-900' : 'text-secondary-500'}`}>
-                {role.libelle}
-              </p>
-              {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
-              {!role.livre && <EtiquetteStatut ton="attention">Créé ici</EtiquetteStatut>}
-            </div>
-            {role.description && (
-              <p className="mt-1 line-clamp-2 max-w-2xl text-sm text-secondary-600">
-                {role.description}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={role.comptes === 0 ? 'secondary' : 'default'}>
-              {role.comptes === 0
-                ? 'Personne'
-                : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
-            </Badge>
-            {/* Le détail de l'ajustement tenait sur une ligne de plus, sur chacune des quinze
-                fiches. Il rejoint l'infobulle de l'étiquette qui l'annonce déjà. */}
-            {modifie && (
-              <Badge
-                variant="destructive"
-                title={[
-                  role.ajoutees.length > 0 ? `${role.ajoutees.length} droit(s) ajouté(s)` : null,
-                  role.retirees.length > 0 ? `${role.retirees.length} droit(s) retiré(s)` : null,
-                ]
-                  .filter(Boolean)
-                  .join(', ')}
-              >
-                Ajusté
-              </Badge>
-            )}
-            <Button size="sm" variant="outline" onClick={() => setOuvert((v) => !v)}>
-              {ouvert ? 'Replier' : 'Modifier'}
-            </Button>
-          </div>
-        </div>
-
-        {!ouvert && (
-          <div className="mt-3 space-y-1">
-            {!role.actif ? (
-              <p className="text-sm text-secondary-600">
-                Ce rôle ne donne plus aucun droit.
-                {role.comptes > 0 && (
-                  <>
-                    {' '}
-                    {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
-                  </>
-                )}
-              </p>
-            ) : resume.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Ce rôle ne permet rien pour l’instant.</p>
-            ) : (
-              <p className="text-sm text-secondary-700">
-                {resume.map((d, index) => (
-                  <span key={d.titre}>
-                    {index > 0 && ' · '}
-                    {d.titre} <span className="text-muted-foreground">({d.nombre})</span>
-                  </span>
-                ))}
-              </p>
-            )}
-
-            {/*
-              CE QUE LE RÔLE OUVRE, toujours affiché — c'est la moitié invisible des habilitations.
-
-              Un rôle peut détenir « consulter les dossiers » et ne voir qu'un seul type de
-              déclaration : la permission est cochée, le cloisonnement par parcours la restreint,
-              et rien à l'écran ne le disait. On lisait donc la liste des droits sans pouvoir
-              savoir sur QUOI ils portent.
-            */}
-            {role.actif && (
-              <p className="text-caption text-muted-foreground">
-                {role.parcours.length === 0
-                  ? 'N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.'
-                  : role.tousLesParcours
-                    ? 'Ouvre tous les types de déclaration.'
-                    : `Ouvre : ${role.parcours.join(' · ')}.`}
-              </p>
-            )}
-          </div>
-        )}
-
-        {ouvert && (
-          <div className="mt-4 border-t border-border pt-4">
-            <Onglets
-              actif={onglet}
-              onChange={setOnglet}
-              role={role.role}
-              onglets={[
-                { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
-                { cle: 'nom', libelle: 'Nom' },
-                { cle: 'activation', libelle: role.actif ? 'Désactiver' : 'Réactiver' },
-              ]}
-            />
-
-            <div className="mt-4">
-              <div
-                role="tabpanel"
-                aria-labelledby={`onglet-${role.role}-droits`}
-                hidden={onglet !== 'droits'}
-              >
-                <FormulairePermissions
-                  role={role}
-                  domaines={domaines}
-                  onAnnuler={() => setOuvert(false)}
-                />
-              </div>
-              <div
-                role="tabpanel"
-                aria-labelledby={`onglet-${role.role}-nom`}
-                hidden={onglet !== 'nom'}
-              >
-                <FormulaireIdentite role={role} />
-              </div>
-              <div
-                role="tabpanel"
-                aria-labelledby={`onglet-${role.role}-activation`}
-                hidden={onglet !== 'activation'}
-                className="space-y-4"
-              >
-                <FormulaireActivation role={role} />
-                {!role.livre && <FormulaireSuppression role={role} />}
-              </div>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   )

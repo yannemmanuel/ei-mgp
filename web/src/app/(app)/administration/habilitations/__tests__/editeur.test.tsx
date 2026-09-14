@@ -65,8 +65,14 @@ const champNom = () => screen.getByLabelText(/Nom affiché/i) as HTMLInputElemen
 const champDescription = () => screen.getByLabelText(/Description/i) as HTMLInputElement
 
 describe('Le formulaire d’identité montre ce qui est enregistré', () => {
+  /**
+   * Choisit le rôle dans la liste de GAUCHE, puis ouvre son onglet « Nom ».
+   *
+   * L'écran était fait de fiches dépliantes ouvertes par un bouton « Modifier » ; il est
+   * désormais en maître-détail. Le geste change, l'invariant vérifié ci-dessous non.
+   */
   async function ouvrirOngletNom(utilisateur: ReturnType<typeof userEvent.setup>) {
-    await utilisateur.click(screen.getByRole('button', { name: 'Modifier' }))
+    await utilisateur.click(screen.getByRole('button', { name: /Agent/ }))
     await utilisateur.click(screen.getByRole('tab', { name: 'Nom' }))
   }
 

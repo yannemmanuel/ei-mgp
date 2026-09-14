@@ -101,7 +101,78 @@ function afficher(roles: RoleVue[] = [ROLE]) {
   return userEvent.setup()
 }
 
+/**
+ * Ouvre un rôle en le choisissant dans la liste de GAUCHE.
+ *
+ * L'écran était fait de fiches dépliantes, qu'on ouvrait par un bouton « Modifier » ; il est
+ * désormais en maître-détail. Le geste change, la garantie non : les cases à cocher n'existent
+ * qu'une fois un rôle choisi.
+ */
+async function ouvrir(clavier: ReturnType<typeof userEvent.setup>, libelle = 'Secrétaire CSST') {
+  await clavier.click(screen.getByRole('button', { name: new RegExp(libelle) }))
+}
+
 afterEach(cleanup)
+
+describe('La disposition : rôles à gauche, droits à droite', () => {
+  it('range les rôles par ORDRE ALPHABÉTIQUE', () => {
+    /*
+      L'ordre venait de la base, c'est-à-dire de nulle part : chercher un rôle parmi vingt
+      revenait à tous les parcourir. Les trois libellés ci-dessous sont fournis à CONTRE-SENS de
+      l'alphabet — si le classement suivait encore l'ordre reçu, « Zoologiste » sortirait premier.
+    */
+    const r = (role: string, libelle: string): RoleVue => ({ ...ROLE, role, libelle })
+
+    afficher([r('z', 'Zoologiste'), r('e', 'Équipe d’astreinte'), r('a', 'Auditeur')])
+
+    const liste = screen
+      .getAllByRole('button')
+      .map((b) => b.textContent ?? '')
+      .filter((t) => /Zoologiste|Équipe|Auditeur/.test(t))
+
+    // « Équipe » après « Auditeur » et avant « Zoologiste » : `localeCompare` en français range
+    // l'accent où on l'attend, là où un tri brut renverrait le « É » en fin de liste.
+    expect(liste.map((t) => t.split(' · ')[0].replace(/\d.*/, '').trim())).toEqual([
+      'Auditeur',
+      'Équipe d’astreinte',
+      'Zoologiste',
+    ])
+  })
+
+  it('⚠️ offre la désactivation SANS ouvrir d’onglet', async () => {
+    /*
+      C'est le geste qu'on vient faire quand un rôle pose problème. Il vivait derrière un onglet
+      nommé « Désactiver », ce qui supposait de deviner où le chercher ; il est désormais en
+      évidence dès le rôle choisi.
+
+      ⚠️ Sa CONFIRMATION reste : « Désactiver… » arme, un second bouton valide. Retirer les droits
+      de plusieurs personnes d'un seul clic serait trop léger pour ce que le geste fait.
+    */
+    const clavier = afficher([ROLE])
+    await ouvrir(clavier)
+
+    const bouton = screen.getByRole('button', { name: 'Désactiver…' })
+    expect(bouton).toBeDefined()
+
+    await clavier.click(bouton)
+
+    // ⚠️ Le bouton de confirmation, et non le décompte : « 2 personnes » figure aussi dans la
+    // liste et dans l'en-tête du panneau. Ce qu'on vérifie est qu'un SECOND geste est exigé.
+    expect(
+      screen.getByRole('button', { name: /Confirmer la désactivation/ }),
+      'la désactivation part au premier clic'
+    ).toBeDefined()
+  })
+
+  it('ne montre aucun droit tant qu’aucun rôle n’est choisi', () => {
+    // La liste de gauche seule : le panneau de droite invite à choisir plutôt que d'afficher un
+    // formulaire sans sujet.
+    afficher([ROLE])
+
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.getByText(/Choisissez un rôle/)).toBeDefined()
+  })
+})
 
 describe('Ce que l’écran montre au repos', () => {
   it('n’affiche aucune case à cocher tant qu’aucun rôle n’est ouvert', () => {
@@ -113,7 +184,7 @@ describe('Ce que l’écran montre au repos', () => {
 
   it('ouvre les droits d’abord, et un seul formulaire à la fois', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
 
     // L'onglet des droits est celui qui est actif à l'ouverture.
     expect(screen.getByRole('tab', { name: /Droits/ }).getAttribute('aria-selected')).toBe('true')
@@ -127,8 +198,10 @@ describe('Ce que l’écran montre au repos', () => {
 
 describe('Navigation au clavier', () => {
   it('passe d’un onglet à l’autre aux flèches, comme le rôle « tablist » l’annonce', async () => {
-    const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    // ⚠️ Un rôle CRÉÉ ICI : lui seul porte trois onglets. Un rôle livré n'en a que deux, et
+    // `{End}` ne prouverait alors rien de plus que `{ArrowRight}`.
+    const clavier = afficher([ROLE_CREE])
+    await ouvrir(clavier, 'Gestionnaire des supports')
 
     const droits = screen.getByRole('tab', { name: /Droits/ })
     droits.focus()
@@ -138,7 +211,7 @@ describe('Navigation au clavier', () => {
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Nom' }))
 
     await clavier.keyboard('{End}')
-    expect(screen.getByRole('tab', { name: 'Désactiver' }).getAttribute('aria-selected')).toBe(
+    expect(screen.getByRole('tab', { name: 'Supprimer' }).getAttribute('aria-selected')).toBe(
       'true'
     )
   })
@@ -152,7 +225,7 @@ describe('Trouver un droit précis', () => {
       était qu'on s'y perdait.
     */
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
 
     expect(screen.getByLabelText(/Voir les dossiers/)).toBeDefined()
     expect(screen.getByLabelText(/Gérer les comptes/), 'un droit non détenu reste caché').toBeDefined()
@@ -160,7 +233,7 @@ describe('Trouver un droit précis', () => {
 
   it('filtre les droits sur la recherche, tous domaines confondus', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
     await clavier.type(screen.getByLabelText('Chercher un droit'), 'comptes')
 
     expect(screen.getByLabelText(/Gérer les comptes/)).toBeDefined()
@@ -169,7 +242,7 @@ describe('Trouver un droit précis', () => {
 
   it('cherche aussi dans l’explication, pas seulement dans le nom', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
     await clavier.type(screen.getByLabelText('Chercher un droit'), 'Fermer un dossier')
 
     expect(screen.getByLabelText(/Clôturer un dossier/)).toBeDefined()
@@ -178,7 +251,7 @@ describe('Trouver un droit précis', () => {
   it('garde le compte du domaine ENTIER pendant une recherche', async () => {
     // « 2/9 » qui deviendrait « 1/1 » ferait croire à des droits perdus.
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
 
     const avant = screen.getByRole('button', { name: /Dossiers/ }).textContent
     await clavier.type(screen.getByLabelText('Chercher un droit'), 'clôturer')
@@ -188,7 +261,7 @@ describe('Trouver un droit précis', () => {
 
   it('le dit quand rien ne correspond', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
     await clavier.type(screen.getByLabelText('Chercher un droit'), 'marmotte')
 
     expect(screen.getByText(/Aucun droit ne correspond/)).toBeDefined()
@@ -198,7 +271,7 @@ describe('Trouver un droit précis', () => {
 describe('Ce qu’un onglet ne doit pas faire disparaître', () => {
   it('conserve les cases cochées quand on passe à l’onglet du nom et qu’on revient', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
 
     // On coche un droit que le rôle n'avait pas.
     const clore = screen.getByLabelText(/Clôturer un dossier/) as HTMLInputElement
@@ -217,7 +290,7 @@ describe('Ce qu’un onglet ne doit pas faire disparaître', () => {
 
   it('soumet bien le droit ajouté, et pas seulement à l’écran', async () => {
     const clavier = afficher()
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
+    await ouvrir(clavier)
     await clavier.click(screen.getByLabelText(/Clôturer un dossier/))
     await clavier.click(screen.getByRole('tab', { name: 'Nom' }))
 
@@ -244,18 +317,19 @@ describe('Créer et supprimer un rôle', () => {
     // Le code s'y réfère par son nom : la désactivation est la seule opération de retrait.
     const clavier = afficher([ROLE])
 
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+    await ouvrir(clavier)
 
+    // ⚠️ La désactivation n'est plus dans un onglet : elle est en évidence, toujours visible.
     expect(screen.getByRole('button', { name: 'Désactiver…' })).toBeDefined()
+    expect(screen.queryByRole('tab', { name: 'Supprimer' })).toBeNull()
     expect(screen.queryByText('Supprimer ce rôle')).toBeNull()
   })
 
   it('propose la suppression d’un rôle créé ici', async () => {
     const clavier = afficher([ROLE_CREE])
 
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+    await ouvrir(clavier, 'Gestionnaire des supports')
+    await clavier.click(screen.getByRole('tab', { name: 'Supprimer' }))
 
     expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Supprimer…' })).toBeDefined()
@@ -267,16 +341,18 @@ describe('Créer et supprimer un rôle', () => {
     const rattache = { ...ROLE_CREE, rattachements: 3 }
     const clavier = afficher([rattache])
 
-    await clavier.click(screen.getByRole('button', { name: 'Modifier' }))
-    await clavier.click(screen.getByRole('tab', { name: 'Désactiver' }))
+    await ouvrir(clavier, 'Gestionnaire des supports')
+    await clavier.click(screen.getByRole('tab', { name: 'Supprimer' }))
 
     expect(screen.getByText('Supprimer ce rôle')).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Supprimer…' })).toBeNull()
     expect(screen.getByText(/3 compte\(s\) portent encore/)).toBeDefined()
   })
 
-  it('signale un rôle qui n’ouvre aucun dossier', () => {
-    afficher([ROLE_CREE])
+  it('signale un rôle qui n’ouvre aucun dossier', async () => {
+    // Le détail vit à droite : il faut avoir choisi le rôle pour le lire.
+    const clavier = afficher([ROLE_CREE])
+    await ouvrir(clavier, 'Gestionnaire des supports')
 
     expect(screen.getByText('Créé ici')).toBeDefined()
     expect(screen.getByText(/N’ouvre aucun dossier/)).toBeDefined()
