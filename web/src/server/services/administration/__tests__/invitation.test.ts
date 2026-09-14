@@ -212,3 +212,31 @@ describe('Les règles du mot de passe sont celles de partout ailleurs', () => {
     expect((await verifierInvitation(jeton)).etat).toBe('valide')
   })
 })
+
+describe('Réattribuer un mot de passe ferme le lien', () => {
+  it('⚠️ expire l’invitation en attente', async () => {
+    /*
+      Sans cela, le compte aurait DEUX portes : le mot de passe que l'administrateur vient de
+      lire, et un lien encore valable qui traîne dans une boîte de réception.
+
+      Le cas se produit à chaque échec d'envoi : la création bascule alors sur un mot de passe, et
+      l'invitation émise juste avant — qui n'a atteint personne — doit cesser de valoir.
+    */
+    const { regenererMotDePasse } = await import('../utilisateurs')
+
+    const id = await compteSansMotDePasse()
+    const jeton = await creerInvitation(id)
+
+    expect((await verifierInvitation(jeton)).etat, 'le lien n’est pas valide au départ').toBe('valide')
+
+    const acteur = await prisma.users.findFirstOrThrow({
+      where: { actif: true, NOT: { id } },
+      select: { id: true },
+    })
+    await regenererMotDePasse({ id: acteur.id }, id)
+
+    expect((await verifierInvitation(jeton)).etat, 'le lien survit au nouveau mot de passe').toBe(
+      'expire'
+    )
+  })
+})

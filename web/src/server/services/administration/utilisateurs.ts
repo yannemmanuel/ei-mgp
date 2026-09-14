@@ -420,6 +420,24 @@ export async function regenererMotDePasse(
   }
 
   const motDePasse = motDePasseInitial()
+  const maintenant = new Date()
+
+  /*
+    ⚠️ Toute invitation en attente est COUPÉE.
+
+    Sans cela, le compte aurait DEUX portes : ce mot de passe, et un lien de première connexion
+    encore valable qui traîne dans une boîte de réception. Or on n'attribue un nouveau mot de
+    passe que lorsque l'autre voie a échoué ou que l'accès est perdu — dans les deux cas, le lien
+    doit cesser de valoir.
+
+    Une seconde en arrière, et non « maintenant » : `expire_le` est un `TIMESTAMP(0)`, que
+    Postgres arrondit à la seconde la plus proche. Écrire l'instant courant pouvait le ranger
+    une demi-seconde dans le FUTUR, laissant le lien valide juste un peu trop longtemps.
+  */
+  await prisma.invitations_connexion.updateMany({
+    where: { user_id: utilisateurId, utilise_le: null, expire_le: { gt: maintenant } },
+    data: { expire_le: new Date(maintenant.getTime() - 1000), updated_at: maintenant },
+  })
 
   await prisma.users.update({
     where: { id: utilisateurId },
@@ -428,7 +446,7 @@ export async function regenererMotDePasse(
       // La valeur est connue de l'administrateur qui vient de la lire : elle n'est provisoire que
       // si son porteur est tenu de la remplacer.
       doit_changer_mot_de_passe: true,
-      updated_at: new Date(),
+      updated_at: maintenant,
     },
   })
 

@@ -16,7 +16,8 @@
     "sauvegarde": "node scripts/sauvegarde.mjs",
     "migrer-pieces-jointes": "node scripts/migrer-pieces-jointes.mjs",
     "seed": "tsx prisma/seed.mts",
-    "exporter-referentiels": "node scripts/exporter-referentiels.mjs"
+    "exporter-referentiels": "node scripts/exporter-referentiels.mjs",
+    "tester-email": "node scripts/tester-email.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

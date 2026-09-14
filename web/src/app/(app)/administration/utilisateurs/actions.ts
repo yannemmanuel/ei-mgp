@@ -135,10 +135,16 @@ export async function actionEnregistrerCompte(
       l'administrateur que la création a échoué : il recommencerait et se heurterait au doublon
       d'adresse.
 
-      ⚠️ En cas d'échec, le compte reste SANS mot de passe — donc inaccessible. Ce n'est pas une
-      impasse : l'administrateur lui en réattribue un depuis la fiche, ce que l'écran lui dit.
-      Fabriquer ici un mot de passe de secours l'aurait affiché alors qu'un lien valable circule
-      peut-être déjà, ouvrant deux portes là où le procédé n'en veut qu'une.
+      ⚠️ EN CAS D'ÉCHEC, on bascule sur un mot de passe, immédiatement.
+
+      Le compte naîtrait sinon sans mot de passe ET sans lien reçu : inaccessible, et il faudrait
+      s'en apercevoir. Le cas n'a rien de théorique — il suffit d'un hôte mal orthographié dans
+      la configuration pour que chaque création produise un compte mort-né.
+
+      Deux portes ? Non : un envoi en ÉCHEC n'a atteint personne. Le lien existe en base mais
+      n'est arrivé nulle part, et `regenererMotDePasse()` l'expire au passage. C'est la
+      différence avec un envoi ACCEPTÉ puis perdu — là, le lien circule peut-être, et fabriquer
+      un second accès en ouvrirait réellement deux.
     */
     const jeton = await creerInvitation(resultat.utilisateurId)
 
@@ -149,6 +155,20 @@ export async function actionEnregistrerCompte(
       email,
       jeton,
     })
+
+    if (envoi.etat === 'echec') {
+      const secours = await regenererMotDePasse(acteur, resultat.utilisateurId)
+
+      return {
+        succes: 'Compte créé.',
+        motDePasseInitial: secours,
+        // `parInvitation` reste VRAI : c'est ce qui déclenche la bannière expliquant que l'envoi
+        // a échoué. Sans elle, l'écran montrerait un mot de passe sans dire pourquoi, alors qu'un
+        // lien était attendu.
+        parInvitation: true,
+        courriel: 'echec',
+      }
+    }
 
     return { succes: 'Compte créé.', parInvitation: true, courriel: envoi.etat }
   } catch (erreur) {

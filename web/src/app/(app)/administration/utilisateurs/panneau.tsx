@@ -365,9 +365,9 @@ function FormulaireCompte({
                 <>
                   <p className="font-medium">L’envoi du lien a échoué.</p>
                   <p className="mt-1 text-caption">
-                    Le compte est bien créé, mais il n’a aucun mot de passe : personne ne peut s’y
-                    connecter pour l’instant. Ouvrez sa fiche et attribuez-lui un mot de passe, que
-                    vous lui remettrez en main propre.
+                    Le compte est bien créé, et un mot de passe lui a été attribué d’office
+                    ci-dessous : transmettez-le par un canal sûr. Vérifiez la configuration de la
+                    messagerie avec <code>npm run tester-email</code>.
                   </p>
                 </>
               )}
@@ -381,12 +381,25 @@ function FormulaireCompte({
               <p className="font-medium">Mot de passe initial : </p>
               <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
 
-              <p className="mt-2 text-caption text-amber-700">
-                <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
-                n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
-                <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
-                passe par un canal sûr ; la personne le changera à sa première connexion.
-              </p>
+              {/*
+                Le motif est dit UNE fois, et au bon endroit.
+
+                Sur échec d'envoi, la bannière au-dessus l'explique déjà : répéter ici « aucun
+                e-mail n'a été envoyé » ferait lire deux diagnostics différents pour un seul
+                incident. Le message ci-dessous ne vaut donc que pour l'absence de messagerie.
+              */}
+              {etat.courriel === 'echec' ? (
+                <p className="mt-2 text-caption">
+                  À remettre en main propre. La personne le changera à sa première connexion.
+                </p>
+              ) : (
+                <p className="mt-2 text-caption text-amber-700">
+                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
+                  n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
+                  <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
+                  passe par un canal sûr ; la personne le changera à sa première connexion.
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         )}
