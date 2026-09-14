@@ -33,6 +33,32 @@ describe('Les deux rattachements sont distincts, et le disent', () => {
     }
   })
 
+  it('nomme explicitement DE QUI parle chaque rattachement', () => {
+    /*
+      Les quatre libellés sont figés ici parce qu'ils sont la seule chose qui distingue les deux
+      rattachements à l'écran. « Poste » tout court, ou « Votre poste » en face de « Poste de la
+      personne concernée », laissaient le remplissage au jugement de chacun.
+
+      ⚠️ « Victime » est le mot du métier, alors que la case parle de « personne concernée ».
+      L'écart est assumé : le second couvre l'évènement indésirable sans victime — un
+      presque-accident — où le premier serait impropre.
+    */
+    const attendus: Record<string, string> = {
+      directionId: 'Direction de la victime',
+      posteOccupe: 'Poste de la victime',
+      directionDeclarant: 'Direction du déclarant',
+      posteDeclarant: 'Poste du déclarant',
+    }
+
+    for (const code of SALARIES) {
+      for (const [nom, libelle] of Object.entries(attendus)) {
+        const champ = PARCOURS[code].champs.find((c) => c.nom === nom)
+
+        expect(champ?.libelle, `${code}/${nom}`).toBe(libelle)
+      }
+    }
+  })
+
   it('⚠️ ne porte JAMAIS le même libellé que celui de la personne concernée', () => {
     // La demande tient en un mot : faire la différence. Deux champs homonymes dans un même
     // formulaire se remplissent au hasard.

@@ -86,7 +86,7 @@ async function envoyer(utilisateur: ReturnType<typeof userEvent.setup>) {
 /** Les étapes 1 à 3 remplies, curseur posé à l'étape 3, prêt à la quitter. */
 async function remplirJusquAEtape3(utilisateur: ReturnType<typeof userEvent.setup>) {
   await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-  await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+  await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
   await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -107,7 +107,7 @@ describe('Progression entre les étapes', () => {
     // Étape 1 — l'anonymat retire les champs d'identité. La direction, elle, reste demandée :
     // elle porte le rattachement au site, pas l'identité du déclarant.
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Étape 2
@@ -134,7 +134,7 @@ describe('Progression entre les étapes', () => {
     const { utilisateur } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
 
@@ -149,7 +149,7 @@ describe('Progression entre les étapes', () => {
     const { utilisateur, soumissions } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -184,7 +184,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
     const { utilisateur } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -207,7 +207,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
     const { utilisateur } = afficher()
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -232,7 +232,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     expect(visible(screen.getByLabelText(/Matricule/i))).toBe(true)
 
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Le matricule manque : l'étape 1 ne se quitte pas.
@@ -381,7 +381,9 @@ describe('Le geste de trop', () => {
  * rattaché à une autre direction, cascade respectée ou non.
  */
 describe('Poste dépendant de la direction', () => {
-  const poste = () => screen.getByLabelText(/^Poste/i) as HTMLSelectElement
+  // ⚠️ Deux postes coexistent depuis que le rattachement du déclarant existe : celui de la
+  // victime et le sien. `/^Poste/` les attrapait tous les deux — il faut désigner lequel.
+  const poste = () => screen.getByLabelText(/Poste de la victime/i) as HTMLSelectElement
 
   const optionsDuPoste = () =>
     Array.from(poste().options)
@@ -398,7 +400,7 @@ describe('Poste dépendant de la direction', () => {
   it('ne propose que les postes de la direction retenue', async () => {
     const { utilisateur } = afficher()
 
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
 
     expect(poste().disabled).toBe(false)
     // « Comptable » appartient à la direction 2 : il n'a rien à faire ici.
@@ -408,11 +410,11 @@ describe('Poste dépendant de la direction', () => {
   it('oublie le poste choisi quand la direction change', async () => {
     const { utilisateur } = afficher()
 
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.selectOptions(poste(), 'Technicien réseau')
     expect(poste().value).toBe('Technicien réseau')
 
-    await utilisateur.selectOptions(screen.getByLabelText(/Direction concernée/i), '2')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '2')
 
     expect(poste().value, 'un poste de l’ancienne direction est resté sélectionné').toBe('')
     expect(optionsDuPoste()).toEqual(['Comptable'])
@@ -482,11 +484,11 @@ describe('Direction et poste en mode anonyme', () => {
       // Le matricule disparaît bien : c'est une donnée d'identité.
       expect(screen.queryByLabelText(/Matricule/i), 'le matricule survit à l’anonymat').toBeNull()
 
-      const direction = screen.getByLabelText(/Direction concernée/i) as HTMLSelectElement
+      const direction = screen.getByLabelText(/Direction de la victime/i) as HTMLSelectElement
       expect(direction.required, 'la direction n’est pas exigée').toBe(true)
 
       expect(
-        screen.queryByLabelText(/^Poste/i),
+        screen.queryByLabelText(/Poste de la victime/i),
         'le poste est encore demandé à un déclarant anonyme'
       ).toBeNull()
     })
@@ -496,8 +498,8 @@ describe('Direction et poste en mode anonyme', () => {
       // là, facultatif, et se remplir depuis la direction choisie.
       const { utilisateur } = afficher(parcours)
 
-      const direction = screen.getByLabelText(/Direction concernée/i) as HTMLSelectElement
-      const poste = screen.getByLabelText(/^Poste/i) as HTMLSelectElement
+      const direction = screen.getByLabelText(/Direction de la victime/i) as HTMLSelectElement
+      const poste = screen.getByLabelText(/Poste de la victime/i) as HTMLSelectElement
 
       expect(poste.required, 'le poste est devenu obligatoire').toBe(false)
       expect(poste.disabled, 'le poste s’ouvre sans direction').toBe(true)
@@ -524,8 +526,8 @@ describe('Rattachement du déclarant', () => {
       const { utilisateur } = afficher(parcours)
 
       // Case décochée : le déclarant n'a pas dit qu'il était concerné, on lui demande d'où il parle.
-      expect(screen.queryByLabelText(/Votre direction/i), 'absent alors qu’il le faut').not.toBeNull()
-      expect(screen.queryByLabelText(/Votre poste/i)).not.toBeNull()
+      expect(screen.queryByLabelText(/Direction du déclarant/i), 'absent alors qu’il le faut').not.toBeNull()
+      expect(screen.queryByLabelText(/Poste du déclarant/i)).not.toBeNull()
 
       await utilisateur.click(
         screen.getByRole('checkbox', { name: /personne concernée par les faits/i })
@@ -539,13 +541,13 @@ describe('Rattachement du déclarant', () => {
         aussi de son côté — les deux verrous sont voulus — mais celui-ci évite de l'envoyer.
       */
       expect(
-        screen.queryByLabelText(/Votre direction/i),
+        screen.queryByLabelText(/Direction du déclarant/i),
         'le champ survit alors que la case est cochée'
       ).toBeNull()
-      expect(screen.queryByLabelText(/Votre poste/i)).toBeNull()
+      expect(screen.queryByLabelText(/Poste du déclarant/i)).toBeNull()
 
       // Et le rattachement des FAITS, lui, ne bouge pas : c'est de lui que découle le site.
-      expect(screen.queryByLabelText(/Direction concernée/i)).not.toBeNull()
+      expect(screen.queryByLabelText(/Direction de la victime/i)).not.toBeNull()
     })
   }
 
@@ -554,13 +556,13 @@ describe('Rattachement du déclarant', () => {
     // ne doit remplir QUE son poste, sans toucher à celui de la personne concernée.
     const { utilisateur } = afficher('ei_employe')
 
-    const posteDeclarant = screen.getByLabelText(/Votre poste/i) as HTMLSelectElement
-    const posteConcerne = screen.getByLabelText(/Poste de la personne concernée/i) as HTMLSelectElement
+    const posteDeclarant = screen.getByLabelText(/Poste du déclarant/i) as HTMLSelectElement
+    const posteConcerne = screen.getByLabelText(/Poste de la victime/i) as HTMLSelectElement
 
     expect(posteDeclarant.disabled, 'ouvert sans direction').toBe(true)
     expect(posteConcerne.disabled).toBe(true)
 
-    await utilisateur.selectOptions(screen.getByLabelText(/Votre direction/i), '2')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '2')
 
     expect(posteDeclarant.disabled).toBe(false)
     // Les postes de la direction 2, et eux seuls. ⚠️ « Autre » n'y figure pas : il est ajouté par

@@ -225,7 +225,7 @@ const TELEPHONE = {
  */
 const DIRECTION = {
   nom: 'directionId',
-  libelle: 'Direction concernée',
+  libelle: 'Direction de la victime',
   type: 'select',
   etape: 1,
   obligatoire: true,
@@ -238,16 +238,23 @@ const POSTE = {
   // direction choisie. L'ordre n'est pas cosmétique — une cascade dont le déclencheur vient après
   // la liste qu'il remplit se lit à l'envers.
   nom: 'posteOccupe',
-  // Nommé explicitement depuis qu'un second poste existe : celui du déclarant, quand il n'est
-  // pas la personne concernée. « Poste » tout court ne disait plus duquel il s'agissait.
-  libelle: 'Poste de la personne concernée',
+  /*
+    Nommé explicitement depuis qu'un second poste existe : celui du DÉCLARANT, quand il n'est pas
+    la personne concernée. « Poste » tout court ne disait plus duquel il s'agissait.
+
+    ⚠️ « Victime » est le mot retenu par le métier pour ces quatre libellés, alors que la case
+    parle de « personne concernée ». L'écart est assumé : le second terme couvre l'évènement
+    indésirable sans victime — un presque-accident — où « victime » serait impropre, tandis que
+    les libellés de champs gagnent à être courts et sans ambiguïté pour qui remplit.
+  */
+  libelle: 'Poste de la victime',
   type: 'select',
   etape: 1,
   referentiel: 'postes',
   dependDe: 'directionId',
   // Retiré dès que l'anonymat est coché, sur les DEUX parcours qui le portent.
   masqueSiAnonyme: true,
-  precisionSi: { valeur: 'Autre', libelle: 'Précisez votre poste', colonne: 'postePrecision' },
+  precisionSi: { valeur: 'Autre', libelle: 'Précisez le poste de la victime', colonne: 'postePrecision' },
   aide: 'Facultatif. « Autre » s’il n’y figure pas.',
 } as const satisfies Champ
 
@@ -264,17 +271,17 @@ const POSTE = {
  */
 const DIRECTION_DECLARANT = {
   nom: 'directionDeclarant',
-  libelle: 'Votre direction',
+  libelle: 'Direction du déclarant',
   type: 'select',
   etape: 1,
   referentiel: 'directions',
   afficherSi: { champ: 'declarantEstVictime', vaut: false },
-  aide: 'La vôtre, et non celle où les faits se sont produits.',
+  aide: 'Celle du déclarant, et non celle où les faits se sont produits.',
 } as const satisfies Champ
 
 const POSTE_DECLARANT = {
   nom: 'posteDeclarant',
-  libelle: 'Votre poste',
+  libelle: 'Poste du déclarant',
   type: 'select',
   etape: 1,
   referentiel: 'postes',
@@ -285,10 +292,10 @@ const POSTE_DECLARANT = {
   masqueSiAnonyme: true,
   precisionSi: {
     valeur: 'Autre',
-    libelle: 'Précisez votre poste',
+    libelle: 'Précisez le poste du déclarant',
     colonne: 'posteDeclarantPrecision',
   },
-  aide: 'Facultatif. « Autre » si le vôtre n’y figure pas.',
+  aide: 'Facultatif. « Autre » s’il n’y figure pas.',
 } as const satisfies Champ
 
 
