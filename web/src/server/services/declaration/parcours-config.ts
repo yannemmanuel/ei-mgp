@@ -45,8 +45,8 @@ export type Champ = {
    * puis perdu sans le moindre signal — le piège déjà rencontré sur l'entreprise et la ville.
    *
    * Ce drapeau ne dit qu'une chose : ne pas le demander quand on ne se nomme pas. Le seul cas
-   * aujourd'hui est le poste sur le grief employé, où il resserre trop pour être demandé sous
-   * couvert d'anonymat, alors qu'il reste utile sur l'évènement indésirable.
+   * aujourd'hui est le poste, sur les deux parcours de salariés — associé à la direction, il
+   * resserre trop pour être demandé sous couvert d'anonymat.
    */
   readonly masqueSiAnonyme?: boolean
   /** Référentiel à charger côté serveur pour alimenter les options. */
@@ -170,15 +170,19 @@ const TELEPHONE = {
  * des centaines de personnes : la connaître n'identifie personne, pas plus que le lieu, déjà
  * obligatoire et collecté anonymement.
  *
- * Le poste suit la même règle depuis le retour métier du 11/09, qui demande de pouvoir le
- * choisir EN ANONYME. Il est donc stocké sur `dossiers.poste` et non dans
- * `declaration_identites` — cette table n'étant pas créée quand l'anonymat est coché, l'y laisser
- * aurait produit un champ demandé à l'écran puis perdu sans le moindre signal.
+ * Le POSTE, lui, n'est PAS demandé en anonymat — sur aucun des deux parcours. Direction et poste
+ * réunis resserrent assez pour reconnaître quelqu'un dans un effectif restreint, et l'anonymat
+ * n'aurait alors plus de sens. Il reste demandé à qui se nomme, où il ne coûte rien.
  *
- * ⚠️ Le poste reste FACULTATIF, et cela le restera tant que le métier ne tranche pas autrement :
- * dans une direction restreinte, un poste unique désigne une seule personne. Le rendre
- * obligatoire reviendrait à exiger d'un déclarant anonyme qu'il se resserre lui-même jusqu'à
- * devenir reconnaissable.
+ * ⚠️ Le masquage passe par `masqueSiAnonyme` et NON par `identite`, bien que le résultat à
+ * l'écran soit le même. `identite` commande aussi le STOCKAGE : le champ partirait dans
+ * `declaration_identites`, table qui n'est pas créée pour une déclaration anonyme. Le poste est
+ * sur `dossiers.poste` ; l'y marquer `identite` l'aurait perdu également sur les déclarations
+ * IDENTIFIÉES, où il est toujours attendu.
+ *
+ * ⚠️ Il reste FACULTATIF. Dans une direction restreinte, un poste unique désigne une seule
+ * personne : l'exiger reviendrait à demander à quelqu'un de se resserrer jusqu'à devenir
+ * reconnaissable, y compris quand il accepte de se nommer.
  */
 const DIRECTION = {
   nom: 'directionId',
@@ -200,23 +204,11 @@ const POSTE = {
   etape: 1,
   referentiel: 'postes',
   dependDe: 'directionId',
+  // Retiré dès que l'anonymat est coché, sur les DEUX parcours qui le portent.
+  masqueSiAnonyme: true,
   aide: 'Facultatif. « Autre » si le vôtre n’y figure pas.',
 } as const satisfies Champ
 
-/**
- * Le poste sur le GRIEF employé : proposé seulement à qui se nomme.
- *
- * Retour métier du 11/09 (second passage). Il reste demandé en anonyme sur l'évènement
- * indésirable, où il sert à comprendre l'exposition au risque, mais il est retiré du grief
- * anonyme : un grief vise une situation vécue par une personne, et poste + direction y resserrent
- * assez pour reconnaître quelqu'un dans un effectif restreint — ce que l'anonymat sert
- * précisément à empêcher.
- *
- * ⚠️ `masqueSiAnonyme` et non `identite` : le poste est stocké sur `dossiers.poste`, hors de
- * `declaration_identites`. Le marquer `identite` l'aurait fait disparaître du formulaire ET de
- * l'enregistrement des déclarations NON anonymes, où il est toujours attendu.
- */
-const POSTE_SI_IDENTIFIE = { ...POSTE, masqueSiAnonyme: true } as const satisfies Champ
 
 export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
   ei_employe: {
@@ -296,7 +288,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         colonne: 'matricule',
       },
       DIRECTION,
-      POSTE_SI_IDENTIFIE,
+      POSTE,
       {
         // Une tranche plutôt qu'un nombre d'années : le métier raisonne par paliers, et une
         // ancienneté exacte rapproche d'une personne identifiable dans un petit effectif.

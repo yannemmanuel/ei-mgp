@@ -39,18 +39,32 @@ describe('« Le déclarant est-il la victime ? »', () => {
 })
 
 describe('Le poste', () => {
-  it('disparaît du GRIEF anonyme mais reste sur l’ÉVÉNEMENT anonyme', () => {
-    // La distinction demandée : l'EI garde le poste en anonyme, le grief employé ne l'a plus.
-    const griefAnonyme = champsVisibles(PARCOURS.grief_employe, true).map((c) => c.nom)
-    const eiAnonyme = champsVisibles(PARCOURS.ei_employe, true).map((c) => c.nom)
+  it('disparaît en anonyme des DEUX parcours de salariés', () => {
+    /*
+      La règle a changé une fois : le premier retour ne retirait le poste que du grief anonyme,
+      le second l'a étendu à l'évènement indésirable. Direction et poste réunis resserrent assez
+      pour reconnaître quelqu'un dans un effectif restreint, et cela ne dépend pas du parcours.
+    */
+    for (const code of ['ei_employe', 'grief_employe'] as const) {
+      const anonyme = champsVisibles(PARCOURS[code], true).map((c) => c.nom)
 
-    expect(griefAnonyme, 'le poste est encore demandé au grief anonyme').not.toContain('posteOccupe')
-    expect(eiAnonyme, 'le poste a disparu de l’évènement anonyme').toContain('posteOccupe')
+      expect(anonyme, `${code} : le poste est encore demandé en anonyme`).not.toContain('posteOccupe')
 
-    // Et il reste demandé au grief NON anonyme : c'est un retrait conditionnel, pas une
-    // suppression du champ.
-    const griefIdentifie = champsVisibles(PARCOURS.grief_employe, false).map((c) => c.nom)
-    expect(griefIdentifie, 'le poste a été retiré même pour qui se nomme').toContain('posteOccupe')
+      // ⚠️ Retrait CONDITIONNEL, pas suppression : il reste demandé à qui se nomme.
+      const identifie = champsVisibles(PARCOURS[code], false).map((c) => c.nom)
+      expect(identifie, `${code} : le poste a été retiré même pour qui se nomme`).toContain(
+        'posteOccupe'
+      )
+    }
+
+    // La DIRECTION, elle, survit à l'anonymat : elle porte l'acheminement vers le bon site, et
+    // la masquer ferait de chaque signalement anonyme un dossier que personne ne voit.
+    for (const code of ['ei_employe', 'grief_employe'] as const) {
+      expect(
+        champsVisibles(PARCOURS[code], true).map((c) => c.nom),
+        `${code} : la direction a disparu avec le poste`
+      ).toContain('directionId')
+    }
   })
 
   it('n’est PAS marqué `identite` : il est stocké sur le dossier', () => {
@@ -60,10 +74,12 @@ describe('Le poste', () => {
       pas créée pour une déclaration anonyme. Le poste aurait été demandé puis perdu sur les
       déclarations identifiées comme sur les autres.
     */
-    const poste = PARCOURS.grief_employe.champs.find((c) => c.nom === 'posteOccupe')
+    for (const code of ['ei_employe', 'grief_employe'] as const) {
+      const poste = PARCOURS[code].champs.find((c) => c.nom === 'posteOccupe')
 
-    expect(poste?.masqueSiAnonyme).toBe(true)
-    expect(poste?.identite, 'le poste repartirait dans declaration_identites').toBeFalsy()
+      expect(poste?.masqueSiAnonyme, code).toBe(true)
+      expect(poste?.identite, `${code} : le poste repartirait dans declaration_identites`).toBeFalsy()
+    }
   })
 
   it('propose « Autre » sous chaque direction, sans jamais la doubler', async () => {
