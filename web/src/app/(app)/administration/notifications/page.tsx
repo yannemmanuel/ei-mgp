@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { listerGabarits } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
+import { actionSupprimerGabarit } from '../suppressions-actions'
 import { actionEnregistrerGabarit } from '../actions'
 
 export const metadata: Metadata = { title: 'Administration — Gabarits de notification' }
@@ -83,6 +84,7 @@ export default async function PageGabarits() {
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={actionEnregistrerGabarit}
+      actionSupprimer={actionSupprimerGabarit}
       creationPossible
       libelleCreation="Ajouter un gabarit"
       messageVide="Aucun gabarit : aucune notification ne peut être émise tant que cette liste est vide."

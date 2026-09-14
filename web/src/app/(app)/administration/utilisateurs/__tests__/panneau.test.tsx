@@ -25,6 +25,17 @@ vi.mock('../actions', () => ({
   actionRegenererMotDePasse: async (): Promise<EtatCompte> => ({}),
 }))
 
+/*
+  ⚠️ Mocké comme `../actions`, et pour la même raison : ce module franchit la frontière serveur.
+
+  Il tire `@/server/auth`, donc NextAuth, qui exige `next/server` — introuvable dans
+  l'environnement DOM. Sans ce mock le fichier ne se charge même pas, et l'échec ne ressemble
+  à rien de ce que le panneau fait : il parle d'un module de Next.
+*/
+vi.mock('../../suppressions-actions', () => ({
+  actionSupprimerCompte: async () => ({}),
+}))
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),

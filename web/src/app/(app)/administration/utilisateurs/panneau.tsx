@@ -9,6 +9,8 @@ import { EnTetePage } from '@/components/layout/en-tete-page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { BoutonSupprimer } from '../bouton-supprimer'
+import { actionSupprimerCompte } from '../suppressions-actions'
 import {
   actionEnregistrerCompte,
   actionRegenererMotDePasse,
@@ -270,16 +272,34 @@ export function PanneauComptes({
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setCreation(false)
-                            setEdition(compte)
-                          }}
-                        >
-                          Modifier
-                        </Button>
+                        <div className="flex items-start justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setCreation(false)
+                              setEdition(compte)
+                            }}
+                          >
+                            Modifier
+                          </Button>
+
+                          {/*
+                            ⚠️ Refusé dès que le compte a laissé une trace — une connexion suffit,
+                            elle est journalisée. Le cas visé est le compte créé par erreur : une
+                            adresse mal saisie, un doublon, un essai.
+
+                            Pour tous les autres, la désactivation coupe l'accès immédiatement tout
+                            en gardant le compte nommé dans l'audit. Sur un dispositif de
+                            signalement, pouvoir dire qui a traité quel dossier n'est pas une
+                            commodité : c'est ce qui le rend vérifiable.
+                          */}
+                          <BoutonSupprimer
+                            id={compte.id}
+                            nom={compte.name}
+                            action={actionSupprimerCompte}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))}

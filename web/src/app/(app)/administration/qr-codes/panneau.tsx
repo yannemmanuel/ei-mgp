@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { EtatFormulaire } from '../editeur-referentiel'
+import { BoutonSupprimer } from '../bouton-supprimer'
+import { actionSupprimerQrCode } from '../suppressions-actions'
 import {
   actionBasculerQrCode,
   actionGenererQrCode,
@@ -156,6 +158,15 @@ function FicheQrCode({ code }: { code: QrCodeVue }) {
         <Button size="sm" variant="ghost" onClick={() => setOuvert((v) => !v)}>
           URL cible
         </Button>
+
+        {/*
+          ⚠️ « Retirer de la circulation » suffit presque toujours, et vaut mieux.
+
+          Les deux se comportent pareil pour qui scanne l'affiche. Mais un code retiré reste
+          identifiable dans le journal et se remet en circulation si l'affiche est encore au mur ;
+          un code supprimé ne revient pas.
+        */}
+        <BoutonSupprimer id={code.id} nom={code.token} action={actionSupprimerQrCode} />
       </div>
 
       {(etatBascule.erreur || etatUrl.erreur) && (

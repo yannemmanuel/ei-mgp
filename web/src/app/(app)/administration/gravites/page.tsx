@@ -6,6 +6,7 @@ import {
   listerGravites,
 } from '@/server/services/administration/gravites'
 import { EditeurReferentiel } from '../editeur-referentiel'
+import { actionSupprimerGravite } from '../suppressions-actions'
 import { actionModifierGravite } from '../actions'
 
 export const metadata: Metadata = { title: 'Administration — Niveaux de gravité' }
@@ -58,6 +59,7 @@ export default async function PageGravites() {
       action={actionModifierGravite}
       // L'échelle compte quatre degrés fixés par le CDC : en ajouter un déplacerait le sens des
       // dossiers déjà classés.
+      actionSupprimer={actionSupprimerGravite}
       creationPossible={false}
     />
   )

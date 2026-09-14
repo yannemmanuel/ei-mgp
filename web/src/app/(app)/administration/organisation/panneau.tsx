@@ -1,6 +1,11 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { BoutonSupprimer } from '../bouton-supprimer'
+import {
+  actionSupprimerDirection,
+  actionSupprimerSite,
+} from '../suppressions-actions'
 import { Building2, MapPin } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -215,6 +220,9 @@ function BlocSite({
             <Button size="sm" variant="outline" onClick={onModifier}>
               Modifier
             </Button>
+            {/* Refusé tant qu'une direction, un dossier ou un compte s'y rattache — le message le
+                dit, et renvoie vers la désactivation. */}
+            <BoutonSupprimer id={site.id} nom={site.libelle} action={actionSupprimerSite} />
           </div>
         </div>
 
@@ -277,6 +285,13 @@ function ListeDirections({
             <Button size="sm" variant="ghost" onClick={() => onModifier(direction)}>
               Modifier
             </Button>
+            {/* Refusé tant qu'un dossier, un poste ou un compte la cite — y compris comme
+                direction du DÉCLARANT, qui est un second rattachement au même dossier. */}
+            <BoutonSupprimer
+              id={direction.id}
+              nom={direction.libelle}
+              action={actionSupprimerDirection}
+            />
           </div>
         </li>
       ))}
