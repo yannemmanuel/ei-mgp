@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser, type ModeleAudite } from '../audit/journal'
+import { STATUTS } from '../dossier/statuts'
 
 /**
  * Suppression PROTÉGÉE des éléments du back-office.
@@ -282,6 +283,79 @@ export async function supprimerQrCode(acteur: Acteur, id: string): Promise<void>
       url_cible: cible.url_cible,
       actif: cible.actif,
       parcours_id: cible.parcours_id === null ? null : String(cible.parcours_id),
+    },
+  })
+}
+
+/**
+ * Supprime un statut de dossier.
+ *
+ * ⚠️ CE RÉFÉRENTIEL N'EST PAS COMME LES AUTRES, et le refus y a une seconde cause.
+ *
+ * Une catégorie ou un canal ne sont que des VALEURS : les effacer prive un dossier d'une
+ * information. Un statut est un ÉTAT du workflow, et le code le nomme. `STATUTS` énumère les dix,
+ * `TRANSITIONS_AUTORISEES` décrit qui mène à quoi, et `creerDeclaration()` cherche « recu » par
+ * son code à chaque dépôt. Supprimer une ligne que le code nomme ne dégrade donc pas un
+ * affichage : elle empêche la création de toute déclaration, ou immobilise pour toujours les
+ * dossiers qui l'ont atteinte.
+ *
+ * D'où DEUX gardes. Celle des citations, comme partout. Et celle du graphe, qui n'existe qu'ici :
+ * un statut nommé par le workflow est refusé MÊME s'il n'est cité par aucun dossier — la base
+ * peut être neuve, le code, lui, l'attend déjà.
+ *
+ * En pratique les dix statuts livrés sont tous nommés : cette fonction ne supprimera qu'une ligne
+ * ajoutée à la main, hors graphe. C'est délibérément une fonction qui PROTÈGE plus qu'elle
+ * n'autorise, et son message dit ce qui reste possible : renommer.
+ *
+ * ⚠️ AUCUNE désactivation n'est prévue, et ce n'est pas un oubli. Un statut n'est pas proposé
+ * dans un formulaire : c'est l'état dans lequel un dossier SE TROUVE. Le « désactiver »
+ * n'empêcherait aucun dossier d'y parvenir — ce serait un drapeau que rien ne lit, c'est-à-dire
+ * pire que son absence : la promesse d'une protection inexistante.
+ */
+export async function supprimerStatut(acteur: Acteur, id: bigint): Promise<void> {
+  const [cible, precedents, suivants] = await Promise.all([
+    prisma.statuts_dossier.findUniqueOrThrow({
+      where: { id },
+      select: {
+        code: true,
+        libelle_interne: true,
+        libelle_affiche: true,
+        ordre: true,
+        _count: { select: { dossiers: true } },
+      },
+    }),
+    prisma.historique_statuts.count({ where: { statut_precedent_id: id } }),
+    prisma.historique_statuts.count({ where: { statut_suivant_id: id } }),
+  ])
+
+  if ((STATUTS as readonly string[]).includes(cible.code)) {
+    throw new ErreurWorkflow(
+      `« ${cible.libelle_interne} » est un état du circuit de traitement : le workflow le nomme, et ` +
+        'le supprimer empêcherait les dossiers de progresser. Son libellé et son rang restent ' +
+        'modifiables.'
+    )
+  }
+
+  refuserSiCite(
+    `Le statut « ${cible.libelle_interne} »`,
+    [
+      { quoi: 'dossier', combien: cible._count.dossiers },
+      { quoi: 'ligne d’historique', combien: precedents + suivants },
+    ],
+    'Renommez-le plutôt : un statut ne se désactive pas, il décrit l’état d’un dossier.'
+  )
+
+  await prisma.statuts_dossier.delete({ where: { id } })
+  await consigner({
+    acteur,
+    action: 'statut_dossier.supprime',
+    type: MODELES.statutDossier,
+    id,
+    anciennes: {
+      code: cible.code,
+      libelle_interne: cible.libelle_interne,
+      libelle_affiche: cible.libelle_affiche,
+      ordre: cible.ordre,
     },
   })
 }

@@ -12,6 +12,7 @@ import {
   supprimerNiveauGravite,
   supprimerQrCode,
   supprimerSite,
+  supprimerStatut,
 } from '@/server/services/administration/suppression'
 
 /**
@@ -148,6 +149,15 @@ export const actionSupprimerQrCode = actionDeSuppression({
   chemin: '/administration/qr-codes',
   introuvable: 'QR code introuvable.',
   succes: 'QR code supprimé.',
+})
+
+export const actionSupprimerStatut = actionDeSuppression({
+  permission: 'referentiels.statuts.manage',
+  supprimer: supprimerStatut,
+  lireId: identifiant,
+  chemin: '/administration/statuts',
+  introuvable: 'Statut introuvable.',
+  succes: 'Statut supprimé.',
 })
 
 export const actionSupprimerCompte = actionDeSuppression({
