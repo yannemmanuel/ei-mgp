@@ -74,6 +74,25 @@ export type Champ = {
    * mécanisme. Toute NOUVELLE liste offrant « Autre » passe par ce drapeau : une troisième
    * exception écrite à la main aurait garanti qu'une quatrième soit oubliée.
    */
+  /**
+   * Champ affiché SEULEMENT quand une case à cocher est dans l'état attendu.
+   *
+   * Le seul cas aujourd'hui est le rattachement du déclarant, demandé lorsqu'il n'est PAS la
+   * personne concernée. Un témoin parle d'une autre direction que celle des faits ; le lui
+   * demander quand il parle de lui-même serait poser deux fois la même question.
+   *
+   * ⚠️ Le serveur ne se contente pas de ne pas AFFICHER : il JETTE ce qui lui parvient alors que
+   * la condition n'est pas remplie. Un navigateur peut avoir gardé une saisie faite avant que la
+   * case ne soit cochée, et une requête forgée peut l'envoyer délibérément — enregistrer une
+   * direction de déclarant sur un dossier où le déclarant EST la victime produirait un dossier
+   * qui se contredit.
+   */
+  readonly afficherSi?: {
+    /** Nom de la case dont dépend l'affichage. */
+    readonly champ: string
+    /** État attendu de cette case. */
+    readonly vaut: boolean
+  }
   readonly precisionSi?: {
     /** La valeur qui déclenche la saisie libre, telle qu'elle figure dans `options`. */
     readonly valeur: string
@@ -219,7 +238,9 @@ const POSTE = {
   // direction choisie. L'ordre n'est pas cosmétique — une cascade dont le déclencheur vient après
   // la liste qu'il remplit se lit à l'envers.
   nom: 'posteOccupe',
-  libelle: 'Poste',
+  // Nommé explicitement depuis qu'un second poste existe : celui du déclarant, quand il n'est
+  // pas la personne concernée. « Poste » tout court ne disait plus duquel il s'agissait.
+  libelle: 'Poste de la personne concernée',
   type: 'select',
   etape: 1,
   referentiel: 'postes',
@@ -227,6 +248,46 @@ const POSTE = {
   // Retiré dès que l'anonymat est coché, sur les DEUX parcours qui le portent.
   masqueSiAnonyme: true,
   precisionSi: { valeur: 'Autre', libelle: 'Précisez votre poste', colonne: 'postePrecision' },
+  aide: 'Facultatif. « Autre » s’il n’y figure pas.',
+} as const satisfies Champ
+
+/**
+ * Le rattachement du DÉCLARANT, demandé seulement s'il n'est pas la personne concernée.
+ *
+ * Un témoin ou un collègue parle depuis une autre direction que celle où les faits se sont
+ * produits. Le dossier ne portait qu'un rattachement, et l'on ignorait donc d'où parlait celui
+ * qui signalait — impossible de le recontacter par la bonne voie.
+ *
+ * ⚠️ Ces deux champs ne déterminent PAS le site du dossier. C'est `directionId`, la direction
+ * CONCERNÉE, qui l'établit : router sur la direction du témoin enverrait le signalement au
+ * service complètement étranger aux faits.
+ */
+const DIRECTION_DECLARANT = {
+  nom: 'directionDeclarant',
+  libelle: 'Votre direction',
+  type: 'select',
+  etape: 1,
+  referentiel: 'directions',
+  afficherSi: { champ: 'declarantEstVictime', vaut: false },
+  aide: 'La vôtre, et non celle où les faits se sont produits.',
+} as const satisfies Champ
+
+const POSTE_DECLARANT = {
+  nom: 'posteDeclarant',
+  libelle: 'Votre poste',
+  type: 'select',
+  etape: 1,
+  referentiel: 'postes',
+  dependDe: 'directionDeclarant',
+  afficherSi: { champ: 'declarantEstVictime', vaut: false },
+  // Même règle que le poste de la personne concernée : associé à une direction, il resserre trop
+  // pour être demandé sous couvert d'anonymat — et il désigne ici le déclarant lui-même.
+  masqueSiAnonyme: true,
+  precisionSi: {
+    valeur: 'Autre',
+    libelle: 'Précisez votre poste',
+    colonne: 'posteDeclarantPrecision',
+  },
   aide: 'Facultatif. « Autre » si le vôtre n’y figure pas.',
 } as const satisfies Champ
 
@@ -263,6 +324,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       },
       DIRECTION,
       POSTE,
+      DIRECTION_DECLARANT,
+      POSTE_DECLARANT,
       { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
       { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
@@ -310,6 +373,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       },
       DIRECTION,
       POSTE,
+      DIRECTION_DECLARANT,
+      POSTE_DECLARANT,
       {
         // Une tranche plutôt qu'un nombre d'années : le métier raisonne par paliers, et une
         // ancienneté exacte rapproche d'une personne identifiable dans un petit effectif.

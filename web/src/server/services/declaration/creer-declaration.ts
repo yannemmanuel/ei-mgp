@@ -84,6 +84,16 @@ export type DonneesDossier = {
   /** Poste saisi à la main quand « Autre » est retenu. */
   postePrecision?: string | null
   /**
+   * Rattachement du DÉCLARANT, renseigné seulement s'il n'est pas la personne concernée.
+   *
+   * ⚠️ Ne détermine PAS le site du dossier : c'est `directionId`, la direction CONCERNÉE par
+   * les faits, qui l'établit. Router sur la direction d'un témoin enverrait le signalement à un
+   * service étranger à l'évènement.
+   */
+  directionDeclarantId?: bigint | null
+  posteDeclarant?: string | null
+  posteDeclarantPrecision?: string | null
+  /**
    * Qualité du plaignant, et sa précision si « autre ».
    *
    * ⚠️ Sur `dossiers`, jamais dans `declaration_identites` : la question est posée MÊME en
@@ -166,6 +176,9 @@ export async function creerDeclaration(params: {
         entreprise: d.entreprise ?? null,
         poste: d.poste ?? null,
         poste_precision: d.postePrecision ?? null,
+        direction_declarant_id: d.directionDeclarantId ?? null,
+        poste_declarant: d.posteDeclarant ?? null,
+        poste_declarant_precision: d.posteDeclarantPrecision ?? null,
         statut_plaignant: d.statutPlaignant ?? null,
         statut_plaignant_precision: d.statutPlaignantPrecision ?? null,
         ville: d.ville ?? null,

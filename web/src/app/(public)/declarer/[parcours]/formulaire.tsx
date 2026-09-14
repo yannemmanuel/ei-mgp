@@ -166,6 +166,21 @@ export function FormulaireDeclaration({
   */
   const visibles = useMemo(() => champsVisibles(config, anonymat), [config, anonymat])
 
+  /**
+   * Un champ conditionnel est-il demandé, au vu de ce qui est coché ?
+   *
+   * ⚠️ Il n'est pas RENDU quand la condition ne tient pas, jamais seulement masqué en CSS : un
+   * champ présent dans le DOM est un champ soumissible. Le serveur refait de toute façon le
+   * contrôle — les deux verrous sont voulus — mais le premier évite d'envoyer des valeurs que
+   * le second devra jeter.
+   *
+   * Une case non cochée n'ayant jamais été touchée n'est pas dans `valeursPilotes` : `?? false`
+   * la traite comme décochée, ce qu'elle est à l'écran.
+   */
+  const conditionRemplie = (champ: Champ) =>
+    champ.afficherSi === undefined ||
+    (valeursPilotes[champ.afficherSi.champ] === 'true') === champ.afficherSi.vaut
+
   const categorieEstAutre = categoriesAutre.includes(categorieId)
 
   /**
@@ -182,6 +197,9 @@ export function FormulaireDeclaration({
     for (const c of config.champs) {
       if (c.dependDe !== undefined) noms.add(c.dependDe)
       if (c.precisionSi) noms.add(c.nom)
+      // La case « Je suis la personne concernée » commande l'apparition du rattachement du
+      // déclarant : son état doit donc remonter, au même titre qu'une liste dont une autre dépend.
+      if (c.afficherSi) noms.add(c.afficherSi.champ)
     }
 
     return noms
@@ -231,7 +249,8 @@ export function FormulaireDeclaration({
     return <Recepisse reference={etat.succes.reference} codeAcces={etat.succes.codeAcces} />
   }
 
-  const champsDe = (n: number) => visibles.filter((c) => c.etape === n)
+  const champsDe = (n: number) =>
+    visibles.filter((c) => c.etape === n && conditionRemplie(c))
 
   // Le serveur fait autorité : son message l'emporte sur celui du navigateur pour un même champ.
   const erreur = (nom: string) => etat.erreurs?.[nom] ?? erreursClient[nom]
@@ -792,7 +811,17 @@ function ChampFormulaire({
     return (
       <div className="space-y-1.5">
         <label className="flex items-start gap-3">
-          <input type="checkbox" name={champ.nom} className="mt-0.5" required={obligatoire} />
+          <input
+            type="checkbox"
+            name={champ.nom}
+            className="mt-0.5"
+            required={obligatoire}
+            // Remontée seulement quand un autre champ en dépend : ailleurs, le formulaire reste
+            // non contrôlé, et c'est ce qui préserve les saisies entre les étapes.
+            onChange={
+              pilote ? (e) => onPilote(champ.nom, e.target.checked ? 'true' : 'false') : undefined
+            }
+          />
           <span>
             <span className="block text-sm text-secondary-900">
               {champ.libelle} {obligatoire && <span className="text-destructive">*</span>}

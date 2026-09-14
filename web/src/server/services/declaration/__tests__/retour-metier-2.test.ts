@@ -269,3 +269,44 @@ describe('Rien n’est collecté puis abandonné en route', () => {
     expect(oublies, `collectés puis jamais écrits : ${oublies.join(', ')}`).toEqual([])
   })
 })
+
+describe('Les champs conditionnels sont contrôlés côté SERVEUR', () => {
+  it('⚠️ jette ce qui arrive alors que la condition n’est pas remplie', async () => {
+    /*
+      Le formulaire ne rend pas un champ dont la condition ne tient pas. Mais un navigateur peut
+      avoir gardé une saisie faite avant que la case ne change d'état, et une requête forgée peut
+      l'envoyer délibérément. Enregistrer le rattachement d'un déclarant sur un dossier où il EST
+      la personne concernée produirait un dossier qui se contredit lui-même.
+
+      `traiterSoumission()` exige un contexte de requête HTTP et n'est pas appelable ici ; on lit
+      donc sa source, comme le fait déjà la suite de non-régression.
+    */
+    const { readFile } = await import('node:fs/promises')
+    const source = await readFile('src/server/services/declaration/soumission.ts', 'utf8')
+
+    expect(source, 'le contrôle serveur des conditions a disparu').toContain('conditionRemplie')
+
+    // Et il doit s'appliquer AVANT la mise en dossier, pas seulement à la précision.
+    const definition = source.indexOf('const conditionRemplie')
+    const usageRoutage = source.indexOf('if (!conditionRemplie(champ)) continue', definition)
+
+    expect(usageRoutage, 'la condition est définie mais jamais appliquée').toBeGreaterThan(definition)
+  })
+
+  it('déclare une condition qui désigne un champ EXISTANT', () => {
+    // Une faute de frappe dans le nom ne lèverait aucune erreur : la condition serait simplement
+    // toujours fausse, et le champ jamais affiché ni jamais enregistré.
+    for (const [code, config] of tous) {
+      const noms = new Set(config.champs.map((c) => c.nom))
+
+      for (const champ of config.champs) {
+        if (!champ.afficherSi) continue
+
+        expect(
+          noms.has(champ.afficherSi.champ),
+          `${code}/${champ.nom} dépend de « ${champ.afficherSi.champ} », qui n’existe pas`
+        ).toBe(true)
+      }
+    }
+  })
+})

@@ -511,3 +511,66 @@ describe('Direction et poste en mode anonyme', () => {
     })
   }
 })
+
+/**
+ * Le rattachement du déclarant n'est demandé que s'il n'est pas la personne concernée.
+ *
+ * Un témoin parle depuis une autre direction que celle des faits. Quand il déclare pour lui-même,
+ * la question ne se pose pas : deux rattachements identiques sont une saisie en double.
+ */
+describe('Rattachement du déclarant', () => {
+  for (const parcours of ['ei_employe', 'grief_employe'] as const) {
+    it(`apparaît puis disparaît selon la case, sur ${parcours}`, async () => {
+      const { utilisateur } = afficher(parcours)
+
+      // Case décochée : le déclarant n'a pas dit qu'il était concerné, on lui demande d'où il parle.
+      expect(screen.queryByLabelText(/Votre direction/i), 'absent alors qu’il le faut').not.toBeNull()
+      expect(screen.queryByLabelText(/Votre poste/i)).not.toBeNull()
+
+      await utilisateur.click(
+        screen.getByRole('checkbox', { name: /personne concernée par les faits/i })
+      )
+
+      /*
+        Cochée : les champs sont RETIRÉS du DOM, pas masqués en CSS.
+
+        Un champ présent reste soumissible : le garder caché enverrait le rattachement d'un
+        déclarant sur un dossier où il est lui-même la personne concernée. Le serveur le jette
+        aussi de son côté — les deux verrous sont voulus — mais celui-ci évite de l'envoyer.
+      */
+      expect(
+        screen.queryByLabelText(/Votre direction/i),
+        'le champ survit alors que la case est cochée'
+      ).toBeNull()
+      expect(screen.queryByLabelText(/Votre poste/i)).toBeNull()
+
+      // Et le rattachement des FAITS, lui, ne bouge pas : c'est de lui que découle le site.
+      expect(screen.queryByLabelText(/Direction concernée/i)).not.toBeNull()
+    })
+  }
+
+  it('garde sa propre cascade, indépendante de celle des faits', async () => {
+    // Deux cascades direction → poste dans le même formulaire : choisir la direction du déclarant
+    // ne doit remplir QUE son poste, sans toucher à celui de la personne concernée.
+    const { utilisateur } = afficher('ei_employe')
+
+    const posteDeclarant = screen.getByLabelText(/Votre poste/i) as HTMLSelectElement
+    const posteConcerne = screen.getByLabelText(/Poste de la personne concernée/i) as HTMLSelectElement
+
+    expect(posteDeclarant.disabled, 'ouvert sans direction').toBe(true)
+    expect(posteConcerne.disabled).toBe(true)
+
+    await utilisateur.selectOptions(screen.getByLabelText(/Votre direction/i), '2')
+
+    expect(posteDeclarant.disabled).toBe(false)
+    // Les postes de la direction 2, et eux seuls. ⚠️ « Autre » n'y figure pas : il est ajouté par
+    // `chargerReferentiels()` côté serveur, que ce jeu d'essai remplace. Sa présence se vérifie
+    // donc dans `retour-metier-2.test.ts`, contre le vrai référentiel.
+    expect(
+      Array.from(posteDeclarant.options).map((o) => o.value).filter((v) => v !== '')
+    ).toEqual(['Comptable'])
+
+    // Celui de la personne concernée reste fermé : sa direction n'a pas été choisie.
+    expect(posteConcerne.disabled, 'les deux cascades sont couplées').toBe(true)
+  })
+})

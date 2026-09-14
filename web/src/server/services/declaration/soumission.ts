@@ -154,7 +154,20 @@ export async function traiterSoumission(
   const identite: DonneesIdentite = {}
   const dossierSpecifique: Record<string, unknown> = {}
 
+  /**
+   * Un champ conditionnel est-il réellement demandé, au vu de ce qui a été soumis ?
+   *
+   * ⚠️ Le contrôle est refait ICI, côté serveur, et pas seulement à l'affichage. Un navigateur
+   * peut avoir gardé une saisie faite avant que la case ne change d'état, et une requête forgée
+   * peut l'envoyer délibérément. Enregistrer le rattachement d'un déclarant sur un dossier où
+   * il EST la personne concernée produirait un dossier qui se contredit lui-même.
+   */
+  const conditionRemplie = (champ: Champ): boolean =>
+    champ.afficherSi === undefined || valide[champ.afficherSi.champ] === champ.afficherSi.vaut
+
   for (const champ of visibles) {
+    if (!conditionRemplie(champ)) continue
+
     const valeur = valide[champ.nom]
     if (valeur === undefined || valeur === '') continue
 
@@ -175,6 +188,7 @@ export async function traiterSoumission(
   */
   for (const champ of visibles) {
     if (!champ.precisionSi) continue
+    if (!conditionRemplie(champ)) continue
     if (String(valide[champ.nom] ?? '') !== champ.precisionSi.valeur) continue
 
     const saisie = valide[`${champ.nom}Precision`]
@@ -219,6 +233,15 @@ export async function traiterSoumission(
         // (GST2) et la ville du riverain (GR1), avec son complément libre (GR2).
         entreprise: (dossierSpecifique.entreprise ?? null) as string | null,
         poste: (dossierSpecifique.posteOccupe ?? null) as string | null,
+        // Le rattachement du DÉCLARANT, distinct de celui des faits. ⚠️ `directionId` ci-dessous
+        // reste la direction CONCERNÉE : c'est d'elle, et d'elle seule, que découle le site.
+        directionDeclarantId: dossierSpecifique.directionDeclarant
+          ? BigInt(String(dossierSpecifique.directionDeclarant))
+          : null,
+        posteDeclarant: (dossierSpecifique.posteDeclarant ?? null) as string | null,
+        posteDeclarantPrecision: (dossierSpecifique.posteDeclarantPrecision ?? null) as
+          | string
+          | null,
         postePrecision: (dossierSpecifique.postePrecision ?? null) as string | null,
         // Déplacé hors de `declaration_identites` : la question est posée même en anonymat, et
         // cette table n'est pas créée dans ce cas — la réponse y était exigée puis jetée.
