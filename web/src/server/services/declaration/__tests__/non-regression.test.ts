@@ -296,7 +296,14 @@ describe('EX-DEC-05 — accès sans compte aux formulaires publics', () => {
     // françaises, qu'une extraction naïve de chaînes ramasserait au passage.
     const listees = [...bloc.matchAll(/'(\/[a-z/-]*)'/g)].map((m) => m[1]).sort()
 
-    expect(listees).toEqual(['/api/taches', '/declarer', '/login', '/q', '/suivi'])
+    expect(listees).toEqual([
+      '/api/taches',
+      '/declarer',
+      '/login',
+      '/premiere-connexion',
+      '/q',
+      '/suivi',
+    ])
   })
 })
 

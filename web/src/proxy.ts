@@ -15,6 +15,15 @@ import { NextResponse, type NextRequest } from 'next/server'
  */
 const ROUTES_PUBLIQUES = [
   '/login',
+  /*
+    Lien de première connexion : la personne n'a PAS encore de mot de passe.
+
+    Elle ne peut donc pas être connectée — la renvoyer vers `/login` la renverrait vers l'écran
+    même qu'elle n'a aucun moyen de franchir, et le lien reçu par courriel n'aurait servi à rien.
+    L'authentification, ici, c'est le jeton : à usage unique, expirant, vérifié côté serveur par
+    `verifierInvitation()` avant que la page ne montre quoi que ce soit.
+  */
+  '/premiere-connexion',
   '/declarer',
   '/suivi',
   '/q', // redirection QR code

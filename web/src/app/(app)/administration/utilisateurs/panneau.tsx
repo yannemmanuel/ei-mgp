@@ -339,49 +339,54 @@ function FormulaireCompte({
         <CardTitle className="text-h3">{compte ? 'Modifier le compte' : 'Créer un compte'}</CardTitle>
       </CardHeader>
       <CardContent>
+        {/*
+          Ce que l'administrateur doit savoir après une création, selon la voie empruntée.
+
+          PAR LIEN : il n'y a aucun secret à lui montrer, et c'est l'intérêt du procédé — il ne
+          peut pas divulguer ce qu'il ne connaît pas. Reste à lui dire que le message est parti,
+          et quoi faire s'il ne l'est pas.
+
+          PAR MOT DE PASSE : la valeur est la seule porte du compte, elle ne s'affiche qu'une
+          fois, et l'écran doit dire clairement qu'aucun courriel n'est parti.
+        */}
+        {etat.parInvitation && (
+          <Alert className="mb-4" variant={etat.courriel === 'echec' ? 'destructive' : undefined}>
+            <AlertDescription>
+              {etat.courriel === 'expedie' ? (
+                <>
+                  <p className="font-medium">Un lien de première connexion a été envoyé.</p>
+                  <p className="mt-1 text-caption">
+                    La personne choisira elle-même son mot de passe : vous ne le connaîtrez pas, et
+                    aucun secret n’a circulé par e-mail. Le lien est valable 72 heures et ne
+                    fonctionne qu’une fois.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">L’envoi du lien a échoué.</p>
+                  <p className="mt-1 text-caption">
+                    Le compte est bien créé, mais il n’a aucun mot de passe : personne ne peut s’y
+                    connecter pour l’instant. Ouvrez sa fiche et attribuez-lui un mot de passe, que
+                    vous lui remettrez en main propre.
+                  </p>
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {etat.motDePasseInitial && (
           <Alert className="mb-4">
             <AlertDescription>
               <p className="font-medium">Mot de passe initial : </p>
               <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
 
-              {/*
-                Ce que le courriel est devenu, dit sans ambiguïté.
-
-                ⚠️ Le mot de passe reste affiché dans les TROIS cas, y compris quand l'envoi a
-                réussi : un message accepté par le SMTP peut être rejeté plus loin ou finir dans
-                les indésirables. Le retirer de l'écran sur la foi d'un « accepté » laisserait
-                l'administrateur devant un compte inaccessible dont plus personne ne connaît le
-                secret — il n'est affiché qu'une fois.
-              */}
-              {etat.courriel === 'expedie' ? (
-                <p className="mt-2 text-caption">
-                  Ces identifiants viennent d’être envoyés par e-mail. Gardez cette valeur sous les
-                  yeux tant que la personne n’a pas confirmé l’avoir reçue : elle n’est affichée
-                  qu’une fois.
-                </p>
-              ) : etat.courriel === 'echec' ? (
-                <p className="mt-2 text-caption text-destructive">
-                  L’envoi par e-mail a échoué. Le compte, lui, est bien créé : transmettez ce mot de
-                  passe par un canal sûr.
-                </p>
-              ) : (
-                /*
-                  Le cas le plus trompeur, et celui qui manquait.
-
-                  L'écran affichait ici le même texte qu'avant l'envoi par e-mail : « transmettez-le
-                  par un canal sûr ». Rien n'indiquait qu'AUCUN message n'était parti. Un
-                  administrateur qui vient de créer un compte attend le courriel, ne voit rien
-                  arriver, et n'a aucun moyen de savoir si le destinataire l'a manqué, s'il est
-                  dans les indésirables, ou s'il n'a jamais existé. On le dit.
-                */
-                <p className="mt-2 text-caption text-amber-700">
-                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
-                  n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
-                  <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
-                  passe par un canal sûr ; la personne le changera à sa première connexion.
-                </p>
-              )}
+              <p className="mt-2 text-caption text-amber-700">
+                <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
+                n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
+                <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
+                passe par un canal sûr ; la personne le changera à sa première connexion.
+              </p>
             </AlertDescription>
           </Alert>
         )}

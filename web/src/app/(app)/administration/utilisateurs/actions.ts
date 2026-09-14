@@ -9,6 +9,8 @@ import {
   regenererMotDePasse,
 } from '@/server/services/administration/utilisateurs'
 import { envoyerIdentifiants } from '@/server/services/administration/courriel-identifiants'
+import { creerInvitation } from '@/server/services/administration/invitation'
+import { configurationSmtp } from '@/server/services/notification/transport'
 
 /**
  * Console des comptes.
@@ -28,6 +30,12 @@ export type EtatCompte = {
    * passe dans les traces. Les confondre ferait chercher une panne là où il n'y en a pas.
    */
   courriel?: 'expedie' | 'sans_transport' | 'echec'
+  /**
+   * Le compte a été ouvert par LIEN : aucun mot de passe n'existe, et il n'y a donc rien à
+   * transmettre. `motDePasseInitial` est alors absent — c'est ce qui distingue les deux voies à
+   * l'écran.
+   */
+  parInvitation?: boolean
 }
 
 const REFUS = "Vous n'êtes pas autorisé à effectuer cette action."
@@ -69,6 +77,24 @@ export async function actionEnregistrerCompte(
   const parcours = donnees.getAll('parcours').map((p) => String(p))
 
   try {
+    /*
+      Deux voies d'ouverture, et le transport tranche.
+
+      AVEC messagerie : le compte naît SANS mot de passe et reçoit un lien à usage unique. Aucun
+      secret ne transite, aucun ne s'affiche, et l'administrateur lui-même n'en connaît aucun.
+
+      SANS messagerie : on retombe sur le mot de passe généré, montré une fois et remis en main
+      propre. ⚠️ Ce repli n'est pas une commodité : sans lui, un compte créé alors qu'aucun SMTP
+      n'est branché serait définitivement inaccessible — pas de mot de passe, et un lien que
+      personne ne recevrait jamais.
+
+      Le choix est fait AVANT la création, pas après : créer d'abord puis constater l'absence de
+      transport laisserait un compte sans porte, qu'il faudrait rattraper par une seconde
+      écriture.
+    */
+    const parInvitation = configurationSmtp() !== null
+    const creation = identifiant(donnees, 'id') === null
+
     const resultat = await enregistrerUtilisateur(
       acteur,
       {
@@ -83,40 +109,48 @@ export async function actionEnregistrerCompte(
         roles,
         parcours,
       },
-      identifiant(donnees, 'id') ?? undefined
+      identifiant(donnees, 'id') ?? undefined,
+      { sansMotDePasse: creation && parInvitation }
     )
 
     revalidatePath('/administration/utilisateurs')
 
-    if (resultat.motDePasseInitial === null) {
+    if (!creation) {
       return { succes: 'Compte mis à jour.' }
     }
 
+    if (!parInvitation) {
+      // Aucun transport : le mot de passe généré est la seule porte, et l'écran le montre.
+      return {
+        succes: 'Compte créé.',
+        motDePasseInitial: resultat.motDePasseInitial ?? undefined,
+        courriel: 'sans_transport',
+      }
+    }
+
     /*
-      Le courriel part APRÈS l'enregistrement, et son échec ne le remet pas en cause.
+      L'envoi part APRÈS l'enregistrement, et son échec ne le remet pas en cause.
 
-      Le compte existe déjà quand on arrive ici. Laisser une panne SMTP ressortir en erreur
-      ferait croire à l'administrateur que la création a échoué : il recommencerait, se
-      heurterait au doublon d'adresse, et perdrait le mot de passe affiché au passage.
+      Le compte existe déjà. Laisser une panne SMTP ressortir en erreur ferait croire à
+      l'administrateur que la création a échoué : il recommencerait et se heurterait au doublon
+      d'adresse.
 
-      ⚠️ Le mot de passe reste montré à l'écran MÊME quand l'envoi réussit. Un courriel peut
-      être rejeté en silence par le serveur d'en face, ou atterrir dans les indésirables ; le
-      retirer de l'écran dès que le SMTP a dit « accepté » laisserait l'administrateur sans
-      recours, devant un compte inaccessible dont plus personne ne connaît le secret.
+      ⚠️ En cas d'échec, le compte reste SANS mot de passe — donc inaccessible. Ce n'est pas une
+      impasse : l'administrateur lui en réattribue un depuis la fiche, ce que l'écran lui dit.
+      Fabriquer ici un mot de passe de secours l'aurait affiché alors qu'un lien valable circule
+      peut-être déjà, ouvrant deux portes là où le procédé n'en veut qu'une.
     */
+    const jeton = await creerInvitation(resultat.utilisateurId)
+
     const envoi = await envoyerIdentifiants({
       utilisateurId: resultat.utilisateurId,
       acteurId: acteur.id,
       nom,
       email,
-      motDePasse: resultat.motDePasseInitial,
+      jeton,
     })
 
-    return {
-      succes: 'Compte créé.',
-      motDePasseInitial: resultat.motDePasseInitial,
-      courriel: envoi.etat,
-    }
+    return { succes: 'Compte créé.', parInvitation: true, courriel: envoi.etat }
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 

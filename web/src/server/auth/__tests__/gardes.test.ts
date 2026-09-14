@@ -62,6 +62,8 @@ describe('Chaque Server Action revérifie', () => {
     '(public)/declarer/[parcours]/actions.ts': 'dépôt public — anti-spam et limitation de débit',
     '(public)/suivi/actions.ts': 'référence + code d’accès, vérifiés à temps constant',
     '(public)/suivi/messagerie-actions.ts': 'cookie signé de suivi + limitation de débit',
+    '(auth)/premiere-connexion/[jeton]/actions.ts':
+      'jeton d’invitation à usage unique — la personne n’a pas encore de mot de passe, elle ne PEUT pas être connectée',
   }
 
   it('appelle une garde, ou figure dans la liste des entrées publiques', () => {

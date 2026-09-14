@@ -75,6 +75,7 @@ const VERBES: Record<string, string> = {
   mot_de_passe_regenere: '— mot de passe réattribué',
   parcours_modifies: '— parcours modifiés',
   permissions_modifiees: '— droits modifiés',
+  premiere_connexion: '— compte pris en main',
   rattachee: 'rattachée',
   roles_modifies: '— rôles modifiés',
   statut_change: '— statut changé',

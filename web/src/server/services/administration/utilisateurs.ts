@@ -154,6 +154,21 @@ function motDePasseInitial(longueur = 14): string {
   return resultat
 }
 
+export type OptionsEnregistrement = {
+  /**
+   * Créer le compte SANS mot de passe, pour une ouverture par lien d'invitation.
+   *
+   * ⚠️ `users.password` reste alors à NULL. Ce n'est pas un compte ouvert à tous les vents :
+   * `verifierIdentifiants()` refuse tout mot de passe sur un compte sans empreinte, et le fait
+   * déjà en temps constant. Le lien devient la seule porte — c'est l'intérêt du procédé : aucun
+   * secret ne transite par le courriel, et l'administrateur lui-même n'en connaît aucun.
+   *
+   * L'appelant qui pose cette option DOIT émettre l'invitation dans la foulée. Sans elle, le
+   * compte n'a aucun moyen d'être ouvert — il faudrait lui réattribuer un mot de passe.
+   */
+  readonly sansMotDePasse?: boolean
+}
+
 export type ResultatEnregistrement = {
   utilisateurId: bigint
   /** Renseigné uniquement à la création : c'est la seule occasion de le montrer. */
@@ -163,7 +178,8 @@ export type ResultatEnregistrement = {
 export async function enregistrerUtilisateur(
   acteur: Acteur,
   donnees: DonneesUtilisateur,
-  utilisateurId?: bigint
+  utilisateurId?: bigint,
+  options: OptionsEnregistrement = {}
 ): Promise<ResultatEnregistrement> {
   const doublon = await prisma.users.findFirst({
     where: { email: donnees.email, ...(utilisateurId ? { NOT: { id: utilisateurId } } : {}) },
@@ -206,15 +222,25 @@ export async function enregistrerUtilisateur(
   let parcoursAvant: string[] = []
 
   if (utilisateurId === undefined) {
-    motDePasse = motDePasseInitial()
+    /*
+      Deux ouvertures possibles, et une seule à la fois.
+
+      Par LIEN : aucun mot de passe n'est créé, donc aucun secret à transmettre ni à protéger.
+      La personne choisira le sien, que personne d'autre n'aura connu.
+
+      Par MOT DE PASSE : la valeur est générée, montrée une fois à l'administrateur, et le compte
+      porte `doit_changer_mot_de_passe` — elle est connue d'un tiers jusqu'à son remplacement, et
+      l'application l'y oblige. C'est la voie de repli quand aucune messagerie n'est branchée.
+    */
+    motDePasse = options.sansMotDePasse ? null : motDePasseInitial()
 
     const cree = await prisma.users.create({
       data: {
         ...valeurs,
-        password: await hacherMotDePasse(motDePasse),
-        // Le mot de passe initial est lu par l'administrateur puis transmis : il est connu d'un
-        // tiers jusqu'à ce que son porteur le remplace, et l'application l'y oblige.
-        doit_changer_mot_de_passe: true,
+        password: motDePasse === null ? null : await hacherMotDePasse(motDePasse),
+        // Sans objet quand la personne choisit elle-même sa valeur : il n'y a rien à lui imposer
+        // de remplacer.
+        doit_changer_mot_de_passe: motDePasse !== null,
         email_verified_at: new Date(),
         created_at: new Date(),
         updated_at: new Date(),

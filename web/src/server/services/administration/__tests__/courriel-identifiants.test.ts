@@ -6,14 +6,15 @@ import {
   type MessageEmail,
 } from '@/server/services/notification/transport'
 import { CHEMIN_CONNEXION, envoyerIdentifiants } from '../courriel-identifiants'
+import { VALIDITE_HEURES } from '../invitation'
 
 /**
- * La remise des identifiants par e-mail.
+ * La remise de l'accès par e-mail.
  *
- * Ce qui est vérifié ici tient en une phrase : le message part avec ce qu'il faut pour se
- * connecter, et le mot de passe ne fuit nulle part ailleurs.
+ * Ce qui est vérifié ici tient en une phrase : le message part avec le lien qu'il faut, et ce
+ * lien ne fuit nulle part ailleurs.
  */
-const MOT_DE_PASSE = 'Xk7#mQ2pLw9v'
+const JETON = 'jeton-de-test-3Kf9xQmZ0pLw7vNbCdEaRt'
 
 class TransportEspion {
   readonly envoyes: MessageEmail[] = []
@@ -70,12 +71,12 @@ async function envoyer() {
     acteurId: acteur.id,
     nom: 'Awa Koffi',
     email: 'awa.koffi@example.test',
-    motDePasse: MOT_DE_PASSE,
+    jeton: JETON,
   })
 }
 
 describe('Le message porte de quoi se connecter', () => {
-  it('contient l’adresse, le mot de passe et un lien vers la page de connexion', async () => {
+  it('porte l’identifiant et le lien d’invitation', async () => {
     const resultat = await envoyer()
 
     expect(resultat.etat).toBe('expedie')
@@ -84,16 +85,30 @@ describe('Le message porte de quoi se connecter', () => {
     const message = espion.envoyes[0]
     expect(message.destinataire).toBe('awa.koffi@example.test')
     expect(message.corps).toContain('awa.koffi@example.test')
-    expect(message.corps).toContain(MOT_DE_PASSE)
-    expect(message.corps, 'aucun lien vers la connexion').toContain(CHEMIN_CONNEXION)
+    expect(message.corps, 'le lien d’invitation manque').toContain(
+      `/premiere-connexion/${JETON}`
+    )
   })
 
-  it('annonce que le mot de passe devra être remplacé', async () => {
-    // Le compte porte `doit_changer_mot_de_passe` : la personne se heurtera à cet écran. Ne pas
-    // l'annoncer transformerait une garantie de sécurité en obstacle incompréhensible.
+  it('annonce la durée de validité et l’usage unique', async () => {
+    // Un lien qui expire sans l'avoir dit se lit comme une panne. La personne doit savoir qu'elle
+    // a trois jours, et qu'un second clic ne marchera pas.
     await envoyer()
 
-    expect(espion.envoyes[0].corps).toMatch(/remplacer|changer/i)
+    const corps = espion.envoyes[0].corps
+    expect(corps).toContain(String(VALIDITE_HEURES))
+    expect(corps).toMatch(/une fois/i)
+  })
+
+  it('⚠️ ne contient AUCUN mot de passe', async () => {
+    /*
+      Le ressort même du changement : le message ne porte plus de secret réutilisable. Un mot de
+      passe envoyé par courriel y reste aussi longtemps que le message — boîte de réception,
+      serveur relais, sauvegarde — et ouvre le compte à qui l'y retrouve des mois plus tard.
+    */
+    await envoyer()
+
+    expect(espion.envoyes[0].corps.toLowerCase()).not.toContain('mot de passe provisoire')
   })
 
   it('⚠️ le chemin de connexion suit celui d’Auth.js', async () => {
@@ -111,7 +126,7 @@ describe('Le message porte de quoi se connecter', () => {
   })
 })
 
-describe('Le mot de passe ne fuit pas', () => {
+describe('Le jeton ne fuit pas', () => {
   it('n’apparaît PAS dans la ligne d’audit', async () => {
     await envoyer()
 
@@ -123,7 +138,7 @@ describe('Le mot de passe ne fuit pas', () => {
 
     const trace = JSON.stringify(ligne)
 
-    expect(trace, 'le mot de passe est écrit dans le journal').not.toContain(MOT_DE_PASSE)
+    expect(trace, 'le jeton est écrit dans le journal').not.toContain(JETON)
     // L'adresse, elle, doit y être : le journal répond à « qui a reçu de quoi se connecter ».
     expect(trace).toContain('awa.koffi@example.test')
   })
@@ -133,9 +148,9 @@ describe('Le mot de passe ne fuit pas', () => {
       Le cas le plus important du fichier.
 
       Sans configuration, `transportEmail()` replie sur `TransportJournal`, qui écrit le corps
-      ENTIER sur la sortie standard — le mot de passe irait donc en clair dans les traces du
-      serveur, où il resterait. On s'abstient, et on le dit : l'administrateur garde la valeur à
-      l'écran et la remet en main propre.
+      ENTIER sur la sortie standard — le lien d'invitation irait donc dans les traces du serveur,
+      où il resterait valable trois jours pour quiconque y a accès. On s'abstient, et on le dit :
+      l'appelant bascule alors sur un mot de passe remis en main propre.
     */
     delete process.env.MAIL_HOST
     delete process.env.MAIL_FROM
@@ -150,8 +165,7 @@ describe('Le mot de passe ne fuit pas', () => {
 describe('Une panne d’envoi ne défait pas la création', () => {
   it('rend l’échec au lieu de le lever', async () => {
     // Le compte est déjà écrit quand l'envoi a lieu. Une exception ferait croire à l'échec de la
-    // création : l'administrateur recommencerait, se heurterait au doublon d'adresse, et perdrait
-    // le mot de passe affiché.
+    // création : l'administrateur recommencerait et se heurterait au doublon d'adresse.
     definirTransportEmail(new TransportEnPanne())
 
     const resultat = await envoyer()
