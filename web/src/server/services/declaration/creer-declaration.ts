@@ -81,6 +81,17 @@ export type DonneesDossier = {
    * pouvoir le choisir EN ANONYME, or cette table n'est pas créée dans ce cas.
    */
   poste?: string | null
+  /** Poste saisi à la main quand « Autre » est retenu. */
+  postePrecision?: string | null
+  /**
+   * Qualité du plaignant, et sa précision si « autre ».
+   *
+   * ⚠️ Sur `dossiers`, jamais dans `declaration_identites` : la question est posée MÊME en
+   * anonymat — elle qualifie la plainte, pas la personne — et cette table n'est pas créée dans
+   * ce cas. L'y laisser revenait à exiger une réponse à l'écran puis à la jeter.
+   */
+  statutPlaignant?: string | null
+  statutPlaignantPrecision?: string | null
   ville?: string | null
   precisionLocalisation?: string | null
 }
@@ -154,6 +165,9 @@ export async function creerDeclaration(params: {
         niveau_gravite_id: d.niveauGraviteId,
         entreprise: d.entreprise ?? null,
         poste: d.poste ?? null,
+        poste_precision: d.postePrecision ?? null,
+        statut_plaignant: d.statutPlaignant ?? null,
+        statut_plaignant_precision: d.statutPlaignantPrecision ?? null,
         ville: d.ville ?? null,
         precision_localisation: d.precisionLocalisation ?? null,
         statut_id: statutRecu.id,

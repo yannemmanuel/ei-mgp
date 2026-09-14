@@ -168,11 +168,24 @@ export function FormulaireDeclaration({
 
   const categorieEstAutre = categoriesAutre.includes(categorieId)
 
-  /** Champs dont un autre dépend : eux seuls ont à remonter leur valeur. */
-  const pilotes = useMemo(
-    () => new Set(config.champs.map((c) => c.dependDe).filter((n): n is string => n !== undefined)),
-    [config]
-  )
+  /**
+   * Champs dont la valeur doit remonter à ce composant.
+   *
+   * Deux raisons de remonter, et une seule mécanique : soit un AUTRE champ dépend de celui-ci
+   * (le poste dépend de la direction), soit le champ révèle sa propre saisie libre quand il vaut
+   * « Autre ». Dans les deux cas il faut connaître sa valeur courante ; en tenir deux registres
+   * séparés aurait dupliqué l'état sans rien y gagner.
+   */
+  const pilotes = useMemo(() => {
+    const noms = new Set<string>()
+
+    for (const c of config.champs) {
+      if (c.dependDe !== undefined) noms.add(c.dependDe)
+      if (c.precisionSi) noms.add(c.nom)
+    }
+
+    return noms
+  }, [config])
 
   /*
    * Le curseur suit l'étape affichée.
@@ -461,6 +474,7 @@ export function FormulaireDeclaration({
               key={champ.nom}
               champ={champ}
               erreur={erreur(champ.nom)}
+              erreurPrecision={erreur(`${champ.nom}Precision`)}
               referentiels={referentiels}
               valeursPilotes={valeursPilotes}
               onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
@@ -475,6 +489,7 @@ export function FormulaireDeclaration({
               key={champ.nom}
               champ={champ}
               erreur={erreur(champ.nom)}
+              erreurPrecision={erreur(`${champ.nom}Precision`)}
               referentiels={referentiels}
               valeursPilotes={valeursPilotes}
               onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
@@ -536,6 +551,7 @@ export function FormulaireDeclaration({
               key={champ.nom}
               champ={champ}
               erreur={erreur(champ.nom)}
+              erreurPrecision={erreur(`${champ.nom}Precision`)}
               referentiels={referentiels}
               valeursPilotes={valeursPilotes}
               onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
@@ -753,6 +769,7 @@ function optionsDe(champ: Champ, referentiels: Referentiels, parent: string | nu
 function ChampFormulaire({
   champ,
   erreur,
+  erreurPrecision,
   referentiels,
   valeursPilotes,
   onPilote,
@@ -760,6 +777,8 @@ function ChampFormulaire({
 }: {
   champ: Champ
   erreur?: string
+  /** Erreur portant sur la saisie libre d'un « Autre », rattachée à `<champ>Precision`. */
+  erreurPrecision?: string
   referentiels: Referentiels
   /** Valeurs des champs dont d'autres dépendent, par nom de champ. */
   valeursPilotes: Record<string, string>
@@ -788,20 +807,42 @@ function ChampFormulaire({
 
   if (champ.type === 'select') {
     const parent = champ.dependDe ? (valeursPilotes[champ.dependDe] ?? '') : null
+    // « Autre » appelle une saisie libre : elle n'apparaît que sur cette valeur-là.
+    const precisionOuverte =
+      champ.precisionSi !== undefined &&
+      (valeursPilotes[champ.nom] ?? '') === champ.precisionSi.valeur
 
     return (
-      <ChampSelect
-        nom={champ.nom}
-        libelle={champ.libelle}
-        obligatoire={obligatoire}
-        options={optionsDe(champ, referentiels, parent)}
-        erreur={erreur}
-        aide={champ.aide}
-        // Tant que la direction n'est pas choisie, la liste est vide : la désactiver le dit, là
-        // où une liste vide et cliquable laisse croire qu'aucun poste n'existe.
-        desactive={parent === ''}
-        onChange={pilote ? (valeur) => onPilote(champ.nom, valeur) : undefined}
-      />
+      <>
+        <ChampSelect
+          nom={champ.nom}
+          libelle={champ.libelle}
+          obligatoire={obligatoire}
+          options={optionsDe(champ, referentiels, parent)}
+          erreur={erreur}
+          aide={champ.aide}
+          // Tant que la direction n'est pas choisie, la liste est vide : la désactiver le dit, là
+          // où une liste vide et cliquable laisse croire qu'aucun poste n'existe.
+          desactive={parent === ''}
+          onChange={pilote ? (valeur) => onPilote(champ.nom, valeur) : undefined}
+        />
+
+        {/*
+          Rendue SEULEMENT quand « Autre » est retenu, jamais masquée en CSS.
+
+          Un champ présent dans le DOM est un champ soumissible : le garder caché laisserait
+          partir la saisie d'un « Autre » qu'on vient d'abandonner pour un poste de la liste. Le
+          serveur l'écarte aussi de son côté — les deux verrous sont voulus.
+        */}
+        {precisionOuverte && champ.precisionSi && (
+          <ChampTexte
+            nom={`${champ.nom}Precision`}
+            libelle={champ.precisionSi.libelle}
+            obligatoire
+            erreur={erreurPrecision}
+          />
+        )}
+      </>
     )
   }
 

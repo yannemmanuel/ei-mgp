@@ -182,6 +182,9 @@ model dossiers {
   entreprise                    String?
   poste                         String?
   declarant_est_victime         Boolean?
+  poste_precision               String?
+  statut_plaignant              String?                @db.VarChar(255)
+  statut_plaignant_precision    String?
   actions_correctives           actions_correctives[]
   declaration_identites         declaration_identites?
   dossier_affectations          dossier_affectations[]

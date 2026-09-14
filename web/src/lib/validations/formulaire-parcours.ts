@@ -97,11 +97,33 @@ function schemaChamp(champ: Champ, anonyme: boolean): z.ZodTypeAny {
 export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
   const specifiques: Record<string, z.ZodTypeAny> = {}
 
+  const precisions: { nom: string; parent: string; declencheur: string; libelle: string }[] = []
+
   for (const champ of champsVisibles(config, anonyme)) {
     specifiques[champ.nom] = schemaChamp(champ, anonyme)
+
+    if (champ.precisionSi) {
+      const nom = `${champ.nom}Precision`
+
+      // Optionnelle dans le SCHÉMA, exigée par le `superRefine` ci-dessous quand la liste vaut
+      // « Autre ». La rendre obligatoire ici la réclamerait même pour les autres valeurs, où le
+      // champ n'est même pas affiché.
+      specifiques[nom] = z
+        .string()
+        .trim()
+        .max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE)
+        .optional()
+
+      precisions.push({
+        nom,
+        parent: champ.nom,
+        declencheur: champ.precisionSi.valeur,
+        libelle: champ.precisionSi.libelle,
+      })
+    }
   }
 
-  return z.object({
+  const base = z.object({
     anonymat: z.boolean(),
     categorieId: z.string().regex(/^\d+$/, 'Merci de sélectionner une catégorie.'),
     categorieAutrePrecision: z.string().trim().max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE).optional(),
@@ -128,6 +150,35 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     piegeAraignee: z.string().max(0, 'Soumission refusée.').optional(),
     horodatageAffichage: z.coerce.number().int().nonnegative(),
     ...specifiques,
+  })
+
+  if (precisions.length === 0) return base
+
+  /*
+    « Autre » oblige à préciser, et seulement « Autre ».
+
+    La règle est conditionnelle : elle ne peut pas s'exprimer dans le schéma d'un champ, qui ne
+    voit pas la valeur des autres. Elle est donc posée sur l'objet entier, après coup — seul
+    endroit d'où l'on voit à la fois la liste et sa précision.
+
+    ⚠️ L'erreur est rattachée au champ de PRÉCISION (`path`), pas à la liste : c'est là que
+    l'œil la cherche, et c'est le champ à remplir.
+  */
+  return base.superRefine((valeurs, contexte) => {
+    for (const p of precisions) {
+      const choisi = (valeurs as Record<string, unknown>)[p.parent]
+      if (String(choisi ?? '') !== p.declencheur) continue
+
+      const saisie = String((valeurs as Record<string, unknown>)[p.nom] ?? '').trim()
+
+      if (saisie === '') {
+        contexte.addIssue({
+          code: 'custom',
+          path: [p.nom],
+          message: `« ${p.libelle} » est obligatoire dès que vous choisissez « Autre ».`,
+        })
+      }
+    }
   })
 }
 

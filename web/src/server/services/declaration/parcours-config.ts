@@ -61,6 +61,26 @@ export type Champ = {
   readonly dependDe?: string
   /** Colonne cible dans `declaration_identites` ou `dossiers`. */
   readonly colonne?: string
+  /**
+   * Champ de saisie libre révélé quand ce champ prend une valeur donnée — « Autre ».
+   *
+   * « Autre » sans précision ne dit rien : on apprend que la personne n'entre dans aucune case,
+   * jamais dans laquelle elle se trouve. La réponse libre est donc rendue sous la liste, sous le
+   * nom `<champ>Precision`, et exigée dès qu'elle apparaît — la laisser facultative reviendrait
+   * à proposer « Autre » pour ne rien en tirer.
+   *
+   * ⚠️ Décrit ICI, dans la configuration, et non codé en dur dans le formulaire. La catégorie
+   * « Autre » l'est encore — elle vient des lignes `categories.is_autre` et précède ce
+   * mécanisme. Toute NOUVELLE liste offrant « Autre » passe par ce drapeau : une troisième
+   * exception écrite à la main aurait garanti qu'une quatrième soit oubliée.
+   */
+  readonly precisionSi?: {
+    /** La valeur qui déclenche la saisie libre, telle qu'elle figure dans `options`. */
+    readonly valeur: string
+    readonly libelle: string
+    /** Colonne cible de la précision, sur la même table que le champ qu'elle complète. */
+    readonly colonne: string
+  }
 }
 
 export type ParcoursConfig = {
@@ -206,6 +226,7 @@ const POSTE = {
   dependDe: 'directionId',
   // Retiré dès que l'anonymat est coché, sur les DEUX parcours qui le portent.
   masqueSiAnonyme: true,
+  precisionSi: { valeur: 'Autre', libelle: 'Précisez votre poste', colonne: 'postePrecision' },
   aide: 'Facultatif. « Autre » si le vôtre n’y figure pas.',
 } as const satisfies Champ
 
@@ -431,13 +452,28 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         aide: 'Facultatif — quartier, campement, point de repère.',
       },
       {
+        /*
+          ⚠️ STOCKÉ SUR `dossiers`, et plus dans `declaration_identites`.
+
+          Il y était, marqué `identite`, tout en restant affiché sous anonymat — il qualifie la
+          plainte, pas la personne. Or `declaration_identites` n'est PAS créée pour une
+          déclaration anonyme : la réponse était donc exigée à l'écran puis jetée en silence.
+          Cinq des six plaintes riveraines en base n'avaient aucun statut pour cette seule raison.
+
+          Il rejoint l'entreprise du sous-traitant et la ville du riverain, déplacées plus tôt
+          pour ce motif exact. La colonne d'origine est conservée et porte toujours ce que les
+          plaintes identifiées y ont écrit.
+        */
         nom: 'statutPlaignant',
         libelle: 'Vous êtes',
         type: 'select',
         etape: 1,
         obligatoire: true,
-        identite: true,
-        colonne: 'statutPlaignant',
+        precisionSi: {
+          valeur: 'autre',
+          libelle: 'Précisez votre qualité',
+          colonne: 'statutPlaignantPrecision',
+        },
         options: [
           { valeur: 'riverain', libelle: 'Riverain' },
           { valeur: 'chef_coutumier', libelle: 'Chef coutumier' },
@@ -479,16 +515,22 @@ export function estParcoursValide(code: string): code is ParcoursCode {
 }
 
 /**
- * `statutPlaignant` du parcours Communauté est un champ d'identité au sens de la table, mais il
- * reste obligatoire même en anonyme : il qualifie la plainte, pas la personne. Il est donc
- * exclu du masquage appliqué aux autres champs d'identité.
+ * ⚠️ CETTE EXCEPTION EST VIDE, et elle doit le rester.
+ *
+ * `statutPlaignant` y figurait : marqué `identite` pour le stockage, mais réintégré ici pour
+ * rester affiché en anonymat. Le montage tenait à l'écran et échouait en base —
+ * `declaration_identites` n'est pas créée pour une déclaration anonyme, si bien que la réponse
+ * était exigée puis jetée. Le champ est désormais sur `dossiers`, et n'a plus besoin d'exception.
+ *
+ * Un champ exigé en anonymat ne se marque donc PAS `identite` : il se range sur `dossiers`. Cette
+ * liste n'existe plus que pour documenter pourquoi on n'y ajoute rien.
  *
  * ⚠️ L'entreprise du sous-traitant et la ville du riverain, elles aussi exigées en anonyme, ne
  * passent PAS par cette exception : elles ne sont plus marquées `identite` du tout, et sont
  * stockées sur `dossiers`. La différence compte — `declaration_identites` n'est pas créée pour
  * une déclaration anonyme, si bien qu'un champ resté `identite` est affiché puis perdu.
  */
-const IDENTITE_CONSERVEE_EN_ANONYME = new Set(['statutPlaignant'])
+const IDENTITE_CONSERVEE_EN_ANONYME = new Set<string>()
 
 /**
  * Champs réellement affichés, une fois l'anonymat pris en compte (RGI-03).

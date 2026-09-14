@@ -142,3 +142,130 @@ describe('« Solution souhaitée »', () => {
     ).toBeUndefined()
   })
 })
+
+describe('« Autre » ouvre toujours une saisie libre', () => {
+  /*
+    Demande métier : partout où « Autre » est proposé, on doit pouvoir écrire ce dont il s'agit.
+    « Autre » seul apprend qu'une personne n'entre dans aucune case, jamais laquelle la décrit.
+
+    Le mécanisme est DÉCLARATIF (`precisionSi`) et non codé en dur dans le formulaire : la
+    catégorie « Autre », antérieure, l'est encore — une troisième exception écrite à la main
+    aurait garanti qu'une quatrième soit oubliée.
+  */
+  it('recense toute option « Autre » et exige qu’elle porte une précision', () => {
+    const manquantes: string[] = []
+
+    for (const [code, config] of tous) {
+      for (const champ of config.champs) {
+        const autre = champ.options?.find((o) => o.libelle.toLowerCase() === 'autre')
+        if (!autre) continue
+
+        if (champ.precisionSi?.valeur !== autre.valeur) {
+          manquantes.push(`${code}/${champ.nom}`)
+        }
+      }
+    }
+
+    expect(manquantes, `« Autre » sans saisie libre : ${manquantes.join(', ')}`).toEqual([])
+  })
+
+  it('ouvre la saisie libre sous le POSTE', () => {
+    // Celle-ci n'est pas dans `options` — « Autre » est injecté par direction au chargement du
+    // référentiel — donc le cas précédent ne la voit pas. Elle est vérifiée à part.
+    const poste = PARCOURS.ei_employe.champs.find((c) => c.nom === 'posteOccupe')
+
+    expect(poste?.precisionSi?.valeur, 'le poste « Autre » ne peut pas être précisé').toBe(
+      POSTE_AUTRE
+    )
+    expect(poste?.precisionSi?.colonne).toBe('postePrecision')
+  })
+
+  it('range chaque précision sur la MÊME table que son champ', () => {
+    /*
+      Garde-fou de stockage. Une précision rangée dans `declaration_identites` alors que son champ
+      vit sur `dossiers` serait demandée à l'écran puis perdue en anonymat — le piège déjà tombé
+      sur l'entreprise, la ville, et le statut du plaignant.
+    */
+    for (const [code, config] of tous) {
+      for (const champ of config.champs) {
+        if (!champ.precisionSi) continue
+
+        expect(
+          Boolean(champ.identite),
+          `${code}/${champ.nom} : le champ et sa précision ne vivent pas sur la même table`
+        ).toBe(false)
+      }
+    }
+  })
+})
+
+describe('⚠️ Le statut du plaignant survit à l’anonymat', () => {
+  it('n’est PLUS marqué `identite`', () => {
+    /*
+      Défaut corrigé, et il était silencieux. Le champ est OBLIGATOIRE et reste affiché sous
+      anonymat — il qualifie la plainte, pas la personne. Mais il était rangé dans
+      `declaration_identites`, table qui n'est PAS créée pour une déclaration anonyme : la réponse
+      était exigée à l'écran puis jetée. Cinq des six plaintes riveraines en base n'avaient aucun
+      statut pour cette seule raison.
+    */
+    const champ = PARCOURS.grief_communaute.champs.find((c) => c.nom === 'statutPlaignant')
+
+    expect(champ?.obligatoire, 'le champ n’est plus obligatoire').toBe(true)
+    expect(champ?.identite, 'le statut repartirait dans declaration_identites').toBeFalsy()
+    expect(
+      champsVisibles(PARCOURS.grief_communaute, true).map((c) => c.nom),
+      'le statut a disparu de la plainte anonyme'
+    ).toContain('statutPlaignant')
+  })
+
+  it('⚠️ aucun champ exigé en anonymat n’est marqué `identite`', () => {
+    // La règle générale, qui vaut mieux qu'un cas particulier : un champ demandé à un déclarant
+    // anonyme ne peut pas vivre dans une table qu'on ne crée pas pour lui.
+    const fautifs: string[] = []
+
+    for (const [code, config] of tous) {
+      for (const champ of champsVisibles(config, true)) {
+        if (champ.identite) fautifs.push(`${code}/${champ.nom}`)
+      }
+    }
+
+    expect(fautifs, `affichés en anonymat mais jamais stockés : ${fautifs.join(', ')}`).toEqual([])
+  })
+})
+
+describe('Rien n’est collecté puis abandonné en route', () => {
+  it('⚠️ chaque champ et chaque précision atteint `donneesDossier`', async () => {
+    /*
+      Le maillon qu'aucun autre cas ne couvre.
+
+      `traiterSoumission()` range les valeurs dans `dossierSpecifique`, puis les recopie UNE À UNE
+      dans l'objet passé à `creerDeclaration()`. Oublier une ligne dans cette recopie ne casse
+      rien : la valeur est lue, validée, rangée… et jamais écrite. Exactement ce qui est arrivé au
+      statut du plaignant, sous une autre forme.
+
+      La fonction exige un contexte de requête HTTP et n'est pas appelable ici ; on lit donc sa
+      source, comme le fait déjà la suite de non-régression pour le formulaire.
+    */
+    const { readFile } = await import('node:fs/promises')
+    const source = await readFile('src/server/services/declaration/soumission.ts', 'utf8')
+
+    const oublies: string[] = []
+
+    for (const [code, config] of tous) {
+      for (const champ of config.champs) {
+        // Les champs d'identité passent par `colonne` et un autre chemin : hors sujet ici.
+        if (champ.identite) continue
+        if (!champ.precisionSi) continue
+
+        if (!source.includes(champ.precisionSi.colonne)) {
+          oublies.push(`${code}/${champ.precisionSi.colonne}`)
+        }
+      }
+    }
+
+    // Le statut du plaignant lui-même, déplacé sur `dossiers` et donc soumis à la même recopie.
+    if (!source.includes('statutPlaignant')) oublies.push('statutPlaignant')
+
+    expect(oublies, `collectés puis jamais écrits : ${oublies.join(', ')}`).toEqual([])
+  })
+})

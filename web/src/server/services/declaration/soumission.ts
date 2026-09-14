@@ -97,6 +97,15 @@ export async function traiterSoumission(
     const valeur = valeurBrute(donnees, champ)
     if (valeur !== undefined && valeur !== '') brut[champ.nom] = valeur
     else if (champ.type === 'case') brut[champ.nom] = false
+
+    // La saisie libre d'un « Autre » voyage sous `<champ>Precision`. Elle est lue sans condition :
+    // c'est le schéma qui décide si elle est exigée, pas ce parcours-ci.
+    if (champ.precisionSi) {
+      const precision = donnees.get(`${champ.nom}Precision`)
+      if (typeof precision === 'string' && precision !== '') {
+        brut[`${champ.nom}Precision`] = precision
+      }
+    }
   }
 
   const resultat = schemaParcours(config, anonyme).safeParse(brut)
@@ -156,6 +165,28 @@ export async function traiterSoumission(
     }
   }
 
+  /*
+    Les précisions suivent leur champ, et ne sont retenues que si « Autre » a été choisi.
+
+    ⚠️ Le filtre sur la valeur déclencheuse n'est pas décoratif : un navigateur peut avoir gardé
+    la saisie d'un « Autre » revenu ensuite sur un poste de la liste, et une requête forgée peut
+    l'envoyer délibérément. Enregistrer une précision à côté d'une valeur qui n'en appelle
+    aucune produirait un dossier qui se contredit lui-même.
+  */
+  for (const champ of visibles) {
+    if (!champ.precisionSi) continue
+    if (String(valide[champ.nom] ?? '') !== champ.precisionSi.valeur) continue
+
+    const saisie = valide[`${champ.nom}Precision`]
+    if (saisie === undefined || saisie === '') continue
+
+    if (champ.identite) {
+      ;(identite as Record<string, unknown>)[champ.precisionSi.colonne] = saisie
+    } else {
+      dossierSpecifique[champ.precisionSi.colonne] = saisie
+    }
+  }
+
   try {
     const cree = await creerDeclaration({
       parcours: codeParcours,
@@ -188,6 +219,13 @@ export async function traiterSoumission(
         // (GST2) et la ville du riverain (GR1), avec son complément libre (GR2).
         entreprise: (dossierSpecifique.entreprise ?? null) as string | null,
         poste: (dossierSpecifique.posteOccupe ?? null) as string | null,
+        postePrecision: (dossierSpecifique.postePrecision ?? null) as string | null,
+        // Déplacé hors de `declaration_identites` : la question est posée même en anonymat, et
+        // cette table n'est pas créée dans ce cas — la réponse y était exigée puis jetée.
+        statutPlaignant: (dossierSpecifique.statutPlaignant ?? null) as string | null,
+        statutPlaignantPrecision: (dossierSpecifique.statutPlaignantPrecision ?? null) as
+          | string
+          | null,
         ville: (dossierSpecifique.ville ?? null) as string | null,
         precisionLocalisation: (dossierSpecifique.precisionLocalisation ?? null) as string | null,
       },
