@@ -124,7 +124,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
     // les trois quarts des fiches.
     estEvenementIndesirable(pourPolicy.parcoursCode)
-      ? suiviEi(id, dossier.site_id)
+      ? suiviEi(id, { siteId: dossier.site_id, directionId: dossier.direction_id })
       : Promise.resolve(null),
   ])
 
@@ -574,10 +574,23 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           <PanneauActions
             dossierId={id}
             statutCode={dossier.statutCode}
-            affectations={affectations.map((a) => ({
-              id: String(a.id),
-              nom: a.users_dossier_affectations_user_idTousers.name,
-            }))}
+            /*
+              ⚠️ DEUX SOURCES, selon le parcours — et une seule est juste pour chacun.
+
+              L'évènement indésirable n'est affecté à personne : sa charge se déduit du
+              rattachement, comme dans l'encadré de suivi juste au-dessus. Lire
+              `dossier_affectations` ici faisait dire « Personne » à cette carte pendant que
+              l'encadré nommait le chargé de sécurité — c'est ce qui a été remonté.
+            */
+            affectations={
+              suivi !== null
+                ? suivi.enCharge.map((c) => ({ id: String(c.id), nom: c.nom }))
+                : affectations.map((a) => ({
+                    id: String(a.id),
+                    nom: a.users_dossier_affectations_user_idTousers.name,
+                  }))
+            }
+            parRattachement={suivi !== null}
             transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
             acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
               (role) => LIBELLES_ROLE[role] ?? role

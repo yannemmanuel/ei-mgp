@@ -15,7 +15,10 @@ import { chargesDeSecurite, estEvenementIndesirable, suiviEi } from '../suivi-ei
  */
 const comptesCrees: bigint[] = []
 
-async function compteCharge(siteId: bigint | null): Promise<bigint> {
+async function compteCharge(
+  siteId: bigint | null,
+  directionId: bigint | null = null
+): Promise<bigint> {
   const role = await prisma.roles.findFirstOrThrow({
     where: { name: 'charge_securite', guard_name: 'web' },
   })
@@ -28,6 +31,7 @@ async function compteCharge(siteId: bigint | null): Promise<bigint> {
       password: 'x'.repeat(60),
       actif: true,
       site_id: siteId,
+      direction_id: directionId,
       created_at: new Date(),
       updated_at: new Date(),
     },
@@ -177,44 +181,97 @@ describe('Le bloc de suivi', () => {
 
   it('retient le chargé DU site, et pas celui d’un autre', async () => {
     const sites = await prisma.sites.findMany({ take: 2, select: { id: true } })
-    if (sites.length < 2) return // une seule site en base : le cloisonnement ne se démontre pas
+    if (sites.length < 2) return // un seul site en base : le cloisonnement ne se démontre pas
 
     const [a, b] = sites
     const chargeDeA = await compteCharge(a.id)
 
     expect(
-      (await chargesDeSecurite(a.id)).map((c) => c.id),
+      (await chargesDeSecurite({ siteId: a.id, directionId: null })).map((c) => c.id),
       'le chargé du site n’est pas retenu sur son propre site'
     ).toContainEqual(chargeDeA)
 
     expect(
-      (await chargesDeSecurite(b.id)).map((c) => c.id),
+      (await chargesDeSecurite({ siteId: b.id, directionId: null })).map((c) => c.id),
       'le chargé d’un site est proposé sur un autre'
     ).not.toContainEqual(chargeDeA)
   })
 
-  it('retient un chargé SANS site sur n’importe quel site', async () => {
+  it('retient un chargé SANS rattachement sur n’importe quel dossier', async () => {
     /*
       Cohérent avec `siteCloisonnant()`, et volontaire : faute de rattachement, ce compte n'est
-      borné à aucun site et VOIT donc réellement ce dossier. L'écarter ici ferait dire à la fiche
-      que personne n'en répond alors que quelqu'un le traite — le pire des deux affichages.
+      borné à rien et VOIT donc réellement ce dossier. L'écarter ici ferait dire à la fiche que
+      personne n'en répond alors que quelqu'un le traite — le pire des deux affichages.
 
-      C'est aussi pourquoi la console des comptes signale « site manquant » : la bonne correction
-      est de rattacher le compte, pas de le masquer.
+      C'est aussi pourquoi la console des comptes signale « rattachement manquant » : la bonne
+      correction est de rattacher le compte, pas de le masquer.
     */
-    const sansSite = await compteCharge(null)
+    const sansRattachement = await compteCharge(null)
     const site = await prisma.sites.findFirstOrThrow({ select: { id: true } })
 
-    expect((await chargesDeSecurite(site.id)).map((c) => c.id)).toContainEqual(sansSite)
+    expect(
+      (await chargesDeSecurite({ siteId: site.id, directionId: null })).map((c) => c.id)
+    ).toContainEqual(sansRattachement)
+  })
+
+  it('⚠️ retient le chargé habilité sur la DIRECTION de la déclaration', async () => {
+    /*
+      ⚠️ LE CAS QUI A ÉTÉ REMONTÉ. Une déclaration déposée sur une direction, un chargé de
+      sécurité habilité sur cette direction — et la fiche annonçait que personne ne s'en occupait.
+
+      La sélection ne regardait que `site_id`. Un compte habilité sur une direction porte
+      `site_id` à null : il n'était donc retenu que par la branche « sans rattachement », et
+      seulement quand le dossier avait un site. Sur un dossier rattaché à une direction sans site,
+      il n'était jamais retenu.
+    */
+    const direction = await prisma.directions.findFirstOrThrow({ select: { id: true } })
+    const autre = await prisma.directions.findFirst({
+      where: { id: { not: direction.id } },
+      select: { id: true },
+    })
+
+    const chargeDeLaDirection = await compteCharge(null, direction.id)
+
+    expect(
+      (await chargesDeSecurite({ siteId: null, directionId: direction.id })).map((c) => c.id),
+      'le chargé habilité sur cette direction n’est pas retenu'
+    ).toContainEqual(chargeDeLaDirection)
+
+    if (autre) {
+      expect(
+        (await chargesDeSecurite({ siteId: null, directionId: autre.id })).map((c) => c.id),
+        'il est proposé sur une AUTRE direction'
+      ).not.toContainEqual(chargeDeLaDirection)
+    }
+  })
+
+  it('⚠️ retient quelqu’un sur un dossier SANS site', async () => {
+    /*
+      ⚠️ LA BRANCHE QUI N'ÉTAIT PAS TESTÉE, et c'est précisément celle qui était cassée.
+
+      La sélection écrivait `OR: [{}]` pour « tous les comptes » quand le dossier n'avait pas de
+      site. Dans Prisma, un objet vide dans un `OR` ne correspond à RIEN, pas à tout : la fiche
+      répondait « personne » sur tous ces dossiers — c'est-à-dire sur la majorité d'entre eux, la
+      plupart des directions n'étant rattachées à aucun site.
+    */
+    const sansRattachement = await compteCharge(null)
+
+    expect(
+      (await chargesDeSecurite({ siteId: null, directionId: null })).map((c) => c.id),
+      'aucun chargé n’est retenu sur un dossier sans site'
+    ).toContainEqual(sansRattachement)
   })
 
   it('résume le plan d’action sans jamais compter une action close comme ouverte', async () => {
     const dossier = await prisma.dossiers.findFirstOrThrow({
       where: { parcours: { code: 'ei_employe' } },
-      select: { id: true, site_id: true },
+      select: { id: true, site_id: true, direction_id: true },
     })
 
-    const suivi = await suiviEi(dossier.id, dossier.site_id)
+    const suivi = await suiviEi(dossier.id, {
+      siteId: dossier.site_id,
+      directionId: dossier.direction_id,
+    })
     const reelles = await prisma.actions_correctives.findMany({
       where: { dossier_id: dossier.id },
       select: { statut: true },

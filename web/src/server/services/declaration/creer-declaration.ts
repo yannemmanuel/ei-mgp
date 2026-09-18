@@ -1,9 +1,8 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
 import {
-  directionCloisonnante,
   peutVoirParcours,
-  siteCloisonnant,
+  rattachementCouvre,
   type ParcoursCode,
   type Permission,
   type Role,
@@ -546,12 +545,10 @@ async function affecterAutomatiquement(
       parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
     }
 
-    // La direction d'abord : elle est plus fine, et `siteCloisonnant()` s'efface devant elle.
-    const direction = directionCloisonnante(pourCloisonnement)
-    if (direction !== null) return directionDuDossier === direction
-
-    const site = siteCloisonnant(pourCloisonnement)
-    return site === null || siteDuDossier === site
+    return rattachementCouvre(pourCloisonnement, {
+      siteId: siteDuDossier,
+      directionId: directionDuDossier,
+    })
   })
 
   if (utilisateurs.length === 0) {

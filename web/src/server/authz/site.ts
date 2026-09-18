@@ -123,6 +123,29 @@ export function siteCloisonnant(u: UtilisateurAutorise): bigint | null {
  * compte de site. La faire disparaître de la console est ce qui garde les vraies alertes
  * crédibles.
  */
+/**
+ * Ce compte répond-il de ce dossier, au titre de son rattachement ?
+ *
+ * ⚠️ LE PRÉDICAT UNIQUE. Trois endroits posent la même question — qui voit le dossier, qui le
+ * reçoit à la création, et qui en a la charge sur un évènement indésirable — et chacun la posait
+ * à sa façon. Deux d'entre eux se sont déjà trompés : l'affectation affectait à tout le monde un
+ * dossier sans site, et le suivi EI ne retenait personne dès que le dossier n'en avait pas.
+ *
+ * Ce n'est PAS un contrôle d'accès complet : il ne dit rien du parcours ni des permissions. Il ne
+ * répond qu'à la question du rattachement, et `peutVoirDossier()` reste seul juge de l'accès.
+ */
+export function rattachementCouvre(
+  u: UtilisateurAutorise,
+  dossier: { readonly siteId: bigint | null; readonly directionId: bigint | null }
+): boolean {
+  // La direction d'abord : plus fine, et `siteCloisonnant()` s'efface devant elle.
+  const direction = directionCloisonnante(u)
+  if (direction !== null) return dossier.directionId === direction
+
+  const site = siteCloisonnant(u)
+  return site === null || dossier.siteId === site
+}
+
 export function siteManquant(
   roles: readonly Role[],
   siteId: bigint | null,

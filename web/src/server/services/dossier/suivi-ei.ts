@@ -1,29 +1,47 @@
 import { prisma } from '@/lib/prisma'
-import { PARCOURS_CODES, type ParcoursCode } from '@/server/authz'
+import {
+  PARCOURS_CODES,
+  rattachementCouvre,
+  type ParcoursCode,
+  type Permission,
+  type Role,
+} from '@/server/authz'
 import type { StatutAction } from '../action-corrective/action-corrective'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
 
+/** Le rattachement d'un dossier : les deux seules entrées du cloisonnement. */
+export type RattachementDossier = {
+  readonly siteId: bigint | null
+  readonly directionId: bigint | null
+}
+
 /**
  * Qui a la charge d'un évènement indésirable.
  *
- * L'évènement indésirable n'est plus affecté à personne : son traitement revient au chargé de
- * sécurité DU SITE, qui le complète après chaque comité. « La personne en charge » ne peut donc
- * plus se lire dans `dossier_affectations` — cette table est vide pour ce parcours — et se déduit
- * du rattachement : le site du dossier, croisé avec les comptes qui en répondent.
+ * L'évènement indésirable n'est affecté à personne : son traitement revient au chargé de sécurité
+ * dont le RATTACHEMENT couvre le dossier, et qui le complète après chaque comité. « La personne en
+ * charge » ne se lit donc pas dans `dossier_affectations` — cette table est vide pour ce parcours —
+ * mais se déduit du rattachement.
  *
- * ⚠️ Renvoie une LISTE, pas une personne. Rien n'impose qu'un site n'ait qu'un chargé de sécurité,
- * et rien n'impose qu'il en ait un : les deux cas se produisent, et l'écran doit pouvoir dire
+ * ⚠️ Renvoie une LISTE, pas une personne. Rien n'impose qu'un rattachement n'ait qu'un chargé de
+ * sécurité, ni qu'il en ait un : les deux cas se produisent, et l'écran doit pouvoir dire
  * « personne » plutôt que d'afficher un vide qu'on lira comme un défaut d'affichage.
  *
- * ⚠️ Un compte SANS site est retenu pour tous les sites, et c'est cohérent avec
- * `siteCloisonnant()` : faute de rattachement, il n'est borné à aucun site et voit donc bien ce
- * dossier. L'écarter ici ferait dire à la fiche que personne n'en répond alors que quelqu'un le
- * traite.
+ * ⚠️ FILTRÉ PAR `rattachementCouvre()`, la même fonction que l'affectation et la lecture. Les deux
+ * versions précédentes filtraient à la main, et toutes deux se trompaient :
+ *
+ *   - elles ignoraient la DIRECTION, donc un chargé de sécurité habilité sur une direction
+ *     n'apparaissait jamais — alors que c'est lui qui répond du dossier ;
+ *   - elles écrivaient `OR: [{}]` pour « tous les comptes » quand le dossier n'avait pas de site.
+ *     Dans Prisma, un objet vide dans un `OR` ne correspond à RIEN, pas à tout : la fiche disait
+ *     donc que personne n'en répondait, sur la majorité des dossiers.
  */
-export async function chargesDeSecurite(siteId: bigint | null): Promise<{ id: bigint; nom: string }[]> {
-  const liens = await prisma.model_has_roles.findMany({
+export async function chargesDeSecurite(
+  dossier: RattachementDossier
+): Promise<{ id: bigint; nom: string }[]> {
+  const porteurs = await prisma.model_has_roles.findMany({
     where: {
       model_type: MODEL_TYPE_USER,
       roles: { name: 'charge_securite', guard_name: 'web', actif: true },
@@ -31,20 +49,82 @@ export async function chargesDeSecurite(siteId: bigint | null): Promise<{ id: bi
     select: { model_id: true },
   })
 
-  if (liens.length === 0) return []
+  if (porteurs.length === 0) return []
+
+  const ids = porteurs.map((l) => l.model_id)
 
   const comptes = await prisma.users.findMany({
-    where: {
-      actif: true,
-      id: { in: liens.map((l) => l.model_id) },
-      // `site_id: null` inclus : voir l'avertissement ci-dessus.
-      OR: siteId === null ? [{}] : [{ site_id: siteId }, { site_id: null }],
-    },
+    where: { actif: true, id: { in: ids } },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      site_id: true,
+      direction_id: true,
+      directions: { select: { site_id: true } },
+    },
   })
 
-  return comptes.map((c) => ({ id: c.id, nom: c.name }))
+  /*
+    TOUS les rôles et permissions de ces comptes, en une requête.
+
+    `rattachementCouvre()` ne borne pas un compte transverse ni un compte qui cumule un rôle non
+    cloisonné : sans cette lecture, on lui appliquerait une restriction qui ne le concerne pas, et
+    la fiche cesserait de nommer quelqu'un qui en répond bel et bien.
+  */
+  const liens = await prisma.model_has_roles.findMany({
+    where: { model_type: MODEL_TYPE_USER, model_id: { in: ids } },
+    select: {
+      model_id: true,
+      roles: {
+        select: {
+          name: true,
+          actif: true,
+          guard_name: true,
+          role_has_permissions: {
+            select: { permissions: { select: { name: true, guard_name: true } } },
+          },
+        },
+      },
+    },
+  })
+
+  const rolesParCompte = new Map<bigint, Role[]>()
+  const permissionsParCompte = new Map<bigint, Set<Permission>>()
+
+  for (const lien of liens) {
+    // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
+    if (!lien.roles.actif || lien.roles.guard_name !== 'web') continue
+
+    rolesParCompte.set(lien.model_id, [
+      ...(rolesParCompte.get(lien.model_id) ?? []),
+      lien.roles.name as Role,
+    ])
+
+    const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
+    for (const rhp of lien.roles.role_has_permissions) {
+      if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
+    }
+    permissionsParCompte.set(lien.model_id, permissions)
+  }
+
+  return comptes
+    .filter((c) =>
+      rattachementCouvre(
+        {
+          id: c.id,
+          actif: true,
+          siteId: c.site_id ?? c.directions?.site_id ?? null,
+          directionId: c.direction_id,
+          doitChangerMotDePasse: false,
+          roles: rolesParCompte.get(c.id) ?? [],
+          permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
+          parcours: [],
+        },
+        dossier
+      )
+    )
+    .map((c) => ({ id: c.id, nom: c.name }))
 }
 
 export type SuiviEi = {
@@ -73,9 +153,12 @@ export function estEvenementIndesirable(code: string): code is ParcoursCode {
  * plus bas qu'il fallait dérouler. Le chargé de sécurité arrive après un comité avec une décision
  * à consigner : ce qu'il lui faut d'abord, c'est l'état d'ensemble.
  */
-export async function suiviEi(dossierId: string, siteId: bigint | null): Promise<SuiviEi> {
+export async function suiviEi(
+  dossierId: string,
+  dossier: RattachementDossier
+): Promise<SuiviEi> {
   const [enCharge, actions] = await Promise.all([
-    chargesDeSecurite(siteId),
+    chargesDeSecurite(dossier),
     prisma.actions_correctives.findMany({
       where: { dossier_id: dossierId },
       select: { statut: true, echeance: true },

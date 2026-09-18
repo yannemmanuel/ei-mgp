@@ -19,7 +19,18 @@ type Option = { id: string; nom: string }
 type Props = {
   dossierId: string
   statutCode: string
+  /** Qui traite ce dossier — par affectation, ou par rattachement selon `parRattachement`. */
   affectations: Option[]
+  /**
+   * La charge découle du RATTACHEMENT et non d'une affectation.
+   *
+   * C'est le cas de l'évènement indésirable : il n'est affecté à personne, et revient au chargé
+   * de sécurité dont le site ou la direction couvre le dossier. Sans cette distinction, la carte
+   * lisait `dossier_affectations` — vide pour ce parcours — et annonçait « Personne » alors que
+   * l'encadré de suivi, juste au-dessus, nommait la personne en charge. Deux affirmations
+   * contraires sur le même écran.
+   */
+  parRattachement?: boolean
   transitions: { code: string; libelle: string }[]
   /**
    * Rôles à qui le CDC confie l'étape courante, déjà traduits en clair. Vide quand le CDC
@@ -52,6 +63,7 @@ export function PanneauActions({
   dossierId,
   statutCode,
   affectations,
+  parRattachement = false,
   transitions,
   acteursDeLEtape,
   gravitesAQualifier,
@@ -80,15 +92,26 @@ export function PanneauActions({
           */}
           {affectations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Personne pour l’instant. Les dossiers sont confiés aux comptes du parcours et du site
-              concernés — vérifiez qu’au moins un compte y est habilité.
+              {parRattachement
+                ? 'Personne pour l’instant. Un évènement indésirable revient au chargé de sécurité dont le site ou la direction couvre ce dossier — vérifiez qu’au moins un compte y est habilité.'
+                : 'Personne pour l’instant. Les dossiers sont confiés aux comptes du parcours et du rattachement concernés — vérifiez qu’au moins un compte y est habilité.'}
             </p>
           ) : (
-            <ul className="space-y-1 text-sm text-secondary-800">
-              {affectations.map((a) => (
-                <li key={a.id}>{a.nom}</li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-1 text-sm text-secondary-800">
+                {affectations.map((a) => (
+                  <li key={a.id}>{a.nom}</li>
+                ))}
+              </ul>
+              {parRattachement && (
+                // Dire d'où vient cette charge : elle ne se change pas ici, mais dans le
+                // rattachement du compte. Sans cette ligne, on cherche un bouton qui n'existe pas.
+                <p className="text-caption text-muted-foreground">
+                  Au titre de leur rattachement : un évènement indésirable n’est affecté à
+                  personne. Pour changer qui le traite, modifiez le site ou la direction du compte.
+                </p>
+              )}
+            </>
           )}
 
         </CardContent>
