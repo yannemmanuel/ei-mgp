@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { parcoursAutorises, type UtilisateurAutorise } from '@/server/authz'
+import type { UtilisateurAutorise } from '@/server/authz'
+import { perimetreDossiers } from '../dossier/liste'
 import { STATUTS_ACTION, type StatutAction } from './action-corrective'
 
 /**
@@ -16,8 +17,16 @@ import { STATUTS_ACTION, type StatutAction } from './action-corrective'
  * restants calculés à l'instant du rendu, qui eux ne retardent pas.
  */
 
+/**
+ * ⚠️ LE PÉRIMÈTRE DE LA FICHE, REPRIS TEL QUEL — et surtout pas redérivé.
+ *
+ * Même défaut que pour les investigations : filtrer sur le seul parcours laissait voir ici des
+ * actions dont le dossier était refusé à la lecture, avec la référence du dossier en clair et un
+ * lien qui menait à « Page introuvable ». Déléguer supprime la possibilité même d'un écart.
+ * `perimetres-coherents.test.ts` le vérifie sur les comptes réels.
+ */
 export function perimetreActions(u: UtilisateurAutorise): Prisma.actions_correctivesWhereInput {
-  return { dossiers: { parcours: { code: { in: parcoursAutorises(u) } } } }
+  return { dossiers: perimetreDossiers(u) }
 }
 
 /**

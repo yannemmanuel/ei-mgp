@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { parcoursAutorises, type UtilisateurAutorise } from '@/server/authz'
+import type { UtilisateurAutorise } from '@/server/authz'
+import { perimetreDossiers } from '../dossier/liste'
 
 /**
  * Vue transverse des investigations, tous dossiers confondus — port de
@@ -11,12 +12,23 @@ import { parcoursAutorises, type UtilisateurAutorise } from '@/server/authz'
  * serveur des lignes hors périmètre.
  */
 
+/**
+ * ⚠️ LE PÉRIMÈTRE DE LA FICHE, REPRIS TEL QUEL — et surtout pas redérivé.
+ *
+ * Cette fonction ne filtrait que sur le PARCOURS. Il lui manquait le cloisonnement par site, et
+ * les deux règles divergeaient donc : un chargé de sécurité rattaché à un site voyait ici des
+ * fiches dont le dossier lui était refusé. Deux conséquences, la seconde étant la grave :
+ *
+ *   1. il cliquait sur la ligne et tombait sur « Page introuvable » ;
+ *   2. la ligne lui avait DÉJÀ montré la référence du dossier, sa catégorie et le nom de
+ *      l'enquêteur — d'un dossier qu'il n'a pas le droit de lire.
+ *
+ * Déléguer est la seule façon de garantir que les deux ne peuvent plus diverger : il n'y a plus
+ * qu'une définition du périmètre, celle qui décide aussi de l'ouverture de la fiche.
+ * `perimetres-coherents.test.ts` le vérifie sur les comptes réels.
+ */
 export function perimetreInvestigations(u: UtilisateurAutorise): Prisma.investigationsWhereInput {
-  const codes = parcoursAutorises(u)
-
-  // `in: []` est une clause impossible, et c'est voulu : un rôle sans parcours ne voit rien,
-  // plutôt que de retomber par défaut sur « tout voir ».
-  return { dossiers: { parcours: { code: { in: codes } } } }
+  return { dossiers: perimetreDossiers(u) }
 }
 
 /**
