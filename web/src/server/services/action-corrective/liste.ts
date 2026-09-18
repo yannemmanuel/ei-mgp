@@ -20,30 +20,33 @@ export function perimetreActions(u: UtilisateurAutorise): Prisma.actions_correct
   return { dossiers: { parcours: { code: { in: parcoursAutorises(u) } } } }
 }
 
+/**
+ * ⚠️ `miennes` A DISPARU, et ce n'est pas un oubli.
+ *
+ * Le responsable d'une action est saisi à la main depuis le 2026-09-18 : ce n'est plus un compte,
+ * et l'application ne sait donc plus quelles actions appartiennent à qui. Un raccourci « Les
+ * miennes » ne ramènerait que les actions écrites AVANT ce changement, en se présentant comme une
+ * liste complète — c'est-à-dire en cachant du travail à la personne qui en est chargée.
+ *
+ * Le filtre par responsable, lui, subsiste : il porte sur le nom saisi.
+ */
 export type FiltresActions = {
   statut?: string
-  responsableId?: string
+  responsable?: string
   parcoursId?: string
   echeanceDebut?: string
   echeanceFin?: string
-  /** Raccourci de navigation : les actions dont je suis responsable. */
-  miennes?: boolean
 }
 
-function clauseFiltres(
-  u: UtilisateurAutorise,
-  filtres: FiltresActions
-): Prisma.actions_correctivesWhereInput {
+function clauseFiltres(filtres: FiltresActions): Prisma.actions_correctivesWhereInput {
   const where: Prisma.actions_correctivesWhereInput = {}
 
   if (filtres.statut && (STATUTS_ACTION as readonly string[]).includes(filtres.statut)) {
     where.statut = filtres.statut
   }
 
-  if (filtres.miennes) {
-    where.responsable_id = u.id
-  } else if (filtres.responsableId) {
-    where.responsable_id = BigInt(filtres.responsableId)
+  if (filtres.responsable) {
+    where.responsable_nom = filtres.responsable
   }
 
   if (filtres.parcoursId) {
@@ -68,7 +71,9 @@ export async function listerActions(
   page = 1
 ) {
   const where: Prisma.actions_correctivesWhereInput = {
-    AND: [perimetreActions(u), clauseFiltres(u, filtres)],
+    // ⚠️ `perimetreActions(u)` reste le premier terme : c'est LUI qui cloisonne. Les filtres ne
+    // font que restreindre à l'intérieur de ce périmètre, jamais l'élargir.
+    AND: [perimetreActions(u), clauseFiltres(filtres)],
   }
 
   const [total, actions] = await Promise.all([
@@ -85,6 +90,8 @@ export async function listerActions(
         echeance: true,
         statut: true,
         date_cloture: true,
+        responsable_nom: true,
+        // Conservée pour les actions créées avant la saisie manuelle, qui désignaient un compte.
         users: { select: { name: true } },
         dossiers: {
           select: {
@@ -102,20 +109,31 @@ export async function listerActions(
 }
 
 export async function referentielsActions() {
+  /*
+    Les responsables proposés sont les noms RÉELLEMENT SAISIS, et non plus la liste des comptes.
+    Même règle qu'avant le changement : ne proposer que des valeurs qui ramènent des lignes. Lire
+    `users` continuerait d'offrir des comptes dont plus aucune action ne porte le nom.
+  */
   const [parcours, responsables] = await Promise.all([
     prisma.parcours.findMany({
       where: { actif: true },
       orderBy: { ordre: 'asc' },
       select: { id: true, libelle: true },
     }),
-    prisma.users.findMany({
-      where: { actions_correctives: { some: {} } },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
+    prisma.actions_correctives.findMany({
+      where: { responsable_nom: { not: null } },
+      distinct: ['responsable_nom'],
+      orderBy: { responsable_nom: 'asc' },
+      select: { responsable_nom: true },
     }),
   ])
 
-  return { parcours, responsables }
+  return {
+    parcours,
+    responsables: responsables
+      .map((a) => a.responsable_nom)
+      .filter((nom): nom is string => nom !== null),
+  }
 }
 
 export const LIBELLES_STATUT_ACTION: Record<StatutAction, string> = {

@@ -1,7 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { parcoursAutorises, type UtilisateurAutorise } from '@/server/authz'
-import { STATUTS_INVESTIGATION, type StatutInvestigation } from './investigation'
 
 /**
  * Vue transverse des investigations, tous dossiers confondus — port de
@@ -20,11 +19,17 @@ export function perimetreInvestigations(u: UtilisateurAutorise): Prisma.investig
   return { dossiers: { parcours: { code: { in: codes } } } }
 }
 
+/**
+ * ⚠️ `statut` A DISPARU des filtres : une investigation n'est soumise à aucune validation
+ * (décision métier du 2026-09-18). La colonne ne porte plus qu'une valeur unique — un filtre
+ * dessus n'offrirait qu'un seul choix, qui ne retirerait jamais aucune ligne.
+ *
+ * « Où en est le DOSSIER » (`statutDossierId`) reste, et c'est celui qui renseigne vraiment.
+ */
 export type FiltresInvestigations = {
-  statut?: string
   enqueteurId?: string
   parcoursId?: string
-  /** Statut du DOSSIER, à ne pas confondre avec `statut`, qui est celui de la fiche. */
+  /** Statut du DOSSIER — désormais le seul statut qui existe pour une investigation. */
   statutDossierId?: string
   periodeDebut?: string
   periodeFin?: string
@@ -37,12 +42,6 @@ function clauseFiltres(
   filtres: FiltresInvestigations
 ): Prisma.investigationsWhereInput {
   const where: Prisma.investigationsWhereInput = {}
-
-  // Le statut vient de l'URL : le valider contre la liste close évite qu'une valeur fantaisiste
-  // produise silencieusement une liste vide, que l'utilisateur lirait comme « aucune donnée ».
-  if (filtres.statut && (STATUTS_INVESTIGATION as readonly string[]).includes(filtres.statut)) {
-    where.statut = filtres.statut
-  }
 
   if (filtres.miennes) {
     where.enqueteur_id = u.id
@@ -88,7 +87,6 @@ export async function listerInvestigations(
       select: {
         id: true,
         date_ouverture: true,
-        statut: true,
         users_investigations_enqueteur_idTousers: { select: { name: true } },
         dossiers: {
           select: {
@@ -96,9 +94,7 @@ export async function listerInvestigations(
             reference: true,
             parcours: { select: { libelle: true } },
             categories: { select: { libelle: true } },
-            // Sans lui, la seule colonne « Statut » de l'écran était celle de la FICHE, et une
-            // fiche validée sur un dossier déjà résolu se lisait comme un dossier en cours
-            // d'investigation.
+            // Le seul statut que l'écran affiche désormais : celui du DOSSIER.
             statuts_dossier: { select: { code: true, libelle_interne: true } },
           },
         },
@@ -141,10 +137,4 @@ export async function referentielsInvestigations() {
   ])
 
   return { parcours, enqueteurs, statutsDossier }
-}
-
-export const LIBELLES_STATUT_INVESTIGATION: Record<StatutInvestigation, string> = {
-  en_cours: 'En cours',
-  en_attente_validation: 'En attente de validation',
-  validee: 'Validée',
 }

@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { utilisateurAvecRoles } from '@/server/authz/__tests__/aide'
 import { parcoursAutorises } from '@/server/authz'
 import { listerInvestigations, referentielsInvestigations } from '../liste'
-import { STATUTS_INVESTIGATION } from '../investigation'
 
 /**
  * Vue transverse des investigations.
@@ -65,17 +64,6 @@ describe('Cloisonnement par parcours', () => {
 })
 
 describe('Filtres', () => {
-  it('ignore un statut qui n’appartient pas à la liste close', async () => {
-    const utilisateur = utilisateurAvecRoles('service_mgp')
-
-    const sansFiltre = await listerInvestigations(utilisateur, {}, 1)
-    const avecFantaisie = await listerInvestigations(utilisateur, { statut: 'inexistant' }, 1)
-
-    // Une valeur d'URL bricolée ne doit pas produire une liste vide, que l'utilisateur lirait
-    // comme « aucune donnée » au lieu de « critère invalide ».
-    expect(avecFantaisie.total).toBe(sansFiltre.total)
-  })
-
   it('restreint aux fiches du compte quand « les miennes » est actif', async () => {
     const utilisateur = utilisateurAvecRoles('service_mgp')
     const { investigations } = await listerInvestigations(utilisateur, { miennes: true }, 1)
@@ -90,19 +78,7 @@ describe('Filtres', () => {
     }
   })
 
-  it('chaque statut filtré ne renvoie que des fiches de ce statut', async () => {
-    const utilisateur = utilisateurAvecRoles('service_mgp')
-
-    for (const statut of STATUTS_INVESTIGATION) {
-      const { investigations } = await listerInvestigations(utilisateur, { statut }, 1)
-
-      for (const investigation of investigations) {
-        expect(investigation.statut).toBe(statut)
-      }
-    }
-  })
-
-  it('filtre sur le statut du DOSSIER, distinct de celui de la fiche', async () => {
+  it('filtre sur le statut du DOSSIER — le seul qui subsiste', async () => {
     const utilisateur = utilisateurAvecRoles('service_mgp')
     const { statutsDossier } = await referentielsInvestigations()
 

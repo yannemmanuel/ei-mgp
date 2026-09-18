@@ -3,12 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { ErreurWorkflow } from '../../dossier/workflow'
-import {
-  mettreAJourInvestigation,
-  ouvrirInvestigation,
-  soumettrePourValidation,
-  validerInvestigation,
-} from '../investigation'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { mettreAJourInvestigation, ouvrirInvestigation } from '../investigation'
 
 /** Port de `tests/Feature/Services/InvestigationServiceTest.php` (Laravel). */
 const dossiersCrees: string[] = []
@@ -132,8 +129,13 @@ describe('Ouverture d’une investigation (EX-INV-01, RGI-05)', () => {
   })
 })
 
-describe('Mise à jour et soumission (EX-INV-02, EX-INV-03)', () => {
-  it('refuse la modification d’une investigation qui n’est plus « en cours »', async () => {
+describe('Mise à jour (EX-INV-02, EX-INV-03)', () => {
+  it('laisse une fiche modifiable : plus aucune étape ne la fige', async () => {
+    /*
+      ⚠️ Le verrou « une investigation soumise ou validée ne peut plus être modifiée » a été
+      RETIRÉ avec la validation elle-même. Il n'existe plus d'étape qui fige la fiche — en laisser
+      un aurait bloqué définitivement des fiches sans aucun moyen de les rouvrir.
+    */
     const [enqueteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnInvestigation(enqueteur)
 
@@ -145,35 +147,40 @@ describe('Mise à jour et soumission (EX-INV-02, EX-INV-03)', () => {
     })
     investigationsCreees.push(id)
 
-    await soumettrePourValidation(id)
-
-    await expect(
-      mettreAJourInvestigation({ investigationId: id, donnees: DONNEES })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
-  })
-
-  it('refuse la soumission sans recommandations (EX-INV-04)', async () => {
-    const [enqueteur] = await deuxUtilisateurs()
-    const dossierId = await dossierEnInvestigation(enqueteur)
-
-    const id = await ouvrirInvestigation({
-      dossierId,
-      enqueteurId: enqueteur,
-      dateOuverture: new Date(),
-      donnees: { ...DONNEES, recommandations: 'à compléter' },
+    await mettreAJourInvestigation({
+      investigationId: id,
+      donnees: { ...DONNEES, faitsConstates: 'Constats corrigés après relecture.' },
     })
-    investigationsCreees.push(id)
 
-    // Les recommandations sont la source des actions correctives : les vider rend la
-    // soumission impossible.
-    await prisma.investigations.update({ where: { id }, data: { recommandations: '   ' } })
-
-    await expect(soumettrePourValidation(id)).rejects.toBeInstanceOf(ErreurWorkflow)
+    const apres = await prisma.investigations.findUniqueOrThrow({ where: { id } })
+    expect(apres.faits_constates).toBe('Constats corrigés après relecture.')
   })
 })
 
-describe('Validation hiérarchique (RGI-06, EX-INV-05)', () => {
-  it('n’autorise JAMAIS l’enquêteur à valider sa propre investigation', async () => {
+describe('⚠️ Recommandations obligatoires (EX-INV-04)', () => {
+  /*
+    ⚠️ CETTE EXIGENCE NE VIVAIT QUE DANS `soumettrePourValidation()`, supprimée avec la
+    validation. Les recommandations sont la SOURCE des actions correctives : une fiche sans
+    recommandation ne permet d'en créer aucune. Elle a donc été déplacée sur les deux fonctions
+    qui écrivent la fiche — ces deux tests sont ce qui empêche de la reperdre.
+  */
+  it('refuse une ouverture sans recommandations', async () => {
+    const [enqueteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnInvestigation(enqueteur)
+
+    await expect(
+      ouvrirInvestigation({
+        dossierId,
+        enqueteurId: enqueteur,
+        dateOuverture: new Date(),
+        donnees: { ...DONNEES, recommandations: '   ' },
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+
+  it('refuse de VIDER les recommandations d’une fiche existante', async () => {
+    // Le chemin réellement dangereux : ouvrir dans les règles, puis effacer. Sans ce contrôle,
+    // la fiche redeviendrait une source vide sans que rien ne s'y oppose.
     const [enqueteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnInvestigation(enqueteur)
 
@@ -184,53 +191,89 @@ describe('Validation hiérarchique (RGI-06, EX-INV-05)', () => {
       donnees: DONNEES,
     })
     investigationsCreees.push(id)
-    await soumettrePourValidation(id)
 
     await expect(
-      validerInvestigation({ investigationId: id, validateurId: enqueteur })
+      mettreAJourInvestigation({
+        investigationId: id,
+        donnees: { ...DONNEES, recommandations: '' },
+      })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
 
-    expect((await prisma.investigations.findUniqueOrThrow({ where: { id } })).statut).toBe(
-      'en_attente_validation'
+    const apres = await prisma.investigations.findUniqueOrThrow({ where: { id } })
+    expect(apres.recommandations, 'les recommandations ont été effacées').toBe(
+      DONNEES.recommandations
     )
   })
 
-  it('autorise un acteur distinct à valider, et trace validateur et date', async () => {
-    const [enqueteur, validateur] = await deuxUtilisateurs()
+  it('refuse aussi une ouverture sans faits constatés (EX-INV-02)', async () => {
+    const [enqueteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnInvestigation(enqueteur)
 
-    const id = await ouvrirInvestigation({
-      dossierId,
-      enqueteurId: enqueteur,
-      dateOuverture: new Date(),
-      donnees: DONNEES,
-    })
-    investigationsCreees.push(id)
-    await soumettrePourValidation(id)
+    await expect(
+      ouvrirInvestigation({
+        dossierId,
+        enqueteurId: enqueteur,
+        dateOuverture: new Date(),
+        donnees: { ...DONNEES, faitsConstates: '  ' },
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+})
 
-    await validerInvestigation({ investigationId: id, validateurId: validateur })
+describe('⚠️ Plus aucune VALIDATION d’investigation', () => {
+  it('ne laisse subsister ni service, ni policy, ni Server Action, ni bouton', () => {
+    /*
+      La suppression d'un workflow se défait vite : il suffit qu'un écran réimporte ce qu'on a
+      laissé en place. Une Server Action oubliée resterait surtout APPELABLE DIRECTEMENT, sans
+      passer par aucun bouton.
 
-    const investigation = await prisma.investigations.findUniqueOrThrow({ where: { id } })
-    expect(investigation.statut).toBe('validee')
-    expect(investigation.valide_par).toBe(validateur)
-    expect(investigation.valide_le).not.toBeNull()
+      ⚠️ `valide_par` et `valide_le` ne sont PAS concernées : les colonnes restent et portent la
+      trace de qui avait validé avant le changement. C'est le GESTE qui disparaît, pas l'histoire.
+    */
+    const racine = join(process.cwd(), 'src')
+
+    const sources = (depuis: string): string[] =>
+      readdirSync(depuis).flatMap((entree) => {
+        const chemin = join(depuis, entree)
+        if (statSync(chemin).isDirectory()) {
+          return entree === '__tests__' ? [] : sources(chemin)
+        }
+        return /\.tsx?$/.test(entree) ? [chemin] : []
+      })
+
+    /*
+      ⚠️ LES COMMENTAIRES SONT RETIRÉS AVANT LA RECHERCHE, et c'est indispensable : plusieurs
+      fichiers DOCUMENTENT la suppression en nommant ce qui a disparu. Chercher dans le texte brut
+      ferait échouer ce test sur les commentaires mêmes qui expliquent pourquoi il existe — et la
+      seule façon de le faire passer serait d'effacer cette explication.
+
+      Ce qui est traqué ici, c'est du CODE : une définition, un import, un appel.
+    */
+    const sansCommentaires = (source: string): string =>
+      source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+    const tout = sources(racine)
+      .map((f) => sansCommentaires(readFileSync(f, 'utf8')))
+      .join('\n')
+
+    for (const trace of [
+      'validerInvestigation',
+      'soumettrePourValidation',
+      'peutValiderInvestigation',
+      'actionValiderInvestigation',
+      'actionSoumettreInvestigation',
+      'rolesValidateurs',
+      'en_attente_validation',
+    ]) {
+      expect(tout, `« ${trace} » subsiste encore`).not.toContain(trace)
+    }
   })
 
-  it('refuse de valider une investigation qui n’est pas en attente de validation', async () => {
-    const [enqueteur, validateur] = await deuxUtilisateurs()
-    const dossierId = await dossierEnInvestigation(enqueteur)
+  it('n’a laissé aucune fiche bloquée dans un état devenu inatteignable', async () => {
+    // Deux fiches attendaient une validation au moment du changement. Sans la reprise de données,
+    // elles seraient restées en attente d'un geste que plus personne ne peut faire.
+    const bloquees = await prisma.investigations.count({ where: { statut: { not: 'en_cours' } } })
 
-    const id = await ouvrirInvestigation({
-      dossierId,
-      enqueteurId: enqueteur,
-      dateOuverture: new Date(),
-      donnees: DONNEES,
-    })
-    investigationsCreees.push(id)
-
-    // Toujours « en cours » : la validation ne doit pas court-circuiter la soumission.
-    await expect(
-      validerInvestigation({ investigationId: id, validateurId: validateur })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
+    expect(bloquees, 'des fiches portent encore un statut de validation').toBe(0)
   })
 })

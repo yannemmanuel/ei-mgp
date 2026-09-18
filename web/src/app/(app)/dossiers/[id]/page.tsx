@@ -14,7 +14,6 @@ import {
   peutCreerInvestigation,
   peutModifierInvestigation,
   peutReouvrirDossier,
-  peutValiderInvestigation,
   peutVoirInvestigation,
   peutCloturerAction,
   peutCreerAction,
@@ -26,12 +25,9 @@ import {
 } from '@/server/authz'
 import {
   actionsDuDossier,
-  investigationsValidees,
+  investigationsRattachables,
 } from '@/server/services/action-corrective/action-corrective'
-import {
-  investigationsDuDossier,
-  rolesValidateurs,
-} from '@/server/services/investigation/investigation'
+import { investigationsDuDossier } from '@/server/services/investigation/investigation'
 import { marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
 import {
   affectationsActives,
@@ -98,10 +94,8 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     limiteGlobale,
     investigations,
     actions,
-    investigationsValidees_,
+    investigationsRattachables_,
     messages,
-    responsablesPossibles,
-    validateurs,
     gravitesActives,
     suivi,
   ] = await Promise.all([
@@ -115,20 +109,10 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     dateLimiteGlobale({ parcoursId: dossier.parcours.id, creeLe: dossier.created_at ?? new Date() }),
     investigationsDuDossier(id),
     actionsDuDossier(id),
-    investigationsValidees(id),
+    investigationsRattachables(id),
     peutVoirMessagerie(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
       ? messagesDuDossier(id)
       : Promise.resolve([]),
-    // Liste des responsables possibles pour une ACTION CORRECTIVE — sans rapport avec
-    // l'affectation d'un dossier, qui ne se fait plus à la main.
-    peutCreerAction(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
-      ? prisma.users.findMany({
-          where: { actif: true },
-          orderBy: { name: 'asc' },
-          select: { id: true, name: true },
-        })
-      : Promise.resolve([]),
-    rolesValidateurs(pourPolicy.parcoursCode),
     // Niveaux proposés à la qualification. Chargés sans condition : l'alternative serait une
     // seconde requête conditionnelle, pour six lignes.
     prisma.niveaux_gravite.findMany({
@@ -153,25 +137,16 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     ? investigations.map((i) => ({
         id: i.id,
         dateOuverture: i.date_ouverture.toISOString(),
-        statut: i.statut,
         faitsConstates: i.faits_constates,
         personnesRencontrees: i.personnes_rencontrees,
         causeImmediate: i.cause_immediate,
         causesRacines: i.causes_racines,
         recommandations: i.recommandations,
         enqueteur: i.users_investigations_enqueteur_idTousers.name,
-        validateur: i.users_investigations_valide_parTousers?.name ?? null,
-        valideLe: i.valide_le?.toISOString() ?? null,
         peutModifier: peutModifierInvestigation(utilisateur, {
           ...contexteParcours,
           enqueteurId: i.enqueteur_id,
         }),
-        // RGI-06 : faux pour l'enqueteur lui-meme.
-        peutValider: peutValiderInvestigation(utilisateur, {
-          ...contexteParcours,
-          enqueteurId: i.enqueteur_id,
-        }),
-        estLEnqueteur: i.enqueteur_id === utilisateur.id,
       }))
     : []
 
@@ -192,7 +167,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
         verificationEfficacite: a.verification_efficacite,
         verificationCommentaire: a.verification_commentaire,
         dateCloture: a.date_cloture?.toISOString() ?? null,
-        responsable: a.users.name,
+        // Saisi à la main depuis le 2026-09-18. Le repli sur le compte couvre les actions plus
+        // anciennes, qui désignaient un utilisateur.
+        responsable: a.responsable_nom ?? a.users?.name ?? '—',
       }))
     : []
 
@@ -527,7 +504,6 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 enqueteurId: utilisateur.id,
               })}
               dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
-              validateurs={validateurs}
             />
           </section>
 
@@ -535,11 +511,10 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             <PanneauActionsCorrectives
               dossierId={id}
               actions={actionsVues}
-              investigationsValidees={investigationsValidees_.map((i) => ({
+              investigations={investigationsRattachables_.map((i) => ({
                 id: i.id,
                 libelle: `Investigation du ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(i.date_ouverture)}`,
               }))}
-              responsables={responsablesPossibles.map((u) => ({ id: String(u.id), nom: u.name }))}
               droits={droitsActions}
               dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
             />

@@ -1,20 +1,23 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
-import { parcoursDuRole, type ParcoursCode, type Role } from '@/server/authz'
 import { dateDebutEtape } from '../dossier/delais'
 import { ErreurWorkflow } from '../dossier/workflow'
 import type { StatutCode } from '../dossier/statuts'
 
 /**
- * Cycle de vie d'une fiche d'investigation (CDC §9.5, EX-INV-01 à 05) — port de
+ * Cycle de vie d'une fiche d'investigation (CDC §9.5, EX-INV-01 à 04) — port de
  * `App\Services\Investigation\InvestigationService`.
  *
- * POINT D'ENTRÉE UNIQUE : ouverture, mise à jour, soumission puis validation hiérarchique.
- * Chaque règle est revérifiée ici, et pas seulement dans le formulaire ou la policy.
+ * POINT D'ENTRÉE UNIQUE : ouverture et mise à jour. Chaque règle est revérifiée ici, et pas
+ * seulement dans le formulaire ou la policy.
+ *
+ * ⚠️ UNE INVESTIGATION N'EST SOUMISE À AUCUNE VALIDATION (décision métier du 2026-09-18).
+ * La soumission pour validation et la validation hiérarchique (RGI-06, EX-INV-05) ont été
+ * retirées : une fiche existe, se modifie, et alimente directement les actions correctives.
+ *
+ * Ne pas les réintroduire sans décision métier — et surtout pas en passant par `statut` : cette
+ * colonne ne porte plus qu'une valeur unique, conservée pour les lignes déjà écrites.
  */
-
-export const STATUTS_INVESTIGATION = ['en_cours', 'en_attente_validation', 'validee'] as const
-export type StatutInvestigation = (typeof STATUTS_INVESTIGATION)[number]
 
 export type DonneesInvestigation = {
   faitsConstates: string
@@ -28,6 +31,29 @@ function jourDe(date: Date): number {
   const copie = new Date(date)
   copie.setHours(0, 0, 0, 0)
   return copie.getTime()
+}
+
+/**
+ * EX-INV-02 et EX-INV-04, vérifiés à l'ouverture ET à chaque modification.
+ *
+ * ⚠️ Les recommandations sont la SOURCE des actions correctives (étape 8). Cette exigence ne
+ * vivait jusqu'ici que dans `soumettrePourValidation()` — supprimer la validation sans la
+ * déplacer ici l'aurait emportée avec elle, et une fiche sans recommandation ne permet de créer
+ * aucune action.
+ *
+ * Elle est donc vérifiée aux deux endroits qui ÉCRIVENT la fiche, et non à une étape ultérieure
+ * qui n'existe plus.
+ */
+function exigerContenu(donnees: DonneesInvestigation): void {
+  if (donnees.faitsConstates.trim() === '') {
+    throw new ErreurWorkflow('Les faits constatés sont obligatoires (EX-INV-02).')
+  }
+
+  if (donnees.recommandations.trim() === '') {
+    throw new ErreurWorkflow(
+      'Les recommandations sont obligatoires : elles sont la source des actions correctives (EX-INV-04).'
+    )
+  }
 }
 
 /**
@@ -71,9 +97,7 @@ export async function ouvrirInvestigation(params: {
     )
   }
 
-  if (params.donnees.faitsConstates.trim() === '') {
-    throw new ErreurWorkflow('Les faits constatés sont obligatoires (EX-INV-02).')
-  }
+  exigerContenu(params.donnees)
 
   const maintenant = new Date()
 
@@ -88,6 +112,8 @@ export async function ouvrirInvestigation(params: {
       cause_immediate: params.donnees.causeImmediate || null,
       causes_racines: params.donnees.causesRacines || null,
       recommandations: params.donnees.recommandations,
+      // Valeur unique et constante : la colonne survit aux lignes déjà écrites, mais ne porte
+      // plus d'étape. Elle n'est ni lue, ni filtrée, ni affichée nulle part.
       statut: 'en_cours',
       created_at: maintenant,
       updated_at: maintenant,
@@ -98,21 +124,23 @@ export async function ouvrirInvestigation(params: {
   return investigation.id
 }
 
-/** EX-INV-02/03/04 : constats, causes et recommandations, modifiables tant que « en cours ». */
+/**
+ * EX-INV-02/03/04 : constats, causes et recommandations.
+ *
+ * ⚠️ Plus aucun verrou de statut : une fiche reste modifiable. Il n'existe plus d'étape qui la
+ * fige, puisqu'il n'existe plus de validation — refuser la modification laisserait des fiches
+ * définitivement bloquées sans aucun moyen de les rouvrir.
+ */
 export async function mettreAJourInvestigation(params: {
   investigationId: string
   donnees: DonneesInvestigation
 }): Promise<void> {
-  const investigation = await prisma.investigations.findUniqueOrThrow({
+  await prisma.investigations.findUniqueOrThrow({
     where: { id: params.investigationId },
-    select: { statut: true },
+    select: { id: true },
   })
 
-  if (investigation.statut !== 'en_cours') {
-    throw new ErreurWorkflow(
-      'Une investigation soumise pour validation ou déjà validée ne peut plus être modifiée.'
-    )
-  }
+  exigerContenu(params.donnees)
 
   await prisma.investigations.update({
     where: { id: params.investigationId },
@@ -127,71 +155,7 @@ export async function mettreAJourInvestigation(params: {
   })
 }
 
-/**
- * EX-INV-04 : les recommandations sont la source des actions correctives (étape 8). Elles sont
- * donc obligatoires avant soumission — une investigation validée sans recommandation ne
- * permettrait de créer aucune action.
- */
-export async function soumettrePourValidation(investigationId: string): Promise<void> {
-  const investigation = await prisma.investigations.findUniqueOrThrow({
-    where: { id: investigationId },
-    select: { statut: true, recommandations: true },
-  })
-
-  if (investigation.statut !== 'en_cours') {
-    throw new ErreurWorkflow('Seule une investigation « en cours » peut être soumise pour validation.')
-  }
-
-  if (investigation.recommandations.trim() === '') {
-    throw new ErreurWorkflow(
-      'Les recommandations sont obligatoires avant soumission pour validation (EX-INV-04).'
-    )
-  }
-
-  await prisma.investigations.update({
-    where: { id: investigationId },
-    data: { statut: 'en_attente_validation', updated_at: new Date() },
-  })
-}
-
-/**
- * RGI-06 / EX-INV-05 : la validation hiérarchique ne peut JAMAIS être effectuée par l'enquêteur
- * lui-même. Revérifié ici en plus de la policy : la policy protège l'accès à la commande, ce
- * contrôle protège la donnée.
- */
-export async function validerInvestigation(params: {
-  investigationId: string
-  validateurId: bigint
-}): Promise<void> {
-  const investigation = await prisma.investigations.findUniqueOrThrow({
-    where: { id: params.investigationId },
-    select: { statut: true, enqueteur_id: true },
-  })
-
-  if (investigation.statut !== 'en_attente_validation') {
-    throw new ErreurWorkflow(
-      'Seule une investigation « en attente de validation » peut être validée.'
-    )
-  }
-
-  if (investigation.enqueteur_id === params.validateurId) {
-    throw new ErreurWorkflow(
-      'L’enquêteur ne peut pas valider sa propre investigation.'
-    )
-  }
-
-  await prisma.investigations.update({
-    where: { id: params.investigationId },
-    data: {
-      statut: 'validee',
-      valide_par: params.validateurId,
-      valide_le: new Date(),
-      updated_at: new Date(),
-    },
-  })
-}
-
-/** Investigations d'un dossier, avec leur enquêteur et leur validateur. */
+/** Investigations d'un dossier, avec leur enquêteur. */
 export async function investigationsDuDossier(dossierId: string) {
   return prisma.investigations.findMany({
     where: { dossier_id: dossierId },
@@ -199,48 +163,13 @@ export async function investigationsDuDossier(dossierId: string) {
     select: {
       id: true,
       date_ouverture: true,
-      statut: true,
       faits_constates: true,
       personnes_rencontrees: true,
       cause_immediate: true,
       causes_racines: true,
       recommandations: true,
-      valide_le: true,
       enqueteur_id: true,
       users_investigations_enqueteur_idTousers: { select: { name: true } },
-      users_investigations_valide_parTousers: { select: { name: true } },
     },
   })
-}
-
-/**
- * Qui peut valider une fiche de ce parcours — en clair, pour l'afficher.
- *
- * Ne pas voir le bouton « Valider » est une situation NORMALE : l'enquêteur ne valide jamais sa
- * propre fiche, et tous les rôles n'en ont pas le droit. Mais un bouton absent se lit comme une
- * fonction manquante — c'est le retour qui nous est fait. Nommer qui doit agir transforme une
- * impasse apparente en attente identifiée.
- *
- * Lu en BASE, pas dans le code : les droits sont administrables, et un rôle qui vient de recevoir
- * « valider une investigation » doit apparaître ici sans redéploiement.
- *
- * Ce sont bien des RÔLES qui sont nommés, pas des personnes — d'où `parcoursDuRole`. Depuis que le
- * parcours s'attribue compte par compte, porter le rôle est nécessaire mais plus suffisant : la
- * personne doit aussi s'être vu confier ce parcours. Nommer le rôle reste le bon niveau pour un
- * message d'attente, et le seul qui ne divulgue l'identité de personne.
- */
-export async function rolesValidateurs(parcours: ParcoursCode): Promise<string[]> {
-  const roles = await prisma.roles.findMany({
-    where: {
-      guard_name: 'web',
-      actif: true,
-      role_has_permissions: { some: { permissions: { name: 'investigations.validate' } } },
-    },
-    select: { name: true, libelle: true },
-    orderBy: { libelle: 'asc' },
-  })
-
-  return roles
-    .filter((r) => parcoursDuRole([r.name as Role]).includes(parcours))
-    .map((r) => r.libelle)
 }

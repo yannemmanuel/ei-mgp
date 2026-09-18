@@ -99,11 +99,23 @@ describe('Un droit affiché doit agir', () => {
   })
 
   it('recense les droits sans effet, pour qu’aucun ne s’ajoute en silence', () => {
-    // Deux, et ils sont documentés. Un troisième qui apparaîtrait ferait échouer ce cas : ajouter
-    // un droit décoratif doit être une décision, jamais une dérive.
+    /*
+      Trois, et ils sont documentés. Un quatrième qui apparaîtrait ferait échouer ce cas : ajouter
+      un droit décoratif doit être une décision, jamais une dérive.
+
+      ⚠️ `investigations.validate` a rejoint la liste le 2026-09-18, quand l'étape de validation
+      d'une investigation a été supprimée sur décision métier. La permission EXISTE toujours en
+      base et reste attribuable — cinq rôles la portent — mais plus aucun code ne la consulte.
+      La marquer ici est ce qui l'affiche comme sans effet sur l'écran des habilitations, plutôt
+      que de laisser croire qu'on ouvre ou ferme quelque chose en la cochant.
+    */
     const sansEffet = PERMISSIONS.filter((p) => LIBELLES[p].sansEffet)
 
-    expect(sansEffet.sort()).toEqual(['dossiers.assign', 'rgpd.acces.view'])
+    expect(sansEffet.sort()).toEqual([
+      'dossiers.assign',
+      'investigations.validate',
+      'rgpd.acces.view',
+    ])
   })
 
   it('« dossiers.assign » reste sans appelant, comme la mention l’annonce', async () => {

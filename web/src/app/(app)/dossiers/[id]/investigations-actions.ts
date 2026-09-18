@@ -6,23 +6,24 @@ import { exigerUtilisateur } from '@/server/auth'
 import {
   peutCreerInvestigation,
   peutModifierInvestigation,
-  peutValiderInvestigation,
   type ParcoursCode,
 } from '@/server/authz'
 import {
   mettreAJourInvestigation,
   ouvrirInvestigation,
-  soumettrePourValidation,
-  validerInvestigation,
 } from '@/server/services/investigation/investigation'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import type { EtatAction } from './actions'
 
 /**
- * Actions du module Investigations (EX-INV-01 à 05).
+ * Actions du module Investigations (EX-INV-01 à 04).
  *
  * Comme pour les actions de dossier, l'autorisation est revérifiée ici à chaque appel : le
  * masquage d'un bouton n'est jamais un contrôle d'accès.
+ *
+ * ⚠️ `actionSoumettreInvestigation` et `actionValiderInvestigation` ont été SUPPRIMÉES : une
+ * investigation n'est soumise à aucune validation (décision métier du 2026-09-18). Une Server
+ * Action laissée en place serait restée appelable directement, sans passer par aucun écran.
  */
 
 const REFUS = "Vous n'êtes pas autorisé à effectuer cette action."
@@ -130,48 +131,3 @@ export async function actionMettreAJourInvestigation(
   return { succes: 'Fiche mise à jour.' }
 }
 
-export async function actionSoumettreInvestigation(
-  _precedent: EtatAction,
-  donnees: FormData
-): Promise<EtatAction> {
-  const utilisateur = await exigerUtilisateur()
-  const investigationId = String(donnees.get('investigationId') ?? '')
-  const contexte = await contexteInvestigation(investigationId)
-
-  // Soumettre relève de la modification : c'est l'enquêteur qui termine sa fiche.
-  if (!contexte || !peutModifierInvestigation(utilisateur, contexte)) {
-    return { erreur: REFUS }
-  }
-
-  try {
-    await soumettrePourValidation(investigationId)
-  } catch (erreur) {
-    return { erreur: messageErreur(erreur) }
-  }
-
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
-  return { succes: 'Fiche soumise pour validation.' }
-}
-
-/** RGI-06 : la policy refuse déjà l'enquêteur lui-même, le service le revérifie. */
-export async function actionValiderInvestigation(
-  _precedent: EtatAction,
-  donnees: FormData
-): Promise<EtatAction> {
-  const utilisateur = await exigerUtilisateur()
-  const investigationId = String(donnees.get('investigationId') ?? '')
-  const contexte = await contexteInvestigation(investigationId)
-
-  if (!contexte || !peutValiderInvestigation(utilisateur, contexte)) {
-    return { erreur: REFUS }
-  }
-
-  try {
-    await validerInvestigation({ investigationId, validateurId: utilisateur.id })
-  } catch (erreur) {
-    return { erreur: messageErreur(erreur) }
-  }
-
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
-  return { succes: 'Investigation validée.' }
-}

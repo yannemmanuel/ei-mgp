@@ -73,10 +73,12 @@ export async function actionCreerActionCorrective(
     return { erreur: REFUS }
   }
 
-  const responsableId = String(donnees.get('responsableId') ?? '')
+  // Saisi à la main : le responsable n'est plus choisi parmi les comptes. `creerAction` revérifie
+  // qu'il n'est pas vide — ce contrôle-ci ne fait qu'éviter un aller-retour inutile.
+  const responsableNom = String(donnees.get('responsableNom') ?? '').trim()
   const echeanceBrute = String(donnees.get('echeance') ?? '')
 
-  if (responsableId === '') return { erreur: 'Merci de désigner un responsable.' }
+  if (responsableNom === '') return { erreur: 'Merci d’indiquer le responsable de l’action.' }
 
   const echeance = new Date(echeanceBrute)
   if (Number.isNaN(echeance.getTime())) {
@@ -89,7 +91,7 @@ export async function actionCreerActionCorrective(
       investigationId: String(donnees.get('investigationId') ?? '') || null,
       intitule: String(donnees.get('intitule') ?? ''),
       description: String(donnees.get('description') ?? ''),
-      responsableId: BigInt(responsableId),
+      responsableNom,
       echeance,
     })
   } catch (erreur) {

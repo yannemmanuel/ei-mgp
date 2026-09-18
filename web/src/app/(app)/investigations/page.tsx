@@ -19,30 +19,25 @@ import { Pagination } from '@/components/layout/pagination'
 import { exigerUtilisateur } from '@/server/auth'
 import { peutVoirListeInvestigations } from '@/server/authz'
 import {
-  LIBELLES_STATUT_INVESTIGATION,
   listerInvestigations,
   referentielsInvestigations,
 } from '@/server/services/investigation/liste'
-import type { StatutInvestigation } from '@/server/services/investigation/investigation'
 
 export const metadata: Metadata = { title: 'Investigations' }
 export const dynamic = 'force-dynamic'
 
 const dateFr = (d: Date) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' }).format(d)
 
-const TONS: Record<StatutInvestigation, TonStatut> = {
-  en_cours: 'encours',
-  en_attente_validation: 'attention',
-  validee: 'succes',
-}
-
 /**
- * Où en est le DOSSIER, par opposition à où en est la fiche.
+ * Où en est le DOSSIER — le seul statut que porte désormais une investigation.
  *
- * Une fiche reste dans ce registre après que le dossier a poursuivi son chemin : « Validée » sur
- * un dossier depuis longtemps résolu est une ligne parfaitement normale. Encore faut-il pouvoir
- * le lire — le ton neutre distingue d'un coup d'œil ce qui est encore ouvert de ce qui ne l'est
- * plus.
+ * ⚠️ La colonne « Où en est la fiche » A ÉTÉ RETIRÉE : une investigation n'est soumise à aucune
+ * validation (décision métier du 2026-09-18), et ses trois états n'étaient que les étapes de
+ * cette validation. Elle aurait affiché le même badge sur chaque ligne.
+ *
+ * Une fiche reste dans ce registre après que le dossier a poursuivi son chemin : une fiche sur un
+ * dossier depuis longtemps résolu est une ligne parfaitement normale. Encore faut-il pouvoir le
+ * lire — le ton neutre distingue d'un coup d'œil ce qui est encore ouvert de ce qui ne l'est plus.
  */
 const TONS_DOSSIER: Record<string, TonStatut> = {
   en_investigation: 'encours',
@@ -58,9 +53,8 @@ const TONS_DOSSIER: Record<string, TonStatut> = {
  * Vue transverse des investigations — port de `App\Livewire\Investigations\InvestigationListPage`.
  *
  * Chaque ligne mène au dossier, à sa section « Investigations » : c'est là que la fiche se
- * consulte, se modifie et se valide. Rouvrir une seconde surface d'édition à cette adresse
- * ferait exister deux chemins pour le même geste, qui divergeraient tôt ou tard — et la
- * validation hiérarchique (RGI-06) est précisément une règle qu'on ne veut pas voir dupliquée.
+ * consulte et se modifie. Rouvrir une seconde surface d'édition à cette adresse ferait exister
+ * deux chemins pour le même geste, qui divergeraient tôt ou tard.
  */
 export default async function PageInvestigations({
   searchParams,
@@ -79,7 +73,6 @@ export default async function PageInvestigations({
   }
 
   const filtres = {
-    statut: lire('statut'),
     statutDossierId: lire('statutDossierId'),
     enqueteurId: lire('enqueteurId'),
     parcoursId: lire('parcoursId'),
@@ -107,16 +100,6 @@ export default async function PageInvestigations({
       options: referentiels.statutsDossier.map((s) => ({
         valeur: String(s.id),
         libelle: s.libelle_interne,
-      })),
-    },
-    {
-      type: 'select',
-      cle: 'statut',
-      libelle: 'Où en est la fiche',
-      tous: 'Peu importe',
-      options: Object.entries(LIBELLES_STATUT_INVESTIGATION).map(([valeur, libelle]) => ({
-        valeur,
-        libelle,
       })),
     },
     {
@@ -180,13 +163,10 @@ export default async function PageInvestigations({
                   <TableHead>Enquêteur</TableHead>
                   <TableHead>Ouverte le</TableHead>
                   <TableHead>Où en est le dossier</TableHead>
-                  <TableHead>Où en est la fiche</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {resultat.investigations.map((investigation) => {
-                  const statut = investigation.statut as StatutInvestigation
-
                   return (
                     <TableRow
                       key={investigation.id}
@@ -219,11 +199,6 @@ export default async function PageInvestigations({
                           ton={TONS_DOSSIER[investigation.dossiers.statuts_dossier.code] ?? 'neutre'}
                         >
                           {investigation.dossiers.statuts_dossier.libelle_interne}
-                        </EtiquetteStatut>
-                      </TableCell>
-                      <TableCell>
-                        <EtiquetteStatut ton={TONS[statut] ?? 'neutre'}>
-                          {LIBELLES_STATUT_INVESTIGATION[statut] ?? investigation.statut}
                         </EtiquetteStatut>
                       </TableCell>
                     </TableRow>

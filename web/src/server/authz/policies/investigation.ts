@@ -24,11 +24,14 @@ export function peutModifierInvestigation(u: UtilisateurAutorise, i: Investigati
   return aPermission(u, 'investigations.update') && peutVoirParcours(u, i.parcoursCode)
 }
 
-/** RGI-06 : la validation ne peut JAMAIS être effectuée par l'enquêteur lui-même. */
-export function peutValiderInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return (
-    aPermission(u, 'investigations.validate') &&
-    i.enqueteurId !== u.id &&
-    peutVoirParcours(u, i.parcoursCode)
-  )
-}
+/*
+  ⚠️ `peutValiderInvestigation` a été SUPPRIMÉE : une investigation n'est soumise à aucune
+  validation (décision métier du 2026-09-18). RGI-06 et EX-INV-05, qui interdisaient à
+  l'enquêteur de valider sa propre fiche, n'ont plus d'objet — il n'y a plus de geste à
+  interdire.
+
+  La permission `investigations.validate` EXISTE ENCORE en base et reste attribuable : elle ne
+  commande simplement plus rien. Elle n'a pas été supprimée parce que cela signifierait effacer
+  des lignes de `permissions` et `role_has_permissions` (5 rôles la portent), ce qui n'a pas été
+  demandé.
+*/

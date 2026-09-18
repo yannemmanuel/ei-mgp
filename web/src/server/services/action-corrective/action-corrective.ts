@@ -29,15 +29,20 @@ function jourDe(date: Date): number {
 }
 
 /**
- * EX-ACT-01/02 : création depuis des recommandations VALIDÉES, avec responsable et échéance.
- * RGI-07 : l'échéance doit être postérieure à la date de création.
+ * EX-ACT-01/02 : création depuis les recommandations d'une investigation, avec responsable et
+ * échéance. RGI-07 : l'échéance doit être postérieure à la date de création.
+ *
+ * ⚠️ LE RESPONSABLE EST SAISI À LA MAIN (décision métier du 2026-09-18), et non choisi parmi les
+ * comptes. Celui qui met en œuvre une mesure — chef d'équipe, prestataire, service entier — n'est
+ * pas forcément un utilisateur de la plateforme ; l'exiger revenait à ne pouvoir confier une
+ * action qu'aux personnes déjà connues du système.
  */
 export async function creerAction(params: {
   dossierId: string
   investigationId?: string | null
   intitule: string
   description: string
-  responsableId: bigint
+  responsableNom: string
   echeance: Date
 }): Promise<string> {
   const dossier = await prisma.dossiers.findUniqueOrThrow({
@@ -52,22 +57,21 @@ export async function creerAction(params: {
   }
 
   if (params.investigationId) {
+    /*
+      ⚠️ CE FILTRE EST UN CONTRÔLE DE SÉCURITÉ, pas une commodité : rattachée au MÊME dossier.
+      Sans lui, un identifiant forgé rattacherait l'action à l'investigation d'un autre dossier —
+      et la ferait donc apparaître dans une fiche que son auteur n'a pas le droit de lire.
+
+      Il ne reste que ce contrôle : le statut de l'investigation n'est plus regardé, puisqu'une
+      investigation n'est plus validée. Toutes les fiches du dossier peuvent en être la source.
+    */
     const investigation = await prisma.investigations.findFirst({
-      // Rattachée au MÊME dossier : sans ce filtre, un identifiant forgé rattacherait l'action
-      // à l'investigation d'un autre dossier.
       where: { id: params.investigationId, dossier_id: params.dossierId },
-      select: { statut: true },
+      select: { id: true },
     })
 
     if (!investigation) {
       throw new ErreurWorkflow('Investigation introuvable pour ce dossier.')
-    }
-
-    // EX-ACT-01 : « depuis recommandations validées ».
-    if (investigation.statut !== 'validee') {
-      throw new ErreurWorkflow(
-        'Une action corrective ne peut être rattachée qu’à une investigation validée (EX-ACT-01).'
-      )
     }
   }
 
@@ -81,6 +85,14 @@ export async function creerAction(params: {
     throw new ErreurWorkflow('L’intitulé et la description sont obligatoires.')
   }
 
+  // Le responsable reste OBLIGATOIRE : seule la façon de le désigner change. Une action sans
+  // personne qui en répond ne serait suivie par personne.
+  const responsableNom = params.responsableNom.trim()
+
+  if (responsableNom === '') {
+    throw new ErreurWorkflow('Le responsable de l’action est obligatoire.')
+  }
+
   const maintenant = new Date()
 
   const action = await prisma.actions_correctives.create({
@@ -90,7 +102,10 @@ export async function creerAction(params: {
       investigation_id: params.investigationId || null,
       intitule: params.intitule,
       description: params.description,
-      responsable_id: params.responsableId,
+      responsable_nom: responsableNom,
+      // `responsable_id` reste NULL : le responsable n'est plus un compte. La colonne subsiste
+      // pour les lignes écrites avant le 2026-09-18, qui pointent encore vers un utilisateur.
+      responsable_id: null,
       echeance: params.echeance,
       statut: 'non_demarree',
       created_at: maintenant,
@@ -258,15 +273,25 @@ export async function actionsDuDossier(dossierId: string) {
       verification_commentaire: true,
       date_cloture: true,
       investigation_id: true,
+      responsable_nom: true,
+      // ⚠️ La relation est CONSERVÉE pour les actions créées avant la saisie manuelle. La reprise
+      // a recopié leur nom dans `responsable_nom`, mais la lire ici garde l'affichage juste même
+      // si une ligne échappait à cette reprise.
       users: { select: { name: true } },
     },
   })
 }
 
-/** Investigations validées du dossier — seules sources autorisées d'une action (EX-ACT-01). */
-export async function investigationsValidees(dossierId: string) {
+/**
+ * Investigations du dossier pouvant être la source d'une action (EX-ACT-01).
+ *
+ * ⚠️ TOUTES les fiches du dossier, sans condition de statut : une investigation n'est plus
+ * soumise à validation. Le filtre `statut: 'validee'` qui se trouvait ici ne laissait remonter
+ * que les fiches validées — il ne rendrait plus aucune ligne éligible.
+ */
+export async function investigationsRattachables(dossierId: string) {
   return prisma.investigations.findMany({
-    where: { dossier_id: dossierId, statut: 'validee' },
+    where: { dossier_id: dossierId },
     orderBy: { created_at: 'asc' },
     select: { id: true, date_ouverture: true },
   })

@@ -30,8 +30,8 @@ export type ActionVue = {
 type Props = {
   dossierId: string
   actions: ActionVue[]
-  investigationsValidees: { id: string; libelle: string }[]
-  responsables: { id: string; nom: string }[]
+  /** Toutes les fiches du dossier : une investigation n'est plus soumise à validation. */
+  investigations: { id: string; libelle: string }[]
   droits: { creer: boolean; modifier: boolean; verifier: boolean; cloturer: boolean }
   /** Une action ne se crée que sur un dossier « Action corrective en cours » (EX-ACT-01). */
   dossierEnActionCorrective: boolean
@@ -60,8 +60,7 @@ const dateFr = (iso: string | null) =>
 export function PanneauActionsCorrectives({
   dossierId,
   actions,
-  investigationsValidees,
-  responsables,
+  investigations,
   droits,
   dossierEnActionCorrective,
 }: Props) {
@@ -90,8 +89,7 @@ export function PanneauActionsCorrectives({
         {creationVisible && (
           <FormulaireCreation
             dossierId={dossierId}
-            investigationsValidees={investigationsValidees}
-            responsables={responsables}
+            investigations={investigations}
             onAnnuler={() => setCreationVisible(false)}
           />
         )}
@@ -240,13 +238,11 @@ function FormulaireVerification({ actionId }: { actionId: string }) {
 
 function FormulaireCreation({
   dossierId,
-  investigationsValidees,
-  responsables,
+  investigations,
   onAnnuler,
 }: {
   dossierId: string
-  investigationsValidees: { id: string; libelle: string }[]
-  responsables: { id: string; nom: string }[]
+  investigations: { id: string; libelle: string }[]
   onAnnuler: () => void
 }) {
   const [etat, envoyer, enCours] = useActionState(actionCreerActionCorrective, ETAT)
@@ -272,18 +268,25 @@ function FormulaireCreation({
         <textarea id="description" name="description" rows={3} required className={champ} />
       </div>
 
+      {/*
+        ⚠️ SAISIE LIBRE, et non plus une liste de comptes (décision métier du 2026-09-18). Celui
+        qui met en œuvre une mesure — chef d'équipe, prestataire, service entier — n'a pas
+        forcément de compte sur la plateforme.
+      */}
       <div className="space-y-1.5">
-        <Label htmlFor="responsableId" className="text-caption">
+        <Label htmlFor="responsableNom" className="text-caption">
           Responsable *
         </Label>
-        <select id="responsableId" name="responsableId" required className={champ}>
-          <option value="">— Sélectionner —</option>
-          {responsables.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.nom}
-            </option>
-          ))}
-        </select>
+        <Input
+          id="responsableNom"
+          name="responsableNom"
+          required
+          maxLength={255}
+          placeholder="Nom de la personne ou du service en charge"
+        />
+        <p className="text-caption text-muted-foreground">
+          La personne ou le service qui met en œuvre l’action, qu’elle ait ou non un compte.
+        </p>
       </div>
 
       <div className="space-y-1.5">
@@ -303,22 +306,19 @@ function FormulaireCreation({
         </p>
       </div>
 
-      {investigationsValidees.length > 0 && (
+      {investigations.length > 0 && (
         <div className="space-y-1.5">
           <Label htmlFor="investigationId" className="text-caption">
             Investigation d’origine
           </Label>
           <select id="investigationId" name="investigationId" className={champ}>
             <option value="">Aucune</option>
-            {investigationsValidees.map((i) => (
+            {investigations.map((i) => (
               <option key={i.id} value={i.id}>
                 {i.libelle}
               </option>
             ))}
           </select>
-          <p className="text-caption text-muted-foreground">
-            Seules les investigations validées peuvent être rattachées.
-          </p>
         </div>
       )}
 

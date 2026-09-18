@@ -426,12 +426,20 @@ async function VueConsolidee({
                 href={peutVoirActions ? '/actions-correctives?statut=en_retard' : null}
                 alerte={compteurs.actionsEnRetard > 0}
               />
+              {/*
+                ⚠️ « Investigations à valider » A ÉTÉ REMPLACÉ : une investigation n'est soumise à
+                aucune validation (décision métier du 2026-09-18). Le compteur portait sur un
+                état qui n'existe plus et son lien sur un filtre retiré — il serait resté à zéro
+                pour toujours, ce qui se lit comme « rien à faire ».
+
+                Ce qui reste vrai et actionnable : les dossiers encore sous investigation.
+              */}
               <CompteurActionnable
-                libelle="Investigations à valider"
-                valeur={compteurs.investigationsEnAttente}
+                libelle="Investigations en cours"
+                valeur={compteurs.investigationsEnCours}
                 href={
-                  peutVoirInvestigations
-                    ? '/investigations?statut=en_attente_validation'
+                  peutVoirInvestigations && compteurs.statutEnInvestigationId !== null
+                    ? `/investigations?statutDossierId=${compteurs.statutEnInvestigationId}`
                     : null
                 }
               />
@@ -504,19 +512,34 @@ async function VueConsolidee({
  * de N+1. Il faudrait une colonne recalculée, sur le modèle de `actions_correctives.statut`.
  */
 async function blocATraiter(codes: string[]) {
-  const [actionsEnRetard, investigationsEnAttente] = await Promise.all([
+  const [actionsEnRetard, investigationsEnCours, statutEnInvestigation] = await Promise.all([
     prisma.actions_correctives.count({
       where: { statut: 'en_retard', dossiers: { parcours: { code: { in: codes } } } },
     }),
+    // Les fiches dont le DOSSIER est encore en investigation. La fiche, elle, n'a plus d'état :
+    // compter sur `investigations.statut` ramènerait toutes les fiches jamais ouvertes, y compris
+    // celles de dossiers résolus depuis des mois.
     prisma.investigations.count({
       where: {
-        statut: 'en_attente_validation',
-        dossiers: { parcours: { code: { in: codes } } },
+        dossiers: {
+          parcours: { code: { in: codes } },
+          statuts_dossier: { code: 'en_investigation' },
+        },
       },
+    }),
+    // L'identifiant du statut, pour que le lien ouvre EXACTEMENT la liste que le nombre compte.
+    // La barre de filtres travaille sur des identifiants, pas sur des codes.
+    prisma.statuts_dossier.findFirst({
+      where: { code: 'en_investigation' },
+      select: { id: true },
     }),
   ])
 
-  return { actionsEnRetard, investigationsEnAttente }
+  return {
+    actionsEnRetard,
+    investigationsEnCours,
+    statutEnInvestigationId: statutEnInvestigation === null ? null : String(statutEnInvestigation.id),
+  }
 }
 
 /**

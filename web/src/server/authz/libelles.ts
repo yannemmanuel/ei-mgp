@@ -109,8 +109,12 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'investigations.validate': {
     libelle: 'Valider une investigation',
     explication:
-      'Approuver une enquête. Un enquêteur ne peut jamais valider la sienne, quelle que soit cette permission.',
+      'Une investigation n’est plus soumise à validation : la fiche est renseignée puis alimente directement les actions correctives. Ce droit ne commande plus rien.',
     sensibilite: 'ordinaire',
+    // Accorder ou retirer ce droit ne change RIEN depuis la suppression de l'étape de validation
+    // (2026-09-18). Le dire est le minimum : un administrateur qui le révoque en croyant fermer
+    // une porte doit savoir qu'elle n'existe pas.
+    sansEffet: true,
   },
 
   // --- Actions correctives ---

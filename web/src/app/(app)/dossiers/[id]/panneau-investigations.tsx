@@ -2,7 +2,6 @@
 
 import { useActionState, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -10,27 +9,24 @@ import type { EtatAction } from './actions'
 import {
   actionMettreAJourInvestigation,
   actionOuvrirInvestigation,
-  actionSoumettreInvestigation,
-  actionValiderInvestigation,
 } from './investigations-actions'
 
+/**
+ * ⚠️ Une investigation n'est soumise à AUCUNE validation (décision métier du 2026-09-18).
+ * La fiche n'a donc plus de statut, plus de validateur, et plus de bouton « Soumettre » ni
+ * « Valider » : elle existe, elle se modifie, et elle alimente les actions correctives.
+ */
 export type InvestigationVue = {
   id: string
   dateOuverture: string
-  statut: string
   faitsConstates: string
   personnesRencontrees: string | null
   causeImmediate: string | null
   causesRacines: string | null
   recommandations: string
   enqueteur: string
-  validateur: string | null
-  valideLe: string | null
-  /** Calculés côté serveur : les policies ne s'évaluent jamais dans le navigateur. */
+  /** Calculé côté serveur : les policies ne s'évaluent jamais dans le navigateur. */
   peutModifier: boolean
-  peutValider: boolean
-  /** Le lecteur est l'enquêteur : il ne validera jamais cette fiche, quels que soient ses droits. */
-  estLEnqueteur: boolean
 }
 
 type Props = {
@@ -39,18 +35,10 @@ type Props = {
   peutOuvrir: boolean
   /** Une fiche ne s'ouvre que sur un dossier « En investigation » (EX-INV-01). */
   dossierEnInvestigation: boolean
-  /** Rôles habilités à valider sur ce parcours, en clair — pour nommer qui doit agir. */
-  validateurs: string[]
 }
 
 const ETAT: EtatAction = {}
 const champ = 'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
-
-const LIBELLES: Record<string, string> = {
-  en_cours: 'En cours',
-  en_attente_validation: 'En attente de validation',
-  validee: 'Validée',
-}
 
 const dateFr = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(iso)) : '—'
@@ -60,7 +48,6 @@ export function PanneauInvestigations({
   investigations,
   peutOuvrir,
   dossierEnInvestigation,
-  validateurs,
 }: Props) {
   const [ouvertureVisible, setOuvertureVisible] = useState(false)
 
@@ -95,20 +82,14 @@ export function PanneauInvestigations({
         )}
 
         {investigations.map((i) => (
-          <FicheInvestigation key={i.id} investigation={i} validateurs={validateurs} />
+          <FicheInvestigation key={i.id} investigation={i} />
         ))}
       </CardContent>
     </Card>
   )
 }
 
-function FicheInvestigation({
-  investigation,
-  validateurs,
-}: {
-  investigation: InvestigationVue
-  validateurs: string[]
-}) {
+function FicheInvestigation({ investigation }: { investigation: InvestigationVue }) {
   const [editionVisible, setEditionVisible] = useState(false)
 
   return (
@@ -120,12 +101,8 @@ function FicheInvestigation({
           </p>
           <p className="text-caption text-muted-foreground">
             Enquêteur : {investigation.enqueteur}
-            {investigation.validateur && ` · Validée par ${investigation.validateur}`}
           </p>
         </div>
-        <Badge variant={investigation.statut === 'validee' ? 'default' : 'secondary'}>
-          {LIBELLES[investigation.statut] ?? investigation.statut}
-        </Badge>
       </div>
 
       <dl className="mt-3 space-y-2 text-sm">
@@ -136,38 +113,14 @@ function FicheInvestigation({
         <Rubrique libelle="Recommandations" valeur={investigation.recommandations} />
       </dl>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {investigation.peutModifier && investigation.statut === 'en_cours' && !editionVisible && (
+      {/* Une fiche reste modifiable : plus aucune étape ne la fige. */}
+      {investigation.peutModifier && !editionVisible && (
+        <div className="mt-4">
           <Button size="sm" variant="outline" onClick={() => setEditionVisible(true)}>
             Modifier
           </Button>
-        )}
-
-        {investigation.peutModifier && investigation.statut === 'en_cours' && (
-          <BoutonAction
-            action={actionSoumettreInvestigation}
-            investigationId={investigation.id}
-            libelle="Soumettre pour validation"
-          />
-        )}
-
-        {/* RGI-06 : `peutValider` est faux pour l'enquêteur lui-même — calculé côté serveur. */}
-        {investigation.peutValider && investigation.statut === 'en_attente_validation' && (
-          <BoutonAction
-            action={actionValiderInvestigation}
-            investigationId={investigation.id}
-            libelle="Valider"
-          />
-        )}
-      </div>
-
-      {/*
-        Un bouton absent se lit comme une fonction manquante — c'est le retour qui nous a été
-        fait. Ne pas pouvoir valider est pourtant la situation NORMALE de l'enquêteur : la règle
-        lui interdit de valider sa propre fiche. Une ligne dit donc où en est la fiche et à qui
-        elle revient, plutôt que de laisser un vide à interpréter.
-      */}
-      <Attente investigation={investigation} validateurs={validateurs} />
+        </div>
+      )}
 
       {editionVisible && (
         <div className="mt-4 border-t border-border pt-4">
@@ -184,45 +137,6 @@ function FicheInvestigation({
   )
 }
 
-/**
- * Où en est la fiche, et à qui elle revient — quand aucun bouton n'est offert au lecteur.
- *
- * Rien ne s'affiche si le lecteur a justement un geste à faire : le bouton parle pour lui-même.
- */
-function Attente({
-  investigation,
-  validateurs,
-}: {
-  investigation: InvestigationVue
-  validateurs: string[]
-}) {
-  const qui = validateurs.length > 0 ? validateurs.join(' ou ') : null
-
-  const message = (() => {
-    if (investigation.statut === 'validee') return null
-
-    if (investigation.statut === 'en_cours') {
-      if (investigation.peutModifier) return null
-      return 'L’enquêteur doit d’abord soumettre cette fiche pour validation.'
-    }
-
-    // En attente de validation.
-    if (investigation.peutValider) return null
-
-    if (investigation.estLEnqueteur) {
-      return qui
-        ? `Vous avez mené cette investigation : elle doit être validée par quelqu’un d’autre — ${qui}.`
-        : 'Vous avez mené cette investigation : elle doit être validée par quelqu’un d’autre.'
-    }
-
-    return qui ? `En attente de validation par : ${qui}.` : 'En attente de validation.'
-  })()
-
-  if (message === null) return null
-
-  return <p className="mt-3 text-caption text-muted-foreground">{message}</p>
-}
-
 function Rubrique({ libelle, valeur }: { libelle: string; valeur: string | null }) {
   if (!valeur) return null
 
@@ -231,32 +145,6 @@ function Rubrique({ libelle, valeur }: { libelle: string; valeur: string | null 
       <dt className="text-caption text-muted-foreground">{libelle}</dt>
       <dd className="whitespace-pre-line text-secondary-800">{valeur}</dd>
     </div>
-  )
-}
-
-function BoutonAction({
-  action,
-  investigationId,
-  libelle,
-}: {
-  action: (etat: EtatAction, donnees: FormData) => Promise<EtatAction>
-  investigationId: string
-  libelle: string
-}) {
-  const [etat, envoyer, enCours] = useActionState(action, ETAT)
-
-  return (
-    <form action={envoyer} className="space-y-2">
-      <input type="hidden" name="investigationId" value={investigationId} />
-      <Button type="submit" size="sm" disabled={enCours}>
-        {enCours ? 'En cours…' : libelle}
-      </Button>
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
-    </form>
   )
 }
 

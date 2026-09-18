@@ -63,11 +63,10 @@ export default async function PageActionsCorrectives({
 
   const filtres = {
     statut: lire('statut'),
-    responsableId: lire('responsableId'),
+    responsable: lire('responsable'),
     parcoursId: lire('parcoursId'),
     echeanceDebut: lire('echeanceDebut'),
     echeanceFin: lire('echeanceFin'),
-    miennes: lire('miennes') === '1',
   }
 
   const pageDemandee = Number(lire('page') ?? '1')
@@ -100,16 +99,17 @@ export default async function PageActionsCorrectives({
     },
     {
       type: 'select',
-      cle: 'responsableId',
+      cle: 'responsable',
       libelle: 'Responsable',
       tous: 'Tous',
-      options: referentiels.responsables.map((u) => ({ valeur: String(u.id), libelle: u.name })),
+      // Les noms saisis sur les actions existantes : le responsable n'est plus un compte.
+      options: referentiels.responsables.map((nom) => ({ valeur: nom, libelle: nom })),
     },
     { type: 'date', cle: 'echeanceDebut', libelle: 'Échéance à partir du' },
     { type: 'date', cle: 'echeanceFin', libelle: 'Jusqu’au' },
   ]
 
-  const filtree = champs.some((c) => filtres[c.cle as keyof typeof filtres]) || filtres.miennes
+  const filtree = champs.some((c) => filtres[c.cle as keyof typeof filtres])
 
   return (
     <div className="space-y-5">
@@ -119,12 +119,11 @@ export default async function PageActionsCorrectives({
         compteur={`${resultat.total} ${resultat.total > 1 ? 'actions' : 'action'}`}
       />
 
-      <BarreFiltres
-        base="/actions-correctives"
-        champs={champs}
-        valeurs={{ ...filtres, miennes: filtres.miennes ? '1' : undefined }}
-        bascule={{ cle: 'miennes', libelleTous: 'Toutes', libelleMiens: 'Les miennes' }}
-      />
+      {/*
+        ⚠️ Plus de bascule « Les miennes » : le responsable est saisi à la main et n'est plus
+        rattaché à un compte. Voir `FiltresActions` pour le détail.
+      */}
+      <BarreFiltres base="/actions-correctives" champs={champs} valeurs={filtres} />
 
       <Card className="overflow-hidden p-0">
         {resultat.actions.length === 0 ? (
@@ -184,7 +183,9 @@ export default async function PageActionsCorrectives({
                           {action.dossiers.parcours.libelle}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm">{action.users.name}</TableCell>
+                      <TableCell className="text-sm">
+                        {action.responsable_nom ?? action.users?.name ?? '—'}
+                      </TableCell>
                       <TableCell className="text-sm">
                         {dateFr(action.echeance)}
                         {/* Le décompte n'a de sens que tant que l'action court : une action

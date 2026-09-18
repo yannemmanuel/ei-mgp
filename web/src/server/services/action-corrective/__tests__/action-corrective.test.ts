@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { changerStatut, ErreurWorkflow } from '../../dossier/workflow'
-import { soumettrePourValidation, validerInvestigation } from '../../investigation/investigation'
 import {
   changerStatutAction,
   cloturerAction,
@@ -60,16 +59,36 @@ async function dossierEnActionCorrective(acteurId: bigint): Promise<string> {
   return dossierId
 }
 
-async function nouvelleAction(dossierId: string, responsableId: bigint): Promise<string> {
+async function nouvelleAction(dossierId: string, responsableNom = 'Chef d’équipe maintenance'): Promise<string> {
   const id = await creerAction({
     dossierId,
     intitule: 'Action de test',
     description: 'Description de l’action corrective.',
-    responsableId,
+    responsableNom,
     echeance: demain(),
   })
   actionsCreees.push(id)
   return id
+}
+
+/** Une fiche d'investigation sur un dossier déjà avancé — créée directement, le workflow ayant progressé. */
+async function investigationSur(dossierId: string, enqueteurId: bigint): Promise<string> {
+  const investigation = await prisma.investigations.create({
+    data: {
+      id: `inv${Date.now().toString(36)}${Math.floor(Math.random() * 1e6)}`.padEnd(26, '0').slice(0, 26),
+      dossier_id: dossierId,
+      enqueteur_id: enqueteurId,
+      date_ouverture: new Date(),
+      faits_constates: 'Constats.',
+      recommandations: 'Recommandations.',
+      statut: 'en_cours',
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    select: { id: true },
+  })
+  investigationsCreees.push(investigation.id)
+  return investigation.id
 }
 
 afterEach(async () => {
@@ -94,15 +113,14 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
 
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     const action = await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })
     expect(action.statut).toBe('non_demarree')
-    expect(action.responsable_id).toBe(acteur)
+    expect(action.responsable_nom).toBe('Chef d’équipe maintenance')
   })
 
   it('refuse la création sur un dossier à un autre statut', async () => {
-    const [acteur] = await deuxUtilisateurs()
     const categorie = await categoriePour('ei_employe')
     const gravite = await graviteParNiveau(1)
 
@@ -123,7 +141,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
         dossierId,
         intitule: 'A',
         description: 'B',
-        responsableId: acteur,
+        responsableNom: 'Responsable de test',
         echeance: demain(),
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
@@ -138,61 +156,88 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
         dossierId,
         intitule: 'Action',
         description: 'Description',
-        responsableId: acteur,
+        responsableNom: 'Responsable de test',
         echeance: new Date(), // aujourd'hui : refusé
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
 
-  it('refuse le rattachement à une investigation non validée (EX-ACT-01)', async () => {
-    const [enqueteur, validateur] = await deuxUtilisateurs()
+  it('rattache une action à N’IMPORTE QUELLE investigation du dossier (EX-ACT-01)', async () => {
+    /*
+      ⚠️ Le filtre « investigation validée » a été RETIRÉ : une investigation n'est plus soumise à
+      validation. S'il subsistait, aucune fiche ne serait plus jamais éligible et le rattachement
+      deviendrait impossible — une fonction qui disparaît sans que rien ne le signale.
+    */
+    const [enqueteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(enqueteur)
-
-    // L'investigation doit être ouverte alors que le dossier est « En investigation » :
-    // on la crée directement pour ce test, le workflow ayant déjà avancé.
-    const investigation = await prisma.investigations.create({
-      data: {
-        id: `inv${Date.now().toString(36)}`.padEnd(26, '0').slice(0, 26),
-        dossier_id: dossierId,
-        enqueteur_id: enqueteur,
-        date_ouverture: new Date(),
-        faits_constates: 'Constats.',
-        recommandations: 'Recommandations.',
-        statut: 'en_cours',
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    })
-    investigationsCreees.push(investigation.id)
-
-    await expect(
-      creerAction({
-        dossierId,
-        investigationId: investigation.id,
-        intitule: 'Action',
-        description: 'Description',
-        responsableId: enqueteur,
-        echeance: demain(),
-      })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
-
-    // Une fois validée, le rattachement devient possible.
-    await soumettrePourValidation(investigation.id)
-    await validerInvestigation({ investigationId: investigation.id, validateurId: validateur })
+    const investigation = await investigationSur(dossierId, enqueteur)
 
     const id = await creerAction({
       dossierId,
-      investigationId: investigation.id,
+      investigationId: investigation,
       intitule: 'Action',
       description: 'Description',
-      responsableId: enqueteur,
+      responsableNom: 'Prestataire extérieur',
       echeance: demain(),
     })
     actionsCreees.push(id)
 
-    expect((await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })).investigation_id).toBe(
-      investigation.id
-    )
+    expect(
+      (await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })).investigation_id
+    ).toBe(investigation)
+  })
+
+  it('⚠️ refuse une investigation qui appartient à un AUTRE dossier', async () => {
+    /*
+      ⚠️ CE CONTRÔLE EST LE SEUL QUI RESTE sur le rattachement, et c'est un contrôle de SÉCURITÉ.
+      Sans lui, un identifiant forgé rattacherait l'action à l'investigation d'un autre dossier —
+      la faisant apparaître dans une fiche que son auteur n'a pas le droit de lire.
+    */
+    const [enqueteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(enqueteur)
+    const autreDossier = await dossierEnActionCorrective(enqueteur)
+    const investigationAilleurs = await investigationSur(autreDossier, enqueteur)
+
+    await expect(
+      creerAction({
+        dossierId,
+        investigationId: investigationAilleurs,
+        intitule: 'Action',
+        description: 'Description',
+        responsableNom: 'Chef de service',
+        echeance: demain(),
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+
+  it('⚠️ exige un responsable, même saisi à la main', async () => {
+    // La saisie libre ne doit pas devenir une absence de responsable : une action dont personne
+    // ne répond ne serait suivie par personne.
+    const [enqueteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(enqueteur)
+
+    for (const vide of ['', '   ']) {
+      await expect(
+        creerAction({
+          dossierId,
+          intitule: 'Action',
+          description: 'Description',
+          responsableNom: vide,
+          echeance: demain(),
+        })
+      ).rejects.toBeInstanceOf(ErreurWorkflow)
+    }
+  })
+
+  it('enregistre le responsable saisi, sans le rattacher à un compte', async () => {
+    const [enqueteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(enqueteur)
+
+    const id = await nouvelleAction(dossierId, '  Équipe HSE du site  ')
+
+    const action = await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })
+    expect(action.responsable_nom, 'le nom n’est pas normalisé').toBe('Équipe HSE du site')
+    expect(action.responsable_id, 'le responsable reste rattaché à un compte').toBeNull()
   })
 })
 
@@ -200,7 +245,7 @@ describe('Avancement (EX-ACT-03)', () => {
   it('suit le graphe non démarrée → en cours → réalisée', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     await changerStatutAction({ actionId: id, vers: 'en_cours' })
     await changerStatutAction({ actionId: id, vers: 'realisee' })
@@ -211,7 +256,7 @@ describe('Avancement (EX-ACT-03)', () => {
   it('refuse de sauter directement de « non démarrée » à « réalisée »', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     await expect(changerStatutAction({ actionId: id, vers: 'realisee' })).rejects.toBeInstanceOf(
       ErreurWorkflow
@@ -222,8 +267,8 @@ describe('Avancement (EX-ACT-03)', () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
 
-    const enCours = await nouvelleAction(dossierId, acteur)
-    const realisee = await nouvelleAction(dossierId, acteur)
+    const enCours = await nouvelleAction(dossierId)
+    const realisee = await nouvelleAction(dossierId)
 
     const hier = new Date()
     hier.setDate(hier.getDate() - 1)
@@ -249,7 +294,7 @@ describe('Vérification d’efficacité (EX-ACT-04, RGI-08)', () => {
   it('refuse la vérification avant que l’action soit réalisée', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     await expect(
       verifierEfficacite({ actionId: id, efficace: true, commentaire: 'Vérifié.' })
@@ -259,7 +304,7 @@ describe('Vérification d’efficacité (EX-ACT-04, RGI-08)', () => {
   it('exige un commentaire pour une vérification positive (RGI-08)', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     await changerStatutAction({ actionId: id, vers: 'en_cours' })
     await changerStatutAction({ actionId: id, vers: 'realisee' })
@@ -280,7 +325,7 @@ describe('Clôture (RGI-09, EX-ACT-05)', () => {
   it('refuse la clôture sans vérification d’efficacité positive (RGI-09)', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId, acteur)
+    const id = await nouvelleAction(dossierId)
 
     await expect(cloturerAction({ actionId: id, acteurId: acteur })).rejects.toBeInstanceOf(
       ErreurWorkflow
@@ -291,8 +336,8 @@ describe('Clôture (RGI-09, EX-ACT-05)', () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
 
-    const a = await nouvelleAction(dossierId, acteur)
-    const b = await nouvelleAction(dossierId, acteur)
+    const a = await nouvelleAction(dossierId)
+    const b = await nouvelleAction(dossierId)
 
     for (const id of [a, b]) {
       await changerStatutAction({ actionId: id, vers: 'en_cours' })
