@@ -40,6 +40,9 @@ async function dossierPourAutorisation(dossierId: string, lecteurId: bigint) {
       is_anonymous: true,
       declarant_user_id: true,
       site_id: true,
+      // ⚠️ La direction CONCERNÉE : elle borne les comptes habilités sur une seule
+      // direction (`directionCloisonnante()`), et pas seulement sur un site.
+      direction_id: true,
       parcours: { select: { code: true } },
       statuts_dossier: { select: { code: true } },
       // `dossiers.view.own` et le contrôle d'étape en dépendent : le statut et l'affectation du
@@ -56,6 +59,7 @@ async function dossierPourAutorisation(dossierId: string, lecteurId: bigint) {
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
     siteId: dossier.site_id,
+    directionId: dossier.direction_id,
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   }
 }

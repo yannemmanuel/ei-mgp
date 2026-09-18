@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import {
   aPermission,
   aRole,
+  directionCloisonnante,
   parcoursAutorises,
   peutFaireAvancerDepuis,
   siteCloisonnant,
@@ -30,13 +31,21 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
     return {}
   }
 
-  // Cloisonnement par site, traduit en SQL comme dans `peutVoirDossier()`. Un dossier sans site
-  // n'est retenu par aucune de ces clauses : c'est voulu.
+  /*
+    Cloisonnement par RATTACHEMENT, traduit en SQL comme dans `peutVoirDossier()`. Un dossier sans
+    le découpage contrôlé n'est retenu par aucune de ces clauses : c'est voulu.
+
+    ⚠️ LES DEUX NE S'APPLIQUENT JAMAIS ENSEMBLE : `siteCloisonnant()` rend `null` dès qu'une
+    direction borne le compte. Les additionner refuserait des dossiers légitimes — celui d'une
+    direction sans site serait rejeté par le contrôle de site alors que sa direction correspond.
+  */
+  const direction = directionCloisonnante(u)
   const site = siteCloisonnant(u)
-  const parSite: Prisma.dossiersWhereInput = site === null ? {} : { site_id: site }
+  const parRattachement: Prisma.dossiersWhereInput =
+    direction !== null ? { direction_id: direction } : site === null ? {} : { site_id: site }
 
   if (aPermission(u, 'dossiers.view')) {
-    return { ...parSite, parcours: { code: { in: parcoursAutorises(u) } } }
+    return { ...parRattachement, parcours: { code: { in: parcoursAutorises(u) } } }
   }
 
   // `dossiers.view.own` : SES dossiers, pas tout son parcours. Traduction en SQL de la branche
@@ -44,7 +53,7 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
   // un test croise les deux implémentations dossier par dossier.
   if (aPermission(u, 'dossiers.view.own')) {
     return {
-      ...parSite,
+      ...parRattachement,
       parcours: { code: { in: parcoursAutorises(u) } },
       OR: [
         { dossier_affectations: { some: { user_id: u.id, actif: true } } },
@@ -159,6 +168,10 @@ export async function listerDossiers(
         // Nécessaire au test qui croise cette clause avec `peutVoirDossier()` : sans le site, il
         // ne pourrait pas vérifier le cloisonnement qu'il est là pour surveiller.
         site_id: true,
+        // Remonté au même titre que `site_id`, et pour la même raison : ce sont les deux
+        // entrées du cloisonnement par rattachement, et le test qui croise ce périmètre avec
+        // `peutVoirDossier()` doit pouvoir lui passer exactement ce que la policy regarde.
+        direction_id: true,
         parcours: { select: { id: true, libelle: true, code: true } },
         categories: { select: { libelle: true } },
         niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },

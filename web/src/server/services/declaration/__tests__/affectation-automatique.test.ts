@@ -28,8 +28,11 @@ afterAll(async () => {
   }
 })
 
-/** Un compte du bon rôle et du bon parcours, rattaché au site voulu. */
-async function correspondant(siteId: bigint | null): Promise<bigint> {
+/** Un compte du bon rôle et du bon parcours, rattaché au site ou à la direction voulus. */
+async function correspondant(
+  siteId: bigint | null,
+  directionId: bigint | null = null
+): Promise<bigint> {
   const role = await prisma.roles.findFirstOrThrow({
     where: { name: 'rgp', guard_name: 'web' },
     select: { id: true },
@@ -46,6 +49,7 @@ async function correspondant(siteId: bigint | null): Promise<bigint> {
       password: null,
       actif: true,
       site_id: siteId,
+      direction_id: directionId,
       created_at: new Date(),
       updated_at: new Date(),
     },
@@ -137,6 +141,92 @@ describe('⚠️ L’affectation route sur le SITE', () => {
       await prisma.dossier_affectations.count({
         where: { dossier_id: dossierId, user_id: sansRattachement, actif: true },
       })
+    ).toBe(1)
+  })
+})
+
+describe('⚠️ L’affectation route aussi sur la DIRECTION', () => {
+  it('ne confie qu’au compte habilité sur la direction concernée', async () => {
+    /*
+      « On peut être habilité sur un site, c'est-à-dire plusieurs directions à la fois, ou sur une
+      seule direction. Dans ce cas, on ne reçoit que les déclarations de la direction sur laquelle
+      on est habilité. »
+
+      Sans ce filtre, un compte habilité sur UNE direction recevait toutes les déclarations de son
+      site — donc celles de directions qui ne le concernent pas. Et le cloisonnement en lecture les
+      lui masquait ensuite : il était affecté à des dossiers qu'il ne pouvait pas ouvrir.
+    */
+    const directions = await prisma.directions.findMany({
+      where: { actif: true, site_id: { not: null } },
+      select: { id: true, site_id: true },
+    })
+
+    /*
+      ⚠️ DEUX DIRECTIONS DU MÊME SITE, cherchées explicitement.
+
+      Prendre `directions[0]` et lui chercher une voisine rendait ce cas VACANT : la première
+      direction de la base est seule sur son site, la recherche ne trouvait rien et le test
+      sortait sans rien affirmer. Il passait alors même en supprimant la règle qu'il est censé
+      protéger.
+    */
+    const parSite = new Map<string, typeof directions>()
+    for (const d of directions) {
+      const cle = String(d.site_id)
+      parSite.set(cle, [...(parSite.get(cle) ?? []), d])
+    }
+
+    const voisines = [...parSite.values()].find((groupe) => groupe.length >= 2)
+
+    expect(
+      voisines,
+      'aucun site ne porte deux directions : le cas ne prouverait rien'
+    ).toBeDefined()
+    if (!voisines) return
+
+    const [ici, ailleurs] = voisines
+
+    // Les deux sont sur le MÊME site : seul le découpage par direction peut les départager. Un
+    // filtre resté au site les retiendrait tous les deux.
+    const deLaDirection = await correspondant(null, ici.id)
+    const dUneAutre = await correspondant(null, ailleurs.id)
+
+    const dossierId = await griefSurLaDirection(ici.id)
+
+    const confies = await prisma.dossier_affectations.findMany({
+      where: { dossier_id: dossierId, actif: true },
+      select: { user_id: true },
+    })
+    const titulaires = confies.map((c) => String(c.user_id))
+
+    expect(titulaires, 'le compte de la direction concernée n’a rien reçu').toContain(
+      String(deLaDirection)
+    )
+    expect(
+      titulaires,
+      'un compte habilité sur une AUTRE direction du même site a été affecté'
+    ).not.toContain(String(dUneAutre))
+  })
+
+  it('confie au compte habilité sur le SITE, quelle que soit la direction', async () => {
+    // La contrepartie : l'habilitation par site couvre toutes ses directions. La restreindre
+    // serait l'erreur symétrique.
+    const directions = await prisma.directions.findMany({
+      where: { actif: true, site_id: { not: null } },
+      select: { id: true, site_id: true },
+      take: 5,
+    })
+
+    const ici = directions[0]
+    if (!ici?.site_id) return
+
+    const duSite = await correspondant(ici.site_id)
+    const dossierId = await griefSurLaDirection(ici.id)
+
+    expect(
+      await prisma.dossier_affectations.count({
+        where: { dossier_id: dossierId, user_id: duSite, actif: true },
+      }),
+      'le compte du site n’a pas reçu une déclaration de l’une de ses directions'
     ).toBe(1)
   })
 })

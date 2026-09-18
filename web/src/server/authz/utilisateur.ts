@@ -28,6 +28,14 @@ export type UtilisateurAutorise = {
   /** Site de rattachement, `null` s'il n'est pas renseigné. Voir `authz/site.ts`. */
   readonly siteId: bigint | null
   /**
+   * Direction de rattachement, `null` si le compte est habilité sur un site entier.
+   *
+   * ⚠️ PLUS FINE QUE LE SITE et prioritaire sur lui : « on peut être habilité sur un site,
+   * c'est-à-dire plusieurs directions à la fois, ou sur une seule direction — dans ce cas on ne
+   * reçoit que les déclarations de la direction ». Voir `directionCloisonnante()`.
+   */
+  readonly directionId: bigint | null
+  /**
    * Le mot de passe a été fixé par un tiers — création de compte ou régénération — et n'a pas
    * encore été remplacé par son porteur. La coquille du back-office l'oriente alors vers l'écran
    * de changement, et n'en laisse sortir qu'une fois le remplacement fait.
@@ -83,6 +91,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
       id: true,
       actif: true,
       site_id: true,
+      direction_id: true,
       doit_changer_mot_de_passe: true,
       // Le site de sa direction, quand il est rattaché à une direction plutôt qu'à un site.
       directions: { select: { site_id: true } },
@@ -160,16 +169,23 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     /*
       ⚠️ LE SITE EST DÉDUIT de la direction quand le compte n'en porte pas directement.
 
-      Un compte se rattache désormais à un site OU à une direction, jamais aux deux. Sans cette
-      déduction, celui qui choisit une direction n'aurait AUCUN site — et `siteCloisonnant()`,
-      qui rend `null` dans ce cas, cesserait de le borner : il verrait les dossiers de tous les
-      sites. Un cloisonnement qui s'efface parce qu'on a renseigné un rattachement PLUS précis
-      serait l'inverse de ce qu'on attend.
+      Un compte se rattache à un site OU à une direction, jamais aux deux. Sans cette déduction,
+      celui qui choisit une direction n'aurait AUCUN site — et `siteCloisonnant()`, qui rend
+      `null` dans ce cas, cesserait de le borner : il verrait les dossiers de tous les sites. Un
+      cloisonnement qui s'efface parce qu'on a renseigné un rattachement PLUS précis serait
+      l'inverse de ce qu'on attend.
 
       Une direction appartient toujours à un site (`directions.site_id`), et c'est par elle que
       les dossiers trouvent le leur : la déduction ne fabrique rien, elle suit le même chemin.
+
+      ⚠️ CE SITE DÉDUIT NE SERT PLUS QUE DE FILET. Depuis que `directionId` est porté, un compte
+      rattaché à une direction est borné PAR SA DIRECTION, et `siteCloisonnant()` s'efface devant
+      elle. La déduction reste parce qu'elle décrit une vérité — la direction appartient bien à ce
+      site — et qu'elle continue de borner les rares comptes dont la direction serait retirée sans
+      que le site le soit.
     */
     siteId: utilisateur.site_id ?? utilisateur.directions?.site_id ?? null,
+    directionId: utilisateur.direction_id,
     doitChangerMotDePasse: utilisateur.doit_changer_mot_de_passe,
     roles,
     permissions,

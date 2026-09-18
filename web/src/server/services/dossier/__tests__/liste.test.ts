@@ -84,12 +84,76 @@ describe('Périmètre de la liste et policy : cohérence', () => {
           isAnonymous: d.is_anonymous,
           declarantUserId: null,
           siteId: d.site_id,
+          directionId: d.direction_id,
           estAffecteAuLecteur: affectations > 0,
         })
 
         expect(autorise, `${role} voit ${d.reference} (${d.parcours.code}) hors de son périmètre`).toBe(true)
       }
     }
+  })
+
+  it('⚠️ croise aussi la règle sur un compte habilité par DIRECTION', async () => {
+    /*
+      ⚠️ AUCUN COMPTE RÉEL N'EST BORNÉ PAR DIRECTION aujourd'hui : le seul qui porte une direction
+      seule est transverse, donc non cloisonné. Le croisement sur les comptes existants ne
+      passerait donc jamais par cette branche, et la clause SQL pourrait diverger de la policy
+      sans que rien ne le signale.
+
+      Ce cas fabrique le compte qui manque, à partir des directions RÉELLES de la base, et vérifie
+      les deux sens : ce que la liste montre, la policy l'autorise — et la liste ne laisse sortir
+      aucun dossier d'une autre direction.
+    */
+    const directions = await prisma.directions.findMany({
+      where: { dossiers: { some: {} } },
+      select: { id: true },
+      take: 5,
+    })
+
+    expect(
+      directions.length,
+      'aucune direction ne porte de dossier : le cas ne prouverait rien'
+    ).toBeGreaterThan(0)
+
+    let dossiersExamines = 0
+
+    for (const direction of directions) {
+      // `secretaire_csst` est cloisonné et ouvre `ei_employe`. Le site reste nul : c'est la
+      // direction qui doit borner, et elle seule.
+      const u = { ...utilisateurAvecRoles('secretaire_csst'), siteId: null, directionId: direction.id }
+      const { dossiers } = await listerDossiers(u, {}, 1)
+
+      for (const d of dossiers) {
+        dossiersExamines++
+
+        expect(
+          d.direction_id,
+          `${d.reference} sort de la liste alors qu'il relève d'une autre direction`
+        ).toBe(direction.id)
+
+        const affectations = await prisma.dossier_affectations.count({
+          where: { dossier_id: d.id, user_id: u.id, actif: true },
+        })
+
+        expect(
+          peutVoirDossier(u, {
+            parcoursCode: d.parcours.code as ParcoursCode,
+            statutCode: d.statuts_dossier.code as StatutCode,
+            isAnonymous: d.is_anonymous,
+            declarantUserId: null,
+            siteId: d.site_id,
+            directionId: d.direction_id,
+            estAffecteAuLecteur: affectations > 0,
+          }),
+          `${d.reference} est listé mais la policy le refuse`
+        ).toBe(true)
+      }
+    }
+
+    expect(
+      dossiersExamines,
+      'aucun dossier listé : le croisement ne prouverait rien'
+    ).toBeGreaterThan(0)
   })
 
   it('ne montre à un rôle de captage QUE les dossiers qui lui sont affectés', async () => {
@@ -250,6 +314,7 @@ describe('Filtre « à moi d’agir »', () => {
           isAnonymous: d.is_anonymous,
           declarantUserId: null,
           siteId: d.site_id,
+          directionId: d.direction_id,
           estAffecteAuLecteur: true,
         })
 

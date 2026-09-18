@@ -13,12 +13,13 @@ import { utilisateurAvecRoles, utilisateurDuSite } from './aide'
 const YOPOUGON = 1n
 const SIEGE = 2n
 
-const dossier = (siteId: bigint | null): DossierPourAutorisation => ({
+const dossier = (siteId: bigint | null, directionId: bigint | null = null): DossierPourAutorisation => ({
   parcoursCode: 'ei_employe',
   statutCode: 'affecte',
   isAnonymous: true,
   declarantUserId: null,
   siteId,
+  directionId,
   estAffecteAuLecteur: true,
 })
 

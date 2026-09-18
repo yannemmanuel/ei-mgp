@@ -54,14 +54,19 @@ export default async function PageComptes({
         site: c.sites?.libelle ?? null,
         direction: c.directions?.libelle ?? null,
         /*
-          ⚠️ Le site DÉDUIT, et non la seule colonne.
+          ⚠️ Le site DÉDUIT, et LA DIRECTION — pas la seule colonne `site_id`.
 
-          Un compte rattaché à une direction porte `site_id` à null — et il est pourtant bien
-          cloisonné : `chargerUtilisateurAutorise()` déduit son site de la direction. Ne regarder
-          que la colonne aurait signalé « site manquant » sur tous ces comptes, c'est-à-dire une
-          alerte fausse sur le rattachement le plus précis des deux.
+          Un compte rattaché à une direction porte `site_id` à null, et il est pourtant le mieux
+          cloisonné des deux : il ne reçoit que les déclarations de sa direction. Ne regarder que
+          la colonne signalerait « site manquant » sur tous ces comptes, c'est-à-dire une alerte
+          fausse sur le rattachement le plus précis — et une alerte fausse est ce qui finit par
+          faire ignorer les vraies.
         */
-        siteManquant: siteManquant(c.roles as Role[], c.site_id ?? c.directions?.site_id ?? null),
+        siteManquant: siteManquant(
+          c.roles as Role[],
+          c.site_id ?? c.directions?.site_id ?? null,
+          c.direction_id
+        ),
         // Ce qui lui a été confié, tel quel : c'est ce que le formulaire doit rouvrir coché.
         parcoursAttribues: c.parcours,
         // Ce qu'elle voit VRAIMENT — l'attribution croisée avec ce que ses rôles ouvrent. Les deux

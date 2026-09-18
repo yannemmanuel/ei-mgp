@@ -60,6 +60,9 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       declarant_user_id: true,
       created_at: true,
       site_id: true,
+      // ⚠️ La direction CONCERNÉE : elle borne les comptes habilités sur une seule
+      // direction (`directionCloisonnante()`), et pas seulement sur un site.
+      direction_id: true,
       parcours: { select: { id: true, code: true, libelle: true } },
       // Les deux rattachements, nommés. `directions` est celui des FAITS — c'est de lui que
       // découle le site ; l'autre est celui du déclarant quand il n'est pas la personne concernée.
@@ -90,6 +93,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
     siteId: dossier.site_id,
+    directionId: dossier.direction_id,
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
   })
 

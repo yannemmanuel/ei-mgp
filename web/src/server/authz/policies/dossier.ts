@@ -2,7 +2,7 @@ import type { StatutCode } from '@/server/services/dossier/statuts'
 import { peutFaireAvancerDepuis } from '../etapes'
 import type { ParcoursCode } from '../parcours'
 import { peutVoirParcours } from '../parcours'
-import { siteCloisonnant } from '../site'
+import { directionCloisonnante, siteCloisonnant } from '../site'
 import { aPermission, aRole, aUnePermissionParmi, type UtilisateurAutorise } from '../utilisateur'
 
 /**
@@ -19,6 +19,12 @@ export type DossierPourAutorisation = {
   readonly declarantUserId: bigint | null
   /** Site du dossier, déduit de la direction concernée. `null` si la direction n'en a aucun. */
   readonly siteId: bigint | null
+  /**
+   * Direction CONCERNÉE par les faits, `null` quand le parcours n'en porte pas — c'est le cas de
+   * tous les griefs communautaires et sous-traitants. À ne pas confondre avec
+   * `direction_declarant_id`, qui est celle de la personne qui déclare.
+   */
+  readonly directionId: bigint | null
   /**
    * L'utilisateur détient-il une affectation ACTIVE sur ce dossier ?
    *
@@ -44,12 +50,22 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
   }
 
   /**
-   * Cloisonnement par site, en plus du parcours.
+   * Cloisonnement par RATTACHEMENT, en plus du parcours.
    *
-   * Un dossier SANS site n'est vu d'aucun rôle cloisonné : la direction concernée n'est rattachée
-   * à aucun site, personne ne peut donc dire de qui il relève. Le rendre visible à tous par
-   * défaut annulerait le cloisonnement au premier référentiel incomplet.
+   * ⚠️ LA DIRECTION D'ABORD, et elle EXCLUT le contrôle par site : un compte habilité sur une
+   * seule direction ne reçoit que les déclarations de cette direction, pas celles des autres
+   * directions de son site. `siteCloisonnant()` rend `null` dans ce cas — les deux contrôles ne
+   * s'appliquent donc jamais ensemble.
+   *
+   * Un dossier SANS le découpage contrôlé n'est vu d'aucun compte borné : ni celui sans site pour
+   * un compte de site, ni celui sans direction pour un compte de direction. Le rendre visible à
+   * tous par défaut annulerait le cloisonnement au premier référentiel incomplet.
    */
+  const direction = directionCloisonnante(u)
+  if (direction !== null && dossier.directionId !== direction) {
+    return false
+  }
+
   const site = siteCloisonnant(u)
   if (site !== null && dossier.siteId !== site) {
     return false

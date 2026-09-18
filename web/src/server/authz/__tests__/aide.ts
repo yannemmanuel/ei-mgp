@@ -32,6 +32,9 @@ export function utilisateurAvecRoles(...roles: Role[]): UtilisateurAutorise {
     id: prochainId++,
     actif: true,
     siteId: null,
+    // Ni site ni direction : le cloisonnement par rattachement ne s'applique donc pas par
+    // défaut, et les cas qui le visent le posent explicitement.
+    directionId: null,
     doitChangerMotDePasse: false,
     roles,
     permissions,

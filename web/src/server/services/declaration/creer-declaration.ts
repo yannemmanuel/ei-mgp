@@ -1,6 +1,13 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
-import { peutVoirParcours, type ParcoursCode, type Role } from '@/server/authz'
+import {
+  directionCloisonnante,
+  peutVoirParcours,
+  siteCloisonnant,
+  type ParcoursCode,
+  type Permission,
+  type Role,
+} from '@/server/authz'
 import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
 import { referenceSuivante } from './reference'
@@ -416,6 +423,9 @@ async function affecterAutomatiquement(
     select: {
       id: true,
       site_id: true,
+      // La direction de rattachement : un compte habilité sur une seule direction ne reçoit que
+      // les déclarations de celle-ci.
+      direction_id: true,
       // Le site de sa direction : un compte rattaché à une direction appartient à son site.
       directions: { select: { site_id: true } },
       utilisateur_parcours: { select: { parcours: { select: { code: true } } } },
@@ -432,10 +442,27 @@ async function affecterAutomatiquement(
   */
   const tousLesLiens = await tx.model_has_roles.findMany({
     where: { model_type: MODEL_TYPE_USER, model_id: { in: candidats.map((c) => c.id) } },
-    select: { model_id: true, roles: { select: { name: true, actif: true, guard_name: true } } },
+    select: {
+      model_id: true,
+      roles: {
+        select: {
+          name: true,
+          actif: true,
+          guard_name: true,
+          // ⚠️ Les PERMISSIONS aussi : `directionCloisonnante()` et `siteCloisonnant()` laissent
+          // passer `dossiers.view.all`. Sans elles, un rôle transverse serait borné ici alors
+          // qu'il ne l'est pas en lecture — et l'affectation cesserait de suivre l'accès.
+          role_has_permissions: {
+            select: { permissions: { select: { name: true, guard_name: true } } },
+          },
+        },
+      },
+    },
   })
 
   const rolesParCompte = new Map<bigint, Role[]>()
+  const permissionsParCompte = new Map<bigint, Set<Permission>>()
+
   for (const lien of tousLesLiens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
     if (!lien.roles.actif || lien.roles.guard_name !== 'web') continue
@@ -444,6 +471,12 @@ async function affecterAutomatiquement(
       ...(rolesParCompte.get(lien.model_id) ?? []),
       lien.roles.name as Role,
     ])
+
+    const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
+    for (const rhp of lien.roles.role_has_permissions) {
+      if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
+    }
+    permissionsParCompte.set(lien.model_id, permissions)
   }
 
   // Filtré par la MÊME fonction que celle qui décide de l'accès en lecture. Recopier la règle ici
@@ -459,21 +492,31 @@ async function affecterAutomatiquement(
   )
 
   /*
-    ⚠️ ET DU MÊME SITE que le dossier. C'est la seconde moitié de la règle métier : l'affectation
-    suit le formulaire ET le rattachement.
+    ⚠️ ET DU MÊME RATTACHEMENT que le dossier. C'est la seconde moitié de la règle métier :
+    l'affectation suit le formulaire ET le rattachement.
+
+    « On peut être habilité sur un site, c'est-à-dire plusieurs directions à la fois, ou sur une
+    seule direction. Dans ce cas, on ne reçoit que les déclarations de la direction sur laquelle
+    on est habilité. »
 
     Sans ce filtre, une déclaration déposée sur un site était confiée à tous les correspondants
     de tous les sites — chacun la voyait dans « ses » dossiers, et personne ne savait qui la
-    traitait. Le cloisonnement en lecture (`authz/site.ts`) la leur masquait ensuite, si bien
-    qu'ils étaient affectés à un dossier qu'ils ne pouvaient pas ouvrir.
+    traitait. Le cloisonnement en lecture la leur masquait ensuite, si bien qu'ils étaient
+    affectés à un dossier qu'ils ne pouvaient pas ouvrir.
 
-    Un compte SANS rattachement reçoit tout, comme il voit tout : `siteCloisonnant()` ne le borne
-    pas non plus. Les deux décisions restent ainsi alignées — on n'affecte jamais un dossier à
-    quelqu'un qui ne pourrait pas le lire.
+    ⚠️ LES MÊMES FONCTIONS que celles qui décident de l'accès en lecture, et non une règle
+    recopiée. La version précédente redérivait le site à la main et affectait à TOUT LE MONDE un
+    dossier sans site (`siteDuDossier === null`) — or `peutVoirDossier()` le refuse justement à
+    tout compte borné. Elle reproduisait donc exactement le défaut qu'elle prétendait corriger :
+    des comptes affectés à des dossiers qu'ils ne peuvent pas ouvrir.
   */
-  const { site_id: siteDuDossier, declarant_user_id: declarantId } = await tx.dossiers.findUniqueOrThrow({
+  const {
+    site_id: siteDuDossier,
+    direction_id: directionDuDossier,
+    declarant_user_id: declarantId,
+  } = await tx.dossiers.findUniqueOrThrow({
     where: { id: dossierId },
-    select: { site_id: true, declarant_user_id: true },
+    select: { site_id: true, direction_id: true, declarant_user_id: true },
   })
 
   const utilisateurs = surLeParcours.filter((u) => {
@@ -490,9 +533,25 @@ async function affecterAutomatiquement(
     */
     if (declarantId !== null && u.id === declarantId) return false
 
-    const siteDuCompte = u.site_id ?? u.directions?.site_id ?? null
+    // La photographie d'autorisation du candidat, dans la forme qu'attendent les fonctions de
+    // cloisonnement. `siteId` est déduit de la direction comme dans `chargerUtilisateurAutorise()`.
+    const pourCloisonnement = {
+      id: u.id,
+      actif: true,
+      siteId: u.site_id ?? u.directions?.site_id ?? null,
+      directionId: u.direction_id,
+      doitChangerMotDePasse: false,
+      roles: rolesParCompte.get(u.id) ?? [],
+      permissions: permissionsParCompte.get(u.id) ?? new Set<Permission>(),
+      parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
+    }
 
-    return siteDuCompte === null || siteDuDossier === null || siteDuCompte === siteDuDossier
+    // La direction d'abord : elle est plus fine, et `siteCloisonnant()` s'efface devant elle.
+    const direction = directionCloisonnante(pourCloisonnement)
+    if (direction !== null) return directionDuDossier === direction
+
+    const site = siteCloisonnant(pourCloisonnement)
+    return site === null || siteDuDossier === site
   })
 
   if (utilisateurs.length === 0) {
