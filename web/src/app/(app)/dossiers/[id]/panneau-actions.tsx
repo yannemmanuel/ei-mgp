@@ -4,13 +4,11 @@ import { useActionState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import {
   actionChangerStatut,
   actionQualifierGravite,
   actionCloturer,
   actionBasculerContentieux,
-  actionReaffecter,
   actionRejeter,
   actionReouvrir,
   type EtatAction,
@@ -22,7 +20,6 @@ type Props = {
   dossierId: string
   statutCode: string
   affectations: Option[]
-  affectables: Option[]
   transitions: { code: string; libelle: string }[]
   /**
    * Rôles à qui le CDC confie l'étape courante, déjà traduits en clair. Vide quand le CDC
@@ -32,7 +29,6 @@ type Props = {
   /** Niveaux proposés à la qualification. Vide si le dossier en porte déjà un. */
   gravitesAQualifier: { valeur: string; libelle: string }[]
   droits: {
-    reaffecter: boolean
     changerStatut: boolean
     cloturer: boolean
     reouvrir: boolean
@@ -56,7 +52,6 @@ export function PanneauActions({
   dossierId,
   statutCode,
   affectations,
-  affectables,
   transitions,
   acteursDeLEtape,
   gravitesAQualifier,
@@ -67,11 +62,27 @@ export function PanneauActions({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-h3">Affectation</CardTitle>
+          <CardTitle className="text-h3">Qui traite ce dossier</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/*
+            ⚠️ PLUS AUCUNE RÉAFFECTATION MANUELLE ici, et c'est une décision, pas un oubli.
+
+            L'affectation découle désormais du formulaire et du rattachement : les comptes du bon
+            parcours et du bon site reçoivent le dossier à sa création. Un bouton qui permettrait
+            d'en désigner un autre rouvrirait, dossier par dossier, ce que cette règle ferme — et
+            rien n'empêchait de confier un dossier à quelqu'un que le cloisonnement empêche de
+            l'ouvrir.
+
+            Pour changer qui reçoit quoi, on change le RATTACHEMENT du compte ou le parcours qui
+            lui est confié, dans la console des comptes. La règle vaut alors pour tous les dossiers
+            suivants, au lieu d'être reprise à la main sur chacun.
+          */}
           {affectations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun responsable affecté.</p>
+            <p className="text-sm text-muted-foreground">
+              Personne pour l’instant. Les dossiers sont confiés aux comptes du parcours et du site
+              concernés — vérifiez qu’au moins un compte y est habilité.
+            </p>
           ) : (
             <ul className="space-y-1 text-sm text-secondary-800">
               {affectations.map((a) => (
@@ -80,33 +91,6 @@ export function PanneauActions({
             </ul>
           )}
 
-          {droits.reaffecter && (
-            <FormulaireAction
-              action={actionReaffecter}
-              dossierId={dossierId}
-              libelleBouton="Réaffecter"
-            >
-              <div className="space-y-1.5">
-                <Label htmlFor="nouvelUtilisateurId" className="text-caption">
-                  Réaffecter à
-                </Label>
-                <select id="nouvelUtilisateurId" name="nouvelUtilisateurId" className={champ} required>
-                  <option value="">— Sélectionner —</option>
-                  {affectables.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.nom}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="motif" className="text-caption">
-                  Motif *
-                </Label>
-                <textarea id="motif" name="motif" rows={2} required minLength={5} className={champ} />
-              </div>
-            </FormulaireAction>
-          )}
         </CardContent>
       </Card>
 

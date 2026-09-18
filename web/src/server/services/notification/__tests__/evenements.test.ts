@@ -7,7 +7,7 @@ import {
   nettoyerAudit,
   nettoyerDossiers,
 } from '../../declaration/__tests__/aide-base'
-import { reaffecter } from '../../dossier/affectation'
+import { confierPourTest } from '../../declaration/__tests__/aide-base'
 import { changerStatut } from '../../dossier/workflow'
 import { definirTransportEmail, TransportJournal, type MessageEmail } from '../transport'
 
@@ -71,12 +71,7 @@ async function nouvelleDeclaration(
 
 /** Amène le dossier jusqu'à un titulaire, préalable à toute transition. */
 async function prendreEnCharge(dossierId: string, acteurId: bigint): Promise<void> {
-  await reaffecter({
-    dossierId,
-    nouvelUtilisateurId: acteurId,
-    effectueParId: acteurId,
-    motif: 'Prise en charge pour test.',
-  })
+  await confierPourTest(dossierId, acteurId)
 }
 
 beforeEach(() => {
@@ -91,18 +86,87 @@ afterEach(async () => {
   dossiersCrees.length = 0
 })
 
+// ⚠️ Borné aux comptes fabriqués ici : jamais de suppression large sur `users`.
+const comptesCrees: bigint[] = []
+const MODEL_TYPE_USER = String.raw`App\Models\User`
+
 afterAll(async () => {
+  if (comptesCrees.length > 0) {
+    await prisma.utilisateur_parcours.deleteMany({ where: { user_id: { in: comptesCrees } } })
+    await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptesCrees } } })
+    await prisma.dossier_affectations.deleteMany({ where: { user_id: { in: comptesCrees } } })
+    await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
+  }
+
   await prisma.$disconnect()
 })
 
 describe('EX-NOT-01 — notification à l’affectation', () => {
-  it('notifie le nouveau titulaire lors d’une réaffectation', async () => {
+  it('⚠️ notifie les titulaires DÈS LA CRÉATION', async () => {
+    /*
+      Ce cas exerçait la réaffectation MANUELLE, seule à notifier. Elle a été supprimée — les
+      affectations découlent désormais du parcours et du rattachement — et `surAffectation()`
+      s'est alors retrouvé sans aucun appelant : un correspondant aurait reçu des dossiers sans
+      jamais en être averti.
+
+      ⚠️ Le titulaire est FABRIQUÉ ici. Le premier jet s'appuyait sur les comptes en base ; aucun
+      ne portait le rôle de captage des griefs employés, et le cas passait sans rien exercer. Un
+      cas qui dépend de la configuration du jour ne prouve rien le jour où elle change.
+    */
+    const role = await prisma.roles.findFirstOrThrow({
+      where: { name: 'rgp', guard_name: 'web' },
+      select: { id: true },
+    })
+    const parcours = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_employe' },
+      select: { id: true },
+    })
+
+    const titulaire = await prisma.users.create({
+      data: {
+        name: 'Titulaire de test',
+        email: `titulaire-${Date.now()}@example.test`,
+        password: null,
+        actif: true,
+        // Sans rattachement : il reçoit alors les déclarations de tous les sites, comme il les
+        // voit toutes. Les deux décisions suivent la même règle.
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    })
+    comptesCrees.push(titulaire.id)
+
+    await prisma.model_has_roles.create({
+      data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: titulaire.id },
+    })
+    await prisma.utilisateur_parcours.create({
+      data: { user_id: titulaire.id, parcours_id: parcours.id },
+    })
+
     const dossierId = await nouvelleDeclaration()
-    const acteur = await prisma.users.findFirstOrThrow({ where: { actif: true }, select: { id: true } })
 
-    await prendreEnCharge(dossierId, acteur.id)
+    const confies = await prisma.dossier_affectations.count({
+      where: { dossier_id: dossierId, user_id: titulaire.id, actif: true },
+    })
 
+    expect(confies, 'le dossier n’a pas été confié au titulaire fabriqué').toBe(1)
     expect(await evenementsNotifies(dossierId)).toContain('dossier_affecte')
+  })
+
+  it('ne notifie personne quand rien n’a pu être confié', async () => {
+    // La contrepartie : `surAffectation()` n'est appelé que si l'affectation a abouti. L'appeler
+    // à vide enverrait un message à personne, et masquerait le vrai problème — un parcours que
+    // plus aucun compte n'est habilité à recevoir.
+    const dossierId = await nouvelleDeclaration()
+
+    const titulaires = await prisma.dossier_affectations.count({
+      where: { dossier_id: dossierId, actif: true },
+    })
+
+    if (titulaires > 0) return // ce dépôt a trouvé preneur : rien à vérifier ici
+
+    expect(await evenementsNotifies(dossierId)).not.toContain('dossier_affecte')
   })
 })
 

@@ -6,11 +6,9 @@ import { exigerUtilisateur } from '@/server/auth'
 import {
   peutChangerStatutDossier,
   peutCloturerDossier,
-  peutReaffecterDossier,
   peutReouvrirDossier,
   type ParcoursCode,
 } from '@/server/authz'
-import { reaffecter } from '@/server/services/dossier/affectation'
 import {
   changerStatut,
   cloturer,
@@ -70,39 +68,6 @@ function messageErreur(erreur: unknown): string {
 
   console.error('Action dossier en échec', erreur)
   return "L'opération n'a pas pu aboutir. Aucune donnée n'a été perdue : vous pouvez réessayer."
-}
-
-export async function actionReaffecter(
-  _precedent: EtatAction,
-  donnees: FormData
-): Promise<EtatAction> {
-  const utilisateur = await exigerUtilisateur()
-  const dossierId = String(donnees.get('dossierId') ?? '')
-  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
-
-  if (!dossier || !peutReaffecterDossier(utilisateur, dossier)) {
-    return { erreur: REFUS }
-  }
-
-  const nouvelUtilisateurId = String(donnees.get('nouvelUtilisateurId') ?? '')
-  const motif = String(donnees.get('motif') ?? '')
-
-  if (nouvelUtilisateurId === '') return { erreur: 'Merci de sélectionner un utilisateur.' }
-  if (motif.trim().length < 5) return { erreur: 'Le motif doit contenir au moins 5 caractères.' }
-
-  try {
-    await reaffecter({
-      dossierId,
-      nouvelUtilisateurId: BigInt(nouvelUtilisateurId),
-      effectueParId: utilisateur.id,
-      motif,
-    })
-  } catch (erreur) {
-    return { erreur: messageErreur(erreur) }
-  }
-
-  revalidatePath(`/dossiers/${dossierId}`)
-  return { succes: 'Dossier réaffecté.' }
 }
 
 export async function actionChangerStatut(

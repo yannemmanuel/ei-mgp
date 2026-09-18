@@ -79,7 +79,14 @@ export function aUnePermissionParmi(u: UtilisateurAutorise, permissions: readonl
 export async function chargerUtilisateurAutorise(userId: bigint): Promise<UtilisateurAutorise | null> {
   const utilisateur = await prisma.users.findUnique({
     where: { id: userId },
-    select: { id: true, actif: true, site_id: true, doit_changer_mot_de_passe: true },
+    select: {
+      id: true,
+      actif: true,
+      site_id: true,
+      doit_changer_mot_de_passe: true,
+      // Le site de sa direction, quand il est rattaché à une direction plutôt qu'à un site.
+      directions: { select: { site_id: true } },
+    },
   })
 
   if (!utilisateur) {
@@ -150,7 +157,19 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
   return {
     id: utilisateur.id,
     actif: utilisateur.actif,
-    siteId: utilisateur.site_id,
+    /*
+      ⚠️ LE SITE EST DÉDUIT de la direction quand le compte n'en porte pas directement.
+
+      Un compte se rattache désormais à un site OU à une direction, jamais aux deux. Sans cette
+      déduction, celui qui choisit une direction n'aurait AUCUN site — et `siteCloisonnant()`,
+      qui rend `null` dans ce cas, cesserait de le borner : il verrait les dossiers de tous les
+      sites. Un cloisonnement qui s'efface parce qu'on a renseigné un rattachement PLUS précis
+      serait l'inverse de ce qu'on attend.
+
+      Une direction appartient toujours à un site (`directions.site_id`), et c'est par elle que
+      les dossiers trouvent le leur : la déduction ne fabrique rien, elle suit le même chemin.
+    */
+    siteId: utilisateur.site_id ?? utilisateur.directions?.site_id ?? null,
     doitChangerMotDePasse: utilisateur.doit_changer_mot_de_passe,
     roles,
     permissions,

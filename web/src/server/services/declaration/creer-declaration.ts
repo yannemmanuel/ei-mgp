@@ -4,7 +4,7 @@ import { peutVoirParcours, type ParcoursCode, type Role } from '@/server/authz'
 import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
 import { referenceSuivante } from './reference'
-import { surDeclarationCritique } from '../notification/evenements'
+import { surAffectation, surDeclarationCritique } from '../notification/evenements'
 
 /**
  * Orchestration de la création d'un dossier de bout en bout — port de
@@ -317,8 +317,24 @@ export async function creerDeclaration(params: {
       dossierId: dossier.id,
       reference: dossier.reference,
       estCritique: gravite?.effet_circuit === 'accelere',
+      aEteAffecte,
     }
   })
+
+  /*
+    EX-NOT-01 : les titulaires sont prévenus de ce qui leur est confié.
+
+    ⚠️ Cet appel ne venait PAS d'ici : il vivait dans la réaffectation manuelle, seule à notifier.
+    Elle a été supprimée — les affectations découlent désormais du parcours et du rattachement —
+    et `surAffectation()` s'est retrouvé sans aucun appelant. Un correspondant aurait reçu des
+    dossiers sans jamais en être averti, et rien ne l'aurait signalé.
+
+    Comme RG-08 ci-dessous : APRÈS le commit. Notifier depuis l'intérieur de la transaction
+    enverrait des messages pour un dossier qui pourrait encore être annulé.
+  */
+  if (resultat.aEteAffecte) {
+    await surAffectation(resultat.dossierId)
+  }
 
   // RG-08 : circuit accéléré déclenché EN SYNCHRONE, après commit — notifier depuis l'intérieur
   // de la transaction enverrait des messages pour un dossier qui pourrait encore être annulé.
@@ -399,6 +415,9 @@ async function affecterAutomatiquement(
     where: { actif: true, id: { in: liens.map((l) => l.model_id) } },
     select: {
       id: true,
+      site_id: true,
+      // Le site de sa direction : un compte rattaché à une direction appartient à son site.
+      directions: { select: { site_id: true } },
       utilisateur_parcours: { select: { parcours: { select: { code: true } } } },
     },
   })
@@ -429,7 +448,7 @@ async function affecterAutomatiquement(
 
   // Filtré par la MÊME fonction que celle qui décide de l'accès en lecture. Recopier la règle ici
   // la ferait diverger au premier ajustement, et l'écart ne se verrait que sur un dossier perdu.
-  const utilisateurs = candidats.filter((u) =>
+  const surLeParcours = candidats.filter((u) =>
     peutVoirParcours(
       {
         roles: rolesParCompte.get(u.id) ?? [],
@@ -438,6 +457,43 @@ async function affecterAutomatiquement(
       parcours
     )
   )
+
+  /*
+    ⚠️ ET DU MÊME SITE que le dossier. C'est la seconde moitié de la règle métier : l'affectation
+    suit le formulaire ET le rattachement.
+
+    Sans ce filtre, une déclaration déposée sur un site était confiée à tous les correspondants
+    de tous les sites — chacun la voyait dans « ses » dossiers, et personne ne savait qui la
+    traitait. Le cloisonnement en lecture (`authz/site.ts`) la leur masquait ensuite, si bien
+    qu'ils étaient affectés à un dossier qu'ils ne pouvaient pas ouvrir.
+
+    Un compte SANS rattachement reçoit tout, comme il voit tout : `siteCloisonnant()` ne le borne
+    pas non plus. Les deux décisions restent ainsi alignées — on n'affecte jamais un dossier à
+    quelqu'un qui ne pourrait pas le lire.
+  */
+  const { site_id: siteDuDossier, declarant_user_id: declarantId } = await tx.dossiers.findUniqueOrThrow({
+    where: { id: dossierId },
+    select: { site_id: true, declarant_user_id: true },
+  })
+
+  const utilisateurs = surLeParcours.filter((u) => {
+    /*
+      DT-06 : le DÉCLARANT identifié n'est jamais affecté à son propre dossier.
+
+      ⚠️ Cette règle ne vivait que dans la réaffectation manuelle, qui vient d'être supprimée.
+      Sans ce filtre elle disparaîtrait avec elle — et un correspondant qui déclare un grief se
+      verrait confier l'instruction de son propre signalement. Le retrait d'une fonction ne doit
+      pas emporter une garantie qui ne s'y trouvait que par accident.
+
+      Ne concerne que les déclarations IDENTIFIÉES : une déclaration anonyme n'est rattachée à
+      aucun compte (RG-06), et `declarant_user_id` y est nul.
+    */
+    if (declarantId !== null && u.id === declarantId) return false
+
+    const siteDuCompte = u.site_id ?? u.directions?.site_id ?? null
+
+    return siteDuCompte === null || siteDuDossier === null || siteDuCompte === siteDuDossier
+  })
 
   if (utilisateurs.length === 0) {
     return false

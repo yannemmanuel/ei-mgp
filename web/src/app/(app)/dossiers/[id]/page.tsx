@@ -13,7 +13,6 @@ import {
   peutCloturerDossier,
   peutCreerInvestigation,
   peutModifierInvestigation,
-  peutReaffecterDossier,
   peutReouvrirDossier,
   peutValiderInvestigation,
   peutVoirInvestigation,
@@ -34,7 +33,6 @@ import {
   rolesValidateurs,
 } from '@/server/services/investigation/investigation'
 import { marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
-import { utilisateursAffectables } from '@/server/services/dossier/affectation'
 import {
   affectationsActives,
   chargerFiche,
@@ -83,7 +81,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
   }
 
   const pourPolicy = {
-    parcoursCode: dossier.parcours.code as Parameters<typeof peutReaffecterDossier>[1]['parcoursCode'],
+    parcoursCode: dossier.parcours.code as Parameters<typeof peutChangerStatutDossier>[1]['parcoursCode'],
     statutCode: dossier.statutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
@@ -98,7 +96,6 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     transitions,
     restants,
     limiteGlobale,
-    affectables,
     investigations,
     actions,
     investigationsValidees_,
@@ -116,16 +113,14 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       : Promise.resolve([]),
     joursRestants({ id, statutCode: dossier.statutCode, parcoursId: dossier.parcours.id }),
     dateLimiteGlobale({ parcoursId: dossier.parcours.id, creeLe: dossier.created_at ?? new Date() }),
-    peutReaffecterDossier(utilisateur, pourPolicy) ? utilisateursAffectables(id) : Promise.resolve([]),
     investigationsDuDossier(id),
     actionsDuDossier(id),
     investigationsValidees(id),
     peutVoirMessagerie(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
       ? messagesDuDossier(id)
       : Promise.resolve([]),
-    // Liste des responsables possibles : conditionnee au droit de CREER une action, et non a
-    // celui de reaffecter — les deux permissions sont distinctes et portees par des roles
-    // differents.
+    // Liste des responsables possibles pour une ACTION CORRECTIVE — sans rapport avec
+    // l'affectation d'un dossier, qui ne se fait plus à la main.
     peutCreerAction(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
       ? prisma.users.findMany({
           where: { actif: true },
@@ -607,7 +602,6 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               id: String(a.id),
               nom: a.users_dossier_affectations_user_idTousers.name,
             }))}
-            affectables={affectables.map((u) => ({ id: String(u.id), nom: u.name }))}
             transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
             acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
               (role) => LIBELLES_ROLE[role] ?? role
@@ -620,7 +614,6 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 : []
             }
             droits={{
-              reaffecter: peutReaffecterDossier(utilisateur, pourPolicy),
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
               cloturer: peutCloturerDossier(utilisateur, pourPolicy),
               reouvrir: peutReouvrirDossier(utilisateur, pourPolicy),

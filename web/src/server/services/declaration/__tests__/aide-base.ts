@@ -61,3 +61,67 @@ export async function nettoyerAudit(
     where: { auditable_type: auditableType, auditable_id: { in: ids.map((id) => String(id)) } },
   })
 }
+
+/**
+ * Confie un dossier à un compte, pour poser une situation de test.
+ *
+ * ⚠️ Écrit la ligne DIRECTEMENT, sans passer par aucun service — et c'est volontaire. La
+ * réaffectation manuelle a été supprimée : les affectations découlent désormais du parcours et du
+ * rattachement, à la création. Les cas qui ont besoin d'un titulaire précis posent donc l'état
+ * qu'ils veulent exercer, au lieu de détourner une fonction métier pour l'obtenir.
+ *
+ * Remplace les titulaires actifs plutôt que d'en ajouter un : un test qui en cumulerait
+ * n'exercerait plus la situation qu'il décrit.
+ */
+export async function confierPourTest(dossierId: string, utilisateurId: bigint): Promise<void> {
+  await prisma.dossier_affectations.updateMany({
+    where: { dossier_id: dossierId, actif: true },
+    data: { actif: false, desaffecte_le: new Date() },
+  })
+
+  await prisma.dossier_affectations.create({
+    data: {
+      dossier_id: dossierId,
+      user_id: utilisateurId,
+      affecte_par: utilisateurId,
+      type: 'test',
+      actif: true,
+      affecte_le: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+  })
+
+  /*
+    ⚠️ Et le dossier passe à « affecté », avec sa ligne d'historique.
+
+    C'est ce que fait `creerDeclaration()` quand l'affectation automatique aboutit. L'omettre
+    laisserait le dossier à « reçu » avec un titulaire — un état que l'application ne produit
+    jamais, et depuis lequel les transitions suivantes refuseraient. Le cas exercerait alors une
+    situation qui n'existe pas.
+  */
+  const dossier = await prisma.dossiers.findUniqueOrThrow({
+    where: { id: dossierId },
+    select: { statut_id: true, statuts_dossier: { select: { code: true } } },
+  })
+
+  if (dossier.statuts_dossier.code !== 'recu') return
+
+  const affecte = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'affecte' } })
+
+  await prisma.dossiers.update({
+    where: { id: dossierId },
+    data: { statut_id: affecte.id, updated_at: new Date() },
+  })
+
+  await prisma.historique_statuts.create({
+    data: {
+      dossier_id: dossierId,
+      statut_precedent_id: dossier.statut_id,
+      statut_suivant_id: affecte.id,
+      effectue_par: utilisateurId,
+      commentaire: 'Prise en charge pour test.',
+      created_at: new Date(),
+    },
+  })
+}

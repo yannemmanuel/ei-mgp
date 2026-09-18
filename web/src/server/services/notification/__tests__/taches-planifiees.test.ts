@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { changerStatut } from '../../dossier/workflow'
-import { reaffecter } from '../../dossier/affectation'
+import { confierPourTest } from '../../declaration/__tests__/aide-base'
 import { estEnRetard, joursRestants, viderCacheDelais } from '../../dossier/delais'
 import { detecterRetards, relancerEcheances } from '../taches-planifiees'
 import { definirTransportEmail, TransportJournal, type MessageEmail } from '../transport'
@@ -64,12 +64,7 @@ async function dossierAvecEcheance(acteurId: bigint): Promise<string> {
   })
 
   if (actuel.statuts_dossier.code === 'recu') {
-    await reaffecter({
-      dossierId,
-      nouvelUtilisateurId: acteurId,
-      effectueParId: acteurId,
-      motif: 'Prise en charge pour test.',
-    })
+    await confierPourTest(dossierId, acteurId)
   }
 
   await changerStatut({ dossierId, vers: 'en_analyse', acteurId })

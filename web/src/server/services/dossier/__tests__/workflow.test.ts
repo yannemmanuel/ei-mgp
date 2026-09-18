@@ -2,7 +2,6 @@ import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
-import { reaffecter } from '../affectation'
 import { changerStatut, cloturer, rejeter, reouvrir, ErreurWorkflow } from '../workflow'
 import type { StatutCode } from '../statuts'
 
@@ -225,72 +224,121 @@ describe('Réouverture (RG-07, EX-GES-06)', () => {
   })
 })
 
-describe('Réaffectation (EX-GES-03, DT-06)', () => {
-  it('désactive le titulaire précédent et trace le motif', async () => {
-    const id = await nouveauDossier()
-    const acteurId = await acteur()
-    const autre = await prisma.users.findFirstOrThrow({
-      where: { id: { not: acteurId }, actif: true },
+describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier', () => {
+  /*
+    La réaffectation manuelle a été SUPPRIMÉE : les affectations découlent désormais du parcours et
+    du rattachement, à la création. Le bloc qui exerçait `reaffecter()` a disparu avec elle.
+
+    ⚠️ Mais DT-06 ne vivait QUE là. Sans ce cas, la règle serait partie avec la fonction — et un
+    correspondant qui déclare un grief se verrait confier l'instruction de son propre
+    signalement. Elle est reportée dans l'affectation automatique, et tenue ici.
+  */
+  const comptesCrees: bigint[] = []
+  const MODEL_TYPE_USER = String.raw`App\Models\User`
+
+  afterAll(async () => {
+    if (comptesCrees.length === 0) return
+
+    await prisma.utilisateur_parcours.deleteMany({ where: { user_id: { in: comptesCrees } } })
+    await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptesCrees } } })
+    await prisma.dossier_affectations.deleteMany({ where: { user_id: { in: comptesCrees } } })
+    await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
+  })
+
+  /** Un compte qui SERAIT affecté aux griefs employés : bon rôle, bon parcours, aucun site. */
+  async function candidatNaturel(): Promise<bigint> {
+    const role = await prisma.roles.findFirstOrThrow({
+      where: { name: 'rgp', guard_name: 'web' },
+      select: { id: true },
+    })
+    const parcours = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_employe' },
       select: { id: true },
     })
 
-    await reaffecter({
-      dossierId: id,
-      nouvelUtilisateurId: autre.id,
-      effectueParId: acteurId,
-      motif: 'Congé maladie du titulaire.',
+    const compte = await prisma.users.create({
+      data: {
+        name: 'Correspondant déclarant',
+        email: `dt06-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`,
+        password: null,
+        actif: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    })
+    comptesCrees.push(compte.id)
+
+    await prisma.model_has_roles.create({
+      data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: compte.id },
+    })
+    await prisma.utilisateur_parcours.create({
+      data: { user_id: compte.id, parcours_id: parcours.id },
     })
 
-    const actives = await prisma.dossier_affectations.findMany({
-      where: { dossier_id: id, actif: true },
-    })
+    return compte.id
+  }
 
-    expect(actives).toHaveLength(1)
-    expect(actives[0].user_id).toBe(autre.id)
-    expect(actives[0].motif).toBe('Congé maladie du titulaire.')
-    expect(actives[0].type).toBe('reaffectation')
-  })
-
-  it('exige un motif', async () => {
-    const id = await nouveauDossier()
-
-    await expect(
-      reaffecter({
-        dossierId: id,
-        nouvelUtilisateurId: await acteur(),
-        effectueParId: await acteur(),
-        motif: '   ',
-      })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
-  })
-
-  it('refuse d’affecter le déclarant identifié à son propre dossier (DT-06)', async () => {
-    const declarant = await acteur()
-    const categorie = await categoriePour('ei_employe')
+  async function griefDeclarePar(declarant: bigint | null): Promise<string> {
+    const categorie = await categoriePour('grief_employe')
     const gravite = await graviteParNiveau(1)
 
     const { dossierId } = await creerDeclaration({
-      parcours: 'ei_employe',
+      parcours: 'grief_employe',
       canalCaptageCode: 'qr_code',
-      anonyme: false,
+      anonyme: declarant === null,
       donneesDossier: {
         categorieId: categorie.id,
         niveauGraviteId: gravite.id,
         description: 'Description factuelle de test suffisamment longue.',
-        declarantUserId: declarant,
+        ...(declarant === null ? {} : { declarantUserId: declarant }),
       },
-      donneesIdentite: { nomPrenom: 'Awa Koffi' },
+      ...(declarant === null ? {} : { donneesIdentite: { nomPrenom: 'Awa Koffi' } }),
     })
-    crees.push(dossierId)
 
-    await expect(
-      reaffecter({
-        dossierId,
-        nouvelUtilisateurId: declarant,
-        effectueParId: declarant,
-        motif: 'Prise en charge.',
+    crees.push(dossierId)
+    return dossierId
+  }
+
+  it('écarte le déclarant, qui aurait AUTREMENT été affecté', async () => {
+    /*
+      ⚠️ Le compte est fabriqué pour Être un candidat naturel — bon rôle, bon parcours. Sans cela
+      le cas ne prouverait rien : un déclarant que l'affectation n'aurait de toute façon pas
+      retenu reste absent des titulaires, garde ou pas.
+
+      Le second dépôt, anonyme, le démontre : le MÊME compte y est bien affecté.
+    */
+    const declarant = await candidatNaturel()
+
+    const temoin = await griefDeclarePar(null)
+    const confiesSurLeTemoin = await prisma.dossier_affectations.count({
+      where: { dossier_id: temoin, user_id: declarant, actif: true },
+    })
+
+    expect(
+      confiesSurLeTemoin,
+      'ce compte n’est pas un candidat naturel : le cas ne prouverait rien'
+    ).toBe(1)
+
+    const sien = await griefDeclarePar(declarant)
+    const confiesSurLeSien = await prisma.dossier_affectations.count({
+      where: { dossier_id: sien, user_id: declarant, actif: true },
+    })
+
+    expect(confiesSurLeSien, 'le déclarant s’est vu confier son propre dossier').toBe(0)
+  })
+
+  it('n’écarte personne d’une déclaration ANONYME', async () => {
+    // Une déclaration anonyme n'est rattachée à aucun compte (RG-06) : il n'y a personne à
+    // écarter, et la règle ne doit pas se mettre à retirer des titulaires au hasard.
+    const declarant = await candidatNaturel()
+    const anonyme = await griefDeclarePar(null)
+
+    expect(
+      await prisma.dossier_affectations.count({
+        where: { dossier_id: anonyme, user_id: declarant, actif: true },
       })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
+    ).toBe(1)
   })
 })
 

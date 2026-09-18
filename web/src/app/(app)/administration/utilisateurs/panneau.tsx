@@ -332,6 +332,19 @@ function FormulaireCompte({
 }) {
   const [etat, envoyer, enCours] = useActionState(actionEnregistrerCompte, ETAT)
 
+  /*
+    Rattachement contrôlé : direction OU site, l'un excluant l'autre à l'écran.
+
+    ⚠️ Un compte existant peut porter LES DEUX — la règle est nouvelle, la donnée ne l'est pas.
+    La DIRECTION l'emporte alors à l'ouverture : c'est le rattachement le plus précis, et il
+    porte déjà son site. Le site est donc vidé à l'affichage, et l'enregistrement le confirmera
+    — rien n'est écrasé tant qu'on n'enregistre pas.
+  */
+  const [directionId, setDirectionId] = useState(compte?.directionId ?? '')
+  const [siteId, setSiteId] = useState(
+    compte?.directionId ? '' : (compte?.siteId ?? '')
+  )
+
   // Un compte ne peut pas être son propre responsable hiérarchique.
   const responsables = comptes.filter((c) => c.id !== compte?.id)
 
@@ -463,11 +476,33 @@ function FormulaireCompte({
               <Input id="poste" name="poste" defaultValue={compte?.poste ?? ''} className="mt-1" />
             </div>
 
+            {/*
+              RATTACHEMENT : une direction OU un site, jamais les deux.
+
+              C'est lui qui décide ce que le compte reçoit — les affectations suivent désormais le
+              parcours et le rattachement, sans geste manuel. Deux valeurs concurrentes rendraient
+              cette règle indécidable : à quel périmètre appartient quelqu'un rattaché à la
+              direction A et au site B, quand A ne relève pas de B ?
+
+              ⚠️ La direction est le rattachement le PLUS PRÉCIS : elle porte déjà son site
+              (`directions.site_id`), et `chargerUtilisateurAutorise()` l'en déduit. Choisir une
+              direction ne perd donc aucun cloisonnement — il le resserre.
+            */}
             <div>
               <Label htmlFor="directionId" className="text-caption text-muted-foreground">
                 Direction
               </Label>
-              <select id="directionId" name="directionId" defaultValue={compte?.directionId ?? ''} className={champ}>
+              <select
+                id="directionId"
+                name="directionId"
+                value={directionId}
+                onChange={(e) => {
+                  setDirectionId(e.target.value)
+                  if (e.target.value !== '') setSiteId('')
+                }}
+                disabled={siteId !== ''}
+                className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 <option value="">—</option>
                 {directions.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -475,13 +510,28 @@ function FormulaireCompte({
                   </option>
                 ))}
               </select>
+              {siteId !== '' && (
+                <p className="mt-1 text-caption text-muted-foreground">
+                  Un site est déjà choisi. Videz-le pour rattacher à une direction.
+                </p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="siteId" className="text-caption text-muted-foreground">
                 Site
               </Label>
-              <select id="siteId" name="siteId" defaultValue={compte?.siteId ?? ''} className={champ}>
+              <select
+                id="siteId"
+                name="siteId"
+                value={siteId}
+                onChange={(e) => {
+                  setSiteId(e.target.value)
+                  if (e.target.value !== '') setDirectionId('')
+                }}
+                disabled={directionId !== ''}
+                className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
                 <option value="">—</option>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -489,6 +539,11 @@ function FormulaireCompte({
                   </option>
                 ))}
               </select>
+              {directionId !== '' && (
+                <p className="mt-1 text-caption text-muted-foreground">
+                  Déduit de la direction choisie — inutile de le renseigner.
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">

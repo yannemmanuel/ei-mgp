@@ -190,6 +190,21 @@ export async function enregistrerUtilisateur(
     throw new ErreurWorkflow('Cette adresse e-mail est déjà utilisée.')
   }
 
+  /*
+    ⚠️ RATTACHEMENT EXCLUSIF : une direction OU un site, jamais les deux.
+
+    L'écran grise l'un dès que l'autre est choisi, mais un champ grisé ne protège rien : il
+    suffit d'un appel direct pour envoyer les deux. La règle est donc tranchée ICI.
+
+    La DIRECTION l'emporte plutôt que de refuser. Elle est le rattachement le plus précis et
+    porte déjà son site (`directions.site_id`), dont `chargerUtilisateurAutorise()` déduit le
+    cloisonnement : on ne perd donc rien, on lève une ambiguïté. Refuser aurait bloqué la
+    modification des comptes qui portent les deux pour une raison sans rapport avec l'édition en
+    cours — la règle est nouvelle, leur donnée ne l'était pas.
+  */
+  const directionId = donnees.directionId
+  const siteId = directionId === null ? donnees.siteId : null
+
   // Garde-fou : un administrateur ne doit pas pouvoir se verrouiller hors de la console en
   // désactivant son propre compte par inadvertance.
   if (utilisateurId !== undefined && utilisateurId === acteur.id && !donnees.actif) {
@@ -210,8 +225,8 @@ export async function enregistrerUtilisateur(
     email: donnees.email,
     matricule: donnees.matricule,
     poste: donnees.poste,
-    direction_id: donnees.directionId,
-    site_id: donnees.siteId,
+    direction_id: directionId,
+    site_id: siteId,
     responsable_hierarchique_id: donnees.responsableHierarchiqueId,
     actif: donnees.actif,
   }

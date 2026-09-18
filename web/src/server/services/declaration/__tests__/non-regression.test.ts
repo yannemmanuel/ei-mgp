@@ -11,7 +11,7 @@ import { CANAUX_RELAIS } from '../soumission'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from './aide-base'
 import { dateLimite, etapeActuelle } from '../../dossier/delais'
 import { changerStatut, rejeter } from '../../dossier/workflow'
-import { reaffecter } from '../../dossier/affectation'
+import { confierPourTest } from './aide-base'
 
 /**
  * Non-régression (étape 13) — exigences dont le comportement existait sans être couvert par un
@@ -62,12 +62,7 @@ async function amenerEnAnalyse(dossierId: string, acteurId: bigint): Promise<voi
   })
 
   if (actuel.statuts_dossier.code === 'recu') {
-    await reaffecter({
-      dossierId,
-      nouvelUtilisateurId: acteurId,
-      effectueParId: acteurId,
-      motif: 'Prise en charge pour test.',
-    })
+    await confierPourTest(dossierId, acteurId)
   }
 
   await changerStatut({ dossierId, vers: 'en_analyse', acteurId })
