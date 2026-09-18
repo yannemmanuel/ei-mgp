@@ -146,10 +146,15 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
         urgences.enRetard === 0 &&
         urgences.nonAffectes === 0 && (
           <Card className="p-0">
+            {/*
+              « Affecté » ne dit pas tout : un évènement indésirable n'est affecté à personne et
+              revient au chargé de sécurité par son rattachement. Le libellé parlait d'affectation
+              là où la charge peut venir des deux, et laissait croire à un oubli de paramétrage.
+            */}
             <EtatVide
               icone={Inbox}
-              titre="Aucun dossier ne vous est affecté."
-              description="Ceux qui vous seront confiés apparaîtront ici."
+              titre="Aucun dossier ne vous revient pour l’instant."
+              description="Ceux qui vous seront confiés — par affectation, ou par votre rattachement pour un évènement indésirable — apparaîtront ici."
             />
           </Card>
         )
@@ -343,7 +348,9 @@ async function VueConsolidee({
 
   const [indicateurs, historique, referentiels, compteurs] = await Promise.all([
     calculerIndicateurs(filtre),
-    historiqueMensuel(codes),
+    // Voir `historiqueMensuel` : l'agrégat mensuel ne porte pas le rattachement, il ne peut donc
+    // pas être cloisonné. Pour un lecteur borné, il ne renvoie rien plutôt que des chiffres faux.
+    historiqueMensuel(codes, filtre.siteDuLecteur != null || filtre.directionDuLecteur != null),
     chargerReferentiels(filtre.parcoursId ?? null),
     blocATraiter(codes),
   ])
@@ -466,8 +473,9 @@ async function VueConsolidee({
         <CardContent>
           {historique.length === 0 ? (
 <p className="text-sm text-muted-foreground">
-              Le récapitulatif du mois est établi au début du mois suivant. Une ligne
-              apparaîtra ici dès le premier récapitulatif.
+              {filtre.siteDuLecteur != null || filtre.directionDuLecteur != null
+                ? 'L’historique mensuel n’est pas disponible pour un compte rattaché à un site ou à une direction : le récapitulatif est agrégé par parcours, sans distinguer les rattachements. Les chiffres du haut de cette page, eux, sont bien limités au vôtre.'
+                : 'Le récapitulatif du mois est établi au début du mois suivant. Une ligne apparaîtra ici dès le premier récapitulatif.'}
             </p>
           ) : (
             <div className="overflow-x-auto">

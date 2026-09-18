@@ -51,9 +51,21 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     // relance à J-3, ni escalade. C'est le réglage le plus silencieusement bloquant du dispositif.
     prisma.sla_delais.count({ where: { est_valide_metier: false } }),
 
-    // La direction porte le rattachement au site, donc l'acheminement vers le secrétaire
-    // compétent. Sans site, les dossiers de cette direction n'atteignent personne d'habilité.
-    prisma.directions.count({ where: { actif: true, site_id: null } }),
+    /*
+      ⚠️ SANS SITE **ET** SANS PERSONNE HABILITÉE DESSUS.
+
+      Cette alerte comptait toutes les directions sans site, en affirmant que leurs déclarations
+      n'atteignaient personne. Ce n'est plus vrai : depuis qu'on peut habiliter un compte
+      directement sur une direction, celle-ci achemine ses déclarations sans passer par un site.
+      C'est même le cas observé en production — une direction sans site, avec son chargé de
+      sécurité, qui fonctionne.
+
+      Maintenue telle quelle, l'alerte aurait signalé comme bloquant un paramétrage correct. Une
+      alerte fausse est ce qui finit par faire ignorer les vraies.
+    */
+    prisma.directions.count({
+      where: { actif: true, site_id: null, users: { none: { actif: true } } },
+    }),
 
     // Un mot de passe posé par un tiers et jamais remplacé : le compte reste ouvert à qui l'a
     // fixé, et son porteur ne peut rien faire d'autre que le changer.
@@ -154,9 +166,10 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     },
     {
       cle: 'directions',
-      libelle: 'Directions sans site',
+      libelle: 'Directions sans site ni titulaire',
       valeur: directionsSansSite,
-      consequence: 'Leurs déclarations n’atteignent aucun secrétaire habilité.',
+      consequence:
+        'Leurs déclarations n’atteignent personne : ni par le site, qu’elles n’ont pas, ni par une habilitation directe sur la direction.',
       href: '/administration/organisation',
       bloquant: true,
     },

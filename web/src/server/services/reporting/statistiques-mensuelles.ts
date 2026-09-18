@@ -144,8 +144,23 @@ export async function historiqueMensuel(
    * chiffres du haut.
    */
   parcoursDuLecteur?: readonly string[],
+  /**
+   * Le lecteur est-il borné à un site ou à une direction ?
+   *
+   * ⚠️ DANS CE CAS L'HISTORIQUE N'EST PAS RENDU, et c'est délibéré. `statistiques_mensuelles` est
+   * un agrégat qui ne porte QUE `parcours_id` : ni site, ni direction. Il n'existe donc aucun
+   * moyen d'y appliquer le cloisonnement par rattachement.
+   *
+   * Entre afficher à un lecteur cloisonné des totaux qui incluent les autres sites — en
+   * contradiction avec tous les chiffres du haut de la page — et n'afficher rien, ne rien
+   * afficher est le seul choix honnête. Rendre ce bloc exact demanderait d'ajouter le
+   * rattachement à l'agrégat, ce qui se décide avec le métier.
+   */
+  cloisonneParRattachement = false,
   limite = 12
 ): Promise<LigneHistoriqueMensuel[]> {
+  if (cloisonneParRattachement) return []
+
   const perimetre =
     parcoursDuLecteur === undefined
       ? Prisma.empty

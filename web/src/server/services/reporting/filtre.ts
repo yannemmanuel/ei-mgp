@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client'
-import { parcoursAutorises, type ParcoursCode, type UtilisateurAutorise } from '@/server/authz'
+import {
+  directionCloisonnante,
+  parcoursAutorises,
+  siteCloisonnant,
+  type ParcoursCode,
+  type UtilisateurAutorise,
+} from '@/server/authz'
 
 /**
  * EX-REP-02 : filtre unique du module Reporting — port de `App\Support\ReportingFilter`.
@@ -34,6 +40,19 @@ export type FiltreReporting = {
    * dossiers, elle, continuait de n'en montrer qu'un.
    */
   readonly parcoursDuLecteur?: readonly ParcoursCode[]
+  /**
+   * Site auquel le LECTEUR est borné. `undefined`/`null` = pas de restriction de site.
+   *
+   * ⚠️ Même nature que `parcoursDuLecteur` : un plafond, jamais un critère de recherche. Ne pas
+   * confondre avec `siteId`, qui vient de l'URL et que l'utilisateur choisit.
+   *
+   * Le parcours était plafonné, le rattachement ne l'était pas : un lecteur cloisonné par site
+   * aurait lu les volumes de tous les sites, alors que sa liste de dossiers n'en montre qu'un.
+   * C'est exactement le défaut qui avait été corrigé pour le parcours, laissé ouvert à côté.
+   */
+  readonly siteDuLecteur?: bigint | null
+  /** Direction à laquelle le lecteur est borné. Plus fine que le site, et prioritaire sur lui. */
+  readonly directionDuLecteur?: bigint | null
 }
 
 export const FILTRE_VIDE: FiltreReporting = {}
@@ -56,11 +75,28 @@ export function clauseFiltre(filtre: FiltreReporting): Prisma.dossiersWhereInput
   if (filtre.parcoursDuLecteur !== undefined) {
     clause.parcours = { code: { in: [...filtre.parcoursDuLecteur] } }
   }
+  /*
+    Le plafond de RATTACHEMENT, posé avant les critères pour qu'un `siteId` venu de l'URL ne
+    puisse jamais l'élargir : les deux écrivent la même clé, et c'est le critère qui doit être
+    écrasé par le plafond, pas l'inverse.
+
+    La direction l'emporte sur le site, comme dans `rattachementCouvre()` : les appliquer ensemble
+    exclurait les dossiers d'une direction sans site.
+  */
+  if (filtre.directionDuLecteur != null) {
+    clause.direction_id = filtre.directionDuLecteur
+  } else if (filtre.siteDuLecteur != null) {
+    clause.site_id = filtre.siteDuLecteur
+  }
+
   if (filtre.categorieId != null) clause.categorie_id = filtre.categorieId
   if (filtre.statutId != null) clause.statut_id = filtre.statutId
   if (filtre.niveauGraviteId != null) clause.niveau_gravite_id = filtre.niveauGraviteId
-  if (filtre.siteId != null) clause.site_id = filtre.siteId
-  if (filtre.directionId != null) clause.direction_id = filtre.directionId
+  // Critères venus de l'URL : ils ne s'appliquent que s'ils ne contredisent pas le plafond.
+  if (filtre.siteId != null && clause.site_id === undefined) clause.site_id = filtre.siteId
+  if (filtre.directionId != null && clause.direction_id === undefined) {
+    clause.direction_id = filtre.directionId
+  }
 
   if (filtre.periodeDebut != null || filtre.periodeFin != null) {
     clause.created_at = {}
@@ -103,6 +139,9 @@ export function filtreDepuisParametres(
 ): FiltreReporting {
   return {
     parcoursDuLecteur: lecteur ? parcoursAutorises(lecteur) : undefined,
+    // Les MÊMES fonctions que celles qui bornent la liste et la fiche.
+    siteDuLecteur: lecteur ? siteCloisonnant(lecteur) : undefined,
+    directionDuLecteur: lecteur ? directionCloisonnante(lecteur) : undefined,
     parcoursId: entier(parametres.parcoursId),
     categorieId: entier(parametres.categorieId),
     statutId: entier(parametres.statutId),

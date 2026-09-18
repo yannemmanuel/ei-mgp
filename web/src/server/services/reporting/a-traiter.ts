@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import type { UtilisateurAutorise } from '@/server/authz'
 import { datesLimites, statutsAvecEcheance } from '../dossier/delais'
-import { perimetreDossiers } from '../dossier/liste'
+import { clauseDontJeReponds, clauseNonAffectes, perimetreDossiers } from '../dossier/liste'
+import { couvertureDesEi } from '../dossier/suivi-ei'
 import type { StatutCode } from '../dossier/statuts'
 
 /**
@@ -16,16 +17,25 @@ import type { StatutCode } from '../dossier/statuts'
  * Les deux chiffres qui manquaient sont ici.
  */
 
+/**
+ * ⚠️ « À MOI » NE VEUT PAS DIRE « AFFECTÉ À MOI » POUR UN ÉVÈNEMENT INDÉSIRABLE.
+ *
+ * Un EI n'est affecté à personne : sa charge revient au chargé de sécurité dont le rattachement
+ * couvre le dossier. Compter les seules affectations faisait afficher « Aucun dossier ne vous est
+ * affecté » à la personne même qui doit les traiter — et signalait chaque EI comme « non affecté »,
+ * c'est-à-dire comme un dossier que personne ne prend, alors que quelqu'un en répond.
+ */
 export type ADTraiter = {
   /** Dossiers dont l'échéance d'étape est dépassée, dans le périmètre de l'utilisateur. */
   readonly enRetard: number
-  /** Reçus sans aucun destinataire actif : personne ne les traite, et personne ne le sait. */
+  /** Reçus dont personne ne répond — ni par affectation, ni par rattachement pour un EI. */
   readonly nonAffectes: number
-  /** Parmi ceux qui lui sont affectés, ceux dont l'échéance est dépassée. */
+  /** Parmi ceux dont il répond, ceux dont l'échéance est dépassée. */
   readonly miensEnRetard: number
-  /** Ses affectations actives parmi les dossiers OUVERTS et suivis — pas son historique. */
+  /** Ceux dont il répond parmi les dossiers OUVERTS et suivis — pas son historique. */
   readonly miens: number
 }
+
 
 /**
  * ⚠️ Borné aux dossiers OUVERTS dont l'étape est suivie.
@@ -42,7 +52,11 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
 
   const perimetre = perimetreDossiers(u)
 
-  const [ouverts, nonAffectes] = await Promise.all([
+  // ⚠️ La MÊME clause que la liste ouverte par ce compteur. Recopier la définition ici l'aurait
+  // fait diverger au premier ajustement, et on aurait cliqué sur « 5 » pour découvrir autre chose.
+  const couverture = await couvertureDesEi()
+
+  const [ouverts, dontJeReponds, nonAffectes] = await Promise.all([
     prisma.dossiers.findMany({
       where: {
         AND: [perimetre, { statuts_dossier: { code: { in: [...statutsSuivis] } } }],
@@ -51,26 +65,34 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
         id: true,
         parcours_id: true,
         statuts_dossier: { select: { code: true } },
-        dossier_affectations: {
-          where: { user_id: u.id, actif: true },
-          select: { id: true },
-          take: 1,
-        },
       },
+    }),
+
+    /*
+      ⚠️ Ceux dont il répond, obtenus par LA MÊME CLAUSE que la carte et que la liste qu'elle
+      ouvre. Refaire la décision en mémoire ici — « affecté, ou EI de mon rattachement » — aurait
+      recréé une troisième définition, et c'est précisément ce qui avait fait diverger les trois
+      affichages.
+    */
+    prisma.dossiers.findMany({
+      where: {
+        AND: [
+          perimetre,
+          { statuts_dossier: { code: { in: [...statutsSuivis] } } },
+          clauseDontJeReponds(u),
+        ],
+      },
+      select: { id: true },
     }),
 
     // « Reçu » sans destinataire actif : l'affectation automatique n'a trouvé aucun compte portant
     // le rôle de captage du parcours (EX-GES-02). Le dossier existe, personne ne l'a.
     prisma.dossiers.count({
-      where: {
-        AND: [
-          perimetre,
-          { statuts_dossier: { code: 'recu' } },
-          { dossier_affectations: { none: { actif: true } } },
-        ],
-      },
+      where: { AND: [perimetre, clauseNonAffectes(couverture)] },
     }),
   ])
+
+  const idsDontJeReponds = new Set(dontJeReponds.map((d) => d.id))
 
   const limites = await datesLimites(
     ouverts.map((d) => ({
@@ -86,7 +108,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
   let miens = 0
 
   for (const dossier of ouverts) {
-    const aMoi = dossier.dossier_affectations.length > 0
+    const aMoi = idsDontJeReponds.has(dossier.id)
     if (aMoi) miens += 1
 
     const limite = limites.get(dossier.id)
@@ -118,7 +140,10 @@ export async function dossiersATraiter(utilisateur: UtilisateurAutorise) {
     where: {
       AND: [
         perimetreDossiers(utilisateur),
-        { dossier_affectations: { some: { user_id: utilisateur.id, actif: true } } },
+        // ⚠️ La MÊME clause que le compteur et que `/dossiers?assigneAMoi=1`. Un évènement
+        // indésirable n'est affecté à personne : lire les seules affectations laissait la carte
+        // vide chez celui-là même qui les traite.
+        clauseDontJeReponds(utilisateur),
       ],
     },
     orderBy: { updated_at: 'desc' },

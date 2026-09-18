@@ -35,11 +35,47 @@ describe('Ce qui remonte correspond à la base', () => {
     expect(alerte?.valeur ?? 0).toBe(attendu)
   })
 
-  it('compte exactement les directions actives sans site', async () => {
-    const attendu = await prisma.directions.count({ where: { actif: true, site_id: null } })
+  it('ne compte une direction sans site que si PERSONNE n’y est habilité', async () => {
+    /*
+      ⚠️ CE CAS A CHANGÉ DE SENS, et c'est voulu.
+
+      L'alerte comptait toutes les directions sans site, en affirmant que leurs déclarations
+      n'atteignaient personne. Depuis qu'on peut habiliter un compte directement sur une direction,
+      c'est faux : une direction sans site achemine ses déclarations à son titulaire. Le cas
+      observé en production est exactement celui-là.
+
+      Maintenue, l'alerte signalait comme bloquant un paramétrage correct — et une alerte fausse
+      finit par faire ignorer les vraies.
+    */
+    const attendu = await prisma.directions.count({
+      where: { actif: true, site_id: null, users: { none: { actif: true } } },
+    })
     const alerte = (await santeAdministration()).find((a) => a.cle === 'directions')
 
     expect(alerte?.valeur ?? 0).toBe(attendu)
+  })
+
+  it('⚠️ ne signale PAS une direction sans site dont quelqu’un répond', async () => {
+    const avecTitulaire = await prisma.directions.findFirst({
+      where: { actif: true, site_id: null, users: { some: { actif: true } } },
+      select: { libelle: true },
+    })
+
+    expect(
+      avecTitulaire,
+      'aucune direction sans site avec titulaire : le cas ne prouverait rien'
+    ).not.toBeNull()
+    if (!avecTitulaire) return
+
+    const sansPersonne = await prisma.directions.count({
+      where: { actif: true, site_id: null, users: { none: { actif: true } } },
+    })
+    const toutesSansSite = await prisma.directions.count({ where: { actif: true, site_id: null } })
+
+    expect(
+      sansPersonne,
+      `« ${avecTitulaire.libelle} » a un titulaire et reste comptée comme injoignable`
+    ).toBeLessThan(toutesSansSite)
   })
 
   it('ne compte comme « sans porteur » que des rôles réellement portés par personne', async () => {

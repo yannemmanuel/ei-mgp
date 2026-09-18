@@ -107,8 +107,24 @@ function conditionsSql(filtre: FiltreReporting): Prisma.Sql {
   if (filtre.niveauGraviteId != null) {
     fragments.push(Prisma.sql`AND niveau_gravite_id = ${filtre.niveauGraviteId}`)
   }
-  if (filtre.siteId != null) fragments.push(Prisma.sql`AND site_id = ${filtre.siteId}`)
-  if (filtre.directionId != null) fragments.push(Prisma.sql`AND direction_id = ${filtre.directionId}`)
+  /*
+    ⚠️ Le plafond de RATTACHEMENT, ici aussi — même raison que pour le parcours juste au-dessus.
+    Le poser dans `clauseFiltre()` sans le reporter ici aurait cloisonné six indicateurs sur sept
+    et laissé le septième, le délai moyen, dire la vérité de tout le monde.
+  */
+  if (filtre.directionDuLecteur != null) {
+    fragments.push(Prisma.sql`AND direction_id = ${filtre.directionDuLecteur}`)
+  } else if (filtre.siteDuLecteur != null) {
+    fragments.push(Prisma.sql`AND site_id = ${filtre.siteDuLecteur}`)
+  }
+
+  // Critères de l'URL : ignorés quand le plafond a déjà tranché sur la même colonne.
+  if (filtre.siteId != null && filtre.siteDuLecteur == null && filtre.directionDuLecteur == null) {
+    fragments.push(Prisma.sql`AND site_id = ${filtre.siteId}`)
+  }
+  if (filtre.directionId != null && filtre.directionDuLecteur == null) {
+    fragments.push(Prisma.sql`AND direction_id = ${filtre.directionId}`)
+  }
 
   const clause = clauseFiltre(filtre).created_at
 

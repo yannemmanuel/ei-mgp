@@ -1,10 +1,13 @@
 import { prisma } from '@/lib/prisma'
 import {
+  directionCloisonnante,
   PARCOURS_CODES,
   rattachementCouvre,
+  siteCloisonnant,
   type ParcoursCode,
   type Permission,
   type Role,
+  type UtilisateurAutorise,
 } from '@/server/authz'
 import type { StatutAction } from '../action-corrective/action-corrective'
 
@@ -38,9 +41,21 @@ export type RattachementDossier = {
  *     Dans Prisma, un objet vide dans un `OR` ne correspond à RIEN, pas à tout : la fiche disait
  *     donc que personne n'en répondait, sur la majorité des dossiers.
  */
-export async function chargesDeSecurite(
-  dossier: RattachementDossier
-): Promise<{ id: bigint; nom: string }[]> {
+/** Un chargé de sécurité, accompagné de quoi décider s'il répond d'un dossier donné. */
+export type CompteEnCharge = {
+  readonly id: bigint
+  readonly nom: string
+  readonly pourCloisonnement: UtilisateurAutorise
+}
+
+/**
+ * Tous les chargés de sécurité actifs, chargés UNE fois.
+ *
+ * Séparé de `chargesDeSecurite()` parce que le tableau de bord pose la question sur beaucoup de
+ * dossiers à la fois : la liste se charge une fois, puis chaque dossier se décide en mémoire. La
+ * même fonction appelée par dossier ferait une requête par ligne sur l'écran le plus visité.
+ */
+export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
   const porteurs = await prisma.model_has_roles.findMany({
     where: {
       model_type: MODEL_TYPE_USER,
@@ -52,6 +67,7 @@ export async function chargesDeSecurite(
   if (porteurs.length === 0) return []
 
   const ids = porteurs.map((l) => l.model_id)
+
 
   const comptes = await prisma.users.findMany({
     where: { actif: true, id: { in: ids } },
@@ -108,23 +124,72 @@ export async function chargesDeSecurite(
     permissionsParCompte.set(lien.model_id, permissions)
   }
 
-  return comptes
-    .filter((c) =>
-      rattachementCouvre(
-        {
-          id: c.id,
-          actif: true,
-          siteId: c.site_id ?? c.directions?.site_id ?? null,
-          directionId: c.direction_id,
-          doitChangerMotDePasse: false,
-          roles: rolesParCompte.get(c.id) ?? [],
-          permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
-          parcours: [],
-        },
-        dossier
-      )
-    )
-    .map((c) => ({ id: c.id, nom: c.name }))
+  return comptes.map((c) => ({
+    id: c.id,
+    nom: c.name,
+    pourCloisonnement: {
+      id: c.id,
+      actif: true,
+      siteId: c.site_id ?? c.directions?.site_id ?? null,
+      directionId: c.direction_id,
+      doitChangerMotDePasse: false,
+      roles: rolesParCompte.get(c.id) ?? [],
+      permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
+      parcours: [],
+    },
+  }))
+}
+
+/** Ceux d'entre eux dont le rattachement couvre CE dossier. */
+export async function chargesDeSecurite(
+  dossier: RattachementDossier
+): Promise<{ id: bigint; nom: string }[]> {
+  const candidats = await comptesEnChargeDesEi()
+
+  return candidats
+    .filter((c) => rattachementCouvre(c.pourCloisonnement, dossier))
+    .map((c) => ({ id: c.id, nom: c.nom }))
+}
+
+/**
+ * Ce que les chargés de sécurité couvrent, résumé en trois valeurs exploitables en SQL.
+ *
+ * Décider en mémoire, dossier par dossier, convient à une fiche ; pas à une liste paginée ni à un
+ * compteur. Ce résumé permet d'exprimer « les EI dont personne ne répond » comme une CLAUSE, donc
+ * de la partager entre le tableau de bord et la liste qu'il ouvre.
+ */
+export type CouvertureEi = {
+  /** Un chargé sans rattachement couvre TOUT : aucun EI n'est alors orphelin. */
+  readonly toutCouvert: boolean
+  readonly directions: readonly bigint[]
+  readonly sites: readonly bigint[]
+}
+
+export async function couvertureDesEi(): Promise<CouvertureEi> {
+  const candidats = await comptesEnChargeDesEi()
+
+  const directions: bigint[] = []
+  const sites: bigint[] = []
+  let toutCouvert = false
+
+  for (const c of candidats) {
+    // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite.
+    const direction = directionCloisonnante(c.pourCloisonnement)
+    if (direction !== null) {
+      directions.push(direction)
+      continue
+    }
+
+    const site = siteCloisonnant(c.pourCloisonnement)
+    if (site !== null) {
+      sites.push(site)
+      continue
+    }
+
+    toutCouvert = true
+  }
+
+  return { toutCouvert, directions, sites }
 }
 
 export type SuiviEi = {

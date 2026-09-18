@@ -10,6 +10,91 @@ import {
   type UtilisateurAutorise,
 } from '@/server/authz'
 import { STATUTS, transitionsDepuis } from './statuts'
+import { couvertureDesEi, type CouvertureEi } from './suivi-ei'
+
+/** Le seul parcours dont la charge vient du rattachement, jamais d'une affectation. */
+const PARCOURS_SANS_AFFECTATION = 'ei_employe'
+
+/**
+ * « Reçu, et personne ne le traite » — LA définition, partagée.
+ *
+ * ⚠️ DEUX SENS SELON LE PARCOURS, et c'est ce qui rend le partage indispensable.
+ *
+ *   - Cas courant : reçu SANS ligne d'affectation active. L'affectation automatique n'a trouvé
+ *     aucun compte portant le rôle de captage du parcours (EX-GES-02).
+ *   - Évènement indésirable : il n'a JAMAIS de ligne d'affectation. Le lire ainsi les déclarait
+ *     tous abandonnés. « Personne » y signifie : aucun chargé de sécurité dont le rattachement
+ *     couvre ce dossier.
+ *
+ * Le compteur du tableau de bord et la liste qu'il ouvre appellent cette fonction. Deux
+ * définitions écrites séparément finiraient par compter autrement — on cliquerait sur « 5 » pour
+ * découvrir autre chose.
+ */
+/**
+ * « Les dossiers dont JE réponds » — LA définition, partagée elle aussi.
+ *
+ * ⚠️ DEUX ORIGINES À LA CHARGE, et une seule était lue.
+ *
+ *   - Une affectation active, pour tous les parcours qui en reçoivent une.
+ *   - Le RATTACHEMENT, pour l'évènement indésirable, qui n'est affecté à personne : il revient au
+ *     chargé de sécurité dont le site ou la direction couvre le dossier.
+ *
+ * Le rôle est exigé en plus du rattachement : un compte transverse voit tous les EI sans pour
+ * autant en avoir la charge, et les faire entrer dans « vos dossiers » rendrait la carte inutile.
+ *
+ * Appelée par la carte du tableau de bord, par le lien qu'elle ouvre (`/dossiers?assigneAMoi=1`)
+ * et par le compteur : les trois montraient sinon trois choses différentes.
+ */
+export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
+  const parAffectation: Prisma.dossiersWhereInput = {
+    dossier_affectations: { some: { user_id: u.id, actif: true } },
+  }
+
+  if (!aRole(u, 'charge_securite')) return parAffectation
+
+  // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite, et rien du
+  // tout quand le compte n'est borné par aucun des deux — il répond alors de tous les EI.
+  const direction = directionCloisonnante(u)
+  const site = siteCloisonnant(u)
+  const parRattachement: Prisma.dossiersWhereInput =
+    direction !== null ? { direction_id: direction } : site !== null ? { site_id: site } : {}
+
+  return {
+    OR: [
+      parAffectation,
+      { parcours: { code: PARCOURS_SANS_AFFECTATION }, ...parRattachement },
+    ],
+  }
+}
+
+export function clauseNonAffectes(couverture: CouvertureEi): Prisma.dossiersWhereInput {
+  const couvrants: Prisma.dossiersWhereInput[] = []
+  if (couverture.directions.length > 0) {
+    couvrants.push({ direction_id: { in: [...couverture.directions] } })
+  }
+  if (couverture.sites.length > 0) {
+    couvrants.push({ site_id: { in: [...couverture.sites] } })
+  }
+
+  // `id: { in: [] }` est une clause impossible, et c'est voulu : aucun EI n'est orphelin dès
+  // qu'un chargé sans rattachement les couvre tous.
+  const eiOrphelins: Prisma.dossiersWhereInput = couverture.toutCouvert
+    ? { id: { in: [] } }
+    : couvrants.length === 0
+      ? {}
+      : { NOT: { OR: couvrants } }
+
+  return {
+    statuts_dossier: { code: 'recu' },
+    OR: [
+      {
+        parcours: { code: { not: PARCOURS_SANS_AFFECTATION } },
+        dossier_affectations: { none: { actif: true } },
+      },
+      { parcours: { code: PARCOURS_SANS_AFFECTATION }, ...eiOrphelins },
+    ],
+  }
+}
 
 /**
  * EX-GES-01 : liste des dossiers, filtrable — port de `App\Livewire\Dossiers\DossierListPage`.
@@ -109,7 +194,12 @@ function clauseAMoiDAgir(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
   return branches.length === 0 ? { id: { in: [] } } : { OR: branches }
 }
 
-function clauseFiltres(u: UtilisateurAutorise, filtres: FiltresDossiers): Prisma.dossiersWhereInput {
+function clauseFiltres(
+  u: UtilisateurAutorise,
+  filtres: FiltresDossiers,
+  /** Chargée seulement quand `nonAffectes` est demandé : une requête de plus, sinon inutile. */
+  couverture?: CouvertureEi
+): Prisma.dossiersWhereInput {
   const where: Prisma.dossiersWhereInput = {}
 
   if (filtres.parcoursId) where.parcours_id = BigInt(filtres.parcoursId)
@@ -125,18 +215,17 @@ function clauseFiltres(u: UtilisateurAutorise, filtres: FiltresDossiers): Prisma
   }
 
   if (filtres.assigneAMoi) {
-    where.dossier_affectations = { some: { user_id: u.id, actif: true } }
+    // Une seule définition, partagée avec la carte du tableau de bord. Voir `clauseDontJeReponds`.
+    Object.assign(where, clauseDontJeReponds(u))
   }
 
   if (filtres.aMoiDAgir) {
     where.AND = [clauseAMoiDAgir(u)]
   }
 
-  if (filtres.nonAffectes) {
-    // « Reçu » ET sans destinataire actif : l'affectation automatique n'a trouvé aucun compte
-    // portant le rôle de captage du parcours (EX-GES-02). Le dossier existe, personne ne l'a.
-    where.statuts_dossier = { code: 'recu' }
-    where.dossier_affectations = { none: { actif: true } }
+  if (filtres.nonAffectes && couverture !== undefined) {
+    // Une seule définition, partagée avec le compteur du tableau de bord. Voir `clauseNonAffectes`.
+    Object.assign(where, clauseNonAffectes(couverture))
   }
 
   return where
@@ -149,8 +238,12 @@ export async function listerDossiers(
   filtres: FiltresDossiers = {},
   page = 1
 ) {
+  // Une requête de plus, et seulement quand le filtre la réclame : savoir quels EI n'ont personne
+  // suppose de connaître les chargés de sécurité, ce qui n'intéresse aucun autre filtre.
+  const couverture = filtres.nonAffectes ? await couvertureDesEi() : undefined
+
   const where: Prisma.dossiersWhereInput = {
-    AND: [perimetreDossiers(u), clauseFiltres(u, filtres)],
+    AND: [perimetreDossiers(u), clauseFiltres(u, filtres, couverture)],
   }
 
   const [total, dossiers] = await Promise.all([
