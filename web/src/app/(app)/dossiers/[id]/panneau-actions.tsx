@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   actionChangerStatut,
+  actionQualifierFamilleRisque,
   actionQualifierGravite,
   actionCloturer,
   actionBasculerContentieux,
@@ -39,6 +40,10 @@ type Props = {
   acteursDeLEtape: string[]
   /** Niveaux proposés à la qualification. Vide si le dossier en porte déjà un. */
   gravitesAQualifier: { valeur: string; libelle: string }[]
+  /** Familles de risque proposées au traitement — le référentiel actif. */
+  famillesRisque: { valeur: string; libelle: string }[]
+  /** Celle du dossier, `''` tant qu'aucune n'a été posée. */
+  familleRisqueActuelle: string
   droits: {
     changerStatut: boolean
     cloturer: boolean
@@ -67,6 +72,8 @@ export function PanneauActions({
   transitions,
   acteursDeLEtape,
   gravitesAQualifier,
+  famillesRisque,
+  familleRisqueActuelle,
   droits,
   contentieux,
 }: Props) {
@@ -166,6 +173,50 @@ export function PanneauActions({
                 {gravitesAQualifier.map((g) => (
                   <option key={g.valeur} value={g.valeur}>
                     {g.libelle}
+                  </option>
+                ))}
+              </select>
+            </FormulaireAction>
+          </CardContent>
+        </Card>
+      )}
+
+      {/*
+        LA FAMILLE DE RISQUE, posée pendant le traitement.
+
+        ⚠️ Distincte de la catégorie, et la carte le dit. La catégorie vient du déclarant, au
+        dépôt, dans ses mots ; la famille est une lecture de traitant, après analyse. Sans cette
+        phrase, on croit remplir deux fois la même chose et on finit par en négliger une.
+
+        La carte reste visible une fois la famille posée — contrairement à la gravité, qui ne se
+        requalifie pas : une lecture d'analyse s'affine, et devoir passer par un autre écran pour
+        la corriger reviendrait à ne jamais la corriger.
+      */}
+      {droits.changerStatut && famillesRisque.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h3">Famille de risque</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-caption text-muted-foreground">
+              À quoi ce dossier se rattache une fois instruit. À distinguer de la catégorie, qui
+              vient du déclarant au moment du dépôt.
+            </p>
+            <FormulaireAction
+              action={actionQualifierFamilleRisque}
+              dossierId={dossierId}
+              libelleBouton="Enregistrer la famille"
+            >
+              <select
+                name="familleRisqueId"
+                className={champ}
+                defaultValue={familleRisqueActuelle}
+                aria-label="Famille de risque"
+              >
+                <option value="">— Aucune pour l’instant —</option>
+                {famillesRisque.map((f) => (
+                  <option key={f.valeur} value={f.valeur}>
+                    {f.libelle}
                   </option>
                 ))}
               </select>

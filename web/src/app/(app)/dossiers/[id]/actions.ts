@@ -20,6 +20,7 @@ import {
 import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
 import { basculerContentieux } from '@/server/services/rgpd/conservation'
 import { aPermission } from '@/server/authz'
+import { qualifierFamilleRisque } from '@/server/services/dossier/famille-risque'
 
 /**
  * Actions de gestion d'un dossier.
@@ -235,6 +236,48 @@ export async function actionBasculerContentieux(
  * traitement, pas d'administration du référentiel. Le service, lui, revérifie que le niveau
  * existe et qu'il est actif.
  */
+/**
+ * Famille de risque d'une déclaration, posée pendant son traitement.
+ *
+ * ⚠️ Le même droit que la gravité : `peutChangerStatutDossier()`. Qualifier un dossier est un
+ * geste de TRAITANT, pas de lecteur — un auditeur le lit sans le poser. Reprendre exactement ce
+ * verrou évite qu'un second droit, voisin mais distinct, se mette à diverger du premier.
+ */
+export async function actionQualifierFamilleRisque(
+  _precedent: EtatAction,
+  donnees: FormData
+): Promise<EtatAction> {
+  const utilisateur = await exigerUtilisateur()
+  const dossierId = String(donnees.get('dossierId') ?? '')
+
+  if (dossierId === '') return { erreur: 'Dossier manquant.' }
+
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
+
+  if (!dossier || !peutChangerStatutDossier(utilisateur, dossier)) {
+    return { erreur: REFUS }
+  }
+
+  // Vide = retirer la qualification. Une famille posée par erreur doit pouvoir être défaite,
+  // sans quoi la seule issue serait d'en choisir une autre, également fausse.
+  const brut = String(donnees.get('familleRisqueId') ?? '').trim()
+
+  try {
+    await qualifierFamilleRisque({
+      dossierId,
+      familleId: brut === '' ? null : BigInt(brut),
+    })
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath(`/dossiers/${dossierId}`)
+
+  return {
+    succes: brut === '' ? 'Famille de risque retirée.' : 'Famille de risque enregistrée.',
+  }
+}
+
 export async function actionQualifierGravite(
   _precedent: EtatAction,
   donnees: FormData

@@ -190,6 +190,7 @@ model dossiers {
   direction_declarant_id                                 BigInt?
   poste_declarant                                        String?                @db.VarChar(255)
   poste_declarant_precision                              String?
+  famille_risque_id                                      BigInt?
   actions_correctives                                    actions_correctives[]
   declaration_identites                                  declaration_identites?
   dossier_affectations                                   dossier_affectations[]
@@ -198,6 +199,7 @@ model dossiers {
   users                                                  users?                 @relation(fields: [declarant_user_id], references: [id], onUpdate: NoAction, map: "dossiers_declarant_user_id_foreign")
   directions_dossiers_direction_declarant_idTodirections directions?            @relation("dossiers_direction_declarant_idTodirections", fields: [direction_declarant_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "dossiers_direction_declarant_id_foreign")
   directions                                             directions?            @relation(fields: [direction_id], references: [id], onUpdate: NoAction, map: "dossiers_direction_id_foreign")
+  familles_risque                                        familles_risque?       @relation(fields: [famille_risque_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "dossiers_famille_risque_id_foreign")
   niveaux_gravite                                        niveaux_gravite?       @relation(fields: [niveau_gravite_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "dossiers_niveau_gravite_id_foreign")
   parcours                                               parcours               @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "dossiers_parcours_id_foreign")
   sites                                                  sites?                 @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "dossiers_site_id_foreign")
@@ -210,6 +212,7 @@ model dossiers {
   @@index([niveau_gravite_id], map: "dossiers_niveau_gravite_id_index")
   @@index([parcours_id, statut_id], map: "dossiers_parcours_id_statut_id_index")
   @@index([direction_declarant_id], map: "dossiers_direction_declarant_id_index")
+  @@index([famille_risque_id], map: "dossiers_famille_risque_id_index")
 }
 
 model failed_jobs {
@@ -650,4 +653,16 @@ model role_parcours {
 
   @@unique([role_id, parcours_id], map: "role_parcours_unique")
   @@index([role_id], map: "role_parcours_role_id_index")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model familles_risque {
+  id         BigInt     @id @default(autoincrement())
+  code       String     @unique(map: "familles_risque_code_unique") @db.VarChar(64)
+  libelle    String     @db.VarChar(255)
+  ordre      Int        @default(0)
+  actif      Boolean    @default(true)
+  created_at DateTime?  @db.Timestamp(0)
+  updated_at DateTime?  @db.Timestamp(0)
+  dossiers   dossiers[]
 }

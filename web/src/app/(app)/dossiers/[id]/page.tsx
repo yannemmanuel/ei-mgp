@@ -52,6 +52,7 @@ import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
 import { PanneauMessagerie } from './panneau-messagerie'
 import { PanneauPiecesJointes } from './panneau-pieces-jointes'
+import { famillesRisqueActives } from '@/server/services/dossier/famille-risque'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -102,6 +103,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     investigationsRattachables_,
     messages,
     gravitesActives,
+    famillesRisque,
     suivi,
     enCharge,
   ] = await Promise.all([
@@ -126,6 +128,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       orderBy: { niveau: 'asc' },
       select: { id: true, libelle: true },
     }),
+
+    // Familles de risque proposées au traitement — neuf lignes, même raisonnement.
+    famillesRisqueActives(),
     // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
     // les trois quarts des fiches.
     estEvenementIndesirable(pourPolicy.parcoursCode) ? suiviEi(id) : Promise.resolve(null),
@@ -216,12 +221,26 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     séparément auraient fini par diverger, et l'entrée du sommaire aurait pointé vers une ancre
     absente — un lien qui ne fait rien.
   */
+  /*
+    ⚠️ RIEN DU DÉCLARANT SUR UNE DÉCLARATION ANONYME.
+
+    Le poste et la direction du déclarant ne sont plus demandés sous couvert d'anonymat — le
+    formulaire les masque —, mais la fiche les affichait dès que la colonne était renseignée,
+    sans regarder l'anonymat. Une déclaration déposée avant cette règle, ou par un autre chemin,
+    aurait donc exposé ce qui devait rester caché.
+
+    Le masquage est ici, à l'AFFICHAGE, et non conditionné à ce que la capture a bien fait : une
+    donnée qu'on s'est engagé à ne pas montrer ne doit pas dépendre de l'écran qui l'a saisie.
+  */
+  const montrerLeDeclarant = !dossier.is_anonymous
+
   const aUnRattachement =
     dossier.directions !== null ||
     dossier.poste !== null ||
     dossier.declarant_est_victime !== null ||
-    dossier.directions_dossiers_direction_declarant_idTodirections !== null ||
-    dossier.poste_declarant !== null
+    (montrerLeDeclarant &&
+      (dossier.directions_dossiers_direction_declarant_idTodirections !== null ||
+        dossier.poste_declarant !== null))
 
   const sections: SectionDossier[] = [
     { id: 'description', libelle: 'Description' },
@@ -353,6 +372,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                         ),
                       ],
                       ['Précision de la catégorie', dossier.categorie_autre_precision],
+                      /*
+                        La FAMILLE DE RISQUE, à côté de la catégorie parce que c'est là qu'on la
+                        cherche — mais elle ne vient pas du même endroit : la catégorie est le mot
+                        du déclarant au dépôt, la famille la lecture du traitant après analyse.
+                        Vide tant que personne ne l'a posée, et la ligne disparaît alors.
+                      */
+                      ['Famille de risque', dossier.familles_risque?.libelle ?? null],
                       ['Ville', dossier.ville],
                       ['Précision de localisation', dossier.precision_localisation],
                       /*
@@ -434,14 +460,21 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                           // « Autre » seul n'apprend rien : c'est la précision qu'il faut lire.
                           dossier.poste_precision ?? dossier.poste,
                         ],
+                        // Voir `montrerLeDeclarant` : rien du déclarant sur une déclaration
+                        // anonyme, quelle que soit la donnée en base.
                         [
                           'Direction du déclarant',
-                          dossier.directions_dossiers_direction_declarant_idTodirections?.libelle ??
-                            null,
+                          montrerLeDeclarant
+                            ? (dossier
+                                .directions_dossiers_direction_declarant_idTodirections
+                                ?.libelle ?? null)
+                            : null,
                         ],
                         [
                           'Poste du déclarant',
-                          dossier.poste_declarant_precision ?? dossier.poste_declarant,
+                          montrerLeDeclarant
+                            ? (dossier.poste_declarant_precision ?? dossier.poste_declarant)
+                            : null,
                         ],
                       ] as const
                     ).map(([libelle, valeur]) =>
@@ -619,6 +652,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               dossier.niveaux_gravite === null
                 ? gravitesActives.map((g) => ({ valeur: String(g.id), libelle: g.libelle }))
                 : []
+            }
+            famillesRisque={famillesRisque.map((f) => ({
+              valeur: String(f.id),
+              libelle: f.libelle,
+            }))}
+            familleRisqueActuelle={
+              dossier.famille_risque_id === null ? '' : String(dossier.famille_risque_id)
             }
             droits={{
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),

@@ -466,6 +466,20 @@ async function VueConsolidee({
         <Repartition titre="Par statut" lignes={indicateurs.parStatut} total={indicateurs.total} />
       </div>
 
+      {/*
+        ⚠️ SUR TOUTE LA LARGEUR, et non dans la grille à deux colonnes ci-dessus.
+
+        Neuf familles plus la ligne « Non qualifiée » : serrées sur une demi-largeur, les libellés
+        passaient à la ligne et le bloc devenait illisible. C'est aussi la répartition la plus
+        récente et la moins connue — la mettre en pleine largeur est ce qui lui donne une chance
+        d'être lue.
+      */}
+      <Repartition
+        titre="Par famille de risque"
+        lignes={indicateurs.parFamilleRisque}
+        total={indicateurs.total}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-h3">Historique mensuel</CardTitle>

@@ -422,13 +422,29 @@ describe('Création et suppression de rôles', () => {
     expect(conserve).toContain('qrcodes.manage')
   })
 
-  it('refuse de supprimer un rôle livré', async () => {
+  it('⚠️ refuse un rôle livré PARCE QU’IL EST PORTÉ, et non parce qu’il est livré', async () => {
+    /*
+      ⚠️ CE CAS A CHANGÉ DE MOTIF le 2026-09-20.
+
+      Un rôle nommé par le code était refusé d'emblée. Il ne l'est plus : seule l'attribution
+      compte, et c'est ce que le métier a demandé — « donner la possibilité de supprimer un rôle
+      seulement quand il n'est pas attribué ».
+
+      Le résultat observable reste le même pour ces trois rôles — ils sont portés, donc refusés —
+      mais le MOTIF a changé, et c'est lui qu'on vérifie. Le risque du changement est documenté
+      dans `supprimerRole()` : un rôle supprimé cesse d'être désigné par les règles qui le
+      nomment, sans qu'aucune erreur ne le signale.
+    */
     const qui = await acteur()
 
-    // Le code nomme ces rôles : cloisonnement par parcours, acteurs d'étape, habilitation par
-    // site. Les supprimer romprait ces règles sans qu'aucune erreur ne le signale.
     for (const role of ['service_mgp', 'secretaire_csst', 'administrateur_digital']) {
-      await expect(supprimerRole(qui, role)).rejects.toThrow(/rôles livrés/i)
+      const porteurs = await prisma.model_has_roles.count({
+        where: { model_type: MODEL_TYPE_USER, roles: { name: role, guard_name: 'web' } },
+      })
+
+      if (porteurs === 0) continue // non porté : il est désormais supprimable, rien à vérifier
+
+      await expect(supprimerRole(qui, role)).rejects.toThrow(/portent encore/i)
     }
 
     expect(await prisma.roles.count({ where: { name: 'service_mgp' } })).toBe(1)

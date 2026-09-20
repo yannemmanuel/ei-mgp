@@ -634,11 +634,18 @@ export async function creerRole(
  * lisibles, alors même que la table `roles` ne le contient plus.
  */
 export async function supprimerRole(acteur: { id: bigint }, role: string): Promise<void> {
-  if ((ROLE_NAMES as readonly string[]).includes(role)) {
-    throw new ErreurWorkflow(
-      `« ${role} » fait partie des rôles livrés : le code s’y réfère et il ne peut pas être supprimé. Désactivez-le, il ne conférera plus aucun droit.`
-    )
-  }
+  /*
+    ⚠️ UN RÔLE LIVRÉ PEUT DÉSORMAIS ÊTRE SUPPRIMÉ, à la seule condition que PERSONNE ne le porte
+    (décision métier du 2026-09-20). La règle précédente l'interdisait absolument.
+
+    Le risque est réel et assumé : le code se réfère à certains noms de rôle — la table des
+    acteurs d'étape, le cloisonnement par rattachement. Un rôle supprimé n'y correspond plus à
+    rien, et ces règles cessent simplement de le désigner. Rien ne casse, mais rien ne le signale
+    non plus.
+
+    C'est pourquoi la condition d'attribution, elle, ne bouge pas : tant qu'un compte le porte,
+    supprimer le rôle lui retirerait ses accès sans que personne ne l'ait décidé pour lui.
+  */
 
   const ligne = await prisma.roles.findFirst({
     where: { name: role, guard_name: GUARD },

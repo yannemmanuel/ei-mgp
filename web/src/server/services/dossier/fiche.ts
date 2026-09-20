@@ -60,6 +60,10 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       declarant_user_id: true,
       created_at: true,
       site_id: true,
+      // La famille de risque, posée au traitement. Le libellé accompagne l'identifiant : la fiche
+      // l'affiche, et le panneau d'actions a besoin de l'identifiant pour rouvrir le bon choix.
+      famille_risque_id: true,
+      familles_risque: { select: { libelle: true } },
       // ⚠️ La direction CONCERNÉE : elle borne les comptes habilités sur une seule
       // direction (`directionCloisonnante()`), et pas seulement sur un site.
       direction_id: true,

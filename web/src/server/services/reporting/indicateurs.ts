@@ -160,6 +160,42 @@ export async function repartitionParParcours(filtre: FiltreReporting): Promise<L
     .sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'))
 }
 
+/**
+ * Répartition par FAMILLE DE RISQUE — la lecture de traitant, par opposition à la catégorie.
+ *
+ * ⚠️ UNE LIGNE « Non qualifiée » EST RENDUE, et c'est le chiffre le plus utile de ce bloc. La
+ * famille se pose pendant le traitement : un dossier qui n'en a pas est un dossier qu'on n'a pas
+ * encore lu. Taire ces lignes ferait croire à une répartition complète, et masquerait précisément
+ * ce qu'il reste à faire.
+ */
+export async function repartitionParFamilleRisque(
+  filtre: FiltreReporting
+): Promise<LigneRepartition[]> {
+  const groupes = await prisma.dossiers.groupBy({
+    by: ['famille_risque_id'],
+    where: clauseFiltre(filtre),
+    _count: { _all: true },
+  })
+
+  const libelles = await prisma.familles_risque.findMany({
+    select: { id: true, libelle: true, ordre: true },
+  })
+  const parId = new Map(libelles.map((f) => [f.id, f]))
+
+  return groupes
+    .map((g) => ({
+      libelle:
+        g.famille_risque_id === null
+          ? 'Non qualifiée'
+          : (parId.get(g.famille_risque_id)?.libelle ?? '—'),
+      total: g._count._all,
+      // L'ordre du référentiel, et « Non qualifiée » en dernier : c'est un reste, pas une famille.
+      ordre: g.famille_risque_id === null ? Number.MAX_SAFE_INTEGER : (parId.get(g.famille_risque_id)?.ordre ?? 0),
+    }))
+    .sort((a, b) => a.ordre - b.ordre)
+    .map(({ libelle, total }) => ({ libelle, total }))
+}
+
 export async function repartitionParStatut(filtre: FiltreReporting): Promise<LigneRepartition[]> {
   const groupes = await prisma.dossiers.groupBy({
     by: ['statut_id'],
@@ -219,18 +255,21 @@ export type Indicateurs = {
   parParcours: LigneRepartition[]
   parStatut: LigneRepartition[]
   parGravite: LigneRepartition[]
+  parFamilleRisque: LigneRepartition[]
 }
 
 export async function calculerIndicateurs(filtre: FiltreReporting): Promise<Indicateurs> {
-  const [total, resolution, cloture, delai, parParcours, parStatut, parGravite] = await Promise.all([
-    nbDeclarations(filtre),
-    tauxResolution(filtre),
-    tauxCloture(filtre),
-    delaiMoyenJours(filtre),
-    repartitionParParcours(filtre),
-    repartitionParStatut(filtre),
-    repartitionParGravite(filtre),
-  ])
+  const [total, resolution, cloture, delai, parParcours, parStatut, parGravite, parFamilleRisque] =
+    await Promise.all([
+      nbDeclarations(filtre),
+      tauxResolution(filtre),
+      tauxCloture(filtre),
+      delaiMoyenJours(filtre),
+      repartitionParParcours(filtre),
+      repartitionParStatut(filtre),
+      repartitionParGravite(filtre),
+      repartitionParFamilleRisque(filtre),
+    ])
 
   return {
     total,
@@ -240,6 +279,7 @@ export async function calculerIndicateurs(filtre: FiltreReporting): Promise<Indi
     parParcours,
     parStatut,
     parGravite,
+    parFamilleRisque,
   }
 }
 
