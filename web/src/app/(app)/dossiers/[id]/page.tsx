@@ -38,7 +38,11 @@ import {
 import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
 import { libelleValeur } from '@/server/services/declaration/parcours-config'
 import type { ParcoursCode } from '@/server/authz'
-import { estEvenementIndesirable, suiviEi } from '@/server/services/dossier/suivi-ei'
+import {
+  estEvenementIndesirable,
+  personnesEnCharge,
+  suiviEi,
+} from '@/server/services/dossier/suivi-ei'
 import { transitionsManuelles } from '@/server/services/dossier/workflow'
 import { FilAriane } from '@/components/layout/fil-ariane'
 import { SommaireDossier, type SectionDossier } from './sommaire'
@@ -99,6 +103,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     messages,
     gravitesActives,
     suivi,
+    enCharge,
   ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
@@ -123,9 +128,22 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     }),
     // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
     // les trois quarts des fiches.
-    estEvenementIndesirable(pourPolicy.parcoursCode)
-      ? suiviEi(id, { siteId: dossier.site_id, directionId: dossier.direction_id })
-      : Promise.resolve(null),
+    estEvenementIndesirable(pourPolicy.parcoursCode) ? suiviEi(id) : Promise.resolve(null),
+
+    /*
+      ⚠️ QUI RÉPOND DE CE DOSSIER — pour les QUATRE types, désormais.
+
+      Plus aucune déclaration n'est affectée : la charge se déduit de l'habilitation du rôle sur
+      ce type et du rattachement. C'était vrai des seuls évènements indésirables jusqu'au
+      2026-09-20 ; ça l'est des griefs depuis.
+    */
+    personnesEnCharge({
+      parcoursCode: pourPolicy.parcoursCode,
+      siteId: dossier.site_id,
+      directionId: dossier.direction_id,
+      // DT-06 : le déclarant identifié n'instruit pas son propre dossier.
+      declarantUserId: dossier.declarant_user_id,
+    }),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -277,7 +295,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
 
       {suivi !== null && (
         <BlocSuiviEi
-          enCharge={suivi.enCharge.map((c) => c.nom)}
+          enCharge={enCharge.map((c) => c.nom)}
           gravite={dossier.niveaux_gravite?.libelle ?? null}
           joursRestants={restants}
           actionsOuvertes={suivi.actionsOuvertes}
@@ -583,14 +601,14 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               l'encadré nommait le chargé de sécurité — c'est ce qui a été remonté.
             */
             affectations={
-              suivi !== null
-                ? suivi.enCharge.map((c) => ({ id: String(c.id), nom: c.nom }))
+              enCharge.length > 0 || affectations.length === 0
+                ? enCharge.map((c) => ({ id: String(c.id), nom: c.nom }))
                 : affectations.map((a) => ({
                     id: String(a.id),
                     nom: a.users_dossier_affectations_user_idTousers.name,
                   }))
             }
-            parRattachement={suivi !== null}
+            parRattachement={enCharge.length > 0 || affectations.length === 0}
             transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
             acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
               (role) => LIBELLES_ROLE[role] ?? role

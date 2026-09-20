@@ -4,6 +4,13 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { EtatHabilitation } from '../actions'
 
+/** Les types proposés à la coche : deux suffisent à exercer l'écran. */
+const PARCOURS_TEST = [
+  { code: 'ei_employe', libelle: 'Événement Indésirable (Employé)' },
+  { code: 'grief_employe', libelle: 'Grief / plainte (Employé)' },
+]
+
+
 /**
  * L'éditeur des rôles, exercé dans un vrai DOM.
  *
@@ -23,6 +30,7 @@ vi.mock('../actions', () => ({
   actionCreerRole: inerte,
   actionModifierHabilitations: inerte,
   actionModifierIdentiteRole: inerte,
+  actionModifierParcoursRole: inerte,
   actionSupprimerRole: inerte,
 }))
 
@@ -79,7 +87,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
   it('reprend le libellé tel que le serveur l’a retenu', async () => {
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} />
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
     )
 
     await ouvrirOngletNom(utilisateur)
@@ -91,7 +99,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
       <EditeurHabilitations
         roles={[role('Agent terrain', 'Traite les dossiers.')]}
         domaines={DOMAINES}
-      />
+      parcoursDisponibles={PARCOURS_TEST} />
     )
 
     await waitFor(() =>
@@ -106,13 +114,13 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
     // remontage, l'administrateur croit qu'une description existe.
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Ancienne description.')]} domaines={DOMAINES} />
+      <EditeurHabilitations roles={[role('Agent', 'Ancienne description.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
     )
 
     await ouvrirOngletNom(utilisateur)
     expect(champDescription().value).toBe('Ancienne description.')
 
-    rerender(<EditeurHabilitations roles={[role('Agent', null)]} domaines={DOMAINES} />)
+    rerender(<EditeurHabilitations roles={[role('Agent', null)]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />)
 
     await waitFor(() => expect(champDescription().value).toBe(''))
   })
@@ -123,7 +131,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
     // disparaîtrait sans un mot.
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} />
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
     )
 
     await ouvrirOngletNom(utilisateur)
@@ -135,7 +143,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
       <EditeurHabilitations
         roles={[role('Agent', 'Traite les dossiers.', ['dossiers.view'])]}
         domaines={DOMAINES}
-      />
+      parcoursDisponibles={PARCOURS_TEST} />
     )
 
     expect(champNom().value, 'une saisie en cours a été effacée').toBe('Saisie en cours')

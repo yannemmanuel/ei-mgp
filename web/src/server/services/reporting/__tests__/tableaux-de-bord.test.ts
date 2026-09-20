@@ -177,16 +177,18 @@ describe('⚠️ La carte, son lien et le compteur disent la MÊME chose', () =>
     expect(apercu.length, 'la carte reste vide alors qu’un EI relève de sa direction').toBeGreaterThan(0)
   })
 
-  it('ne met rien sur la carte d’un transverse qui ne traite pas les EI', async () => {
+  it('ne met rien sur la carte de qui LIT sans traiter', async () => {
     /*
-      La contrepartie : voir tous les EI ne veut pas dire en répondre. Un compte transverse qui
-      n'est pas chargé de sécurité ne doit pas les voir arriver dans « vos dossiers », sans quoi la
-      carte perd tout sens pour lui.
+      La contrepartie : voir les dossiers ne veut pas dire en répondre.
+
+      ⚠️ `auditeur`, et non un rôle transverse quelconque. Ce qui sépare le traitant du lecteur
+      est le droit de FAIRE AVANCER un dossier : le Service MGP le porte — il traite —, l'auditeur
+      non. Prendre `service_mgp` ici ferait échouer ce cas sur une règle qu'il ne porte pas.
     */
     const direction = await prisma.directions.findFirstOrThrow({ select: { id: true } })
     const dossierId = await eiSurLaDirection(direction.id)
 
-    const apercu = await dossiersATraiter(utilisateurAvecRoles('service_mgp'))
+    const apercu = await dossiersATraiter(utilisateurAvecRoles('auditeur'))
     const reference = await prisma.dossiers.findUniqueOrThrow({
       where: { id: dossierId },
       select: { reference: true },

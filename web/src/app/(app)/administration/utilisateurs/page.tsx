@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
-import { parcoursAutorises, parcoursDuRole, siteManquant, type ParcoursCode, type Role } from '@/server/authz'
+import { siteManquant, type Role } from '@/server/authz'
+import { parcoursParRole } from '@/server/services/administration/habilitations'
 import {
   listerUtilisateurs,
   referentielsComptes,
@@ -21,21 +22,32 @@ export default async function PageComptes({
   const brut = parametres.q
   const recherche = (Array.isArray(brut) ? brut[0] : brut) ?? ''
 
-  const [comptes, roles, referentiels, tousLesParcours] = await Promise.all([
+  const [comptes, roles, referentiels, parcoursDesRoles, tousLesParcours] = await Promise.all([
     listerUtilisateurs(recherche),
     rolesDisponibles(),
     referentielsComptes(),
+    parcoursParRole(),
     prisma.parcours.findMany({ orderBy: { ordre: 'asc' }, select: { code: true, libelle: true } }),
   ])
 
-  // Les codes ne disent rien à personne : l'écran affiche les libellés du référentiel.
-  const libelleParcours = new Map(tousLesParcours.map((p) => [p.code, p.libelle]))
+  /*
+    Le périmètre d'un compte : l'union de ce que ses RÔLES ouvrent.
 
-  // Le périmètre réel du compte, calculé par le même code que celui qui décide en production.
-  // Le recopier ici — « rôle ∩ attribution » — reviendrait à créer une seconde vérité, qui
-  // finirait par afficher autre chose que ce que l'application applique.
-  const perimetre = (c: { roles: string[]; parcours: string[] }) =>
-    parcoursAutorises({ roles: c.roles as Role[], parcours: c.parcours as ParcoursCode[] })
+    ⚠️ Lu dans `role_parcours`, la même table que `chargerUtilisateurAutorise()`. Le recopier
+    autrement reviendrait à créer une seconde vérité, qui finirait par afficher autre chose que
+    ce que l'application applique.
+
+    L'attribution par personne n'entre plus dans le calcul : le rôle décide seul.
+  */
+  const perimetre = (c: { roles: string[] }) => {
+    const libelles = new Set<string>()
+
+    for (const role of c.roles) {
+      for (const parcours of parcoursDesRoles.get(role) ?? []) libelles.add(parcours.libelle)
+    }
+
+    return [...libelles]
+  }
 
   return (
     <PanneauComptes
@@ -67,18 +79,10 @@ export default async function PageComptes({
           c.site_id ?? c.directions?.site_id ?? null,
           c.direction_id
         ),
-        // Ce qui lui a été confié, tel quel : c'est ce que le formulaire doit rouvrir coché.
-        parcoursAttribues: c.parcours,
-        // Ce qu'elle voit VRAIMENT — l'attribution croisée avec ce que ses rôles ouvrent. Les deux
-        // listes diffèrent dès qu'on lui a confié un parcours que son rôle n'ouvre pas, et c'est
-        // précisément ce qu'il faut montrer plutôt que laisser croire à un accès.
-        parcours: perimetre(c).map((code) => libelleParcours.get(code) ?? code),
+        // Ce que ce compte voit, d'après ses rôles. En lecture seule : le geste est dans les
+        // habilitations.
+        parcours: perimetre(c),
         tousLesParcours: perimetre(c).length === tousLesParcours.length,
-        // Les parcours que ses rôles permettent de lui confier : le formulaire n'offre que ceux-là.
-        parcoursPossibles: parcoursDuRole(c.roles as Role[]).map((code) => ({
-          code,
-          libelle: libelleParcours.get(code) ?? code,
-        })),
         // Le compte est rattaché à un site ET à une direction qui relève d'un AUTRE site. Rien
         // ne l'interdit techniquement, mais l'un des deux est faux — et le dossier qu'on croira
         // lui adresser partira ailleurs.
@@ -91,8 +95,9 @@ export default async function PageComptes({
         nom: r.name,
         libelle: r.libelle,
         actif: r.actif,
-        // Ce que ce rôle permet de confier — pour les rôles transverses, les 4 parcours.
-        parcours: parcoursDuRole([r.name as Role]),
+        // Ce que ce rôle ouvre — lu en base, pour que le formulaire montre la conséquence des
+        // cases cochées sans attendre un enregistrement.
+        parcours: (parcoursDesRoles.get(r.name) ?? []).map((p) => p.code),
       }))}
       parcours={tousLesParcours.map((p) => ({ code: p.code, libelle: p.libelle }))}
       directions={referentiels.directions.map((d) => ({ id: String(d.id), libelle: d.libelle }))}

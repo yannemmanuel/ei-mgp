@@ -127,58 +127,66 @@ describe('Passer d’un compte à l’autre sans refermer le formulaire', () => 
   })
 })
 
-describe('Confier un type de déclaration', () => {
-  it('ne propose rien tant qu’aucun rôle n’est coché', async () => {
-    // Le parcours se confie DANS le champ de ce que le rôle permet. Sans rôle, il n'y a rien à
-    // confier, et proposer des cases inertes ferait croire à une habilitation.
+describe('⚠️ Ce que ce compte verra — en lecture seule', () => {
+  /*
+    ⚠️ CE BLOC TESTAIT DES CASES QUI N'EXISTENT PLUS.
+
+    L'habilitation par type de déclaration se coche sur le RÔLE depuis le 2026-09-20, dans
+    l'écran des habilitations : tous les porteurs d'un rôle voient les mêmes types. Les cases par
+    personne ont été retirées de cet écran — les laisser aurait fait croire à un réglage qui n'a
+    plus aucun effet.
+
+    Ce qui reste, et que ces cas tiennent : l'écran montre la CONSÉQUENCE des rôles cochés, au
+    moment où on les coche, et renvoie à l'endroit où le geste vit désormais.
+  */
+  it('n’annonce rien tant qu’aucun rôle n’est coché', async () => {
     const utilisateur = afficher()
 
     await utilisateur.click(modifier(0))
 
-    await waitFor(() => expect(screen.queryByText(/Cochez d’abord un rôle/i)).not.toBeNull())
-    expect(
-      screen.queryByLabelText(/Grief \/ plainte \(Employé\)/i),
-      'une case de parcours est proposée sans aucun rôle'
-    ).toBeNull()
+    await waitFor(() => expect(screen.queryByText(/Cochez un rôle/i)).not.toBeNull())
   })
 
-  it('fait apparaître les parcours du rôle dès qu’on le coche', async () => {
+  it('annonce les types du rôle dès qu’on le coche', async () => {
     /*
-      Le geste que l'écran doit rendre possible en une seule passe : cocher le rôle, puis
-      confier le parcours. Si la liste n'apparaissait qu'après enregistrement, il faudrait
-      enregistrer deux fois — et un administrateur qui ne le sait pas repartirait en croyant la
-      personne habilitée.
+      Le geste que l'écran doit rendre lisible en une seule passe : on coche un rôle, on lit
+      aussitôt ce que la personne verra. Sans cela, il faudrait enregistrer puis rouvrir un second
+      écran pour savoir ce qu'on vient de faire.
     */
     const utilisateur = afficher()
 
     await utilisateur.click(modifier(0))
     await utilisateur.click(screen.getByLabelText(/Agent/i))
 
-    const parcours = await screen.findByLabelText(/Grief \/ plainte \(Employé\)/i)
-    await utilisateur.click(parcours)
+    expect(await screen.findByText(/Grief \/ plainte \(Employé\)/i)).toBeDefined()
+  })
+
+  it('⚠️ n’envoie plus aucun parcours au serveur', async () => {
+    /*
+      Le cas qui protège contre une régression silencieuse : si le formulaire envoyait encore des
+      cases, le service les lirait comme l'état complet du compte — et une liste vide aurait
+      effacé les attributions à chaque simple changement de nom.
+    */
+    const utilisateur = afficher()
+
+    await utilisateur.click(modifier(0))
+    await utilisateur.click(screen.getByLabelText(/Agent/i))
     await utilisateur.click(screen.getByRole('button', { name: /Enregistrer/i }))
 
     await waitFor(() => expect(soumissions).toHaveLength(1))
 
     expect(
       soumissions[0].getAll('parcours'),
-      'le parcours coché n’a pas été envoyé au serveur'
-    ).toEqual(['grief_employe'])
+      'le formulaire envoie encore des types de déclaration'
+    ).toEqual([])
   })
 
-  it('n’envoie aucun parcours quand aucune case n’est cochée', async () => {
-    // La contrepartie, et le cas qui coupe l'accès : décocher doit vouloir dire « plus rien »,
-    // pas « laisser en l'état ». Le service remplace la liste complète, il faut donc que le
-    // formulaire envoie bien une liste vide.
+  it('renvoie vers les habilitations, où le geste vit désormais', async () => {
     const utilisateur = afficher()
 
     await utilisateur.click(modifier(0))
-    await utilisateur.click(screen.getByLabelText(/Agent/i))
-    await screen.findByLabelText(/Grief \/ plainte \(Employé\)/i)
-    await utilisateur.click(screen.getByRole('button', { name: /Enregistrer/i }))
 
-    await waitFor(() => expect(soumissions).toHaveLength(1))
-
-    expect(soumissions[0].getAll('parcours')).toEqual([])
+    const lien = await screen.findByRole('link', { name: /habilitations/i })
+    expect(lien.getAttribute('href')).toBe('/administration/habilitations')
   })
 })

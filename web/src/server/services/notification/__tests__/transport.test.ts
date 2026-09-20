@@ -138,6 +138,22 @@ describe('Résilience des envois', () => {
     })
     gabaritsCrees.push(gabarit.id)
 
+    /*
+      ⚠️ MESURÉ EN ÉCART, et non en absolu.
+
+      Créer la déclaration notifie désormais ses titulaires (EX-NOT-01) — l'appel n'est plus
+      conditionné à une affectation, qui n'existe plus. Ces envois-là réussissent et laissent leur
+      trace : attendre zéro ligne au total mesurait donc autre chose que ce que ce cas vérifie,
+      à savoir qu'un envoi ÉCHOUÉ n'en laisse aucune.
+    */
+    const tracesAvant = await prisma.audit_logs.count({
+      where: {
+        auditable_type: MODEL_TYPE_DOSSIER,
+        auditable_id: dossierId,
+        action: 'notification.envoyee',
+      },
+    })
+
     const defaillant = new TransportDefaillant()
     definirTransportEmail(defaillant)
 
@@ -163,6 +179,6 @@ describe('Résilience des envois', () => {
         action: 'notification.envoyee',
       },
     })
-    expect(traces).toBe(0)
+    expect(traces - tracesAvant, 'un envoi en échec a été consigné comme expédié').toBe(0)
   })
 })

@@ -65,6 +65,18 @@ async function nouveauDossier(anonyme = true): Promise<string> {
   })
 
   dossiersCrees.push(dossierId)
+
+  /*
+    ⚠️ LA CAPTURE EST VIDÉE ICI, et ce n'est pas une commodité.
+
+    Créer une déclaration NOTIFIE désormais ses titulaires (EX-NOT-01) : depuis que plus rien
+    n'est affecté, ils se déduisent du rattachement et l'appel n'est plus conditionnel. Ces
+    courriels-là sont légitimes, mais ils ne sont pas l'objet de ces cas — laissés dans la
+    capture, ils s'ajoutaient à ceux que le cas envoie lui-même, et « un seul courriel attendu »
+    en comptait quatre.
+  */
+  emailsCaptures.length = 0
+
   return dossierId
 }
 
@@ -137,8 +149,17 @@ describe('Envoi piloté par gabarit', () => {
       destinataires: [destinataire],
     })
 
+    /*
+      ⚠️ FILTRÉ SUR L'ÉVÈNEMENT, et non « la plus récente ».
+
+      Créer la déclaration notifie désormais ses titulaires, qui peuvent être ce même compte : la
+      ligne la plus récente était alors celle de `dossier_affecte`, pas celle que ce cas envoie.
+    */
     const notification = await prisma.notifications.findFirstOrThrow({
-      where: { notifiable_id: destinataire.type === 'utilisateur' ? destinataire.id : 0n },
+      where: {
+        notifiable_id: destinataire.type === 'utilisateur' ? destinataire.id : 0n,
+        data: { contains: 'test_outil' },
+      },
       orderBy: { created_at: 'desc' },
     })
 

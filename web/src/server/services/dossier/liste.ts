@@ -5,15 +5,21 @@ import {
   aRole,
   directionCloisonnante,
   parcoursAutorises,
+  type ParcoursCode,
   peutFaireAvancerDepuis,
   siteCloisonnant,
   type UtilisateurAutorise,
 } from '@/server/authz'
 import { STATUTS, transitionsDepuis } from './statuts'
-import { couvertureDesEi, type CouvertureEi } from './suivi-ei'
+import { couvertureParParcours, type CouvertureParcours } from './suivi-ei'
 
-/** Le seul parcours dont la charge vient du rattachement, jamais d'une affectation. */
-const PARCOURS_SANS_AFFECTATION = 'ei_employe'
+/*
+  ⚠️ PLUS AUCUN PARCOURS N'EST AFFECTÉ depuis le 2026-09-20.
+
+  La constante nommait l'évènement indésirable, seul parcours dont la charge venait du
+  rattachement. Les griefs suivent la même logique désormais : les quatre types reviennent à qui
+  est habilité dessus et dont le rattachement couvre le dossier.
+*/
 
 /**
  * « Reçu, et personne ne le traite » — LA définition, partagée.
@@ -50,10 +56,19 @@ export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWher
     dossier_affectations: { some: { user_id: u.id, actif: true } },
   }
 
-  if (!aRole(u, 'charge_securite')) return parAffectation
+  /*
+    ⚠️ LE DROIT DE FAIRE AVANCER marque celui qui TRAITE, par opposition à celui qui LIT.
+
+    Un auditeur, un DPO, un comité d'éthique voient les dossiers sans en répondre : les faire
+    entrer dans « vos dossiers à traiter » remplirait leur écran d'un travail qui n'est pas le
+    leur, et le rendrait inutilisable. Le rôle de chargé de sécurité jouait ce rôle de marqueur
+    tant que seuls les EI échappaient à l'affectation ; `dossiers.status.update` le dit pour les
+    quatre types, et se lit en base comme le reste.
+  */
+  if (!aPermission(u, 'dossiers.status.update')) return parAffectation
 
   // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite, et rien du
-  // tout quand le compte n'est borné par aucun des deux — il répond alors de tous les EI.
+  // tout quand le compte n'est borné par aucun des deux — il répond alors de tout son périmètre.
   const direction = directionCloisonnante(u)
   const site = siteCloisonnant(u)
   const parRattachement: Prisma.dossiersWhereInput =
@@ -62,37 +77,64 @@ export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWher
   return {
     OR: [
       parAffectation,
-      { parcours: { code: PARCOURS_SANS_AFFECTATION }, ...parRattachement },
+      {
+        // Les types que ses rôles ouvrent, bornés par son rattachement.
+        parcours: { code: { in: parcoursAutorises(u) } },
+        ...parRattachement,
+        /*
+          ⚠️ DT-06 : le déclarant n'instruit JAMAIS son propre dossier.
+
+          La règle ne vivait que dans l'affectation automatique, qui écartait le déclarant avant
+          de nommer les destinataires. Celle-ci ayant disparu, la règle serait partie avec elle :
+          un correspondant qui déclare un grief de son propre type se serait vu confier
+          l'instruction de son signalement.
+
+          Ne concerne que les déclarations IDENTIFIÉES : une déclaration anonyme n'est rattachée
+          à aucun compte (RG-06), et `declarant_user_id` y est nul.
+        */
+        /*
+          ⚠️ LA FORME EXPLICITE, et non `NOT: { declarant_user_id: u.id }`.
+
+          En SQL, `NOT (colonne = 5)` vaut NULL quand la colonne est nulle — donc faux, donc la
+          ligne est ÉCARTÉE. Écrit ainsi, le garde aurait retiré toutes les déclarations ANONYMES
+          du périmètre de chacun : elles n'ont pas de déclarant, et c'est justement le cas le plus
+          courant. Un test l'a montré avant la mise en service.
+        */
+        OR: [{ declarant_user_id: null }, { declarant_user_id: { not: u.id } }],
+      },
     ],
   }
 }
 
-export function clauseNonAffectes(couverture: CouvertureEi): Prisma.dossiersWhereInput {
-  const couvrants: Prisma.dossiersWhereInput[] = []
-  if (couverture.directions.length > 0) {
-    couvrants.push({ direction_id: { in: [...couverture.directions] } })
-  }
-  if (couverture.sites.length > 0) {
-    couvrants.push({ site_id: { in: [...couverture.sites] } })
-  }
+export function clauseNonAffectes(
+  couverture: Map<ParcoursCode, CouvertureParcours>
+): Prisma.dossiersWhereInput {
+  const orphelinsParType = [...couverture.entries()].map(([code, couvert]) => {
+    const couvrants: Prisma.dossiersWhereInput[] = []
+    if (couvert.directions.length > 0) {
+      couvrants.push({ direction_id: { in: [...couvert.directions] } })
+    }
+    if (couvert.sites.length > 0) {
+      couvrants.push({ site_id: { in: [...couvert.sites] } })
+    }
 
-  // `id: { in: [] }` est une clause impossible, et c'est voulu : aucun EI n'est orphelin dès
-  // qu'un chargé sans rattachement les couvre tous.
-  const eiOrphelins: Prisma.dossiersWhereInput = couverture.toutCouvert
-    ? { id: { in: [] } }
-    : couvrants.length === 0
-      ? {}
-      : { NOT: { OR: couvrants } }
+    // `id: { in: [] }` est une clause impossible, et c'est voulu : aucun dossier de ce type n'est
+    // orphelin dès qu'un traitant sans rattachement les couvre tous.
+    const horsPortee: Prisma.dossiersWhereInput = couvert.toutCouvert
+      ? { id: { in: [] } }
+      : couvrants.length === 0
+        ? {}
+        : { NOT: { OR: couvrants } }
+
+    return { parcours: { code }, ...horsPortee }
+  })
 
   return {
     statuts_dossier: { code: 'recu' },
-    OR: [
-      {
-        parcours: { code: { not: PARCOURS_SANS_AFFECTATION } },
-        dossier_affectations: { none: { actif: true } },
-      },
-      { parcours: { code: PARCOURS_SANS_AFFECTATION }, ...eiOrphelins },
-    ],
+    // Une affectation ACTIVE suffit à dire que quelqu'un l'a — il n'en est plus écrit de
+    // nouvelles, mais les anciennes valent toujours.
+    dossier_affectations: { none: { actif: true } },
+    OR: orphelinsParType,
   }
 }
 
@@ -112,8 +154,20 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
     return { declarant_user_id: u.id, is_anonymous: false }
   }
 
+  /*
+    ⚠️ « TOUS LES DOSSIERS » VEUT DIRE « TOUS CEUX DE SES TYPES », pas tous sans exception.
+
+    Cette branche rendait une clause VIDE : le droit levait aussi le cloisonnement par type de
+    déclaration. Tant que ce cloisonnement était écrit dans le code et réservé aux rôles
+    transverses, la nuance ne se voyait pas — ils avaient les quatre types de toute façon.
+
+    Depuis que les types se cochent dans les habilitations (2026-09-20), elle se voit : cocher
+    « Grief employé » sur un rôle qui détient aussi « consulter tous les dossiers » n'aurait rien
+    changé, et la case aurait été un leurre. Le type est la borne EXTÉRIEURE ; ce droit lève le
+    rattachement et l'appartenance, jamais le type.
+  */
   if (aPermission(u, 'dossiers.view.all')) {
-    return {}
+    return { parcours: { code: { in: parcoursAutorises(u) } } }
   }
 
   /*
@@ -198,7 +252,7 @@ function clauseFiltres(
   u: UtilisateurAutorise,
   filtres: FiltresDossiers,
   /** Chargée seulement quand `nonAffectes` est demandé : une requête de plus, sinon inutile. */
-  couverture?: CouvertureEi
+  couverture?: Map<ParcoursCode, CouvertureParcours>
 ): Prisma.dossiersWhereInput {
   const where: Prisma.dossiersWhereInput = {}
 
@@ -240,7 +294,7 @@ export async function listerDossiers(
 ) {
   // Une requête de plus, et seulement quand le filtre la réclame : savoir quels EI n'ont personne
   // suppose de connaître les chargés de sécurité, ce qui n'intéresse aucun autre filtre.
-  const couverture = filtres.nonAffectes ? await couvertureDesEi() : undefined
+  const couverture = filtres.nonAffectes ? await couvertureParParcours() : undefined
 
   const where: Prisma.dossiersWhereInput = {
     AND: [perimetreDossiers(u), clauseFiltres(u, filtres, couverture)],

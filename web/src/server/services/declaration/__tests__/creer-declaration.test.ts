@@ -48,45 +48,6 @@ async function declarer(options: {
 /** Comptes fabriqués par les cas d'affectation — supprimés en fin de fichier. */
 const comptesDeTest: bigint[] = []
 
-/**
- * Un compte de captage `rgp`, habilité sur les parcours demandés.
- *
- * Écrit directement en base plutôt que par `enregistrerUtilisateur()` : ce fichier teste la
- * création de déclaration, et passer par la console des comptes y ferait entrer ses règles, ses
- * journaux d'audit et ses messages d'erreur — autant de raisons d'échouer sans rapport.
- */
-async function compteDeCaptage(parcours: readonly string[]): Promise<bigint> {
-  const role = await prisma.roles.findFirstOrThrow({ where: { name: 'rgp', guard_name: 'web' } })
-
-  const compte = await prisma.users.create({
-    data: {
-      name: 'Captage de test',
-      email: `test-captage-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`,
-      // Empreinte inutilisable : ce compte ne sert qu'à recevoir une affectation, jamais à
-      // s'authentifier. Aucun mot de passe en clair n'existe donc nulle part.
-      password: 'x'.repeat(60),
-      actif: true,
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-    select: { id: true },
-  })
-
-  comptesDeTest.push(compte.id)
-
-  await prisma.model_has_roles.create({
-    data: { role_id: role.id, model_type: String.raw`App\Models\User`, model_id: compte.id },
-  })
-
-  if (parcours.length > 0) {
-    const codes = await prisma.parcours.findMany({ where: { code: { in: [...parcours] } } })
-    await prisma.utilisateur_parcours.createMany({
-      data: codes.map((p) => ({ user_id: compte.id, parcours_id: p.id })),
-    })
-  }
-
-  return compte.id
-}
 
 afterEach(async () => {
   await nettoyerDossiers(creesPendantLeTest)
@@ -247,32 +208,25 @@ describe('Création de déclaration', () => {
     }
   })
 
-  it('n’affecte QUE les comptes de captage habilités sur le parcours', async () => {
+  it('⚠️ n’affecte plus personne, quel que soit le type', async () => {
     /*
-      Deux comptes, le même rôle de captage, une seule différence : l'un s'est vu confier le
-      parcours, l'autre non. Seul le premier doit recevoir le dossier.
+      ⚠️ CE CAS A CHANGÉ DE SENS le 2026-09-20.
 
-      Les comptes sont créés ici plutôt qu'empruntés à la base : le cas doit valoir quelle que
-      soit la configuration du jour, et ne modifier l'habilitation de personne.
+      Il vérifiait que seuls les comptes de captage habilités recevaient le dossier. Plus aucune
+      déclaration n'est affectée : le circuit des évènements indésirables a été étendu aux griefs,
+      et la charge se déduit de l'habilitation du rôle et du rattachement.
+
+      Ce qui doit tenir, c'est qu'AUCUNE ligne n'est écrite — une seule remettrait deux façons
+      concurrentes de désigner qui traite, et la fiche aurait à choisir laquelle croire.
     */
-    const [habilite, sansParcours] = await Promise.all([
-      compteDeCaptage(['grief_employe']),
-      compteDeCaptage([]),
-    ])
+    for (const parcours of ['ei_employe', 'grief_employe', 'grief_sous_traitant', 'grief_communaute'] as const) {
+      const { dossierId } = await declarer({ parcours })
 
-    const { dossierId } = await declarer({ parcours: 'grief_employe' })
-
-    const affectes = (
-      await prisma.dossier_affectations.findMany({
-        where: { dossier_id: dossierId, actif: true },
-        select: { user_id: true },
-      })
-    ).map((a) => a.user_id)
-
-    expect(affectes, 'le compte habilité n’a pas reçu le dossier').toContainEqual(habilite)
-    expect(affectes, 'un compte sans habilitation a reçu un dossier qu’il ne peut pas ouvrir').not.toContainEqual(
-      sansParcours
-    )
+      expect(
+        await prisma.dossier_affectations.count({ where: { dossier_id: dossierId } }),
+        `${parcours} : une affectation a été écrite`
+      ).toBe(0)
+    }
   })
 
   it('oriente une déclaration « Autre » vers service_mgp plutôt que vers les rôles de captage (RG-09)', async () => {

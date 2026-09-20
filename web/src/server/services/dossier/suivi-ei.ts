@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import {
+  aPermission,
   directionCloisonnante,
   PARCOURS_CODES,
   rattachementCouvre,
@@ -14,10 +15,26 @@ import type { StatutAction } from '../action-corrective/action-corrective'
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
 
-/** Le rattachement d'un dossier : les deux seules entrées du cloisonnement. */
+/**
+ * Ce qu'il faut savoir d'un dossier pour dire qui en répond.
+ *
+ * ⚠️ LE TYPE DE DÉCLARATION EN FAIT PARTIE depuis le 2026-09-20. Le rattachement ne suffit plus :
+ * plus aucune déclaration n'est affectée, et la charge se lit désormais « habilité sur ce type,
+ * et rattaché à ce site ou à cette direction ». Un correspondant DRH et un chargé de sécurité
+ * peuvent couvrir le même site sans répondre des mêmes dossiers.
+ */
 export type RattachementDossier = {
+  readonly parcoursCode: ParcoursCode
   readonly siteId: bigint | null
   readonly directionId: bigint | null
+  /**
+   * Le compte qui a déposé la déclaration, `null` si elle est anonyme.
+   *
+   * ⚠️ DT-06 : il n'instruit JAMAIS son propre dossier. La règle ne vivait que dans l'affectation
+   * automatique ; celle-ci ayant disparu, elle serait partie avec elle — et un correspondant qui
+   * déclare un grief en serait devenu le titulaire.
+   */
+  readonly declarantUserId?: bigint | null
 }
 
 /**
@@ -49,28 +66,24 @@ export type CompteEnCharge = {
 }
 
 /**
- * Tous les chargés de sécurité actifs, chargés UNE fois.
+ * Tous les comptes qui TRAITENT des déclarations, chargés UNE fois.
  *
- * Séparé de `chargesDeSecurite()` parce que le tableau de bord pose la question sur beaucoup de
+ * ⚠️ « Traiter » se lit `dossiers.status.update`, pas un nom de rôle. C'est le droit de faire
+ * avancer un dossier, et c'est ce qui sépare celui qui en répond de celui qui le lit : un
+ * auditeur, un DPO, un comité d'éthique voient sans traiter. Nommer les rôles un par un aurait
+ * figé dans le code une liste que l'écran des habilitations permet désormais de changer.
+ *
+ * ⚠️ `parcours` EST RENSEIGNÉ, contrairement à avant. Tant que seuls les évènements indésirables
+ * échappaient à l'affectation, le rôle de chargé de sécurité suffisait à désigner qui répondait ;
+ * depuis que les quatre types en relèvent, il faut savoir sur lesquels chacun est habilité.
+ *
+ * Séparé de `personnesEnCharge()` parce que le tableau de bord pose la question sur beaucoup de
  * dossiers à la fois : la liste se charge une fois, puis chaque dossier se décide en mémoire. La
  * même fonction appelée par dossier ferait une requête par ligne sur l'écran le plus visité.
  */
-export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
-  const porteurs = await prisma.model_has_roles.findMany({
-    where: {
-      model_type: MODEL_TYPE_USER,
-      roles: { name: 'charge_securite', guard_name: 'web', actif: true },
-    },
-    select: { model_id: true },
-  })
-
-  if (porteurs.length === 0) return []
-
-  const ids = porteurs.map((l) => l.model_id)
-
-
+export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
   const comptes = await prisma.users.findMany({
-    where: { actif: true, id: { in: ids } },
+    where: { actif: true },
     orderBy: { name: 'asc' },
     select: {
       id: true,
@@ -81,12 +94,16 @@ export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
     },
   })
 
-  /*
-    TOUS les rôles et permissions de ces comptes, en une requête.
+  if (comptes.length === 0) return []
 
-    `rattachementCouvre()` ne borne pas un compte transverse ni un compte qui cumule un rôle non
-    cloisonné : sans cette lecture, on lui appliquerait une restriction qui ne le concerne pas, et
-    la fiche cesserait de nommer quelqu'un qui en répond bel et bien.
+  const ids = comptes.map((c) => c.id)
+
+  /*
+    Rôles, permissions ET types de déclaration, en une requête.
+
+    Les trois viennent de la même table de liaison : les permissions par `role_has_permissions`,
+    les types par `role_parcours`. Les lire ensemble évite une requête par compte sur l'écran le
+    plus visité.
   */
   const liens = await prisma.model_has_roles.findMany({
     where: { model_type: MODEL_TYPE_USER, model_id: { in: ids } },
@@ -100,6 +117,10 @@ export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
           role_has_permissions: {
             select: { permissions: { select: { name: true, guard_name: true } } },
           },
+          role_parcours: {
+            where: { parcours: { actif: true } },
+            select: { parcours: { select: { code: true } } },
+          },
         },
       },
     },
@@ -107,6 +128,7 @@ export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
 
   const rolesParCompte = new Map<bigint, Role[]>()
   const permissionsParCompte = new Map<bigint, Set<Permission>>()
+  const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>()
 
   for (const lien of liens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
@@ -122,79 +144,97 @@ export async function comptesEnChargeDesEi(): Promise<CompteEnCharge[]> {
       if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
     }
     permissionsParCompte.set(lien.model_id, permissions)
+
+    const parcours = parcoursParCompte.get(lien.model_id) ?? new Set<ParcoursCode>()
+    for (const rp of lien.roles.role_parcours) parcours.add(rp.parcours.code as ParcoursCode)
+    parcoursParCompte.set(lien.model_id, parcours)
   }
 
-  return comptes.map((c) => ({
-    id: c.id,
-    nom: c.name,
-    pourCloisonnement: {
+  return comptes
+    .map((c) => ({
       id: c.id,
-      actif: true,
-      siteId: c.site_id ?? c.directions?.site_id ?? null,
-      directionId: c.direction_id,
-      doitChangerMotDePasse: false,
-      roles: rolesParCompte.get(c.id) ?? [],
-      permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
-      parcours: [],
-    },
-  }))
+      nom: c.name,
+      pourCloisonnement: {
+        id: c.id,
+        actif: true,
+        siteId: c.site_id ?? c.directions?.site_id ?? null,
+        directionId: c.direction_id,
+        doitChangerMotDePasse: false,
+        roles: rolesParCompte.get(c.id) ?? [],
+        permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
+        parcours: [...(parcoursParCompte.get(c.id) ?? [])],
+      } satisfies UtilisateurAutorise,
+    }))
+    .filter((c) => aPermission(c.pourCloisonnement, 'dossiers.status.update'))
 }
 
+
 /** Ceux d'entre eux dont le rattachement couvre CE dossier. */
-export async function chargesDeSecurite(
+export async function personnesEnCharge(
   dossier: RattachementDossier
 ): Promise<{ id: bigint; nom: string }[]> {
-  const candidats = await comptesEnChargeDesEi()
+  const candidats = await comptesQuiTraitent()
 
   return candidats
-    .filter((c) => rattachementCouvre(c.pourCloisonnement, dossier))
+    .filter(
+      (c) =>
+        // Habilité sur CE type de déclaration, et rattaché à CE dossier. Les deux, toujours.
+        c.pourCloisonnement.parcours.includes(dossier.parcoursCode) &&
+        rattachementCouvre(c.pourCloisonnement, dossier) &&
+        // DT-06 : jamais le déclarant identifié. Une déclaration anonyme n'est rattachée à aucun
+        // compte (RG-06), et `declarantUserId` y est nul — personne n'est alors écarté.
+        (dossier.declarantUserId == null || c.id !== dossier.declarantUserId)
+    )
     .map((c) => ({ id: c.id, nom: c.nom }))
 }
 
 /**
- * Ce que les chargés de sécurité couvrent, résumé en trois valeurs exploitables en SQL.
+ * Ce que les traitants couvrent, PAR TYPE DE DÉCLARATION, résumé en valeurs exploitables en SQL.
  *
  * Décider en mémoire, dossier par dossier, convient à une fiche ; pas à une liste paginée ni à un
- * compteur. Ce résumé permet d'exprimer « les EI dont personne ne répond » comme une CLAUSE, donc
- * de la partager entre le tableau de bord et la liste qu'il ouvre.
+ * compteur. Ce résumé permet d'exprimer « les dossiers dont personne ne répond » comme une
+ * CLAUSE, donc de la partager entre le tableau de bord et la liste qu'il ouvre.
+ *
+ * ⚠️ UNE COUVERTURE PAR TYPE, et non plus une seule. Tant que seuls les évènements indésirables
+ * échappaient à l'affectation, une couverture unique suffisait. Les quatre types en relèvent
+ * maintenant, et celui qui couvre les griefs employés ne couvre pas les griefs communautaires.
  */
-export type CouvertureEi = {
-  /** Un chargé sans rattachement couvre TOUT : aucun EI n'est alors orphelin. */
+export type CouvertureParcours = {
+  /** Un traitant sans rattachement couvre TOUT ce type : aucun dossier n'est alors orphelin. */
   readonly toutCouvert: boolean
   readonly directions: readonly bigint[]
   readonly sites: readonly bigint[]
 }
 
-export async function couvertureDesEi(): Promise<CouvertureEi> {
-  const candidats = await comptesEnChargeDesEi()
+export async function couvertureParParcours(): Promise<Map<ParcoursCode, CouvertureParcours>> {
+  const candidats = await comptesQuiTraitent()
 
-  const directions: bigint[] = []
-  const sites: bigint[] = []
-  let toutCouvert = false
+  const par = new Map<ParcoursCode, { toutCouvert: boolean; directions: bigint[]; sites: bigint[] }>()
 
-  for (const c of candidats) {
-    // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite.
-    const direction = directionCloisonnante(c.pourCloisonnement)
-    if (direction !== null) {
-      directions.push(direction)
-      continue
-    }
-
-    const site = siteCloisonnant(c.pourCloisonnement)
-    if (site !== null) {
-      sites.push(site)
-      continue
-    }
-
-    toutCouvert = true
+  for (const code of PARCOURS_CODES) {
+    par.set(code, { toutCouvert: false, directions: [], sites: [] })
   }
 
-  return { toutCouvert, directions, sites }
+  for (const candidat of candidats) {
+    // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite.
+    const direction = directionCloisonnante(candidat.pourCloisonnement)
+    const site = siteCloisonnant(candidat.pourCloisonnement)
+
+    for (const code of candidat.pourCloisonnement.parcours) {
+      const couverture = par.get(code)
+      if (!couverture) continue
+
+      if (direction !== null) couverture.directions.push(direction)
+      else if (site !== null) couverture.sites.push(site)
+      else couverture.toutCouvert = true
+    }
+  }
+
+  return par
 }
 
+
 export type SuiviEi = {
-  /** Comptes qui répondent de cet évènement. Vide = personne, et l'écran doit le dire. */
-  readonly enCharge: readonly { id: bigint; nom: string }[]
   /** Actions correctives ouvertes — le plan d'action, résumé. */
   readonly actionsOuvertes: number
   readonly actionsTotal: number
@@ -218,17 +258,16 @@ export function estEvenementIndesirable(code: string): code is ParcoursCode {
  * plus bas qu'il fallait dérouler. Le chargé de sécurité arrive après un comité avec une décision
  * à consigner : ce qu'il lui faut d'abord, c'est l'état d'ensemble.
  */
-export async function suiviEi(
-  dossierId: string,
-  dossier: RattachementDossier
-): Promise<SuiviEi> {
-  const [enCharge, actions] = await Promise.all([
-    chargesDeSecurite(dossier),
-    prisma.actions_correctives.findMany({
-      where: { dossier_id: dossierId },
-      select: { statut: true, echeance: true },
-    }),
-  ])
+export async function suiviEi(dossierId: string): Promise<SuiviEi> {
+  /*
+    ⚠️ NE CHARGE PLUS « qui en répond ». La fiche le demande maintenant pour les QUATRE types —
+    plus aucune déclaration n'étant affectée —, et le charge donc une fois pour toutes, en amont.
+    Le refaire ici aurait doublé la requête sur les seules fiches d'évènement indésirable.
+  */
+  const actions = await prisma.actions_correctives.findMany({
+    where: { dossier_id: dossierId },
+    select: { statut: true, echeance: true },
+  })
 
   /*
     « Ouverte » = tout sauf réalisée.
@@ -246,7 +285,6 @@ export async function suiviEi(
     .sort((a, b) => a.getTime() - b.getTime())
 
   return {
-    enCharge,
     actionsOuvertes: ouvertes.length,
     actionsTotal: actions.length,
     prochaineEcheance: echeances[0] ?? null,

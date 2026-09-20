@@ -14,9 +14,13 @@ import {
   actionCreerRole,
   actionModifierHabilitations,
   actionModifierIdentiteRole,
+  actionModifierParcoursRole,
   actionSupprimerRole,
   type EtatHabilitation,
 } from './actions'
+
+/** Un type de déclaration, tel qu'on le coche. */
+export type ParcoursVue = { code: string; libelle: string }
 
 export type PermissionVue = {
   nom: string
@@ -47,9 +51,9 @@ export type RoleVue = {
   livre: boolean
   /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
   rattachements: number
-  /** Parcours ouverts, en clair. Vide = ce rôle ne donne accès à aucun dossier. */
-  parcours: string[]
-  /** Le rôle est transverse : il les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
+  /** Types de déclaration ouverts. Vide = ce rôle ne donne accès à aucun dossier. */
+  parcours: ParcoursVue[]
+  /** Le rôle les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
   tousLesParcours: boolean
 }
 
@@ -68,7 +72,7 @@ const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> =
   gouvernance: 'Droits des autres',
 }
 
-type Onglet = 'droits' | 'nom' | 'activation'
+type Onglet = 'droits' | 'declarations' | 'nom' | 'activation'
 
 /**
  * Édition des rôles : leur nom lisible, leurs habilitations, leur activation.
@@ -86,9 +90,12 @@ type Onglet = 'droits' | 'nom' | 'activation'
 export function EditeurHabilitations({
   roles,
   domaines,
+  parcoursDisponibles,
 }: {
   roles: RoleVue[]
   domaines: DomaineVue[]
+  /** Les types de déclaration proposés à la coche. */
+  parcoursDisponibles: ParcoursVue[]
 }) {
   const [recherche, setRecherche] = useState('')
   const [creation, setCreation] = useState(false)
@@ -171,7 +178,12 @@ export function EditeurHabilitations({
             Sans cette clé, passer d'un rôle à l'autre laisserait les champs du précédent — et
             enregistrer écrirait les valeurs d'un rôle SUR un autre.
           */
-          <PanneauRole key={choisi.role} role={choisi} domaines={domaines} />
+          <PanneauRole
+            key={choisi.role}
+            role={choisi}
+            domaines={domaines}
+            parcoursDisponibles={parcoursDisponibles}
+          />
         ) : (
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
@@ -273,7 +285,15 @@ function ListeRoles({
  * supposait de deviner où il se trouvait. Sa confirmation, elle, reste : elle énonce combien de
  * personnes perdent leurs droits d'un coup.
  */
-function PanneauRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[] }) {
+function PanneauRole({
+  role,
+  domaines,
+  parcoursDisponibles,
+}: {
+  role: RoleVue
+  domaines: DomaineVue[]
+  parcoursDisponibles: ParcoursVue[]
+}) {
   const [onglet, setOnglet] = useState<Onglet>('droits')
 
   const detenues = new Set(role.permissions)
@@ -349,10 +369,10 @@ function PanneauRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[]
 
               <p className="text-caption text-muted-foreground">
                 {role.parcours.length === 0
-                  ? 'N’ouvre aucun dossier — ce rôle sert aux tâches d’administration.'
+                  ? 'N’ouvre aucun type de déclaration — ses porteurs ne voient aucun dossier.'
                   : role.tousLesParcours
                     ? 'Ouvre tous les types de déclaration.'
-                    : `Ouvre : ${role.parcours.join(' · ')}.`}
+                    : `Ouvre : ${role.parcours.map((p) => p.libelle).join(' · ')}.`}
               </p>
             </>
           )}
@@ -370,6 +390,7 @@ function PanneauRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[]
             role={role.role}
             onglets={[
               { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
+              { cle: 'declarations', libelle: `Déclarations (${role.parcours.length})` },
               { cle: 'nom', libelle: 'Nom' },
               ...(role.livre ? [] : [{ cle: 'activation' as const, libelle: 'Supprimer' }]),
             ]}
@@ -393,6 +414,23 @@ function PanneauRole({ role, domaines }: { role: RoleVue; domaines: DomaineVue[]
                 role={role}
                 domaines={domaines}
                 onAnnuler={() => setOnglet('droits')}
+              />
+            </div>
+
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-declarations`}
+              hidden={onglet !== 'declarations'}
+            >
+              {/*
+                `key` : même raison que pour les droits — les cases sont amorcées au montage, et
+                un enregistrement mené ailleurs laisserait sinon l'écran montrer autre chose que
+                ce que la base contient.
+              */}
+              <FormulaireParcours
+                key={role.parcours.map((p) => p.code).join(' ')}
+                role={role}
+                parcoursDisponibles={parcoursDisponibles}
               />
             </div>
 
@@ -612,6 +650,97 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
 
       <Button type="submit" size="sm" variant="outline" disabled={enCours}>
         {enCours ? 'Enregistrement…' : 'Enregistrer le nom'}
+      </Button>
+    </form>
+  )
+}
+
+/**
+ * Sur quels types de déclaration ce rôle est habilité.
+ *
+ * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, tout de suite et pour tous les porteurs du rôle : le
+ * périmètre est relu en base à chaque requête. Décocher « Grief employé » retire ces dossiers de
+ * la vue de chacun d'eux sans attendre une reconnexion.
+ *
+ * L'écran le dit AVANT le geste, et l'énonce encore quand il ne reste rien de coché : un rôle
+ * sans aucun type ne montre aucun dossier, ce qui ressemble à une panne quand on l'a fait sans
+ * le savoir.
+ */
+function FormulaireParcours({
+  role,
+  parcoursDisponibles,
+}: {
+  role: RoleVue
+  parcoursDisponibles: ParcoursVue[]
+}) {
+  const [etat, envoyer, enCours] = useActionState(actionModifierParcoursRole, ETAT)
+  const [cochees, setCochees] = useState<string[]>(role.parcours.map((p) => p.code))
+
+  function basculer(code: string, actif: boolean) {
+    setCochees((actuelles) =>
+      actif ? [...new Set([...actuelles, code])] : actuelles.filter((c) => c !== code)
+    )
+  }
+
+  return (
+    <form action={envoyer} className="space-y-4">
+      <input type="hidden" name="role" value={role.role} />
+
+      <p className="text-sm text-muted-foreground">
+        Les types de déclaration que ce rôle ouvre. Ses porteurs ne verront que ceux-ci —
+        le rattachement au site ou à la direction restreint ensuite à l’intérieur.
+      </p>
+
+      <div className="space-y-2">
+        {parcoursDisponibles.map((parcours) => {
+          const id = `parcours-${role.role}-${parcours.code}`
+          const actif = cochees.includes(parcours.code)
+
+          return (
+            <label
+              key={parcours.code}
+              htmlFor={id}
+              className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors hover:bg-muted/40"
+            >
+              <input
+                id={id}
+                name="parcours"
+                type="checkbox"
+                value={parcours.code}
+                checked={actif}
+                onChange={(evenement) => basculer(parcours.code, evenement.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
+              />
+              <span className="text-sm text-secondary-900">{parcours.libelle}</span>
+            </label>
+          )
+        })}
+      </div>
+
+      {cochees.length === 0 && (
+        <Alert role="status">
+          <AlertDescription>
+            Aucun type coché : les porteurs de ce rôle ne verront aucun dossier. C’est le
+            paramétrage attendu pour un rôle d’administration ou de saisie, et une panne pour tout
+            autre.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {etat.erreur && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{etat.erreur}</AlertDescription>
+        </Alert>
+      )}
+
+      {etat.succes && (
+        <Alert role="status">
+          <AlertDescription>{etat.succes}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" size="sm" disabled={enCours}>
+        {enCours ? 'Enregistrement…' : 'Enregistrer les types de déclaration'}
       </Button>
     </form>
   )

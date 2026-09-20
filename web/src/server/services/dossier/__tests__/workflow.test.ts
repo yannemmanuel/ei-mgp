@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { changerStatut, cloturer, rejeter, reouvrir, ErreurWorkflow } from '../workflow'
+import { personnesEnCharge } from '../suivi-ei'
 import type { StatutCode } from '../statuts'
 
 /**
@@ -226,12 +227,16 @@ describe('Réouverture (RG-07, EX-GES-06)', () => {
 
 describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier', () => {
   /*
-    La réaffectation manuelle a été SUPPRIMÉE : les affectations découlent désormais du parcours et
-    du rattachement, à la création. Le bloc qui exerçait `reaffecter()` a disparu avec elle.
+    ⚠️ DT-06 A CHANGÉ DE SUPPORT DEUX FOIS, et a failli se perdre à chaque fois.
 
-    ⚠️ Mais DT-06 ne vivait QUE là. Sans ce cas, la règle serait partie avec la fonction — et un
-    correspondant qui déclare un grief se verrait confier l'instruction de son propre
-    signalement. Elle est reportée dans l'affectation automatique, et tenue ici.
+    Elle vivait d'abord dans la réaffectation manuelle, supprimée ; elle a été reportée dans
+    l'affectation automatique, supprimée à son tour le 2026-09-20 quand les griefs ont adopté le
+    circuit des évènements indésirables. Plus rien n'est affecté : la charge se déduit de
+    l'habilitation et du rattachement.
+
+    Sans ce cas, un correspondant qui déclare un grief de son propre type se verrait confier
+    l'instruction de son signalement — la règle est donc portée là où la charge se décide
+    désormais : `personnesEnCharge()` et le périmètre « mes dossiers ».
   */
   const comptesCrees: bigint[] = []
   const MODEL_TYPE_USER = String.raw`App\Models\User`
@@ -245,14 +250,15 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
     await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
   })
 
-  /** Un compte qui SERAIT affecté aux griefs employés : bon rôle, bon parcours, aucun site. */
+  /**
+   * Un compte qui répondrait NATURELLEMENT des griefs employés.
+   *
+   * `correspondant_drh` ouvre ce type et porte le droit de faire avancer un dossier : les deux
+   * conditions de `personnesEnCharge()`. Sans rattachement, il couvre tous les sites.
+   */
   async function candidatNaturel(): Promise<bigint> {
     const role = await prisma.roles.findFirstOrThrow({
-      where: { name: 'rgp', guard_name: 'web' },
-      select: { id: true },
-    })
-    const parcours = await prisma.parcours.findFirstOrThrow({
-      where: { code: 'grief_employe' },
+      where: { name: 'correspondant_drh', guard_name: 'web' },
       select: { id: true },
     })
 
@@ -272,11 +278,25 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
     await prisma.model_has_roles.create({
       data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: compte.id },
     })
-    await prisma.utilisateur_parcours.create({
-      data: { user_id: compte.id, parcours_id: parcours.id },
-    })
 
     return compte.id
+  }
+
+  /** Qui répond de ce dossier, tel que la fiche le calcule. */
+  async function titulairesDe(dossierId: string): Promise<string[]> {
+    const dossier = await prisma.dossiers.findUniqueOrThrow({
+      where: { id: dossierId },
+      select: { site_id: true, direction_id: true, declarant_user_id: true },
+    })
+
+    const enCharge = await personnesEnCharge({
+      parcoursCode: 'grief_employe',
+      siteId: dossier.site_id,
+      directionId: dossier.direction_id,
+      declarantUserId: dossier.declarant_user_id,
+    })
+
+    return enCharge.map((c) => String(c.id))
   }
 
   async function griefDeclarePar(declarant: bigint | null): Promise<string> {
@@ -300,32 +320,29 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
     return dossierId
   }
 
-  it('écarte le déclarant, qui aurait AUTREMENT été affecté', async () => {
+  it('écarte le déclarant, qui aurait AUTREMENT répondu de son dossier', async () => {
     /*
-      ⚠️ Le compte est fabriqué pour Être un candidat naturel — bon rôle, bon parcours. Sans cela
-      le cas ne prouverait rien : un déclarant que l'affectation n'aurait de toute façon pas
-      retenu reste absent des titulaires, garde ou pas.
+      ⚠️ Le compte est fabriqué pour ÊTRE un titulaire naturel — bon rôle, bon type. Sans cela le
+      cas ne prouverait rien : un déclarant qui n'aurait de toute façon pas répondu du dossier en
+      reste absent, garde ou pas.
 
-      Le second dépôt, anonyme, le démontre : le MÊME compte y est bien affecté.
+      Le premier dépôt, anonyme, le démontre : le MÊME compte y figure bien.
     */
     const declarant = await candidatNaturel()
 
     const temoin = await griefDeclarePar(null)
-    const confiesSurLeTemoin = await prisma.dossier_affectations.count({
-      where: { dossier_id: temoin, user_id: declarant, actif: true },
-    })
 
     expect(
-      confiesSurLeTemoin,
-      'ce compte n’est pas un candidat naturel : le cas ne prouverait rien'
-    ).toBe(1)
+      await titulairesDe(temoin),
+      'ce compte ne répond pas des griefs : le cas ne prouverait rien'
+    ).toContain(String(declarant))
 
     const sien = await griefDeclarePar(declarant)
-    const confiesSurLeSien = await prisma.dossier_affectations.count({
-      where: { dossier_id: sien, user_id: declarant, actif: true },
-    })
 
-    expect(confiesSurLeSien, 'le déclarant s’est vu confier son propre dossier').toBe(0)
+    expect(
+      await titulairesDe(sien),
+      'le déclarant répond de son propre dossier'
+    ).not.toContain(String(declarant))
   })
 
   it('n’écarte personne d’une déclaration ANONYME', async () => {
@@ -334,11 +351,7 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
     const declarant = await candidatNaturel()
     const anonyme = await griefDeclarePar(null)
 
-    expect(
-      await prisma.dossier_affectations.count({
-        where: { dossier_id: anonyme, user_id: declarant, actif: true },
-      })
-    ).toBe(1)
+    expect(await titulairesDe(anonyme)).toContain(String(declarant))
   })
 })
 

@@ -2,9 +2,10 @@ import { prisma } from '@/lib/prisma'
 import {
   LIBELLES_ROLE,
   PERMISSIONS,
+  PARCOURS_CODES,
   ROLES,
   ROLE_NAMES,
-  parcoursDuRole,
+  type ParcoursCode,
   type Permission,
   type Role,
 } from '@/server/authz'
@@ -13,6 +14,62 @@ import { MODELES, journaliser } from '../audit/journal'
 
 /** Garde Spatie : les lignes d'un autre garde ne concernent pas cette application. */
 const GUARD = 'web'
+
+/**
+ * Quels types de déclaration chaque rôle ouvre — lu dans `role_parcours`.
+ *
+ * ⚠️ REMPLACE `parcoursDuRole()`, qui lisait une table écrite dans le code. Cette table est
+ * désormais cochée dans l'écran des habilitations : la fonction qui la décrivait ne pouvait plus
+ * rester synchrone, puisqu'il faut interroger la base.
+ *
+ * Le libellé accompagne le code : un écran qui affiche « grief_sous_traitant » n'apprend rien à
+ * qui n'a pas écrit l'application.
+ */
+export async function parcoursParRole(): Promise<
+  Map<string, { code: ParcoursCode; libelle: string }[]>
+> {
+  const lignes = await prisma.role_parcours.findMany({
+    where: { roles: { guard_name: GUARD } },
+    select: {
+      roles: { select: { name: true } },
+      parcours: { select: { code: true, libelle: true, ordre: true } },
+    },
+  })
+
+  const par = new Map<string, { code: ParcoursCode; libelle: string; ordre: number }[]>()
+
+  for (const ligne of lignes) {
+    const deja = par.get(ligne.roles.name) ?? []
+    deja.push({
+      code: ligne.parcours.code as ParcoursCode,
+      libelle: ligne.parcours.libelle,
+      ordre: ligne.parcours.ordre,
+    })
+    par.set(ligne.roles.name, deja)
+  }
+
+  // L'ordre du référentiel, pas celui de la base : les quatre types se lisent toujours dans le
+  // même sens d'un écran à l'autre.
+  return new Map(
+    [...par].map(([role, liste]) => [
+      role,
+      liste.sort((a, b) => a.ordre - b.ordre).map(({ code, libelle }) => ({ code, libelle })),
+    ])
+  )
+}
+
+/** Les quatre types, dans l'ordre du référentiel — pour construire les cases à cocher. */
+export async function parcoursACocher(): Promise<{ code: ParcoursCode; libelle: string }[]> {
+  const lignes = await prisma.parcours.findMany({
+    where: { actif: true },
+    orderBy: { ordre: 'asc' },
+    select: { code: true, libelle: true },
+  })
+
+  return lignes
+    .filter((p) => (PARCOURS_CODES as readonly string[]).includes(p.code))
+    .map((p) => ({ code: p.code as ParcoursCode, libelle: p.libelle }))
+}
 
 /**
  * Matrice des habilitations : quel rôle détient quelle permission.
@@ -56,13 +113,14 @@ export type LigneHabilitation = {
    */
   readonly rattachements: number
   /**
-   * Parcours que ce rôle ouvre. Vide = ce rôle ne donne accès à AUCUN dossier.
+   * Types de déclaration que ce rôle ouvre. Vide = ce rôle ne donne accès à AUCUN dossier.
    *
-   * Le cloisonnement par parcours vit dans le code (`authz/parcours.ts`) et se réfère aux rôles
-   * livrés. Un rôle créé depuis l'interface n'y figure pas : ses permissions s'appliquent, mais
-   * elles ne portent sur aucun dossier. L'écran le dit plutôt que de laisser le découvrir.
+   * ⚠️ ADMINISTRABLE depuis le 2026-09-20 : ces cases se cochent dans cet écran même, et la règle
+   * n'est plus écrite dans le code. Un rôle créé depuis l'interface peut donc recevoir un
+   * périmètre sans déploiement — ce qui n'était pas possible avant, ses permissions s'appliquant
+   * alors sans porter sur aucun dossier.
    */
-  readonly parcours: readonly string[]
+  readonly parcours: readonly { readonly code: ParcoursCode; readonly libelle: string }[]
 }
 
 export type EcartHabilitation = {
@@ -76,13 +134,16 @@ export type EcartHabilitation = {
 export type Habilitations = {
   readonly lignes: LigneHabilitation[]
   readonly permissions: readonly Permission[]
+  /** Les types de déclaration proposés à la coche — ceux qui sont actifs en base. */
+  readonly parcoursDisponibles: readonly { readonly code: ParcoursCode; readonly libelle: string }[]
   readonly ecarts: EcartHabilitation[]
 }
 
 const MODEL_TYPE_USER = String.raw`App\Models\User`
 
 export async function chargerHabilitations(): Promise<Habilitations> {
-  const [rolesEnBase, associations, comptesActifs] = await Promise.all([
+  const [rolesEnBase, associations, comptesActifs, parcoursDesRoles, tousLesParcours] =
+    await Promise.all([
     prisma.roles.findMany({
       // Les rôles d'un autre garde ne concernent pas cette application : les lister ici les
       // aurait présentés comme administrables, et comparés à une référence qui ne les vise pas.
@@ -100,6 +161,8 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       select: { model_id: true, roles: { select: { name: true } } },
     }),
     prisma.users.findMany({ where: { actif: true }, select: { id: true } }),
+    parcoursParRole(),
+    parcoursACocher(),
   ])
 
   // `model_has_roles` est la table polymorphe de Spatie : elle n'a pas de relation vers `users`,
@@ -144,11 +207,16 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       comptes: effectifs.get(role) ?? 0,
       livre,
       rattachements: rattachements.get(role) ?? 0,
-      parcours: parcoursDuRole([role as Role]),
+      parcours: parcoursDesRoles.get(role) ?? [],
     }
   })
 
-  return { lignes, permissions: PERMISSIONS, ecarts: comparer(rolesEnBase) }
+  return {
+    lignes,
+    permissions: PERMISSIONS,
+    parcoursDisponibles: tousLesParcours,
+    ecarts: comparer(rolesEnBase),
+  }
 }
 
 /**
@@ -266,12 +334,87 @@ export async function modifierPermissionsRole(
 }
 
 /**
+ * Quels types de déclaration ce rôle ouvre.
+ *
+ * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle :
+ * `chargerUtilisateurAutorise()` relit `role_parcours` à chaque requête. Décocher un type le
+ * retire de la vue de chacun d'eux sans attendre une reconnexion — c'est l'effet voulu, et c'est
+ * pourquoi le geste est journalisé comme les permissions.
+ *
+ * L'absence vaut retrait : la liste reçue décrit l'état complet du rôle, pas un ajout.
+ */
+export async function modifierParcoursRole(
+  acteur: { id: bigint },
+  role: string,
+  parcoursVoulus: readonly string[]
+): Promise<void> {
+  const inconnus = parcoursVoulus.filter(
+    (p) => !(PARCOURS_CODES as readonly string[]).includes(p)
+  )
+
+  if (inconnus.length > 0) {
+    throw new ErreurWorkflow(`Type de déclaration inconnu : ${inconnus.join(', ')}.`)
+  }
+
+  const ligneRole = await prisma.roles.findFirst({
+    where: { name: role, guard_name: GUARD },
+    select: {
+      id: true,
+      role_parcours: { select: { parcours: { select: { id: true, code: true } } } },
+    },
+  })
+
+  if (!ligneRole) throw new ErreurWorkflow('Rôle inconnu.')
+
+  const actuels = new Map(ligneRole.role_parcours.map((rp) => [rp.parcours.code, rp.parcours.id]))
+  const voulus = new Set(parcoursVoulus)
+
+  const aRetirer = [...actuels.entries()].filter(([code]) => !voulus.has(code))
+  const aAjouter = [...voulus].filter((code) => !actuels.has(code))
+
+  if (aRetirer.length === 0 && aAjouter.length === 0) return
+
+  if (aRetirer.length > 0) {
+    await prisma.role_parcours.deleteMany({
+      where: { role_id: ligneRole.id, parcours_id: { in: aRetirer.map(([, id]) => id) } },
+    })
+  }
+
+  if (aAjouter.length > 0) {
+    const lignes = await prisma.parcours.findMany({
+      where: { code: { in: aAjouter } },
+      select: { id: true },
+    })
+
+    const maintenant = new Date()
+
+    await prisma.role_parcours.createMany({
+      data: lignes.map((p) => ({
+        role_id: ligneRole.id,
+        parcours_id: p.id,
+        created_at: maintenant,
+        updated_at: maintenant,
+      })),
+    })
+  }
+
+  await journaliser({
+    action: 'role.parcours_modifies',
+    acteurId: acteur.id,
+    auditableType: MODELES.role,
+    auditableId: String(ligneRole.id),
+    anciennes: { role, parcours: [...actuels.keys()].sort() },
+    nouvelles: { role, parcours: [...voulus].sort() },
+  })
+}
+
+/**
  * Modifie l'identité lisible d'un rôle : son libellé et sa description.
  *
  * ⚠️ `name` — l'identifiant technique — n'est PAS modifiable, et cette fonction ne l'expose pas.
- * Il est référencé par `model_has_roles`, par le catalogue `authz/roles.ts` et par le
- * cloisonnement `authz/parcours.ts` : le renommer romprait le périmètre des parcours **sans
- * aucune erreur**, un rôle inconnu de `ROLES_PAR_PARCOURS` n'ouvrant simplement plus rien. Ce
+ * Il est référencé par `model_has_roles`, par le catalogue `authz/roles.ts`, par la table des
+ * acteurs d'étape et par `role_parcours` : le renommer romprait le périmètre **sans aucune
+ * erreur**, un rôle dont plus aucune ligne ne porte le nom n'ouvrant simplement plus rien. Ce
  * qu'on renomme ici, c'est ce que les gens lisent ; ce que le code utilise ne bouge pas.
  */
 export async function modifierIdentiteRole(

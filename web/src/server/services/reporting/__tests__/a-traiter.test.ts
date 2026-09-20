@@ -131,22 +131,29 @@ describe('Aperçu des dossiers affectés', () => {
    * qui décrit l'état du moment finit toujours par accuser à tort.
    */
   it('ne montre jamais un dossier hors du périmètre de son lecteur', async () => {
+    /*
+      ⚠️ TOUS LES COMPTES ACTIFS, et non plus ceux qui portent une affectation.
+
+      Plus rien n'est affecté depuis le 2026-09-20 : la charge se déduit de l'habilitation et du
+      rattachement. Chercher les porteurs d'affectation ne ramenait plus personne, et ce cas —
+      qui vérifie que l'aperçu ne déborde jamais du périmètre — ne s'exécutait plus du tout.
+    */
     const porteurs = await prisma.users.findMany({
-      where: {
-        actif: true,
-        dossier_affectations_dossier_affectations_user_idTousers: { some: { actif: true } },
-      },
+      where: { actif: true },
       select: { id: true, name: true },
     })
 
-    expect(porteurs.length, 'aucun compte ne porte d’affectation : le cas ne prouverait rien')
-      .toBeGreaterThan(0)
+    expect(porteurs.length, 'aucun compte actif : le cas ne prouverait rien').toBeGreaterThan(0)
+
+    let apercusExamines = 0
 
     for (const porteur of porteurs) {
       const utilisateur = await chargerUtilisateurAutorise(porteur.id)
       if (!utilisateur) continue
 
       for (const d of await dossiersATraiter(utilisateur)) {
+        apercusExamines++
+
         const dansLePerimetre = await prisma.dossiers.count({
           where: { AND: [perimetreDossiers(utilisateur), { id: d.id }] },
         })
@@ -157,6 +164,11 @@ describe('Aperçu des dossiers affectés', () => {
         ).toBe(1)
       }
     }
+
+    expect(
+      apercusExamines,
+      'aucun aperçu n’a de ligne : le croisement ne prouverait rien'
+    ).toBeGreaterThan(0)
   })
 
   it('ne montre rien à qui n’a aucun droit de lecture, malgré ses affectations', async () => {

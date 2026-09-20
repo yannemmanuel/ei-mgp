@@ -10,6 +10,7 @@ import {
 import { confierPourTest } from '../../declaration/__tests__/aide-base'
 import { changerStatut } from '../../dossier/workflow'
 import { definirTransportEmail, TransportJournal, type MessageEmail } from '../transport'
+import { titulairesDuDossier } from '../destinataires'
 
 /**
  * Évènements métier déclencheurs de notification (EX-NOT-01, EX-NOT-02, EX-NOT-05).
@@ -113,12 +114,10 @@ describe('EX-NOT-01 — notification à l’affectation', () => {
       ne portait le rôle de captage des griefs employés, et le cas passait sans rien exercer. Un
       cas qui dépend de la configuration du jour ne prouve rien le jour où elle change.
     */
+    // `correspondant_drh` ouvre les griefs employés ET porte le droit de faire avancer un
+    // dossier : les deux conditions pour en répondre depuis que rien n'est affecté.
     const role = await prisma.roles.findFirstOrThrow({
-      where: { name: 'rgp', guard_name: 'web' },
-      select: { id: true },
-    })
-    const parcours = await prisma.parcours.findFirstOrThrow({
-      where: { code: 'grief_employe' },
+      where: { name: 'correspondant_drh', guard_name: 'web' },
       select: { id: true },
     })
 
@@ -140,31 +139,34 @@ describe('EX-NOT-01 — notification à l’affectation', () => {
     await prisma.model_has_roles.create({
       data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: titulaire.id },
     })
-    await prisma.utilisateur_parcours.create({
-      data: { user_id: titulaire.id, parcours_id: parcours.id },
-    })
 
     const dossierId = await nouvelleDeclaration()
 
-    const confies = await prisma.dossier_affectations.count({
-      where: { dossier_id: dossierId, user_id: titulaire.id, actif: true },
-    })
+    /*
+      ⚠️ PLUS AUCUNE AFFECTATION N'EST ÉCRITE : le titulaire se déduit du rattachement. Vérifier
+      `dossier_affectations` ne prouverait donc plus rien — et l'appel à `surAffectation()`, qui
+      était conditionné à une affectation réussie, ne se serait plus jamais déclenché. Personne
+      n'aurait été averti d'une nouvelle déclaration.
+    */
+    expect(
+      await prisma.dossier_affectations.count({ where: { dossier_id: dossierId } }),
+      'une affectation a été écrite : le cas ne mesurerait plus le bon chemin'
+    ).toBe(0)
 
-    expect(confies, 'le dossier n’a pas été confié au titulaire fabriqué').toBe(1)
     expect(await evenementsNotifies(dossierId)).toContain('dossier_affecte')
   })
 
-  it('ne notifie personne quand rien n’a pu être confié', async () => {
-    // La contrepartie : `surAffectation()` n'est appelé que si l'affectation a abouti. L'appeler
-    // à vide enverrait un message à personne, et masquerait le vrai problème — un parcours que
-    // plus aucun compte n'est habilité à recevoir.
+  it('ne notifie personne quand aucun titulaire ne répond du dossier', async () => {
+    /*
+      La contrepartie : `surAffectation()` est appelé sans condition, mais ne doit rien envoyer
+      quand personne ne répond du dossier. Un message adressé à personne masquerait le vrai
+      problème — un type de déclaration que plus aucun rôle n'est habilité à recevoir.
+    */
     const dossierId = await nouvelleDeclaration()
 
-    const titulaires = await prisma.dossier_affectations.count({
-      where: { dossier_id: dossierId, actif: true },
-    })
+    const titulaires = await titulairesDuDossier(dossierId)
 
-    if (titulaires > 0) return // ce dépôt a trouvé preneur : rien à vérifier ici
+    if (titulaires.length > 0) return // ce dépôt a trouvé preneur : rien à vérifier ici
 
     expect(await evenementsNotifies(dossierId)).not.toContain('dossier_affecte')
   })

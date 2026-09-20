@@ -3,14 +3,19 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../creer-declaration'
+import { personnesEnCharge } from '../../dossier/suivi-ei'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from './aide-base'
 
 /**
- * L'affectation suit le FORMULAIRE et le RATTACHEMENT, sans aucun geste manuel.
+ * ⚠️ PLUS AUCUNE DÉCLARATION N'EST AFFECTÉE À LA CRÉATION.
  *
- * ⚠️ La réaffectation manuelle a été supprimée sur décision métier. Ce fichier tient les deux
- * moitiés de ce qui la remplace : elle ne doit pas revenir par une porte dérobée, et la règle
- * automatique doit vraiment router sur le site.
+ * Le circuit de l'évènement indésirable — personne n'est nommé, la charge revient à qui est
+ * habilité sur ce type et dont le rattachement couvre le dossier — a été étendu aux griefs le
+ * 2026-09-20, après avoir fait ses preuves.
+ *
+ * Ce fichier tenait la règle inverse : il vérifiait que l'affectation automatique route sur le
+ * site, puis sur la direction. Ce qu'il tient désormais, c'est qu'elle ne route plus rien — et
+ * que ce qui la remplace désigne bien quelqu'un, sans quoi chaque grief serait orphelin.
  */
 const MODEL_TYPE_USER = String.raw`App\Models\User`
 
@@ -21,35 +26,30 @@ afterAll(async () => {
   await nettoyerDossiers(dossiers)
 
   if (comptes.length > 0) {
-    await prisma.utilisateur_parcours.deleteMany({ where: { user_id: { in: comptes } } })
     await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptes } } })
     await prisma.dossier_affectations.deleteMany({ where: { user_id: { in: comptes } } })
     await prisma.users.deleteMany({ where: { id: { in: comptes } } })
   }
 })
 
-/** Un compte du bon rôle et du bon parcours, rattaché au site ou à la direction voulus. */
-async function correspondant(
-  siteId: bigint | null,
-  directionId: bigint | null = null
+/** Un compte portant ce rôle, rattaché au site ou à la direction voulus. */
+async function compteAvecRole(
+  role: string,
+  rattachement: { siteId?: bigint | null; directionId?: bigint | null } = {}
 ): Promise<bigint> {
-  const role = await prisma.roles.findFirstOrThrow({
-    where: { name: 'rgp', guard_name: 'web' },
-    select: { id: true },
-  })
-  const parcours = await prisma.parcours.findFirstOrThrow({
-    where: { code: 'grief_employe' },
+  const ligneRole = await prisma.roles.findFirstOrThrow({
+    where: { name: role, guard_name: 'web' },
     select: { id: true },
   })
 
   const compte = await prisma.users.create({
     data: {
-      name: 'Correspondant de test',
+      name: `Titulaire de test (${role})`,
       email: `auto-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`,
       password: null,
       actif: true,
-      site_id: siteId,
-      direction_id: directionId,
+      site_id: rattachement.siteId ?? null,
+      direction_id: rattachement.directionId ?? null,
       created_at: new Date(),
       updated_at: new Date(),
     },
@@ -58,10 +58,7 @@ async function correspondant(
   comptes.push(compte.id)
 
   await prisma.model_has_roles.create({
-    data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: compte.id },
-  })
-  await prisma.utilisateur_parcours.create({
-    data: { user_id: compte.id, parcours_id: parcours.id },
+    data: { role_id: ligneRole.id, model_type: MODEL_TYPE_USER, model_id: compte.id },
   })
 
   return compte.id
@@ -87,158 +84,135 @@ async function griefSurLaDirection(directionId: bigint | null): Promise<string> 
   return dossierId
 }
 
-describe('⚠️ L’affectation route sur le SITE', () => {
-  it('confie au correspondant du site concerné, pas à celui d’un autre', async () => {
-    /*
-      Sans ce filtre, une déclaration déposée sur un site était confiée aux correspondants de TOUS
-      les sites : chacun la voyait dans « ses » dossiers, et personne ne savait qui la traitait.
-      Le cloisonnement en lecture la leur masquait ensuite — ils étaient donc affectés à un
-      dossier qu'ils ne pouvaient pas ouvrir.
-    */
-    const directions = await prisma.directions.findMany({
-      where: { actif: true, site_id: { not: null } },
-      select: { id: true, site_id: true },
-      take: 10,
-    })
-
-    const ici = directions[0]
-    const ailleurs = directions.find((d) => d.site_id !== ici?.site_id)
-
-    if (!ici?.site_id || !ailleurs?.site_id) return // un seul site : le cas ne prouverait rien
-
-    const duSite = await correspondant(ici.site_id)
-    const dAilleurs = await correspondant(ailleurs.site_id)
-
-    const dossierId = await griefSurLaDirection(ici.id)
-
-    const confies = await prisma.dossier_affectations.findMany({
-      where: { dossier_id: dossierId, actif: true },
-      select: { user_id: true },
-    })
-    const titulaires = confies.map((c) => String(c.user_id))
-
-    expect(titulaires, 'le correspondant du site n’a rien reçu').toContain(String(duSite))
-    expect(titulaires, 'un correspondant d’un AUTRE site a été affecté').not.toContain(
-      String(dAilleurs)
-    )
+/** Le rattachement du dossier, tel que la fiche le lit. */
+async function rattachementDe(dossierId: string) {
+  const dossier = await prisma.dossiers.findUniqueOrThrow({
+    where: { id: dossierId },
+    select: { site_id: true, direction_id: true },
   })
 
-  it('confie à un compte SANS rattachement, qui voit tout', async () => {
-    // Les deux décisions restent alignées : `siteCloisonnant()` ne borne pas non plus un compte
-    // sans rattachement. On n'affecte jamais un dossier à quelqu'un qui ne pourrait pas le lire,
-    // et on ne prive personne de ce qu'il a le droit de voir.
-    const direction = await prisma.directions.findFirst({
-      where: { actif: true, site_id: { not: null } },
-      select: { id: true },
-    })
+  return {
+    parcoursCode: 'grief_employe' as const,
+    siteId: dossier.site_id,
+    directionId: dossier.direction_id,
+  }
+}
 
-    if (!direction) return
-
-    const sansRattachement = await correspondant(null)
+describe('⚠️ Aucune affectation à la création', () => {
+  it('ne nomme personne sur un grief', async () => {
+    /*
+      Le grief était confié au rôle de captage à sa création. Il ne l'est plus : le laisser ferait
+      coexister deux façons de désigner qui traite — une ligne d'affectation pour les griefs, le
+      rattachement pour les évènements indésirables — et la fiche aurait à choisir laquelle croire.
+    */
+    const direction = await prisma.directions.findFirstOrThrow({ select: { id: true } })
     const dossierId = await griefSurLaDirection(direction.id)
 
     expect(
-      await prisma.dossier_affectations.count({
-        where: { dossier_id: dossierId, user_id: sansRattachement, actif: true },
-      })
-    ).toBe(1)
+      await prisma.dossier_affectations.count({ where: { dossier_id: dossierId } }),
+      'une affectation a été écrite à la création'
+    ).toBe(0)
+  })
+
+  it('laisse le dossier à « reçu », sans transition automatique', async () => {
+    // « Reçu → Affecté » suivait l'affectation. Sans destinataire à nommer, le dossier reste à
+    // « reçu » — et c'est de là que court son délai d'analyse préliminaire.
+    const direction = await prisma.directions.findFirstOrThrow({ select: { id: true } })
+    const dossierId = await griefSurLaDirection(direction.id)
+
+    const dossier = await prisma.dossiers.findUniqueOrThrow({
+      where: { id: dossierId },
+      select: { statuts_dossier: { select: { code: true } } },
+    })
+
+    expect(dossier.statuts_dossier.code).toBe('recu')
   })
 })
 
-describe('⚠️ L’affectation route aussi sur la DIRECTION', () => {
-  it('ne confie qu’au compte habilité sur la direction concernée', async () => {
+describe('⚠️ Ce qui remplace l’affectation : l’habilitation du rôle', () => {
+  it('désigne le titulaire habilité sur ce type et rattaché à cette direction', async () => {
     /*
-      « On peut être habilité sur un site, c'est-à-dire plusieurs directions à la fois, ou sur une
-      seule direction. Dans ce cas, on ne reçoit que les déclarations de la direction sur laquelle
-      on est habilité. »
+      C'est la moitié qui doit fonctionner : supprimer l'affectation sans que personne ne réponde
+      du dossier laisserait chaque grief orphelin, et la fiche annoncerait « personne ».
 
-      Sans ce filtre, un compte habilité sur UNE direction recevait toutes les déclarations de son
-      site — donc celles de directions qui ne le concernent pas. Et le cloisonnement en lecture les
-      lui masquait ensuite : il était affecté à des dossiers qu'il ne pouvait pas ouvrir.
+      `correspondant_drh` ouvre les griefs employés et porte le droit de faire avancer un dossier
+      — les deux conditions de `personnesEnCharge()`.
     */
-    const directions = await prisma.directions.findMany({
-      where: { actif: true, site_id: { not: null } },
-      select: { id: true, site_id: true },
+    const direction = await prisma.directions.findFirstOrThrow({
+      where: { actif: true },
+      select: { id: true },
     })
 
-    /*
-      ⚠️ DEUX DIRECTIONS DU MÊME SITE, cherchées explicitement.
+    const titulaire = await compteAvecRole('correspondant_drh', { directionId: direction.id })
+    const dossierId = await griefSurLaDirection(direction.id)
 
-      Prendre `directions[0]` et lui chercher une voisine rendait ce cas VACANT : la première
-      direction de la base est seule sur son site, la recherche ne trouvait rien et le test
-      sortait sans rien affirmer. Il passait alors même en supprimant la règle qu'il est censé
-      protéger.
-    */
-    const parSite = new Map<string, typeof directions>()
-    for (const d of directions) {
-      const cle = String(d.site_id)
-      parSite.set(cle, [...(parSite.get(cle) ?? []), d])
-    }
-
-    const voisines = [...parSite.values()].find((groupe) => groupe.length >= 2)
+    const enCharge = await personnesEnCharge(await rattachementDe(dossierId))
 
     expect(
-      voisines,
-      'aucun site ne porte deux directions : le cas ne prouverait rien'
-    ).toBeDefined()
-    if (!voisines) return
-
-    const [ici, ailleurs] = voisines
-
-    // Les deux sont sur le MÊME site : seul le découpage par direction peut les départager. Un
-    // filtre resté au site les retiendrait tous les deux.
-    const deLaDirection = await correspondant(null, ici.id)
-    const dUneAutre = await correspondant(null, ailleurs.id)
-
-    const dossierId = await griefSurLaDirection(ici.id)
-
-    const confies = await prisma.dossier_affectations.findMany({
-      where: { dossier_id: dossierId, actif: true },
-      select: { user_id: true },
-    })
-    const titulaires = confies.map((c) => String(c.user_id))
-
-    expect(titulaires, 'le compte de la direction concernée n’a rien reçu').toContain(
-      String(deLaDirection)
-    )
-    expect(
-      titulaires,
-      'un compte habilité sur une AUTRE direction du même site a été affecté'
-    ).not.toContain(String(dUneAutre))
+      enCharge.map((c) => String(c.id)),
+      'le correspondant habilité sur cette direction ne répond pas du grief'
+    ).toContain(String(titulaire))
   })
 
-  it('confie au compte habilité sur le SITE, quelle que soit la direction', async () => {
-    // La contrepartie : l'habilitation par site couvre toutes ses directions. La restreindre
-    // serait l'erreur symétrique.
-    const directions = await prisma.directions.findMany({
-      where: { actif: true, site_id: { not: null } },
-      select: { id: true, site_id: true },
-      take: 5,
+  it('⚠️ ne désigne pas un titulaire habilité sur un AUTRE type', async () => {
+    // Le chargé de sécurité n'ouvre que les évènements indésirables : un grief ne lui revient pas,
+    // même sur sa propre direction. C'est exactement ce que les cases doivent produire.
+    const direction = await prisma.directions.findFirstOrThrow({
+      where: { actif: true },
+      select: { id: true },
     })
 
-    const ici = directions[0]
-    if (!ici?.site_id) return
+    const horsType = await compteAvecRole('charge_securite', { directionId: direction.id })
+    const dossierId = await griefSurLaDirection(direction.id)
 
-    const duSite = await correspondant(ici.site_id)
-    const dossierId = await griefSurLaDirection(ici.id)
+    const enCharge = await personnesEnCharge(await rattachementDe(dossierId))
 
     expect(
-      await prisma.dossier_affectations.count({
-        where: { dossier_id: dossierId, user_id: duSite, actif: true },
-      }),
-      'le compte du site n’a pas reçu une déclaration de l’une de ses directions'
-    ).toBe(1)
+      enCharge.map((c) => String(c.id)),
+      'un titulaire habilité sur un autre type répond du grief'
+    ).not.toContain(String(horsType))
+  })
+
+  it('⚠️ ne désigne pas un titulaire d’une AUTRE direction', async () => {
+    const directions = await prisma.directions.findMany({
+      where: { actif: true },
+      select: { id: true },
+      take: 2,
+    })
+
+    if (directions.length < 2) return // une seule direction : le cloisonnement ne se démontre pas
+
+    /*
+      ⚠️ `responsable_mgp_structure`, et NON un correspondant.
+
+      Les correspondants DRH, DADD et DL ne sont pas cloisonnés par rattachement : ils suivent
+      LEUR type de grief sur toute l'entreprise — c'est la demande métier, « Correspondant DRH →
+      employés ». Les employer ici ferait échouer ce cas sur une règle qu'ils ne portent pas, et
+      il ne dirait alors rien du cloisonnement.
+    */
+    const [ici, ailleurs] = directions
+    const dAilleurs = await compteAvecRole('responsable_mgp_structure', {
+      directionId: ailleurs.id,
+    })
+    const dossierId = await griefSurLaDirection(ici.id)
+
+    const enCharge = await personnesEnCharge(await rattachementDe(dossierId))
+
+    expect(
+      enCharge.map((c) => String(c.id)),
+      'un titulaire d’une autre direction répond du grief'
+    ).not.toContain(String(dAilleurs))
   })
 })
 
-describe('⚠️ Plus aucune affectation MANUELLE', () => {
+describe('⚠️ Plus aucune affectation MANUELLE non plus', () => {
   it('ne laisse subsister ni service, ni action, ni bouton', () => {
     /*
       La suppression d'une fonction se défait vite : il suffit qu'un écran réimporte ce qu'on a
       laissé en place. Rien ne doit subsister — ni le service, ni la Server Action, ni le bouton.
 
-      ⚠️ `dossier_affectations` n'est PAS concernée : la table reste, l'affectation automatique
-      l'écrit, et « mes dossiers » la lit. C'est le GESTE manuel qui disparaît, pas la notion.
+      ⚠️ `dossier_affectations` n'est PAS concernée : la table reste, elle porte les affectations
+      écrites avant la bascule, et « mes dossiers » les lit encore.
     */
     const racine = join(process.cwd(), 'src')
 
@@ -261,8 +235,8 @@ describe('⚠️ Plus aucune affectation MANUELLE', () => {
   })
 
   it('garde en revanche la table et sa lecture', () => {
-    // La contrepartie : supprimer le geste ne doit pas emporter la notion. « Mes dossiers », le
-    // décompte des non-affectés et le cloisonnement `dossiers.view.own` en dépendent tous.
+    // La contrepartie : supprimer le geste ne doit pas emporter la notion. « Mes dossiers » et le
+    // cloisonnement `dossiers.view.own` en dépendent tous les deux.
     const liste = readFileSync('src/server/services/dossier/liste.ts', 'utf8')
 
     expect(liste, 'le périmètre ne lit plus les affectations').toContain('dossier_affectations')

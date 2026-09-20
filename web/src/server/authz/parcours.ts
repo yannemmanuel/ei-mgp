@@ -14,41 +14,26 @@ export const PARCOURS_CODES = [
 export type ParcoursCode = (typeof PARCOURS_CODES)[number]
 
 /**
- * Ce qu'un RÔLE rend possible — port de `App\Support\RoleParcoursScope` (docs/acteurs.md §1, §2).
+ * ⚠️ LA TABLE « QUEL RÔLE OUVRE QUEL TYPE DE DÉCLARATION » A QUITTÉ CE FICHIER.
  *
- * ⚠️ Cette table ne dit plus à elle seule ce qu'une personne voit. Elle dit ce qu'on PEUT lui
- * confier : le périmètre réel se lit avec `parcoursAutorises()`, qui la croise avec ce qui a été
- * attribué au compte. Un rôle absent d'ici n'ouvre aucun dossier, quelle que soit l'attribution
- * (ex. `administrateur_digital`, `agent_relais` qui ne fait que saisir).
+ * Elle vit désormais en base, dans `role_parcours`, et se coche dans
+ * `/administration/habilitations` (décision métier du 2026-09-20). Confier les griefs
+ * sous-traitants à un rôle de plus ne demande plus de déploiement.
+ *
+ * Deux règles ont disparu avec elle, et c'est délibéré :
+ *
+ *   - **Les rôles transverses n'ont plus de traitement à part.** `service_mgp`, `dg`, `auditeur`
+ *     et `dpo` portaient les 4 parcours par une constante séparée. Ils les portent maintenant
+ *     comme tout le monde, par des lignes cochées. Une seule vérité, lisible au même endroit.
+ *   - **L'attribution par PERSONNE n'entre plus dans la décision.** Le périmètre se lisait
+ *     « rôle ∩ attribution » ; il se lit « rôle ». La table `utilisateur_parcours` subsiste et
+ *     n'est plus lue — voir `chargerUtilisateurAutorise()`.
+ *
+ * Ce module ne garde donc que ce qui ne dépend d'aucune donnée : la liste close des parcours, et
+ * les prédicats qui LISENT le périmètre déjà résolu. Résoudre le périmètre est le travail de
+ * `chargerUtilisateurAutorise()`, qui interroge la base à chaque requête comme il le fait déjà
+ * pour les rôles et les permissions.
  */
-const ROLES_PAR_PARCOURS: Partial<Record<Role, readonly ParcoursCode[]>> = {
-  // L'évènement indésirable revient au chargé de sécurité du site. `secretaire_csst` et `rqse`,
-  // qu'il remplace, gardent leur ligne : désactivés en base, ils ne confèrent plus rien, mais les
-  // retirer d'ici rendrait leur historique illisible si on les réactivait.
-  charge_securite: ['ei_employe'],
-  secretaire_csst: ['ei_employe'],
-  rqse: ['ei_employe'],
-
-  // Un correspondant par type de grief — la demande métier, exprimée au niveau du rôle.
-  correspondant_drh: ['grief_employe'],
-  correspondant_dadd: ['grief_communaute'],
-  correspondant_dl: ['grief_sous_traitant'],
-
-  // Les trois types de grief, bornés à son site par `ROLES_CLOISONNES_PAR_SITE`.
-  responsable_mgp_structure: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
-
-  rgp: ['grief_employe'],
-  responsable_grief_employe: ['grief_employe'],
-  comite_ethique: ['grief_employe'],
-  // ⚠️ Remplacé par les trois correspondants ci-dessus, désactivé en base. Conservé pour la même
-  // raison que `secretaire_csst`.
-  correspondant_mgp: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
-  captage_grief_soustraitant: ['grief_sous_traitant'],
-  captage_grief_communaute: ['grief_communaute'],
-}
-
-/** Accès transverse aux 4 parcours (docs/acteurs.md §2). */
-const ROLES_TRANSVERSAUX = ['service_mgp', 'dg', 'auditeur', 'dpo'] as const satisfies readonly Role[]
 
 /**
  * Ce qu'il faut savoir d'une personne pour décider de son périmètre.
@@ -58,67 +43,30 @@ const ROLES_TRANSVERSAUX = ['service_mgp', 'dg', 'auditeur', 'dpo'] as const sat
  */
 export type PorteurDeParcours = {
   readonly roles: readonly Role[]
-  /** Types de déclaration confiés à cette personne — table `utilisateur_parcours`. */
+  /**
+   * Types de déclaration ouverts par ses RÔLES — résolu depuis `role_parcours` au chargement.
+   *
+   * ⚠️ C'est le périmètre effectif, pas une liste de souhaits : `parcoursAutorises()` le rend tel
+   * quel. Rien ne le recroise ensuite avec une autre table.
+   */
   readonly parcours: readonly ParcoursCode[]
 }
 
-export function estTransversal(roles: readonly Role[]): boolean {
-  return roles.some((role) => (ROLES_TRANSVERSAUX as readonly string[]).includes(role))
-}
-
 /**
- * Les parcours qu'un rôle permet de confier.
+ * Les parcours qu'une personne voit.
  *
- * Sert à DÉCRIRE un rôle — l'écran des habilitations, la liste de qui peut valider une fiche — et
- * à borner ce qu'un administrateur peut attribuer. Jamais à décider ce qu'une personne voit :
- * pour cela, `parcoursAutorises()`, qui tient compte de l'attribution.
- */
-export function parcoursDuRole(roles: readonly Role[]): ParcoursCode[] {
-  if (estTransversal(roles)) {
-    return [...PARCOURS_CODES]
-  }
-
-  const ouverts = new Set<ParcoursCode>()
-  for (const role of roles) {
-    for (const parcours of ROLES_PAR_PARCOURS[role] ?? []) {
-      ouverts.add(parcours)
-    }
-  }
-
-  return [...ouverts]
-}
-
-/**
- * Les parcours qu'une PERSONNE voit réellement.
+ * ⚠️ Une liste VIDE signifie « aucun dossier », et c'est la règle retenue : l'habilitation est
+ * explicite, jamais déduite. Tout appelant doit traiter la liste vide comme « rien à montrer » —
+ * une liste vide passée à un `in:` SQL ne ramène aucune ligne, ce qui est le comportement voulu.
  *
- * Deux conditions, et les deux sont nécessaires : son rôle doit ouvrir le parcours, et le parcours
- * doit lui avoir été attribué. Le rôle dit ce qu'elle sait faire, l'attribution sur quoi elle le
- * fait. C'est la demande métier : trois correspondants MGP portent le même rôle sans voir les
- * mêmes dossiers, chaque type de grief ayant son référent.
- *
- * ⚠️ Sans attribution, la liste est VIDE et la personne ne voit aucun dossier. Ce n'est pas un
- * effet de bord, c'est la règle retenue : l'habilitation est explicite, jamais déduite du rôle.
- * Tout appelant doit donc traiter la liste vide comme « rien à montrer » — une liste vide passée
- * à un `in:` SQL ne ramène aucune ligne, ce qui est le comportement voulu.
- *
- * Les rôles transverses (Service MGP, Direction générale, Auditeur, DPO) échappent à la règle et
- * gardent les 4 parcours : sans eux, un dossier dont le parcours n'est attribué à personne
- * deviendrait invisible de tous.
+ * ⚠️ IL N'Y A PLUS DE RÔLE QUI ÉCHAPPE À LA RÈGLE. Un rôle transverse voit les 4 parcours parce
+ * qu'ils lui sont cochés, pas parce qu'il est nommé quelque part. Décocher les quatre le prive
+ * de tout, et c'est ce qu'un administrateur doit pouvoir faire sans nous.
  */
 export function parcoursAutorises(u: PorteurDeParcours): ParcoursCode[] {
-  if (estTransversal(u.roles)) {
-    return [...PARCOURS_CODES]
-  }
-
-  const ouvertsParLesRoles = new Set(parcoursDuRole(u.roles))
-
-  return u.parcours.filter((parcours) => ouvertsParLesRoles.has(parcours))
+  return [...u.parcours]
 }
 
 export function peutVoirParcours(u: PorteurDeParcours, parcours: ParcoursCode): boolean {
-  if (estTransversal(u.roles)) {
-    return true
-  }
-
-  return u.parcours.includes(parcours) && parcoursDuRole(u.roles).includes(parcours)
+  return u.parcours.includes(parcours)
 }

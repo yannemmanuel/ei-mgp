@@ -44,12 +44,12 @@ export type UtilisateurAutorise = {
   readonly roles: readonly Role[]
   readonly permissions: ReadonlySet<Permission>
   /**
-   * Types de déclaration confiés à cette personne, attribués un par un dans
-   * `/administration/utilisateurs`.
+   * Types de déclaration ouverts par ses RÔLES — lus dans `role_parcours`, cochés dans
+   * `/administration/habilitations`.
    *
-   * ⚠️ Ce n'est PAS le périmètre effectif : celui-ci est le croisement de cette liste avec ce que
-   * les rôles ouvrent, et seul `parcoursAutorises()` sait le calculer. Ne jamais filtrer sur ce
-   * champ directement — ce serait ignorer le rôle, donc accorder plus que prévu.
+   * ⚠️ C'est le périmètre EFFECTIF, et il n'est plus croisé avec quoi que ce soit. L'attribution
+   * par personne (`utilisateur_parcours`) entrait autrefois dans le calcul ; le rôle décide seul
+   * depuis le 2026-09-20.
    */
   readonly parcours: readonly ParcoursCode[]
 }
@@ -120,12 +120,31 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
       where: { model_type: MODEL_TYPE_USER, model_id: userId },
       select: { permissions: { select: { name: true, guard_name: true } } },
     }),
-    // Les parcours confiés à cette personne. Relus ici, à chaque requête, comme les rôles : une
-    // attribution retirée coupe l'accès tout de suite, sans attendre une reconnexion.
-    //
-    // `actif` est filtré côté parcours : un parcours désactivé en base ne s'ouvre à personne.
-    prisma.utilisateur_parcours.findMany({
-      where: { user_id: userId, parcours: { actif: true } },
+    /*
+      Les parcours ouverts par ses RÔLES. Relus ici à chaque requête, comme les rôles et les
+      permissions : une case décochée dans les habilitations coupe l'accès tout de suite, sans
+      attendre une reconnexion.
+
+      ⚠️ TROIS FILTRES, ET LES TROIS COMPTENT :
+
+        - `parcours.actif` : un type de déclaration désactivé en base ne s'ouvre à personne, quelles
+          que soient les cases cochées.
+        - `roles.actif` : un rôle éteint ne confère rien — même règle que pour ses permissions, et
+          la contourner ici rendrait la désactivation d'un rôle à moitié effective.
+        - `guard_name` : la garde de spatie, comme partout ailleurs.
+
+      ⚠️ `utilisateur_parcours` N'EST PLUS LUE. L'attribution par personne ne décide plus rien
+      (décision métier du 2026-09-20) ; la table subsiste, elle porte l'ancien paramétrage.
+    */
+    prisma.role_parcours.findMany({
+      where: {
+        parcours: { actif: true },
+        roles: {
+          actif: true,
+          guard_name: GUARD,
+          model_has_roles: { some: { model_type: MODEL_TYPE_USER, model_id: userId } },
+        },
+      },
       select: { parcours: { select: { code: true } } },
     }),
   ])
@@ -189,6 +208,11 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     doitChangerMotDePasse: utilisateur.doit_changer_mot_de_passe,
     roles,
     permissions,
-    parcours: liensParcours.map((lien) => lien.parcours.code as ParcoursCode),
+    /*
+      ⚠️ DÉDUPLIQUÉ. Deux rôles peuvent ouvrir le même type de déclaration — un correspondant qui
+      est aussi responsable de structure —, et la requête rend alors deux lignes. Sans ce `Set`,
+      l'écran des comptes afficherait « Grief employé · Grief employé ».
+    */
+    parcours: [...new Set(liensParcours.map((lien) => lien.parcours.code as ParcoursCode))],
   }
 }

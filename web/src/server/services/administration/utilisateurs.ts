@@ -1,7 +1,6 @@
 import { randomInt } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { hacherMotDePasse } from '@/server/auth/identifiants'
-import { PARCOURS_CODES, type ParcoursCode } from '@/server/authz'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, attributsCrees, difference, journaliser, sansChangement } from '../audit/journal'
 
@@ -214,11 +213,17 @@ export async function enregistrerUtilisateur(
   const rolesConnus = new Set((await rolesDisponibles()).map((r) => r.name))
   const rolesDemandes = [...new Set(donnees.roles)].filter((r) => rolesConnus.has(r)).sort()
 
-  // Les parcours sont un référentiel fermé (4 codes, CDC §2.1) : tout ce qui n'en fait pas partie
-  // vient d'un formulaire trafiqué et se jette ici, côté serveur.
-  const parcoursDemandes = [...new Set(donnees.parcours)]
-    .filter((code): code is ParcoursCode => (PARCOURS_CODES as readonly string[]).includes(code))
-    .sort()
+  /*
+    ⚠️ LES PARCOURS REÇUS SONT IGNORÉS, et ce n'est pas un oubli.
+
+    L'habilitation par type de déclaration se coche sur le RÔLE depuis le 2026-09-20, dans
+    `/administration/habilitations`. Le formulaire des comptes n'envoie plus ces cases.
+
+    Les honorer serait pire que de les ignorer : le formulaire n'en envoyant aucune, la liste
+    reçue serait vide, et la synchronisation lisait l'absence comme un RETRAIT — enregistrer un
+    simple changement de nom aurait effacé toutes les attributions du compte. La table
+    `utilisateur_parcours` est laissée telle quelle : plus lue, plus écrite, conservée.
+  */
 
   const valeurs = {
     name: donnees.name,
@@ -234,7 +239,6 @@ export async function enregistrerUtilisateur(
   let cible: bigint
   let motDePasse: string | null = null
   let rolesAvant: string[] = []
-  let parcoursAvant: string[] = []
 
   if (utilisateurId === undefined) {
     /*
@@ -276,7 +280,6 @@ export async function enregistrerUtilisateur(
   } else {
     const avant = await prisma.users.findUniqueOrThrow({ where: { id: utilisateurId } })
     rolesAvant = (await rolesParUtilisateur([utilisateurId])).get(utilisateurId) ?? []
-    parcoursAvant = ((await parcoursParUtilisateur([utilisateurId])).get(utilisateurId) ?? []).sort()
 
     await prisma.users.update({
       where: { id: utilisateurId },
@@ -300,7 +303,6 @@ export async function enregistrerUtilisateur(
   }
 
   await synchroniserRoles(cible, rolesDemandes)
-  await synchroniserParcours(cible, parcoursDemandes)
 
   // La table pivot `model_has_roles` échappe au différentiel des colonnes : elle est auditée à
   // part, comme le fait Laravel (docs/exigences-audit.md §2 — « modification des permissions et
@@ -313,20 +315,6 @@ export async function enregistrerUtilisateur(
       auditableId: String(cible),
       anciennes: { roles: rolesAvant },
       nouvelles: { roles: rolesDemandes },
-    })
-  }
-
-  // Même traitement pour les parcours, et pour la même raison : c'est une habilitation, et une
-  // habilitation qui change sans laisser de trace est exactement ce que l'audit doit empêcher.
-  // Un parcours retiré coupe l'accès à tout un type de dossier — il faut pouvoir dire qui l'a fait.
-  if (JSON.stringify(parcoursAvant) !== JSON.stringify(parcoursDemandes)) {
-    await journaliser({
-      action: 'user.parcours_modifies',
-      acteurId: acteur.id,
-      auditableType: MODELES.utilisateur,
-      auditableId: String(cible),
-      anciennes: { parcours: parcoursAvant },
-      nouvelles: { parcours: parcoursDemandes },
     })
   }
 
@@ -366,39 +354,6 @@ async function synchroniserRoles(utilisateurId: bigint, roles: string[]): Promis
   }
 }
 
-/** Même principe que `synchroniserRoles` : ajoute ce qui manque, retire ce qui n'est plus voulu. */
-async function synchroniserParcours(utilisateurId: bigint, codes: string[]): Promise<void> {
-  const disponibles = await prisma.parcours.findMany({ select: { id: true, code: true } })
-  const parCode = new Map(disponibles.map((p) => [p.code, p.id]))
-
-  const voulus = new Set(codes.map((code) => parCode.get(code)).filter((id): id is bigint => id != null))
-
-  const actuels = await prisma.utilisateur_parcours.findMany({
-    where: { user_id: utilisateurId },
-    select: { parcours_id: true },
-  })
-  const existants = new Set(actuels.map((a) => a.parcours_id))
-
-  const aRetirer = [...existants].filter((id) => !voulus.has(id))
-  const aAjouter = [...voulus].filter((id) => !existants.has(id))
-
-  if (aRetirer.length > 0) {
-    await prisma.utilisateur_parcours.deleteMany({
-      where: { user_id: utilisateurId, parcours_id: { in: aRetirer } },
-    })
-  }
-
-  if (aAjouter.length > 0) {
-    await prisma.utilisateur_parcours.createMany({
-      data: aAjouter.map((parcours_id) => ({
-        parcours_id,
-        user_id: utilisateurId,
-        created_at: new Date(),
-        updated_at: new Date(),
-      })),
-    })
-  }
-}
 
 export async function referentielsComptes() {
   const [directions, sites] = await Promise.all([

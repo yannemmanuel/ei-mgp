@@ -34,11 +34,23 @@ import { surAffectation, surDeclarationCritique } from '../notification/evenemen
  * Conséquence assumée : un évènement indésirable reste au statut « reçu » à sa création. Il
  * n'est pas en attente d'un destinataire — il attend d'être traité par qui le voit déjà.
  */
+/**
+ * ⚠️ PLUS AUCUNE DÉCLARATION N'EST AFFECTÉE — les quatre listes sont vides.
+ *
+ * L'évènement indésirable avait cessé de l'être le premier ; la même logique vaut pour les griefs
+ * depuis le 2026-09-20, le circuit des EI ayant fait ses preuves. Une déclaration revient
+ * désormais à tous ceux dont l'habilitation de rôle ouvre ce type ET dont le rattachement couvre
+ * le dossier. Il n'y a plus de destinataire nommé à la création.
+ *
+ * ⚠️ LA TABLE RESTE, ET LA FONCTION AUSSI. `dossier_affectations` porte les affectations déjà
+ * écrites, que « mes dossiers » continue de lire ; et rendre la liste non vide suffit à remettre
+ * un parcours sous affectation automatique, sans rien réécrire.
+ */
 const ROLES_AFFECTATION_AUTOMATIQUE: Record<ParcoursCode, readonly string[]> = {
   ei_employe: [],
-  grief_employe: ['rgp'],
-  grief_sous_traitant: ['captage_grief_soustraitant'],
-  grief_communaute: ['captage_grief_communaute'],
+  grief_employe: [],
+  grief_sous_traitant: [],
+  grief_communaute: [],
 }
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
@@ -330,17 +342,18 @@ export async function creerDeclaration(params: {
   /*
     EX-NOT-01 : les titulaires sont prévenus de ce qui leur est confié.
 
-    ⚠️ Cet appel ne venait PAS d'ici : il vivait dans la réaffectation manuelle, seule à notifier.
-    Elle a été supprimée — les affectations découlent désormais du parcours et du rattachement —
-    et `surAffectation()` s'est retrouvé sans aucun appelant. Un correspondant aurait reçu des
-    dossiers sans jamais en être averti, et rien ne l'aurait signalé.
+    ⚠️ CET APPEL A FAILLI SE PERDRE DEUX FOIS. Il vivait d'abord dans la réaffectation manuelle,
+    supprimée ; reporté ici, il était conditionné à `aEteAffecte`, et cette condition n'est plus
+    jamais vraie depuis que plus aucune déclaration n'est affectée (2026-09-20). Aucun titulaire
+    n'aurait plus été prévenu d'une nouvelle déclaration, et rien ne l'aurait signalé.
+
+    ⚠️ APPEL INCONDITIONNEL désormais. Les destinataires se déduisent du rattachement — voir
+    `titulairesDuDossier()` — et la fonction ne fait rien quand il n'y en a aucun.
 
     Comme RG-08 ci-dessous : APRÈS le commit. Notifier depuis l'intérieur de la transaction
     enverrait des messages pour un dossier qui pourrait encore être annulé.
   */
-  if (resultat.aEteAffecte) {
-    await surAffectation(resultat.dossierId)
-  }
+  await surAffectation(resultat.dossierId)
 
   // RG-08 : circuit accéléré déclenché EN SYNCHRONE, après commit — notifier depuis l'intérieur
   // de la transaction enverrait des messages pour un dossier qui pourrait encore être annulé.

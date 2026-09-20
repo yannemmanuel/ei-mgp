@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { ParcoursCode } from '@/server/authz'
 import type { Destinataire } from './notification'
+import { personnesEnCharge } from '../dossier/suivi-ei'
 
 /**
  * Résolution des destinataires par évènement — port des Listeners Laravel.
@@ -73,15 +74,59 @@ export async function destinatairesCircuitCritique(
 
 /** Titulaires actifs d'un dossier — destinataires d'une affectation (EX-NOT-01). */
 export async function titulairesDuDossier(dossierId: string): Promise<Destinataire[]> {
-  const affectations = await prisma.dossier_affectations.findMany({
-    where: { dossier_id: dossierId, actif: true },
-    select: { users_dossier_affectations_user_idTousers: { select: { id: true, email: true, actif: true } } },
+  const dossier = await prisma.dossiers.findUnique({
+    where: { id: dossierId },
+    select: {
+      site_id: true,
+      direction_id: true,
+      declarant_user_id: true,
+      parcours: { select: { code: true } },
+      dossier_affectations: {
+        where: { actif: true },
+        select: {
+          users_dossier_affectations_user_idTousers: {
+            select: { id: true, email: true, actif: true },
+          },
+        },
+      },
+    },
   })
 
-  return affectations
+  if (!dossier) return []
+
+  /*
+    ⚠️ DEUX ORIGINES, et la seconde a bien failli manquer.
+
+    Une affectation ACTIVE désigne toujours un titulaire — il n'en est plus écrit de nouvelles
+    depuis le 2026-09-20, mais les anciennes valent encore.
+
+    Le reste vient du RATTACHEMENT : plus aucune déclaration n'étant affectée, s'en tenir aux
+    affectations aurait fait qu'aucun titulaire n'est prévenu d'une nouvelle déclaration. Personne
+    n'aurait rien reçu, et rien ne l'aurait dit.
+  */
+  const parAffectation = dossier.dossier_affectations
     .map((a) => a.users_dossier_affectations_user_idTousers)
     .filter((u) => u.actif)
-    .map((u) => ({ type: 'utilisateur' as const, id: u.id, email: u.email }))
+
+  const parRattachement = await personnesEnCharge({
+    parcoursCode: dossier.parcours.code as ParcoursCode,
+    siteId: dossier.site_id,
+    directionId: dossier.direction_id,
+    // DT-06 : le déclarant n'instruit pas son dossier, il n'a donc pas à en être averti comme
+    // titulaire. Il reçoit, lui, les notifications de DÉCLARANT.
+    declarantUserId: dossier.declarant_user_id,
+  })
+
+  const adresses = await prisma.users.findMany({
+    where: { id: { in: parRattachement.map((p) => p.id) }, actif: true },
+    select: { id: true, email: true },
+  })
+
+  // Dédupliqué : un compte peut porter une ancienne affectation ET répondre par son rattachement.
+  const parId = new Map<bigint, { id: bigint; email: string }>()
+  for (const u of [...parAffectation, ...adresses]) parId.set(u.id, { id: u.id, email: u.email })
+
+  return [...parId.values()].map((u) => ({ type: 'utilisateur' as const, id: u.id, email: u.email }))
 }
 
 /**

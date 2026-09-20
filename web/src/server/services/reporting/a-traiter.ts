@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { UtilisateurAutorise } from '@/server/authz'
 import { datesLimites, statutsAvecEcheance } from '../dossier/delais'
 import { clauseDontJeReponds, clauseNonAffectes, perimetreDossiers } from '../dossier/liste'
-import { couvertureDesEi } from '../dossier/suivi-ei'
+import { couvertureParParcours } from '../dossier/suivi-ei'
 import type { StatutCode } from '../dossier/statuts'
 
 /**
@@ -54,7 +54,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
 
   // ⚠️ La MÊME clause que la liste ouverte par ce compteur. Recopier la définition ici l'aurait
   // fait diverger au premier ajustement, et on aurait cliqué sur « 5 » pour découvrir autre chose.
-  const couverture = await couvertureDesEi()
+  const couverture = await couvertureParParcours()
 
   const [ouverts, dontJeReponds, nonAffectes] = await Promise.all([
     prisma.dossiers.findMany({

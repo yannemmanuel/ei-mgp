@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useActionState, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -28,17 +29,15 @@ export type CompteVue = {
   siteId: string
   responsableId: string
   roles: string[]
-  /** Codes des parcours confiés à ce compte — ce que le formulaire rouvre coché. */
-  parcoursAttribues: string[]
   /**
-   * Ce que ce compte voit VRAIMENT, en clair : l'attribution croisée avec ce que ses rôles
-   * ouvrent. Peut être vide alors que des parcours lui sont attribués, si aucun de ses rôles ne
-   * les ouvre — c'est justement le cas qu'il faut voir.
+   * Ce que ce compte voit, en clair — les types de déclaration ouverts par ses RÔLES.
+   *
+   * ⚠️ NE SE MODIFIE PLUS ICI depuis le 2026-09-20 : l'habilitation se coche sur le rôle, dans
+   * `/administration/habilitations`. Cette colonne reste en lecture, parce que c'est en regardant
+   * un compte qu'on se demande ce qu'il voit — mais le geste, lui, a changé de place.
    */
   parcours: string[]
   tousLesParcours: boolean
-  /** Les parcours que ses rôles permettent de lui confier : le formulaire n'offre que ceux-là. */
-  parcoursPossibles: { code: string; libelle: string }[]
   /** Rattachement lisible, `null` s'il n'est pas renseigné. */
   site: string | null
   direction: string | null
@@ -216,33 +215,23 @@ export function PanneauComptes({
                         {/*
                           CE QUE LA PERSONNE VOIT, et non plus seulement les rôles qu'elle porte.
 
-                          Deux comptes peuvent détenir « consulter les dossiers », porter le MÊME
-                          rôle, et ne pas voir les mêmes déclarations : le parcours se confie
-                          personne par personne. C'est la demande métier — chaque type de grief a
-                          son référent — et cette ligne est le seul endroit qui la rend lisible.
+                          C'est la question qu'on se pose devant un compte, et la réponse ne se lit
+                          pas dans la liste des rôles : elle dépend de ce qui a été coché sur
+                          chacun d'eux. Cette ligne est le seul endroit qui la rend lisible sans
+                          ouvrir l'écran des habilitations.
 
-                          « À habiliter » n'est pas une erreur mais une ÉTAPE MANQUANTE : le compte
-                          a un rôle qui pourrait ouvrir des dossiers, on ne lui en a confié aucun,
-                          il ne voit donc rien. Sans ce signal, la personne se plaindrait d'un
-                          écran vide et l'administrateur chercherait un bug.
+                          « Ne voit aucun dossier » n'est pas toujours une erreur — c'est l'état
+                          normal d'un compte d'administration ou de saisie relais. Mais sur un
+                          compte censé traiter des déclarations, c'est la cause qu'on cherchera en
+                          s'étonnant d'un écran vide, et elle se règle sur le rôle.
                         */}
-                        {compte.parcours.length === 0 && compte.parcoursPossibles.length > 0 ? (
-                          <Badge
-                            variant="destructive"
-                            className="mt-1 font-normal"
-                            title="Ce compte porte un rôle qui ouvre des dossiers, mais aucun type de déclaration ne lui a été confié : il ne voit rien. Modifiez-le pour lui en attribuer."
-                          >
-                            À habiliter
-                          </Badge>
-                        ) : (
-                          <p className="mt-1 text-caption text-muted-foreground">
-                            {compte.parcours.length === 0
-                              ? 'Aucun dossier'
-                              : compte.tousLesParcours
-                                ? 'Tous les types de déclaration'
-                                : compte.parcours.join(' · ')}
-                          </p>
-                        )}
+                        <p className="mt-1 text-caption text-muted-foreground">
+                          {compte.parcours.length === 0
+                            ? 'Ne voit aucun dossier'
+                            : compte.tousLesParcours
+                              ? 'Tous les types de déclaration'
+                              : compte.parcours.join(' · ')}
+                        </p>
                       </td>
                       <td className="px-4 py-2">
                         {compte.site === null && compte.direction === null ? (
@@ -615,50 +604,48 @@ function FormulaireCompte({
           </fieldset>
 
           {/*
-            LE SECOND VERROU, et celui qui manquait.
+            ⚠️ LES CASES « TYPES DE DÉCLARATION CONFIÉS » ONT ÉTÉ RETIRÉES D'ICI.
 
-            Le rôle dit ce que la personne sait faire ; ces cases disent SUR QUOI. Trois
-            correspondants MGP portent le même rôle et suivent chacun un type de grief : c'est
-            exactement ce que cette section permet, et rien d'autre ne le permettait.
+            L'habilitation se coche désormais sur le RÔLE, dans l'écran des habilitations
+            (décision métier du 2026-09-20) : tous les porteurs d'un rôle voient les mêmes types.
+            Laisser les cases en place aurait fait croire à un réglage par personne qui n'a plus
+            aucun effet — le pire des deux, une commande qui ne commande rien.
 
-            Ce qui est proposé dépend des rôles cochés au-dessus, et se limite à ce qu'ils
-            ouvrent : proposer un parcours que le rôle n'ouvre pas laisserait cocher une case sans
-            effet. Les rôles transverses — Service MGP, Direction générale, Auditeur, DPO — ne sont
-            pas concernés : ils voient tout par construction, et la section le dit plutôt que de
-            faire croire à un choix.
+            Ce qui reste ici est la CONSÉQUENCE, en lecture : ce que ce compte verra, d'après les
+            rôles cochés juste au-dessus. On la lit au moment où l'on coche, sans avoir à ouvrir
+            un second écran pour deviner le résultat.
           */}
           <fieldset>
             <legend className="text-caption text-muted-foreground">
-              Types de déclaration confiés
+              Ce que ce compte verra
             </legend>
 
             {proposes.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
                 {rolesCoches.size === 0
-                  ? 'Cochez d’abord un rôle : les types de déclaration qu’il permet de confier apparaîtront ici.'
-                  : 'Aucun des rôles cochés n’ouvre de dossier. Rien à confier.'}
+                  ? 'Cochez un rôle : les types de déclaration qu’il ouvre apparaîtront ici.'
+                  : 'Aucun des rôles cochés n’ouvre de type de déclaration. Ce compte ne verra aucun dossier.'}
               </p>
             ) : (
-              <>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {proposes.map((p) => (
-                    <label key={p.code} className="flex items-start gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        name="parcours"
-                        value={p.code}
-                        defaultChecked={compte?.parcoursAttribues.includes(p.code) ?? false}
-                        className="mt-1"
-                      />
-                      <span className="min-w-0 text-secondary-900">{p.libelle}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="mt-2 text-caption text-muted-foreground">
-                  Sans aucune case cochée, ce compte ne verra aucun dossier.
-                </p>
-              </>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {proposes.map((p) => (
+                  <Badge key={p.code} variant="secondary" className="font-normal">
+                    {p.libelle}
+                  </Badge>
+                ))}
+              </div>
             )}
+
+            <p className="mt-2 text-caption text-muted-foreground">
+              Pour changer les types qu’un rôle ouvre, allez dans les{' '}
+              <Link
+                href="/administration/habilitations"
+                className="text-primary-700 underline underline-offset-2"
+              >
+                habilitations
+              </Link>
+              . Le changement vaut pour tous les porteurs de ce rôle.
+            </p>
           </fieldset>
 
           <label className="flex items-center gap-2 text-sm">

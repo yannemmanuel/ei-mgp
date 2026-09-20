@@ -285,12 +285,32 @@ describe('Filtres (EX-GES-01)', () => {
     expect(dossiers.every((d) => d.parcours.code === 'ei_employe')).toBe(true)
   })
 
-  it('filtre sur les dossiers dont l’utilisateur est titulaire actif', async () => {
-    const u = utilisateurAvecRoles('service_mgp')
+  it('⚠️ retient les dossiers dont l’utilisateur RÉPOND, affectation ou non', async () => {
+    /*
+      ⚠️ CE CAS A CHANGÉ DE SENS le 2026-09-20.
+
+      Il vérifiait qu'un utilisateur FABRIQUÉ — inexistant en base — n'avait aucun dossier, aucune
+      affectation ne pouvant le désigner. Plus rien n'est affecté depuis : la charge se déduit de
+      l'habilitation du rôle et du rattachement, et un compte fabriqué qui porte un rôle traitant
+      répond donc bien de dossiers.
+
+      Ce qu'il faut tenir, c'est que le filtre ne montre QUE ce dont il répond : rien d'un type
+      qu'il n'ouvre pas.
+    */
+    const u = utilisateurAvecRoles('charge_securite')
     const { dossiers } = await listerDossiers(u, { assigneAMoi: true }, 1)
 
-    // L'utilisateur fabriqué n'existe pas en base : aucune affectation ne peut le désigner.
-    expect(dossiers).toHaveLength(0)
+    for (const d of dossiers) {
+      expect(
+        d.parcours.code,
+        `${d.reference} n’est pas d’un type que ce rôle ouvre`
+      ).toBe('ei_employe')
+    }
+
+    // Un rôle qui n'ouvre aucun type ne répond de rien, quoi qu'il arrive.
+    const sansType = { ...utilisateurAvecRoles('charge_securite'), parcours: [] }
+
+    expect((await listerDossiers(sansType, { assigneAMoi: true }, 1)).dossiers).toHaveLength(0)
   })
 })
 

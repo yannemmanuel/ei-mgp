@@ -6,16 +6,51 @@ import type { UtilisateurAutorise } from '../utilisateur'
 let prochainId = 1n
 
 /**
- * Fabrique un utilisateur autorisé à partir de ses rôles, en résolvant ses permissions
- * exactement comme le ferait `chargerUtilisateurAutorise()` depuis la base.
+ * Types de déclaration ouverts par chaque rôle — REFLET du paramétrage livré.
  *
- * ⚠️ Les 4 parcours lui sont attribués — ce n'est PAS l'état d'un compte réel, qui n'en a aucun
- * tant qu'on ne lui en a pas confié. Ce choix isole le verrou exercé ici : avec tout attribué, le
- * périmètre se réduit à ce que les rôles ouvrent, et ces cas continuent donc de mesurer le
- * cloisonnement PAR RÔLE, seul objet de leur assertion.
+ * ⚠️ CE N'EST PLUS LA RÈGLE, c'est une copie de l'état initial. La règle vit en base
+ * (`role_parcours`) et se coche dans les habilitations depuis le 2026-09-20 ; ce tableau ne fait
+ * que reproduire ce que la migration y a inscrit, pour que les cas unitaires disposent d'un
+ * compte vraisemblable sans toucher la base.
  *
- * Pour exercer l'attribution elle-même — le fait qu'un compte sans parcours ne voit rien —, il
- * faut `utilisateurAvecParcours()`, qui oblige à l'énoncer.
+ * ⚠️ `habilitation-parcours.test.ts` compare ce reflet à la base : le laisser dériver ferait
+ * passer des cas sur un paramétrage qui n'existe nulle part.
+ */
+const PARCOURS_LIVRES: Partial<Record<Role, readonly ParcoursCode[]>> = {
+  charge_securite: ['ei_employe'],
+  secretaire_csst: ['ei_employe'],
+  rqse: ['ei_employe'],
+
+  correspondant_drh: ['grief_employe'],
+  correspondant_dadd: ['grief_communaute'],
+  correspondant_dl: ['grief_sous_traitant'],
+
+  responsable_mgp_structure: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
+  correspondant_mgp: ['grief_employe', 'grief_sous_traitant', 'grief_communaute'],
+
+  rgp: ['grief_employe'],
+  responsable_grief_employe: ['grief_employe'],
+  comite_ethique: ['grief_employe'],
+  captage_grief_soustraitant: ['grief_sous_traitant'],
+  captage_grief_communaute: ['grief_communaute'],
+
+  service_mgp: [...PARCOURS_CODES],
+  dg: [...PARCOURS_CODES],
+  auditeur: [...PARCOURS_CODES],
+  dpo: [...PARCOURS_CODES],
+}
+
+/**
+ * Fabrique un utilisateur autorisé à partir de ses rôles, en résolvant ses permissions ET ses
+ * types de déclaration exactement comme le ferait `chargerUtilisateurAutorise()` depuis la base.
+ *
+ * ⚠️ LES TYPES VIENNENT DES RÔLES, et plus d'une attribution par personne : celle-ci a été
+ * supprimée le 2026-09-20, le rôle décide seul. Un rôle absent de `PARCOURS_LIVRES` n'ouvre
+ * aucun dossier — c'est le cas de `administrateur_digital`, `agent_relais` et
+ * `employe_declarant`.
+ *
+ * Pour poser un périmètre différent du paramétrage livré — un rôle dont on vient de décocher un
+ * type —, `utilisateurAvecParcours()` oblige à l'énoncer.
  */
 export function utilisateurAvecRoles(...roles: Role[]): UtilisateurAutorise {
   const permissions = new Set<Permission>()
@@ -38,16 +73,15 @@ export function utilisateurAvecRoles(...roles: Role[]): UtilisateurAutorise {
     doitChangerMotDePasse: false,
     roles,
     permissions,
-    parcours: [...PARCOURS_CODES],
+    parcours: [...new Set(roles.flatMap((role) => PARCOURS_LIVRES[role] ?? []))],
   }
 }
 
 /**
- * Le même utilisateur, avec les parcours qu'on lui a EXPLICITEMENT confiés.
+ * Le même utilisateur, avec les types de déclaration EXPLICITEMENT posés.
  *
- * Passer une liste vide décrit le compte tout juste créé : des rôles, aucune attribution. C'est
- * l'état normal d'un compte tant qu'un administrateur ne l'a pas habilité, et il ne doit alors
- * ouvrir aucun dossier.
+ * Passer une liste vide décrit un rôle dont toutes les cases ont été décochées : il ne doit alors
+ * ouvrir aucun dossier, quels que soient ses droits.
  */
 export function utilisateurAvecParcours(
   parcours: readonly ParcoursCode[],

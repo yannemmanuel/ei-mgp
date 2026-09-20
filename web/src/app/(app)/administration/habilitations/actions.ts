@@ -8,6 +8,7 @@ import {
   changerActivationRole,
   creerRole,
   modifierIdentiteRole,
+  modifierParcoursRole,
   modifierPermissionsRole,
   supprimerRole,
 } from '@/server/services/administration/habilitations'
@@ -50,6 +51,49 @@ export async function actionModifierHabilitations(
 
   revalidatePath('/administration/habilitations')
   return { succes: `Habilitations de « ${role} » enregistrées. Effet immédiat.` }
+}
+
+/**
+ * Types de déclaration ouverts par un rôle.
+ *
+ * Même portée que les permissions : l'effet est immédiat et vaut pour tous les porteurs du rôle.
+ * L'autorisation est donc revérifiée ici, indépendamment de l'affichage de l'écran.
+ */
+export async function actionModifierParcoursRole(
+  _precedent: EtatHabilitation,
+  donnees: FormData
+): Promise<EtatHabilitation> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'roles.manage')) {
+    return { erreur: "Vous n'êtes pas autorisé à modifier les habilitations." }
+  }
+
+  const role = String(donnees.get('role') ?? '').trim()
+
+  if (role === '') return { erreur: 'Rôle manquant.' }
+
+  // Cases décochées : le navigateur ne les envoie pas. L'absence vaut retrait — la liste reçue
+  // décrit l'état complet du rôle.
+  const parcours = donnees.getAll('parcours').map((p) => String(p))
+
+  try {
+    await modifierParcoursRole(acteur, role, parcours)
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Modification des types de déclaration en échec', erreur)
+    return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revalidatePath('/administration/habilitations')
+
+  return {
+    succes:
+      parcours.length === 0
+        ? `« ${role} » n’ouvre plus aucun type de déclaration. Ses porteurs ne voient plus aucun dossier.`
+        : `Types de déclaration de « ${role} » enregistrés. Effet immédiat.`,
+  }
 }
 
 /**

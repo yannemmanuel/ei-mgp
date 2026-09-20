@@ -4,6 +4,13 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { DomaineVue, RoleVue } from '../editeur'
 
+/** Les types proposés à la coche : deux suffisent à exercer l'écran. */
+const PARCOURS_TEST = [
+  { code: 'ei_employe', libelle: 'Événement Indésirable (Employé)' },
+  { code: 'grief_employe', libelle: 'Grief / plainte (Employé)' },
+]
+
+
 /**
  * Les GESTES de l'écran des habilitations, exercés dans un vrai DOM.
  *
@@ -25,6 +32,7 @@ vi.mock('../actions', () => ({
   actionCreerRole: async () => ({}),
   actionModifierHabilitations: async () => ({}),
   actionModifierIdentiteRole: async () => ({}),
+  actionModifierParcoursRole: async () => ({}),
   actionSupprimerRole: async () => ({}),
 }))
 
@@ -76,7 +84,7 @@ const ROLE: RoleVue = {
   ajoutees: [],
   livre: true,
   rattachements: 2,
-  parcours: ['Événement Indésirable (Employé)'],
+  parcours: [{ code: 'Événement Indésirable (Employé)', libelle: 'Événement Indésirable (Employé)' }],
   tousLesParcours: false,
 }
 
@@ -97,7 +105,7 @@ const ROLE_CREE: RoleVue = {
 }
 
 function afficher(roles: RoleVue[] = [ROLE]) {
-  render(<EditeurHabilitations roles={roles} domaines={DOMAINES} />)
+  render(<EditeurHabilitations roles={roles} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />)
   return userEvent.setup()
 }
 
@@ -198,17 +206,21 @@ describe('Ce que l’écran montre au repos', () => {
 
 describe('Navigation au clavier', () => {
   it('passe d’un onglet à l’autre aux flèches, comme le rôle « tablist » l’annonce', async () => {
-    // ⚠️ Un rôle CRÉÉ ICI : lui seul porte trois onglets. Un rôle livré n'en a que deux, et
-    // `{End}` ne prouverait alors rien de plus que `{ArrowRight}`.
+    // ⚠️ Un rôle CRÉÉ ICI : lui seul porte l'onglet « Supprimer ». Un rôle livré n'en a que
+    // trois, et `{End}` ne prouverait alors rien de plus que `{ArrowRight}`.
     const clavier = afficher([ROLE_CREE])
     await ouvrir(clavier, 'Gestionnaire des supports')
 
     const droits = screen.getByRole('tab', { name: /Droits/ })
     droits.focus()
 
+    // L'onglet qui suit « Droits » est « Déclarations » depuis que les types de déclaration se
+    // cochent ici : la flèche doit l'atteindre comme n'importe quel autre.
     await clavier.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Nom' }).getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Nom' }))
+    expect(
+      screen.getByRole('tab', { name: /Déclarations/ }).getAttribute('aria-selected')
+    ).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /Déclarations/ }))
 
     await clavier.keyboard('{End}')
     expect(screen.getByRole('tab', { name: 'Supprimer' }).getAttribute('aria-selected')).toBe(
@@ -355,7 +367,7 @@ describe('Créer et supprimer un rôle', () => {
     await ouvrir(clavier, 'Gestionnaire des supports')
 
     expect(screen.getByText('Créé ici')).toBeDefined()
-    expect(screen.getByText(/N’ouvre aucun dossier/)).toBeDefined()
+    expect(screen.getByText(/N’ouvre aucun type de déclaration/)).toBeDefined()
   })
 })
 

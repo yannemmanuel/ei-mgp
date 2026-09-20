@@ -45,8 +45,17 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
     return !dossier.isAnonymous && dossier.declarantUserId === u.id
   }
 
+  /*
+    ⚠️ « TOUS LES DOSSIERS » VEUT DIRE « TOUS CEUX DE SES TYPES ».
+
+    Ce droit lève le cloisonnement par rattachement et l'appartenance du dossier, jamais
+    l'habilitation par type de déclaration — celle-ci se coche dans les habilitations depuis le
+    2026-09-20, et une case sans effet serait pire que pas de case du tout.
+
+    `perimetreDossiers()` dit exactement la même chose en SQL, et un test croise les deux.
+  */
   if (aPermission(u, 'dossiers.view.all')) {
-    return true
+    return peutVoirParcours(u, dossier.parcoursCode)
   }
 
   /**

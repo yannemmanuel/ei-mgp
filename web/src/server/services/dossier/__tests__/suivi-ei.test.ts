@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { ROLES, chargerUtilisateurAutorise, peutVoirParcours, parcoursAutorises } from '@/server/authz'
 import { perimetreDossiers } from '../liste'
 import { dateLimite } from '../delais'
-import { chargesDeSecurite, estEvenementIndesirable, suiviEi } from '../suivi-ei'
+import { estEvenementIndesirable, personnesEnCharge, suiviEi } from '../suivi-ei'
 
 /**
  * Le nouveau circuit de l'évènement indésirable.
@@ -187,12 +187,12 @@ describe('Le bloc de suivi', () => {
     const chargeDeA = await compteCharge(a.id)
 
     expect(
-      (await chargesDeSecurite({ siteId: a.id, directionId: null })).map((c) => c.id),
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: a.id, directionId: null })).map((c) => c.id),
       'le chargé du site n’est pas retenu sur son propre site'
     ).toContainEqual(chargeDeA)
 
     expect(
-      (await chargesDeSecurite({ siteId: b.id, directionId: null })).map((c) => c.id),
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: b.id, directionId: null })).map((c) => c.id),
       'le chargé d’un site est proposé sur un autre'
     ).not.toContainEqual(chargeDeA)
   })
@@ -210,7 +210,7 @@ describe('Le bloc de suivi', () => {
     const site = await prisma.sites.findFirstOrThrow({ select: { id: true } })
 
     expect(
-      (await chargesDeSecurite({ siteId: site.id, directionId: null })).map((c) => c.id)
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: site.id, directionId: null })).map((c) => c.id)
     ).toContainEqual(sansRattachement)
   })
 
@@ -233,13 +233,13 @@ describe('Le bloc de suivi', () => {
     const chargeDeLaDirection = await compteCharge(null, direction.id)
 
     expect(
-      (await chargesDeSecurite({ siteId: null, directionId: direction.id })).map((c) => c.id),
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: null, directionId: direction.id })).map((c) => c.id),
       'le chargé habilité sur cette direction n’est pas retenu'
     ).toContainEqual(chargeDeLaDirection)
 
     if (autre) {
       expect(
-        (await chargesDeSecurite({ siteId: null, directionId: autre.id })).map((c) => c.id),
+        (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: null, directionId: autre.id })).map((c) => c.id),
         'il est proposé sur une AUTRE direction'
       ).not.toContainEqual(chargeDeLaDirection)
     }
@@ -257,7 +257,7 @@ describe('Le bloc de suivi', () => {
     const sansRattachement = await compteCharge(null)
 
     expect(
-      (await chargesDeSecurite({ siteId: null, directionId: null })).map((c) => c.id),
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: null, directionId: null })).map((c) => c.id),
       'aucun chargé n’est retenu sur un dossier sans site'
     ).toContainEqual(sansRattachement)
   })
@@ -268,10 +268,7 @@ describe('Le bloc de suivi', () => {
       select: { id: true, site_id: true, direction_id: true },
     })
 
-    const suivi = await suiviEi(dossier.id, {
-      siteId: dossier.site_id,
-      directionId: dossier.direction_id,
-    })
+    const suivi = await suiviEi(dossier.id)
     const reelles = await prisma.actions_correctives.findMany({
       where: { dossier_id: dossier.id },
       select: { statut: true },

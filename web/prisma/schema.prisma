@@ -380,6 +380,7 @@ model parcours {
   dossiers                dossiers[]
   notification_templates  notification_templates[]
   qr_codes                qr_codes[]
+  role_parcours           role_parcours[]
   sla_delais              sla_delais[]
   statistiques_mensuelles statistiques_mensuelles[]
   utilisateur_parcours    utilisateur_parcours[]
@@ -455,6 +456,7 @@ model roles {
   actif                Boolean                @default(true)
   model_has_roles      model_has_roles[]
   role_has_permissions role_has_permissions[]
+  role_parcours        role_parcours[]
 
   @@unique([name, guard_name], map: "roles_name_guard_name_unique")
 }
@@ -634,4 +636,18 @@ model invitations_connexion {
   users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id], map: "invitations_connexion_user_id_index")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_parcours {
+  id          BigInt    @id @default(autoincrement())
+  role_id     BigInt
+  parcours_id BigInt
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  parcours    parcours  @relation(fields: [parcours_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_parcours_id_foreign")
+  roles       roles     @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_role_id_foreign")
+
+  @@unique([role_id, parcours_id], map: "role_parcours_unique")
+  @@index([role_id], map: "role_parcours_role_id_index")
 }
