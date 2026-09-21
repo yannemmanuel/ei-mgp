@@ -4,7 +4,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
 import { DOMAINES, LIBELLES } from '@/server/authz'
-import { chargerHabilitations } from '@/server/services/administration/habilitations'
+import {
+  chargerHabilitations,
+  COMPORTEMENTS_NOMS,
+  COMPORTEMENTS_ROLE,
+} from '@/server/services/administration/habilitations'
 import { EditeurHabilitations } from './editeur'
 
 export const metadata: Metadata = { title: 'Administration — Habilitations' }
@@ -22,7 +26,8 @@ export default async function PageHabilitations() {
 
   // Les types de déclaration arrivent désormais avec leur libellé, résolus par le service : ils
   // ne sont plus décrits par le code, ils se lisent en base comme les permissions.
-  const { lignes, permissions, parcoursDisponibles, ecarts } = await chargerHabilitations()
+  const { lignes, permissions, parcoursDisponibles, etapesDisponibles, ecarts } =
+    await chargerHabilitations()
 
   const ecartParRole = new Map(ecarts.map((e) => [e.role, e]))
 
@@ -77,14 +82,35 @@ export default async function PageHabilitations() {
           ajoutees: ecartParRole.get(ligne.role)?.ajoutees ?? [],
           livre: ligne.livre,
           rattachements: ligne.rattachements,
-          parcours: ligne.parcours.map((p) => ({ code: p.code, libelle: p.libelle })),
+          parcours: ligne.parcours.map((p) => ({
+            code: p.code,
+            libelle: p.libelle,
+            alerteCircuitCritique: p.alerteCircuitCritique,
+          })),
           tousLesParcours: ligne.parcours.length === parcoursDisponibles.length,
-          traiteLesDossiers: ligne.traiteLesDossiers,
+          comportements: { ...ligne.comportements },
+          etapes: ligne.etapes.map((e) => ({ parcours: e.parcours, statut: e.statut })),
         }))}
         domaines={domaines}
         parcoursDisponibles={parcoursDisponibles.map((p) => ({
           code: p.code,
           libelle: p.libelle,
+        }))}
+        etapesDisponibles={etapesDisponibles.map((e) => ({
+          code: e.code,
+          libelle: e.libelle,
+        }))}
+        /*
+          Les libellés des comportements viennent du SERVEUR, où vit le catalogue.
+
+          Les écrire dans le composant aurait créé une seconde formulation, à côté de celle que le
+          code applique — et c'est exactement ainsi qu'un écran finit par promettre autre chose
+          que ce qui se passe.
+        */
+        comportementsDisponibles={COMPORTEMENTS_NOMS.map((cle) => ({
+          cle,
+          libelle: COMPORTEMENTS_ROLE[cle].libelle,
+          aide: COMPORTEMENTS_ROLE[cle].aide,
         }))}
       />
 

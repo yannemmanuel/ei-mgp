@@ -5,10 +5,12 @@ import {
   PARCOURS_CODES,
   ROLES,
   ROLE_NAMES,
+  donneAccesAuxDossiers,
   type ParcoursCode,
   type Permission,
-  type Role,
+  type RoleLivre,
 } from '@/server/authz'
+import { STATUTS, transitionsDepuis, type StatutCode } from '../dossier/statuts'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser } from '../audit/journal'
 
@@ -26,17 +28,21 @@ const GUARD = 'web'
  * qui n'a pas écrit l'application.
  */
 export async function parcoursParRole(): Promise<
-  Map<string, { code: ParcoursCode; libelle: string }[]>
+  Map<string, { code: ParcoursCode; libelle: string; alerteCircuitCritique: boolean }[]>
 > {
   const lignes = await prisma.role_parcours.findMany({
     where: { roles: { guard_name: GUARD } },
     select: {
+      alerte_circuit_critique: true,
       roles: { select: { name: true } },
       parcours: { select: { code: true, libelle: true, ordre: true } },
     },
   })
 
-  const par = new Map<string, { code: ParcoursCode; libelle: string; ordre: number }[]>()
+  const par = new Map<
+    string,
+    { code: ParcoursCode; libelle: string; ordre: number; alerteCircuitCritique: boolean }[]
+  >()
 
   for (const ligne of lignes) {
     const deja = par.get(ligne.roles.name) ?? []
@@ -44,6 +50,7 @@ export async function parcoursParRole(): Promise<
       code: ligne.parcours.code as ParcoursCode,
       libelle: ligne.parcours.libelle,
       ordre: ligne.parcours.ordre,
+      alerteCircuitCritique: ligne.alerte_circuit_critique,
     })
     par.set(ligne.roles.name, deja)
   }
@@ -53,7 +60,44 @@ export async function parcoursParRole(): Promise<
   return new Map(
     [...par].map(([role, liste]) => [
       role,
-      liste.sort((a, b) => a.ordre - b.ordre).map(({ code, libelle }) => ({ code, libelle })),
+      liste
+        .sort((a, b) => a.ordre - b.ordre)
+        .map(({ code, libelle, alerteCircuitCritique }) => ({
+          code,
+          libelle,
+          alerteCircuitCritique,
+        })),
+    ])
+  )
+}
+
+/**
+ * Les rôles dont les porteurs sont bornés à leur site ou à leur direction.
+ *
+ * ⚠️ LA LISTE A QUITTÉ LE CODE le 2026-09-21 : elle y était écrite nom par nom, si bien qu'un rôle
+ * créé depuis l'interface n'y figurait jamais et voyait tous les sites sans que rien ne le dise.
+ * La console des comptes s'appuyait dessus pour signaler « rattachement manquant » ; elle lit
+ * désormais la même colonne que l'autorisation elle-même.
+ */
+export async function cloisonnementParRole(): Promise<
+  Map<string, { cloisonne: boolean; donneAcces: boolean }>
+> {
+  const lignes = await prisma.roles.findMany({
+    where: { guard_name: GUARD },
+    select: {
+      name: true,
+      cloisonne_par_rattachement: true,
+      role_has_permissions: { select: { permissions: { select: { name: true } } } },
+    },
+  })
+
+  return new Map(
+    lignes.map((l) => [
+      l.name,
+      {
+        cloisonne: l.cloisonne_par_rattachement,
+        donneAcces: donneAccesAuxDossiers(l.role_has_permissions.map((r) => r.permissions.name)),
+      },
     ])
   )
 }
@@ -120,15 +164,90 @@ export type LigneHabilitation = {
    * périmètre sans déploiement — ce qui n'était pas possible avant, ses permissions s'appliquant
    * alors sans porter sur aucun dossier.
    */
-  readonly parcours: readonly { readonly code: ParcoursCode; readonly libelle: string }[]
+  readonly parcours: readonly {
+    readonly code: ParcoursCode
+    readonly libelle: string
+    /** RG-08 : alerté immédiatement quand une déclaration de CE type est qualifiée critique. */
+    readonly alerteCircuitCritique: boolean
+  }[]
   /**
-   * Ce rôle a la CHARGE des dossiers de son périmètre.
+   * Les quatre comportements du rôle, tels qu'ils se cochent.
    *
-   * Ses porteurs apparaissent comme titulaires sur les fiches et voient ces dossiers dans « vos
-   * dossiers à traiter ». Un rôle d'arbitrage ou d'observation ne l'a pas, même s'il peut faire
-   * avancer un dossier.
+   * ⚠️ TOUS LES QUATRE SE LISAIENT DANS DES NOMS DE RÔLES jusqu'au 2026-09-21. Un rôle créé depuis
+   * l'interface ne figurait dans aucune de ces listes : il n'était borné par aucun rattachement,
+   * voyait l'identité des déclarants, et rien ne le disait à qui venait de le créer.
    */
-  readonly traiteLesDossiers: boolean
+  readonly comportements: Readonly<Record<ComportementRole, boolean>>
+  /**
+   * La grille « qui fait avancer quoi » : une case par type de déclaration et par étape.
+   *
+   * ⚠️ UNE CASE VIDE INTERDIT. Ce qui n'est pas coché n'est pas permis — voir `authz/etapes.ts`.
+   */
+  readonly etapes: readonly { readonly parcours: string; readonly statut: string }[]
+}
+
+/**
+ * Les quatre comportements d'un rôle qui ne sont ni une permission, ni un type, ni une étape.
+ *
+ * ⚠️ CE CATALOGUE EST FERMÉ, ET C'EST LA DIFFÉRENCE AVEC LES RÔLES. Un comportement est un endroit
+ * du code qui LIT la colonne : en ajouter un demande d'écrire ce code, donc un déploiement. Ce qui
+ * est libre, c'est de décider quel rôle le porte — et c'est précisément ce qui manquait.
+ *
+ * Le libellé et l'aide vivent ici plutôt que dans l'écran : trois écrans les affichent déjà, et
+ * une formulation recopiée finit par décrire autre chose que ce que le code applique.
+ */
+export const COMPORTEMENTS_ROLE = {
+  traite_dossiers: {
+    libelle: 'A la charge des dossiers de son périmètre',
+    aide: "Ses porteurs apparaissent comme titulaires sur chaque fiche de leur périmètre, et ces dossiers entrent dans leur « à traiter ». Distinct du droit de faire avancer un dossier : le Service MGP arbitre sans instruire.",
+  },
+  cloisonne_par_rattachement: {
+    libelle: 'Borné à son site ou à sa direction',
+    aide: "Ses porteurs ne voient que les déclarations de leur rattachement. Un compte habilité sur une seule direction ne reçoit que celles de cette direction ; un compte habilité sur un site reçoit celles de toutes ses directions.",
+  },
+  voit_seulement_ses_declarations: {
+    libelle: 'Ne voit que ses propres déclarations',
+    aide: "Réservé aux rôles de déclarant. Ses porteurs ne voient que ce qu'ils ont eux-mêmes déposé, et jamais une déclaration anonyme — qui n'est rattachée à aucun compte.",
+  },
+  voit_identite_declarant: {
+    libelle: "Voit l'identité du déclarant",
+    aide: "Décoché, c'est un accès « sans données nominatives » : ses porteurs lisent les dossiers mais jamais qui a déclaré, ni son poste. Coché par défaut.",
+  },
+} as const satisfies Record<string, { libelle: string; aide: string }>
+
+export type ComportementRole = keyof typeof COMPORTEMENTS_ROLE
+
+export const COMPORTEMENTS_NOMS = Object.keys(COMPORTEMENTS_ROLE) as ComportementRole[]
+
+/** Les étapes de DÉPART qui se cochent : celles d'où un dossier peut effectivement partir. */
+export type EtapeACocher = {
+  readonly code: StatutCode
+  readonly libelle: string
+}
+
+/**
+ * Les étapes proposées à la grille.
+ *
+ * ⚠️ SEULEMENT CELLES D'OÙ L'ON PEUT PARTIR. « Résolu » et « Clos » n'ont aucune transition
+ * sortante : y désigner un acteur ne débloquerait rien, et les afficher donnerait à croire que
+ * huit cases sont restées vides par oubli.
+ *
+ * Le libellé vient de la base — c'est celui que porte le dossier à l'écran. Un code technique dans
+ * une grille de seize cases se lit mal, et se coche mal.
+ */
+export async function etapesACocher(): Promise<EtapeACocher[]> {
+  const lignes = await prisma.statuts_dossier.findMany({
+    orderBy: { ordre: 'asc' },
+    select: { code: true, libelle_interne: true },
+  })
+
+  return lignes
+    .filter(
+      (l) =>
+        (STATUTS as readonly string[]).includes(l.code) &&
+        transitionsDepuis(l.code as StatutCode).length > 0
+    )
+    .map((l) => ({ code: l.code as StatutCode, libelle: l.libelle_interne }))
 }
 
 export type EcartHabilitation = {
@@ -144,14 +263,22 @@ export type Habilitations = {
   readonly permissions: readonly Permission[]
   /** Les types de déclaration proposés à la coche — ceux qui sont actifs en base. */
   readonly parcoursDisponibles: readonly { readonly code: ParcoursCode; readonly libelle: string }[]
+  /** Les colonnes de la grille des étapes : celles d'où un dossier peut partir. */
+  readonly etapesDisponibles: readonly EtapeACocher[]
   readonly ecarts: EcartHabilitation[]
 }
 
 const MODEL_TYPE_USER = String.raw`App\Models\User`
 
 export async function chargerHabilitations(): Promise<Habilitations> {
-  const [rolesEnBase, associations, comptesActifs, parcoursDesRoles, tousLesParcours] =
-    await Promise.all([
+  const [
+    rolesEnBase,
+    associations,
+    comptesActifs,
+    parcoursDesRoles,
+    tousLesParcours,
+    toutesLesEtapes,
+  ] = await Promise.all([
     prisma.roles.findMany({
       // Les rôles d'un autre garde ne concernent pas cette application : les lister ici les
       // aurait présentés comme administrables, et comparés à une référence qui ne les vise pas.
@@ -161,8 +288,19 @@ export async function chargerHabilitations(): Promise<Habilitations> {
         libelle: true,
         description: true,
         actif: true,
+        // Les quatre comportements qui se lisaient dans des noms de rôles — voir
+        // `COMPORTEMENTS_ROLE`. Un rôle absent de la base n'en porte aucun : il ne confère rien.
         traite_dossiers: true,
+        cloisonne_par_rattachement: true,
+        voit_seulement_ses_declarations: true,
+        voit_identite_declarant: true,
         role_has_permissions: { select: { permissions: { select: { name: true } } } },
+        role_etapes: {
+          select: {
+            parcours: { select: { code: true } },
+            statuts_dossier: { select: { code: true } },
+          },
+        },
       },
     }),
     prisma.model_has_roles.findMany({
@@ -172,6 +310,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     prisma.users.findMany({ where: { actif: true }, select: { id: true } }),
     parcoursParRole(),
     parcoursACocher(),
+    etapesACocher(),
   ])
 
   // `model_has_roles` est la table polymorphe de Spatie : elle n'a pas de relation vers `users`,
@@ -207,19 +346,34 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       role,
       // Un rôle décidé par le code mais absent de la base n'a ni libellé ni activation : il est
       // présenté comme inactif, ce qu'il est de fait — il ne confère rien.
-      libelle: enBase?.libelle ?? LIBELLES_ROLE[role as Role],
+      libelle: enBase?.libelle ?? LIBELLES_ROLE[role] ?? role,
       description: enBase?.description ?? null,
       actif: enBase?.actif ?? false,
       permissions:
         enBase?.role_has_permissions.map((rhp) => rhp.permissions.name as Permission).sort() ?? [],
-      reference: livre ? ROLES[role as Role] : [],
+      reference: livre ? ROLES[role as RoleLivre] : [],
       comptes: effectifs.get(role) ?? 0,
       livre,
       rattachements: rattachements.get(role) ?? 0,
       parcours: parcoursDesRoles.get(role) ?? [],
-      // Faux pour un rôle décrit par le code mais absent de la base : il ne confère rien, donc il
-      // ne traite rien non plus.
-      traiteLesDossiers: enBase?.traite_dossiers ?? false,
+      /*
+        Faux pour un rôle décrit par le code mais absent de la base : il ne confère rien, donc il
+        ne traite rien non plus.
+
+        ⚠️ `voit_identite_declarant` EST VRAI PAR DÉFAUT, contrairement aux trois autres. C'est un
+        RETRAIT qui se coche — un accès « sans données nominatives » —, et un rôle qu'on oublie de
+        paramétrer doit voir ce que voient les autres, pas moins.
+      */
+      comportements: {
+        traite_dossiers: enBase?.traite_dossiers ?? false,
+        cloisonne_par_rattachement: enBase?.cloisonne_par_rattachement ?? false,
+        voit_seulement_ses_declarations: enBase?.voit_seulement_ses_declarations ?? false,
+        voit_identite_declarant: enBase?.voit_identite_declarant ?? true,
+      },
+      etapes: (enBase?.role_etapes ?? []).map((e) => ({
+        parcours: e.parcours.code,
+        statut: e.statuts_dossier.code,
+      })),
     }
   })
 
@@ -227,6 +381,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     lignes,
     permissions: PERMISSIONS,
     parcoursDisponibles: tousLesParcours,
+    etapesDisponibles: toutesLesEtapes,
     ecarts: comparer(rolesEnBase),
   }
 }
@@ -252,7 +407,7 @@ function comparer(
     if (!(ROLE_NAMES as readonly string[]).includes(role.name)) continue
 
     const enBase = new Set(role.role_has_permissions.map((r) => r.permissions.name))
-    const attendues = new Set<string>(ROLES[role.name as Role] ?? [])
+    const attendues = new Set<string>(ROLES[role.name as RoleLivre] ?? [])
 
     const retirees = [...attendues].filter((p) => !enBase.has(p)).sort()
     const ajoutees = [...enBase].filter((p) => !attendues.has(p)).sort()
@@ -358,7 +513,17 @@ export async function modifierPermissionsRole(
 export async function modifierParcoursRole(
   acteur: { id: bigint },
   role: string,
-  parcoursVoulus: readonly string[]
+  parcoursVoulus: readonly string[],
+  /*
+    ⚠️ LES TYPES ALERTÉS EN CIRCUIT ACCÉLÉRÉ, cochés dans la MÊME grille et enregistrés dans le
+    même geste — parce qu'ils vivent sur la même ligne (`role_parcours.alerte_circuit_critique`).
+
+    Deux formulaires séparés auraient laissé une fenêtre où le type est décoché mais son alerte
+    encore cochée : la ligne disparaît, l'alerte avec elle, sans que l'écran l'ait annoncé. Ici,
+    l'alerte d'un type non coché est simplement ignorée — cocher l'un sans l'autre n'a pas de
+    sens, et refuser l'enregistrement pour cela ne rendrait service à personne.
+  */
+  circuitVoulu: readonly string[] = []
 ): Promise<void> {
   const inconnus = parcoursVoulus.filter(
     (p) => !(PARCOURS_CODES as readonly string[]).includes(p)
@@ -372,7 +537,12 @@ export async function modifierParcoursRole(
     where: { name: role, guard_name: GUARD },
     select: {
       id: true,
-      role_parcours: { select: { parcours: { select: { id: true, code: true } } } },
+      role_parcours: {
+        select: {
+          alerte_circuit_critique: true,
+          parcours: { select: { id: true, code: true } },
+        },
+      },
     },
   })
 
@@ -381,10 +551,22 @@ export async function modifierParcoursRole(
   const actuels = new Map(ligneRole.role_parcours.map((rp) => [rp.parcours.code, rp.parcours.id]))
   const voulus = new Set(parcoursVoulus)
 
+  // Un type non coché ne peut pas être alerté : sa ligne n'existera pas.
+  const alertes = new Set([...circuitVoulu].filter((code) => voulus.has(code)))
+
   const aRetirer = [...actuels.entries()].filter(([code]) => !voulus.has(code))
   const aAjouter = [...voulus].filter((code) => !actuels.has(code))
 
-  if (aRetirer.length === 0 && aAjouter.length === 0) return
+  const circuitActuel = new Set(
+    ligneRole.role_parcours
+      .filter((rp) => rp.alerte_circuit_critique)
+      .map((rp) => rp.parcours.code)
+  )
+
+  const circuitChange =
+    alertes.size !== circuitActuel.size || [...alertes].some((code) => !circuitActuel.has(code))
+
+  if (aRetirer.length === 0 && aAjouter.length === 0 && !circuitChange) return
 
   if (aRetirer.length > 0) {
     await prisma.role_parcours.deleteMany({
@@ -395,7 +577,7 @@ export async function modifierParcoursRole(
   if (aAjouter.length > 0) {
     const lignes = await prisma.parcours.findMany({
       where: { code: { in: aAjouter } },
-      select: { id: true },
+      select: { id: true, code: true },
     })
 
     const maintenant = new Date()
@@ -404,10 +586,31 @@ export async function modifierParcoursRole(
       data: lignes.map((p) => ({
         role_id: ligneRole.id,
         parcours_id: p.id,
+        alerte_circuit_critique: alertes.has(p.code),
         created_at: maintenant,
         updated_at: maintenant,
       })),
     })
+  }
+
+  /*
+    Les lignes qui SUBSISTENT et dont l'alerte change.
+
+    Séparé des créations ci-dessus, qui posent déjà la bonne valeur : les mêmes lignes seraient
+    sinon écrites deux fois, et la seconde écriture masquerait une erreur de la première.
+  */
+  if (circuitChange) {
+    const subsistantes = [...actuels.entries()].filter(([code]) => voulus.has(code))
+
+    for (const [code, id] of subsistantes) {
+      const voulue = alertes.has(code)
+      if (circuitActuel.has(code) === voulue) continue
+
+      await prisma.role_parcours.updateMany({
+        where: { role_id: ligneRole.id, parcours_id: id },
+        data: { alerte_circuit_critique: voulue, updated_at: new Date() },
+      })
+    }
   }
 
   await journaliser({
@@ -415,8 +618,8 @@ export async function modifierParcoursRole(
     acteurId: acteur.id,
     auditableType: MODELES.role,
     auditableId: String(ligneRole.id),
-    anciennes: { role, parcours: [...actuels.keys()].sort() },
-    nouvelles: { role, parcours: [...voulus].sort() },
+    anciennes: { role, parcours: [...actuels.keys()].sort(), circuitCritique: [...circuitActuel].sort() },
+    nouvelles: { role, parcours: [...voulus].sort(), circuitCritique: [...alertes].sort() },
   })
 }
 
@@ -486,44 +689,65 @@ export async function modifierIdentiteRole(
  * suspendre un rôle et le vider.
  */
 /**
- * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ * Un des quatre comportements du rôle — voir `COMPORTEMENTS_ROLE`.
  *
- * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle : ils
- * apparaissent — ou cessent d'apparaître — comme titulaires sur chaque fiche de leur périmètre, et
- * ces dossiers entrent ou sortent de leur « vos dossiers à traiter ».
+ * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle :
+ * `chargerUtilisateurAutorise()` relit ces colonnes à chaque requête. Cocher « borné à son site »
+ * retire de leur vue tous les dossiers des autres sites sans attendre une reconnexion — c'est
+ * l'effet voulu, et c'est pourquoi le geste est journalisé comme les permissions.
  *
- * ⚠️ DISTINCT DE `dossiers.status.update`. Ce droit dit qu'on peut faire AVANCER un dossier ; ce
- * paramètre dit qu'on en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le
- * droit, pas la charge. Avoir déduit l'un de l'autre l'a fait apparaître comme titulaire de tous
- * les dossiers — c'est le défaut que ce paramètre corrige.
+ * ⚠️ « A LA CHARGE » EST DISTINCT DE `dossiers.status.update`. Ce droit dit qu'on peut faire
+ * AVANCER un dossier ; ce paramètre dit qu'on en RÉPOND. Le Service MGP arbitre et relance sans
+ * instruire : il porte le droit, pas la charge. Avoir déduit l'un de l'autre l'a fait apparaître
+ * comme titulaire de tous les dossiers — c'est le défaut que ce paramètre corrige.
  */
-export async function changerChargeDesDossiers(
+export async function changerComportementRole(
   acteur: { id: bigint },
   role: string,
-  traite: boolean
+  comportement: ComportementRole,
+  valeur: boolean
 ): Promise<void> {
+  /*
+    ⚠️ LE NOM DE COLONNE EST VALIDÉ CONTRE LE CATALOGUE, jamais repris tel quel.
+
+    Il arrive d'un formulaire, et il sert de clé dans un `data:` Prisma. Sans cette garde, un
+    champ forgé désignerait n'importe quelle colonne de `roles` — `actif`, par exemple, dont la
+    modification a son propre contrôle et son propre journal.
+  */
+  if (!(COMPORTEMENTS_NOMS as readonly string[]).includes(comportement)) {
+    throw new ErreurWorkflow('Comportement inconnu.')
+  }
+
   const ligne = await prisma.roles.findFirst({
     where: { name: role, guard_name: GUARD },
-    select: { id: true, traite_dossiers: true },
+    select: {
+      id: true,
+      traite_dossiers: true,
+      cloisonne_par_rattachement: true,
+      voit_seulement_ses_declarations: true,
+      voit_identite_declarant: true,
+    },
   })
 
   if (!ligne) throw new ErreurWorkflow('Rôle inconnu.')
 
-  if (ligne.traite_dossiers === traite) return
+  const avant = ligne[comportement]
+
+  if (avant === valeur) return
 
   await prisma.roles.update({
     where: { id: ligne.id },
-    data: { traite_dossiers: traite, updated_at: new Date() },
+    data: { [comportement]: valeur, updated_at: new Date() },
   })
 
   await journaliser({
     /*
       ⚠️ CODE GÉNÉRIQUE À DESSEIN, pour l'instant.
 
-      `role.charge_modifiee` serait plus parlant, mais le journal traduit les codes depuis une
-      table qui vit dans `audit/libelles.ts` — un fichier en cours de modification ailleurs, que
-      je ne dois pas toucher sous peine d'écraser du travail. Un code sans libellé s'afficherait
-      en clair technique dans le journal.
+      `role.comportement_modifie` serait plus parlant, mais le journal traduit les codes depuis
+      une table qui vit dans `audit/libelles.ts` — un fichier en cours de modification ailleurs,
+      que je ne dois pas toucher sous peine d'écraser du travail. Un code sans libellé
+      s'afficherait en clair technique dans le journal.
 
       `role.modifie` est déjà traduit, et les valeurs ci-dessous disent exactement ce qui a
       changé. À renommer quand le fichier des libellés sera libre.
@@ -532,8 +756,114 @@ export async function changerChargeDesDossiers(
     acteurId: acteur.id,
     auditableType: MODELES.role,
     auditableId: String(ligne.id),
-    anciennes: { role, traiteLesDossiers: ligne.traite_dossiers },
-    nouvelles: { role, traiteLesDossiers: traite },
+    anciennes: { role, [comportement]: avant },
+    nouvelles: { role, [comportement]: valeur },
+  })
+}
+
+/**
+ * La grille « qui fait avancer quoi » : quelles étapes ce rôle peut franchir, et sur quels types.
+ *
+ * ⚠️ CE GESTE PEUT BLOQUER UN CIRCUIT, et c'est le plus silencieux des réglages. Décocher la
+ * dernière case d'une colonne n'affiche aucune erreur : le dossier arrive à cette étape et n'en
+ * repart jamais, sans message, sans trace, sans que personne sache à qui s'adresser.
+ * `santeAdministration()` remonte ces colonnes vides au tableau de bord d'administration — c'est
+ * le seul endroit où on les verra.
+ *
+ * L'absence vaut retrait : la liste reçue décrit l'état complet du rôle, pas un ajout.
+ */
+export async function modifierEtapesRole(
+  acteur: { id: bigint },
+  role: string,
+  casesVoulues: readonly { readonly parcours: string; readonly statut: string }[]
+): Promise<void> {
+  const ligneRole = await prisma.roles.findFirst({
+    where: { name: role, guard_name: GUARD },
+    select: {
+      id: true,
+      role_etapes: {
+        select: {
+          id: true,
+          parcours: { select: { code: true } },
+          statuts_dossier: { select: { code: true } },
+        },
+      },
+    },
+  })
+
+  if (!ligneRole) throw new ErreurWorkflow('Rôle inconnu.')
+
+  const [parcoursEnBase, statutsEnBase] = await Promise.all([
+    prisma.parcours.findMany({ select: { id: true, code: true } }),
+    prisma.statuts_dossier.findMany({ select: { id: true, code: true } }),
+  ])
+
+  const idParcours = new Map(parcoursEnBase.map((p) => [p.code, p.id]))
+  const idStatut = new Map(statutsEnBase.map((s) => [s.code, s.id]))
+
+  /*
+    ⚠️ VALIDÉ CASE PAR CASE, contre la base ET contre le graphe des transitions.
+
+    Un couple inconnu passerait sinon en base sans rien faire — la fonction qui le lit ne le
+    trouverait jamais —, et un couple portant une étape terminale y resterait visible sans
+    autoriser quoi que ce soit : le graphe n'en laisse partir aucun dossier.
+  */
+  const cle = (c: { parcours: string; statut: string }) => `${c.parcours}/${c.statut}`
+  const voulues = new Map<string, { parcours: string; statut: string }>()
+
+  for (const cas of casesVoulues) {
+    if (!idParcours.has(cas.parcours) || !idStatut.has(cas.statut)) {
+      throw new ErreurWorkflow(`Étape inconnue : ${cle(cas)}.`)
+    }
+
+    if (
+      !(STATUTS as readonly string[]).includes(cas.statut) ||
+      transitionsDepuis(cas.statut as StatutCode).length === 0
+    ) {
+      throw new ErreurWorkflow(`Aucun dossier ne part de l’étape « ${cas.statut} ».`)
+    }
+
+    voulues.set(cle(cas), { parcours: cas.parcours, statut: cas.statut })
+  }
+
+  const actuelles = new Map(
+    ligneRole.role_etapes.map((e) => [
+      `${e.parcours.code}/${e.statuts_dossier.code}`,
+      { id: e.id, parcours: e.parcours.code, statut: e.statuts_dossier.code },
+    ])
+  )
+
+  const aRetirer = [...actuelles.values()].filter((e) => !voulues.has(cle(e)))
+  const aAjouter = [...voulues.values()].filter((e) => !actuelles.has(cle(e)))
+
+  if (aRetirer.length === 0 && aAjouter.length === 0) return
+
+  if (aRetirer.length > 0) {
+    await prisma.role_etapes.deleteMany({ where: { id: { in: aRetirer.map((e) => e.id) } } })
+  }
+
+  if (aAjouter.length > 0) {
+    const maintenant = new Date()
+
+    await prisma.role_etapes.createMany({
+      data: aAjouter.map((e) => ({
+        role_id: ligneRole.id,
+        parcours_id: idParcours.get(e.parcours) as bigint,
+        statut_id: idStatut.get(e.statut) as bigint,
+        created_at: maintenant,
+        updated_at: maintenant,
+      })),
+      skipDuplicates: true,
+    })
+  }
+
+  await journaliser({
+    action: 'role.modifie',
+    acteurId: acteur.id,
+    auditableType: MODELES.role,
+    auditableId: String(ligneRole.id),
+    anciennes: { role, etapes: [...actuelles.keys()].sort() },
+    nouvelles: { role, etapes: [...voulues.keys()].sort() },
   })
 }
 

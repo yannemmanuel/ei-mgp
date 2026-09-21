@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { ROLE_NAMES, etapesSansActeur, type Role } from '@/server/authz'
+import { ROLE_NAMES, etapesSansActeur, matriceDesEtapes } from '@/server/authz'
 import { configurationSmtp } from '../notification/transport'
 import { STATUTS } from '../dossier/statuts'
 
@@ -46,6 +46,7 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     associations,
     comptesActifs,
     statutsEnBase,
+    matrice,
   ] = await Promise.all([
     // Tant qu'un délai n'est pas validé, AUCUNE échéance n'est calculée pour cette étape : ni
     // relance à J-3, ni escalade. C'est le réglage le plus silencieusement bloquant du dispositif.
@@ -89,6 +90,16 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
 
     // Les états que le workflow nomme, confrontés à ce que la base porte réellement.
     prisma.statuts_dossier.findMany({ select: { code: true, actif: true } }),
+
+    /*
+      La grille « qui fait avancer quoi », telle qu'elle est cochée.
+
+      ⚠️ ELLE SE DÉCOCHE DEPUIS L'INTERFACE depuis le 2026-09-21. Tant qu'elle vivait dans le
+      code, une case vide voulait dire « ouverte à tous » et ne bloquait rien. Elle interdit
+      maintenant : une ligne décochée par mégarde arrête le circuit sans message et sans
+      recours, et c'est ici que l'administrateur doit l'apprendre.
+    */
+    matriceDesEtapes(),
   ])
 
   const actifs = new Set(comptesActifs.map((u) => u.id))
@@ -110,12 +121,10 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     erreur, il n'avance simplement jamais. Il s'ouvre mécaniquement dès qu'on réorganise les
     rôles avant d'avoir réattribué les comptes — ce qui vient de se produire.
   */
-  const rolesPortes = new Set<Role>(
-    associations
-      .filter((l) => actifs.has(l.model_id) && l.roles.actif)
-      .map((l) => l.roles.name as Role)
+  const rolesPortes = new Set<string>(
+    associations.filter((l) => actifs.has(l.model_id) && l.roles.actif).map((l) => l.roles.name)
   )
-  const orphelines = etapesSansActeur(rolesPortes)
+  const orphelines = etapesSansActeur(matrice, rolesPortes)
 
   /*
     Un rôle actif que personne ne porte n'est pas qu'une curiosité de configuration.

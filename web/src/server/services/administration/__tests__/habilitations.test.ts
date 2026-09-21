@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { PERMISSIONS, ROLES, ROLE_NAMES, type Role } from '@/server/authz'
+import { PERMISSIONS, ROLES, ROLE_NAMES, type RoleLivre } from '@/server/authz'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import {
   chargerHabilitations,
@@ -56,7 +56,7 @@ describe('Lecture de la matrice', () => {
       )
       // Un rôle créé depuis l'interface n'a pas de référence livrée : le code ne le connaît pas.
       expect(ligne.reference, `référence du rôle ${ligne.role}`).toEqual(
-        ligne.livre ? ROLES[ligne.role as Role] : []
+        ligne.livre ? ROLES[ligne.role as RoleLivre] : []
       )
     }
   })
@@ -96,7 +96,7 @@ describe('Détection d’écart', () => {
       })
 
       const enBase = new Set(role.role_has_permissions.map((r) => r.permissions.name))
-      const reference = new Set<string>(ROLES[ecart.role as Role] ?? [])
+      const reference = new Set<string>(ROLES[ecart.role as RoleLivre] ?? [])
 
       for (const ajoutee of ecart.ajoutees) {
         expect(enBase.has(ajoutee), `« ${ajoutee} » annoncée ajoutée mais absente de la base`).toBe(true)

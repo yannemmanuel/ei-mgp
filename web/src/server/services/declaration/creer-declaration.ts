@@ -5,7 +5,10 @@ import {
   rattachementCouvre,
   type ParcoursCode,
   type Permission,
+  type PourCloisonnement,
   type Role,
+  cloisonnePourSesRoles,
+  donneAccesAuxDossiers,
 } from '@/server/authz'
 import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
@@ -440,7 +443,6 @@ async function affecterAutomatiquement(
       direction_id: true,
       // Le site de sa direction : un compte rattaché à une direction appartient à son site.
       directions: { select: { site_id: true } },
-      utilisateur_parcours: { select: { parcours: { select: { code: true } } } },
     },
   })
 
@@ -467,6 +469,20 @@ async function affecterAutomatiquement(
           role_has_permissions: {
             select: { permissions: { select: { name: true, guard_name: true } } },
           },
+          /*
+            ⚠️ LES TYPES DE DÉCLARATION VIENNENT DU RÔLE, plus de l'attribution par personne.
+
+            Ce filtre lisait `utilisateur_parcours`, la table d'attribution individuelle — qui
+            n'entre plus dans aucune décision depuis le 2026-09-20 et n'est plus tenue à jour.
+            L'affectation automatique aurait donc suivi un périmètre différent de celui de la
+            lecture, sur la seule table que plus personne ne regarde.
+          */
+          role_parcours: {
+            where: { parcours: { actif: true } },
+            select: { parcours: { select: { code: true } } },
+          },
+          // Borné à son site ou à sa direction ? Paramètre du rôle, coché dans les habilitations.
+          cloisonne_par_rattachement: true,
         },
       },
     },
@@ -474,6 +490,12 @@ async function affecterAutomatiquement(
 
   const rolesParCompte = new Map<bigint, Role[]>()
   const permissionsParCompte = new Map<bigint, Set<Permission>>()
+  const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>()
+  /*
+    ⚠️ UN RÔLE À LA FOIS, puis la règle au bout : le compte n'est borné que si TOUS ses rôles
+    porteurs d'accès le prévoient — voir `cloisonnePourSesRoles()`.
+  */
+  const cloisonnementParCompte = new Map<bigint, { cloisonne: boolean; donneAcces: boolean }[]>()
 
   for (const lien of tousLesLiens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
@@ -489,6 +511,23 @@ async function affecterAutomatiquement(
       if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
     }
     permissionsParCompte.set(lien.model_id, permissions)
+
+    const ouverts = parcoursParCompte.get(lien.model_id) ?? new Set<ParcoursCode>()
+    for (const rp of lien.roles.role_parcours) ouverts.add(rp.parcours.code as ParcoursCode)
+    parcoursParCompte.set(lien.model_id, ouverts)
+
+    // Même lecture que `chargerUtilisateurAutorise()`, règle du cumul comprise.
+    cloisonnementParCompte.set(lien.model_id, [
+      ...(cloisonnementParCompte.get(lien.model_id) ?? []),
+      {
+        cloisonne: lien.roles.cloisonne_par_rattachement,
+        donneAcces: donneAccesAuxDossiers(
+          lien.roles.role_has_permissions
+            .filter((rhp) => rhp.permissions.guard_name === 'web')
+            .map((rhp) => rhp.permissions.name)
+        ),
+      },
+    ])
   }
 
   // Filtré par la MÊME fonction que celle qui décide de l'accès en lecture. Recopier la règle ici
@@ -497,7 +536,7 @@ async function affecterAutomatiquement(
     peutVoirParcours(
       {
         roles: rolesParCompte.get(u.id) ?? [],
-        parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
+        parcours: [...(parcoursParCompte.get(u.id) ?? [])],
       },
       parcours
     )
@@ -548,24 +587,11 @@ async function affecterAutomatiquement(
     // La photographie d'autorisation du candidat, dans la forme qu'attendent les fonctions de
     // cloisonnement. `siteId` est déduit de la direction comme dans `chargerUtilisateurAutorise()`.
     const pourCloisonnement = {
-      id: u.id,
-      actif: true,
       siteId: u.site_id ?? u.directions?.site_id ?? null,
       directionId: u.direction_id,
-      doitChangerMotDePasse: false,
-      roles: rolesParCompte.get(u.id) ?? [],
       permissions: permissionsParCompte.get(u.id) ?? new Set<Permission>(),
-      parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
-      /*
-        ⚠️ Sans objet ICI, et laissé à `false` plutôt qu'à une valeur inventée.
-
-        `rattachementCouvre()` ne lit que le rattachement et les rôles : la charge ne l'intéresse
-        pas. Ce bloc ne s'exécute d'ailleurs plus — aucun type de déclaration n'étant affecté
-        automatiquement, la fonction sort avant d'y arriver. Lui donner `true` laisserait croire
-        que ces comptes sont traitants, ce que seul le paramétrage du rôle décide.
-      */
-      traiteLesDossiers: false,
-    }
+      cloisonneParRattachement: cloisonnePourSesRoles(cloisonnementParCompte.get(u.id) ?? []),
+    } satisfies PourCloisonnement
 
     return rattachementCouvre(pourCloisonnement, {
       siteId: siteDuDossier,

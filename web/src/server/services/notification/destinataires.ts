@@ -32,24 +32,53 @@ export async function utilisateursAvecRoles(roles: readonly string[]): Promise<D
 }
 
 /**
- * RG-08 / EX-NOT-05 : matrice du circuit accéléré, reprise exacte du CDC §6.5
- * (docs/regles-metier.md §C).
+ * RG-08 / EX-NOT-05 : qui est alerté quand une déclaration est qualifiée critique.
  *
- * « Président CSST » est résolu via l'attribut `poste` et non par un rôle RBAC (DT-07) ;
+ * ⚠️ LA MATRICE A QUITTÉ LE CODE le 2026-09-21. Elle y était écrite rôle par rôle : un rôle créé
+ * depuis l'interface n'y figurait pas, n'était alerté d'aucun circuit accéléré, et rien ne le
+ * signalait — ni à l'administrateur, ni à son porteur, qui ne recevait simplement jamais rien.
+ * Elle se coche maintenant dans `role_parcours`, à côté des types de déclaration.
+ *
+ * ⚠️ COCHÉE PAR TYPE, ET C'ÉTAIT INDISPENSABLE. Un booléen posé sur le rôle ne pouvait pas dire
+ * « alerté sur les griefs, pas sur les évènements indésirables » — ce que le CDC demande pourtant
+ * du Service MGP et de la DG. Croiser un tel booléen avec les types du rôle ajoutait trois
+ * destinataires que le métier n'a pas désignés, sur les déclarations les plus sensibles.
+ *
+ * « Président CSST » reste résolu via l'attribut `poste` et non par un rôle RBAC (DT-07) ;
  * « Service Prévention » et « toutes les Directions » passent par les destinataires
  * supplémentaires du gabarit `circuit_critique` (DT-28), faute de rôle correspondant.
  */
-const ROLES_CIRCUIT_CRITIQUE: Record<ParcoursCode, readonly string[]> = {
-  ei_employe: ['rqse', 'secretaire_csst'],
-  grief_employe: ['correspondant_mgp', 'responsable_grief_employe', 'service_mgp', 'dg'],
-  grief_sous_traitant: ['correspondant_mgp', 'captage_grief_soustraitant', 'service_mgp', 'dg'],
-  grief_communaute: ['service_mgp', 'dg'],
+export async function rolesDuCircuitCritique(parcours: ParcoursCode): Promise<string[]> {
+  /*
+    ⚠️ AUCUN FILTRE SUR `roles.actif`, ET C'EST DÉLIBÉRÉ — contrairement au reste de
+    l'autorisation, où un rôle éteint ne confère rien.
+
+    Ce n'est pas un droit qu'on accorde, c'est un courrier qu'on envoie, et les deux erreurs n'ont
+    pas le même coût. `secretaire_csst` et `rqse` sont désactivés : les écarter priverait le
+    circuit accéléré de l'évènement indésirable de TOUT destinataire par rôle — il ne resterait
+    que les directeurs de structure, résolus par leur poste. Un accident grave cesserait d'être
+    signalé à ceux qui le recevaient la veille, et personne ne s'en apercevrait avant l'accident
+    suivant.
+
+    Le remède est un paramétrage, pas une ligne de code : cocher le circuit sur un rôle actif.
+    `santeAdministration()` a vocation à le signaler.
+  */
+  const lignes = await prisma.role_parcours.findMany({
+    where: {
+      alerte_circuit_critique: true,
+      parcours: { code: parcours },
+      roles: { guard_name: 'web' },
+    },
+    select: { roles: { select: { name: true } } },
+  })
+
+  return lignes.map((ligne) => ligne.roles.name)
 }
 
 export async function destinatairesCircuitCritique(
   parcours: ParcoursCode
 ): Promise<Destinataire[]> {
-  const destinataires = await utilisateursAvecRoles(ROLES_CIRCUIT_CRITIQUE[parcours])
+  const destinataires = await utilisateursAvecRoles(await rolesDuCircuitCritique(parcours))
 
   // EI Employé : « Président CSST (Directeur de structure) » — DT-07.
   if (parcours === 'ei_employe') {

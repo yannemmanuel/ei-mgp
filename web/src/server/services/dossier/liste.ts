@@ -2,7 +2,6 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import {
   aPermission,
-  aRole,
   directionCloisonnante,
   parcoursAutorises,
   type ParcoursCode,
@@ -152,7 +151,8 @@ export function clauseNonAffectes(
 export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
   // Un employé déclarant ne voit QUE ses propres dossiers non anonymes : un dossier anonyme
   // n'est rattaché à personne, même si son auteur était connecté (RG-06).
-  if (aRole(u, 'employe_declarant')) {
+  // Coché sur le rôle depuis le 2026-09-21 — voir `peutVoirDossier()`, qui dit la même chose.
+  if (u.voitSeulementSesDeclarations) {
     return { declarant_user_id: u.id, is_anonymous: false }
   }
 
@@ -240,7 +240,7 @@ function clauseAMoiDAgir(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
     parcours: { code: parcours },
     statuts_dossier: {
       code: {
-        in: STATUTS.filter((statut) => peutFaireAvancerDepuis(u.roles, parcours, statut)).filter(
+        in: STATUTS.filter((statut) => peutFaireAvancerDepuis(u, parcours, statut)).filter(
           (statut) => transitionsDepuis(statut).length > 0
         ),
       },

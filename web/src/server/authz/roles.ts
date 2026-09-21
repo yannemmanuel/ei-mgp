@@ -144,6 +144,32 @@ export const ROLES = {
   auditeur: ['dossiers.view.all', 'audit.view', 'reporting.view', 'reporting.export'],
 } as const satisfies Record<string, readonly Permission[]>
 
-export type Role = keyof typeof ROLES
+/**
+ * Le nom technique d'un rôle.
+ *
+ * ⚠️ PLUS UNE UNION FERMÉE depuis le 2026-09-21, et c'est le cœur de la demande : « je ne veux
+ * plus que les rôles soient dans le code ». Tant que ce type valait `keyof typeof ROLES`, un rôle
+ * créé depuis l'interface n'était littéralement pas exprimable — chaque fonction d'autorisation
+ * qui le recevait le refusait par construction, et il fallait un déploiement pour le faire
+ * exister.
+ *
+ * Le type ne protège donc plus rien ici, et c'est délibéré : ce qu'un rôle PEUT se lit désormais
+ * dans ses permissions, ses types de déclaration, ses étapes et ses quatre paramètres — tous
+ * résolus depuis la base à chaque requête. Aucune décision d'autorisation ne compare plus un nom
+ * de rôle ; `aRole()` a été supprimée pour que cela ne puisse pas revenir en arrière sans qu'on
+ * s'en aperçoive.
+ */
+export type Role = string
 
-export const ROLE_NAMES = Object.keys(ROLES) as Role[]
+/**
+ * Les rôles LIVRÉS avec l'application, seule forme sous laquelle le code les connaît encore.
+ *
+ * ⚠️ UNE RÉFÉRENCE, PAS UNE VÉRITÉ. `ROLES` ci-dessus sert à deux choses, et à rien d'autre :
+ * amorcer une base neuve, et afficher dans l'écran des habilitations l'écart entre ce qui a été
+ * livré et ce qui est coché aujourd'hui. Un rôle absent de cette liste est un rôle parfaitement
+ * normal ; un rôle présent dont les permissions ont changé n'est pas une anomalie, c'est un
+ * paramétrage.
+ */
+export type RoleLivre = keyof typeof ROLES
+
+export const ROLE_NAMES = Object.keys(ROLES) as RoleLivre[]

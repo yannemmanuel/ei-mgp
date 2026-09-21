@@ -1,13 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import {
+  cloisonnePourSesRoles,
   directionCloisonnante,
+  donneAccesAuxDossiers,
   PARCOURS_CODES,
   rattachementCouvre,
   siteCloisonnant,
   type ParcoursCode,
   type Permission,
+  type PourCloisonnement,
   type Role,
-  type UtilisateurAutorise,
 } from '@/server/authz'
 import type { StatutAction } from '../action-corrective/action-corrective'
 
@@ -57,11 +59,22 @@ export type RattachementDossier = {
  *     Dans Prisma, un objet vide dans un `OR` ne correspond à RIEN, pas à tout : la fiche disait
  *     donc que personne n'en répondait, sur la majorité des dossiers.
  */
-/** Un chargé de sécurité, accompagné de quoi décider s'il répond d'un dossier donné. */
+/**
+ * Un traitant, accompagné de quoi décider s'il répond d'un dossier donné.
+ *
+ * ⚠️ PAS UN `UtilisateurAutorise` COMPLET, et c'est délibéré. Il n'est construit que pour trois
+ * questions — le rattachement, le type de déclaration, la charge — et n'en porte donc que les
+ * champs. Inventer les autres pour satisfaire le type ferait circuler des valeurs fausses : un
+ * `etapes: []` inventé ici répondrait « non » à `peutFaireAvancerDepuis()` sans lever d'erreur.
+ */
 export type CompteEnCharge = {
   readonly id: bigint
   readonly nom: string
-  readonly pourCloisonnement: UtilisateurAutorise
+  readonly pourCloisonnement: PourCloisonnement & {
+    readonly roles: readonly Role[]
+    readonly parcours: readonly ParcoursCode[]
+    readonly traiteLesDossiers: boolean
+  }
 }
 
 /**
@@ -117,6 +130,8 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
             select: { permissions: { select: { name: true, guard_name: true } } },
           },
           traite_dossiers: true,
+          // Borné à son site ou à sa direction ? Paramètre du rôle, comme la charge.
+          cloisonne_par_rattachement: true,
           role_parcours: {
             where: { parcours: { actif: true } },
             select: { parcours: { select: { code: true } } },
@@ -130,6 +145,13 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
   const permissionsParCompte = new Map<bigint, Set<Permission>>()
   const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>()
   const traitants = new Set<bigint>()
+  /*
+    ⚠️ UN RÔLE À LA FOIS, puis la règle au bout. Le compte n'est borné que si TOUS ses rôles
+    porteurs d'accès le prévoient — voir `cloisonnePourSesRoles()`. Un `Set` d'identifiants aurait
+    dit « au moins un », et retiré à un compte cumulant deux rôles ce que le second lui donnait le
+    droit de voir.
+  */
+  const cloisonnementParCompte = new Map<bigint, { cloisonne: boolean; donneAcces: boolean }[]>()
 
   for (const lien of liens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
@@ -142,6 +164,19 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
 
     // Un seul rôle traitant suffit : porter en plus un rôle d'observation ne retire pas la charge.
     if (lien.roles.traite_dossiers) traitants.add(lien.model_id)
+
+    // Même lecture que `chargerUtilisateurAutorise()`, règle du cumul comprise.
+    cloisonnementParCompte.set(lien.model_id, [
+      ...(cloisonnementParCompte.get(lien.model_id) ?? []),
+      {
+        cloisonne: lien.roles.cloisonne_par_rattachement,
+        donneAcces: donneAccesAuxDossiers(
+          lien.roles.role_has_permissions
+            .filter((rhp) => rhp.permissions.guard_name === 'web')
+            .map((rhp) => rhp.permissions.name)
+        ),
+      },
+    ])
 
     const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
     for (const rhp of lien.roles.role_has_permissions) {
@@ -159,16 +194,14 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
       id: c.id,
       nom: c.name,
       pourCloisonnement: {
-        id: c.id,
-        actif: true,
         siteId: c.site_id ?? c.directions?.site_id ?? null,
         directionId: c.direction_id,
-        doitChangerMotDePasse: false,
         roles: rolesParCompte.get(c.id) ?? [],
         permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
         parcours: [...(parcoursParCompte.get(c.id) ?? [])],
         traiteLesDossiers: traitants.has(c.id),
-      } satisfies UtilisateurAutorise,
+        cloisonneParRattachement: cloisonnePourSesRoles(cloisonnementParCompte.get(c.id) ?? []),
+      },
     }))
     .filter((c) => c.pourCloisonnement.traiteLesDossiers)
 }

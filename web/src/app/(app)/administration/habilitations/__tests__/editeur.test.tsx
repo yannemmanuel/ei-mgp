@@ -10,6 +10,37 @@ const PARCOURS_TEST = [
   { code: 'grief_employe', libelle: 'Grief / plainte (Employé)' },
 ]
 
+/**
+ * Les colonnes de la grille des étapes et le catalogue des comportements, tels que le serveur les
+ * envoie. Deux étapes et deux comportements suffisent à exercer l'écran.
+ */
+const ETAPES_TEST = [
+  { code: 'affecte', libelle: 'Affecté' },
+  { code: 'en_analyse', libelle: 'En analyse' },
+]
+
+const COMPORTEMENTS_TEST = [
+  { cle: 'traite_dossiers', libelle: 'A la charge des dossiers de son périmètre', aide: 'Titulaire.' },
+  { cle: 'cloisonne_par_rattachement', libelle: 'Borné à son site ou à sa direction', aide: 'Périmètre.' },
+  {
+    cle: 'voit_seulement_ses_declarations',
+    libelle: 'Ne voit que ses propres déclarations',
+    aide: 'Déclarant.',
+  },
+  {
+    cle: 'voit_identite_declarant',
+    libelle: "Voit l'identité du déclarant",
+    aide: 'Sans données nominatives si décoché.',
+  },
+]
+
+/** Les trois listes que l'écran reçoit toujours ensemble. */
+const REFERENTIELS = {
+  parcoursDisponibles: PARCOURS_TEST,
+  etapesDisponibles: ETAPES_TEST,
+  comportementsDisponibles: COMPORTEMENTS_TEST,
+}
+
 
 /**
  * L'éditeur des rôles, exercé dans un vrai DOM.
@@ -27,7 +58,8 @@ const inerte = async (): Promise<EtatHabilitation> => ({})
 
 vi.mock('../actions', () => ({
   actionChangerActivationRole: inerte,
-  actionChangerChargeDesDossiers: inerte,
+  actionChangerComportementsRole: inerte,
+  actionModifierEtapesRole: inerte,
   actionCreerRole: inerte,
   actionModifierHabilitations: inerte,
   actionModifierIdentiteRole: inerte,
@@ -66,7 +98,14 @@ const role = (libelle: string, description: string | null, permissions: string[]
   rattachements: 0,
   parcours: [],
   tousLesParcours: false,
-  traiteLesDossiers: false,
+  comportements: {
+    traite_dossiers: false,
+    cloisonne_par_rattachement: false,
+    voit_seulement_ses_declarations: false,
+    // Vrai par défaut : c'est le RETRAIT qui se coche.
+    voit_identite_declarant: true,
+  },
+  etapes: [],
 })
 
 afterEach(cleanup)
@@ -89,7 +128,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
   it('reprend le libellé tel que le serveur l’a retenu', async () => {
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} {...REFERENTIELS} />
     )
 
     await ouvrirOngletNom(utilisateur)
@@ -101,7 +140,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
       <EditeurHabilitations
         roles={[role('Agent terrain', 'Traite les dossiers.')]}
         domaines={DOMAINES}
-      parcoursDisponibles={PARCOURS_TEST} />
+      {...REFERENTIELS} />
     )
 
     await waitFor(() =>
@@ -116,13 +155,13 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
     // remontage, l'administrateur croit qu'une description existe.
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Ancienne description.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
+      <EditeurHabilitations roles={[role('Agent', 'Ancienne description.')]} domaines={DOMAINES} {...REFERENTIELS} />
     )
 
     await ouvrirOngletNom(utilisateur)
     expect(champDescription().value).toBe('Ancienne description.')
 
-    rerender(<EditeurHabilitations roles={[role('Agent', null)]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />)
+    rerender(<EditeurHabilitations roles={[role('Agent', null)]} domaines={DOMAINES} {...REFERENTIELS} />)
 
     await waitFor(() => expect(champDescription().value).toBe(''))
   })
@@ -133,7 +172,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
     // disparaîtrait sans un mot.
     const utilisateur = userEvent.setup()
     const { rerender } = render(
-      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />
+      <EditeurHabilitations roles={[role('Agent', 'Traite les dossiers.')]} domaines={DOMAINES} {...REFERENTIELS} />
     )
 
     await ouvrirOngletNom(utilisateur)
@@ -145,7 +184,7 @@ describe('Le formulaire d’identité montre ce qui est enregistré', () => {
       <EditeurHabilitations
         roles={[role('Agent', 'Traite les dossiers.', ['dossiers.view'])]}
         domaines={DOMAINES}
-      parcoursDisponibles={PARCOURS_TEST} />
+      {...REFERENTIELS} />
     )
 
     expect(champNom().value, 'une saisie en cours a été effacée').toBe('Saisie en cours')

@@ -138,8 +138,15 @@ describe('Ce que le rattachement ne borne pas', () => {
     expect(peutVoirDossier(transversal, dossier(YOPOUGON, QHSE))).toBe(true)
   })
 
-  it('ne borne pas un compte qui cumule un rôle NON cloisonné', () => {
-    // Cumuler n'est pas être deux fois restreint : c'est porter un mandat plus large.
+  it('⚠️ ne borne pas un compte qui cumule un rôle NON cloisonné', () => {
+    /*
+      Cumuler n'est pas être deux fois restreint : c'est porter un mandat plus large.
+
+      ⚠️ CETTE RÈGLE A FAILLI SE PERDRE au passage en base. Elle s'écrivait `every` sur les rôles
+      portés ; la version paramétrée l'a d'abord rendue par un drapeau levé au premier rôle
+      cloisonné — c'est-à-dire un `some`, qui retire à ce compte les dossiers que son second rôle
+      lui donne le droit de voir, sans erreur et sans message.
+    */
     const cumul: UtilisateurAutorise = {
       ...utilisateurAvecRoles('secretaire_csst', 'correspondant_mgp'),
       siteId: null,
@@ -154,14 +161,14 @@ describe('Alerte « rattachement manquant »', () => {
   it('ne se déclenche pas sur un compte habilité sur une direction', () => {
     // Il est borné, et plus étroitement qu'un compte de site : l'alerter serait une fausse alerte,
     // et les fausses alertes font ignorer les vraies.
-    expect(siteManquant(['secretaire_csst'], null, RH)).toBe(false)
+    expect(siteManquant(true, null, RH)).toBe(false)
   })
 
   it('se déclenche quand il n’y a ni site ni direction', () => {
-    expect(siteManquant(['secretaire_csst'], null, null)).toBe(true)
+    expect(siteManquant(true, null, null)).toBe(true)
   })
 
   it('ne se déclenche pas sur un rôle non cloisonné', () => {
-    expect(siteManquant(['service_mgp'], null, null)).toBe(false)
+    expect(siteManquant(false, null, null)).toBe(false)
   })
 })

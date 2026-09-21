@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   actionChangerActivationRole,
-  actionChangerChargeDesDossiers,
+  actionChangerComportementsRole,
   actionCreerRole,
+  actionModifierEtapesRole,
   actionModifierHabilitations,
   actionModifierIdentiteRole,
   actionModifierParcoursRole,
@@ -22,6 +23,18 @@ import {
 
 /** Un type de déclaration, tel qu'on le coche. */
 export type ParcoursVue = { code: string; libelle: string }
+
+/** Un type OUVERT par le rôle, avec son alerte de circuit accéléré. */
+export type ParcoursDuRoleVue = ParcoursVue & { alerteCircuitCritique: boolean }
+
+/** Une étape de départ, colonne de la grille « qui fait avancer quoi ». */
+export type EtapeVue = { code: string; libelle: string }
+
+/**
+ * Un comportement du rôle — ce qui ne se dit ni par une permission, ni par un type, ni par une
+ * étape. Le libellé et l'aide viennent du serveur : l'écran ne les reformule pas.
+ */
+export type ComportementVue = { cle: string; libelle: string; aide: string }
 
 export type PermissionVue = {
   nom: string
@@ -53,14 +66,30 @@ export type RoleVue = {
   /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
   rattachements: number
   /** Types de déclaration ouverts. Vide = ce rôle ne donne accès à aucun dossier. */
-  parcours: ParcoursVue[]
+  parcours: ParcoursDuRoleVue[]
   /** Le rôle les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
   tousLesParcours: boolean
-  /** Ce rôle a la CHARGE des dossiers de son périmètre : ses porteurs en sont les titulaires. */
-  traiteLesDossiers: boolean
+  /** Les quatre comportements, cochés ou non — indexés par la clé du catalogue serveur. */
+  comportements: Record<string, boolean>
+  /** Les cases cochées de la grille « qui fait avancer quoi ». */
+  etapes: { parcours: string; statut: string }[]
 }
 
 const ETAT: EtatHabilitation = {}
+
+/**
+ * La valeur ORDINAIRE de chaque comportement — celle qui ne mérite pas d'être signalée.
+ *
+ * ⚠️ « Voit l'identité du déclarant » est vrai par défaut : c'est un RETRAIT qui se coche. Le
+ * résumé ne montre donc que les écarts, sans quoi il répéterait sur chacun des vingt rôles une
+ * ligne qui ne distingue rien.
+ */
+const VALEUR_PAR_DEFAUT: Record<string, boolean> = {
+  traite_dossiers: false,
+  cloisonne_par_rattachement: false,
+  voit_seulement_ses_declarations: false,
+  voit_identite_declarant: true,
+}
 
 /**
  * Nature d'un droit, en deux mots et sans couleur d'alerte.
@@ -75,7 +104,12 @@ const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> =
   gouvernance: 'Droits des autres',
 }
 
-type Onglet = 'droits' | 'declarations' | 'nom' | 'activation'
+type Onglet = 'droits' | 'declarations' | 'etapes' | 'comportements' | 'nom' | 'activation'
+
+/** La clé d'une case de la grille, dans la forme que la Server Action attend. */
+function cleEtape(parcours: string, statut: string): string {
+  return `${parcours}/${statut}`
+}
 
 /**
  * Édition des rôles : leur nom lisible, leurs habilitations, leur activation.
@@ -94,11 +128,17 @@ export function EditeurHabilitations({
   roles,
   domaines,
   parcoursDisponibles,
+  etapesDisponibles,
+  comportementsDisponibles,
 }: {
   roles: RoleVue[]
   domaines: DomaineVue[]
   /** Les types de déclaration proposés à la coche. */
   parcoursDisponibles: ParcoursVue[]
+  /** Les lignes de la grille des étapes : celles d'où un dossier peut partir. */
+  etapesDisponibles: EtapeVue[]
+  /** Les quatre comportements, décrits par le serveur. */
+  comportementsDisponibles: ComportementVue[]
 }) {
   const [recherche, setRecherche] = useState('')
   const [creation, setCreation] = useState(false)
@@ -186,6 +226,8 @@ export function EditeurHabilitations({
             role={choisi}
             domaines={domaines}
             parcoursDisponibles={parcoursDisponibles}
+            etapesDisponibles={etapesDisponibles}
+            comportementsDisponibles={comportementsDisponibles}
           />
         ) : (
           <Card>
@@ -292,10 +334,14 @@ function PanneauRole({
   role,
   domaines,
   parcoursDisponibles,
+  etapesDisponibles,
+  comportementsDisponibles,
 }: {
   role: RoleVue
   domaines: DomaineVue[]
   parcoursDisponibles: ParcoursVue[]
+  etapesDisponibles: EtapeVue[]
+  comportementsDisponibles: ComportementVue[]
 }) {
   const [onglet, setOnglet] = useState<Onglet>('droits')
 
@@ -377,6 +423,24 @@ function PanneauRole({
                     ? 'Ouvre tous les types de déclaration.'
                     : `Ouvre : ${role.parcours.map((p) => p.libelle).join(' · ')}.`}
               </p>
+
+              {/*
+                CE QU'IL FAIT AVANCER, et ce qu'il voit — résumé en une ligne.
+
+                ⚠️ « Ne fait avancer aucun dossier » est la situation par défaut d'un rôle créé
+                ici, et elle est invisible autrement : les droits sont cochés, le type est ouvert,
+                le bouton de changement de statut reste absent et rien ne dit pourquoi. C'est
+                exactement ce que ce résumé doit attraper.
+              */}
+              <p className="text-caption text-muted-foreground">
+                {role.etapes.length === 0
+                  ? 'Ne fait avancer aucun dossier — aucune étape cochée.'
+                  : `Fait avancer ${role.etapes.length} étape(s).`}
+                {comportementsDisponibles
+                  .filter((c) => role.comportements[c.cle] !== VALEUR_PAR_DEFAUT[c.cle])
+                  .map((c) => ` · ${role.comportements[c.cle] ? c.libelle : `Pas de « ${c.libelle.toLowerCase()} »`}`)
+                  .join('')}
+              </p>
             </>
           )}
         </div>
@@ -394,6 +458,8 @@ function PanneauRole({
             onglets={[
               { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
               { cle: 'declarations', libelle: `Déclarations (${role.parcours.length})` },
+              { cle: 'etapes' as const, libelle: `Étapes (${role.etapes.length})` },
+              { cle: 'comportements' as const, libelle: 'Comportement' },
               { cle: 'nom', libelle: 'Nom' },
               /*
                 ⚠️ L'ONGLET EST OFFERT POUR TOUS LES RÔLES depuis le 2026-09-20.
@@ -439,14 +505,43 @@ function PanneauRole({
                 ce que la base contient.
               */}
               <FormulaireParcours
-                key={role.parcours.map((p) => p.code).join(' ')}
+                key={role.parcours
+                  .map((p) => `${p.code}${p.alerteCircuitCritique ? '!' : ''}`)
+                  .join(' ')}
                 role={role}
                 parcoursDisponibles={parcoursDisponibles}
               />
+            </div>
 
-              <div className="mt-4 border-t border-border pt-4">
-                <FormulaireCharge key={String(role.traiteLesDossiers)} role={role} />
-              </div>
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-etapes`}
+              hidden={onglet !== 'etapes'}
+            >
+              {/*
+                `key` : même raison que pour les droits — la grille est amorcée au montage, et un
+                enregistrement mené ailleurs laisserait sinon voir autre chose que la base.
+              */}
+              <FormulaireEtapes
+                key={role.etapes.map((e) => cleEtape(e.parcours, e.statut)).sort().join(' ')}
+                role={role}
+                parcoursDisponibles={parcoursDisponibles}
+                etapesDisponibles={etapesDisponibles}
+              />
+            </div>
+
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-comportements`}
+              hidden={onglet !== 'comportements'}
+            >
+              <FormulaireComportements
+                key={comportementsDisponibles
+                  .map((c) => `${c.cle}=${role.comportements[c.cle] ? '1' : '0'}`)
+                  .join(' ')}
+                role={role}
+                comportementsDisponibles={comportementsDisponibles}
+              />
             </div>
 
             <div
@@ -680,46 +775,92 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
  * le savoir.
  */
 /**
- * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ * Les quatre comportements du rôle — ce qui ne se dit ni par un droit, ni par un type, ni par une
+ * étape.
  *
- * ⚠️ À NE PAS CONFONDRE AVEC « peut faire avancer un dossier », qui est un droit. Celui-ci dit qui
- * en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le droit, pas la charge.
+ * ⚠️ TOUS LES QUATRE ÉTAIENT ÉCRITS DANS LE CODE, sous forme de listes de noms de rôles. Un rôle
+ * créé depuis l'interface ne figurait dans aucune : il n'était borné par aucun rattachement,
+ * voyait l'identité de tous les déclarants, et rien ne le disait à qui venait de le créer.
  *
- * La distinction avait été manquée — « qui traite » se déduisait du droit de faire avancer, si
- * bien que le Service MGP apparaissait comme titulaire de tous les dossiers. L'écran l'énonce
- * donc, plutôt que de laisser deviner ce que la case recouvre.
+ * ⚠️ « A LA CHARGE » N'EST PAS « peut faire avancer un dossier », qui est un droit. Celui-ci dit
+ * qui en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le droit, pas la
+ * charge. La distinction avait été manquée, et il apparaissait comme titulaire de tous les
+ * dossiers. Les libellés viennent du serveur pour que l'écran et le code disent la même chose.
  */
-function FormulaireCharge({ role }: { role: RoleVue }) {
-  const [etat, envoyer, enCours] = useActionState(actionChangerChargeDesDossiers, ETAT)
-  const [traite, setTraite] = useState(role.traiteLesDossiers)
+function FormulaireComportements({
+  role,
+  comportementsDisponibles,
+}: {
+  role: RoleVue
+  comportementsDisponibles: ComportementVue[]
+}) {
+  const [etat, envoyer, enCours] = useActionState(actionChangerComportementsRole, ETAT)
+  const [cochees, setCochees] = useState<string[]>(() =>
+    comportementsDisponibles.filter((c) => role.comportements[c.cle]).map((c) => c.cle)
+  )
+
+  function basculer(cle: string, actif: boolean) {
+    setCochees((actuelles) =>
+      actif ? [...new Set([...actuelles, cle])] : actuelles.filter((c) => c !== cle)
+    )
+  }
 
   return (
-    <form action={envoyer} className="space-y-3">
+    <form action={envoyer} className="space-y-4">
       <input type="hidden" name="role" value={role.role} />
-      <input type="hidden" name="traiteLesDossiers" value={traite ? '1' : '0'} />
 
-      <p className="text-sm font-medium text-secondary-900">Charge des dossiers</p>
+      <p className="text-sm text-muted-foreground">
+        Ce que ce rôle fait de particulier, au-delà de ses droits. Ces quatre réglages étaient
+        écrits dans le code, rôle par rôle : un rôle créé ici n’en portait aucun, et rien ne le
+        disait.
+      </p>
 
-      <label
-        htmlFor={`charge-${role.role}`}
-        className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors hover:bg-muted/40"
-      >
-        <input
-          id={`charge-${role.role}`}
-          type="checkbox"
-          checked={traite}
-          onChange={(evenement) => setTraite(evenement.target.checked)}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
-        />
-        <span className="min-w-0 text-sm text-secondary-900">
-          Ce rôle TRAITE les dossiers de son périmètre
-          <span className="mt-1 block text-caption text-muted-foreground">
-            Ses porteurs apparaissent comme titulaires sur la fiche et voient ces dossiers dans
-            « vos dossiers à traiter ». À réserver à ceux qui instruisent — un rôle qui arbitre,
-            relance ou consulte ne le prend pas, même s’il peut faire avancer un dossier.
-          </span>
-        </span>
-      </label>
+      <div className="space-y-2">
+        {comportementsDisponibles.map((comportement) => {
+          const id = `comportement-${role.role}-${comportement.cle}`
+          const actif = cochees.includes(comportement.cle)
+
+          return (
+            <label
+              key={comportement.cle}
+              htmlFor={id}
+              className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors hover:bg-muted/40"
+            >
+              <input
+                id={id}
+                name="comportements"
+                type="checkbox"
+                value={comportement.cle}
+                checked={actif}
+                onChange={(evenement) => basculer(comportement.cle, evenement.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
+              />
+              <span className="min-w-0 text-sm text-secondary-900">
+                {comportement.libelle}
+                <span className="mt-1 block text-caption text-muted-foreground">
+                  {comportement.aide}
+                </span>
+              </span>
+            </label>
+          )
+        })}
+      </div>
+
+      {/*
+        ⚠️ L'AVERTISSEMENT LE PLUS UTILE DE CET ÉCRAN.
+
+        Décocher « voit l'identité du déclarant » est le seul de ces réglages dont l'effet ne se
+        voit nulle part depuis l'écran d'administration : les fiches continuent de s'afficher,
+        simplement amputées du nom. Le dire au moment où on décoche est la seule occasion.
+      */}
+      {!cochees.includes('voit_identite_declarant') && (
+        <Alert role="status">
+          <AlertDescription>
+            Ses porteurs liront les dossiers sans jamais voir qui a déclaré, ni le poste du
+            déclarant — y compris sur les déclarations identifiées.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {etat.erreur && (
         <Alert variant="destructive" role="alert">
@@ -734,7 +875,179 @@ function FormulaireCharge({ role }: { role: RoleVue }) {
       )}
 
       <Button type="submit" size="sm" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer la charge'}
+        {enCours ? 'Enregistrement…' : 'Enregistrer le comportement'}
+      </Button>
+    </form>
+  )
+}
+
+/**
+ * La grille « qui fait avancer quoi » : une case par type de déclaration et par étape.
+ *
+ * ⚠️ CETTE GRILLE ÉTAIT UNE TABLE DU CODE. Un rôle créé depuis l’interface n’y figurait pas : ses
+ * porteurs voyaient le dossier, portaient le droit de le faire avancer, et le bouton restait
+ * absent sans qu’aucun message ne l’explique. C’est le réglage le plus silencieux du dispositif,
+ * et c’est pourquoi il a sa propre grille plutôt qu’une ligne de plus ailleurs.
+ *
+ * ⚠️ UNE CASE VIDE INTERDIT. Il n’y a plus d’étape « ouverte à tous » : ce qui n’est pas coché
+ * n’est pas permis.
+ */
+function FormulaireEtapes({
+  role,
+  parcoursDisponibles,
+  etapesDisponibles,
+}: {
+  role: RoleVue
+  parcoursDisponibles: ParcoursVue[]
+  etapesDisponibles: EtapeVue[]
+}) {
+  const [etat, envoyer, enCours] = useActionState(actionModifierEtapesRole, ETAT)
+  const [cochees, setCochees] = useState<string[]>(() =>
+    role.etapes.map((e) => cleEtape(e.parcours, e.statut))
+  )
+
+  const ouverts = useMemo(() => new Set(role.parcours.map((p) => p.code)), [role.parcours])
+
+  function basculer(cle: string, actif: boolean) {
+    setCochees((actuelles) =>
+      actif ? [...new Set([...actuelles, cle])] : actuelles.filter((c) => c !== cle)
+    )
+  }
+
+  /** Toute une colonne d’un coup : quatorze cases à cocher une à une décourage le paramétrage. */
+  function basculerColonne(codeParcours: string, actif: boolean) {
+    const cles = etapesDisponibles.map((e) => cleEtape(codeParcours, e.code))
+
+    setCochees((actuelles) =>
+      actif
+        ? [...new Set([...actuelles, ...cles])]
+        : actuelles.filter((c) => !cles.includes(c))
+    )
+  }
+
+  return (
+    <form action={envoyer} className="space-y-4">
+      <input type="hidden" name="role" value={role.role} />
+
+      <p className="text-sm text-muted-foreground">
+        À quelles étapes ce rôle peut faire avancer un dossier, et sur quels types. Une case
+        décochée interdit : le bouton de changement d’étape n’apparaît pas à ses porteurs.
+      </p>
+
+      {/*
+        La grille déborde à l’étroit : elle défile HORIZONTALEMENT dans son propre cadre, jamais
+        en emportant la page. Les libellés d’étape restent lisibles, c’est ce qui permet de savoir
+        quelle ligne on coche.
+      */}
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full min-w-[34rem] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <th scope="col" className="p-2 text-left font-medium text-secondary-700">
+                Étape
+              </th>
+              {parcoursDisponibles.map((parcours) => (
+                <th
+                  key={parcours.code}
+                  scope="col"
+                  className="p-2 text-center align-bottom font-medium text-secondary-700"
+                >
+                  <span className="block">{parcours.libelle}</span>
+
+                  {/*
+                    ⚠️ UN TYPE NON OUVERT : les cases restent cochables, et c’est délibéré.
+
+                    On paramètre souvent la grille AVANT d’ouvrir le type. Les griser obligerait à
+                    faire les deux gestes dans un ordre imposé, sans que rien ne le dise. La
+                    mention suffit à expliquer pourquoi rien ne se passe.
+                  */}
+                  {!ouverts.has(parcours.code) && (
+                    <span className="mt-0.5 block text-caption font-normal text-muted-foreground">
+                      type non ouvert
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      basculerColonne(
+                        parcours.code,
+                        !etapesDisponibles.every((e) =>
+                          cochees.includes(cleEtape(parcours.code, e.code))
+                        )
+                      )
+                    }
+                    className="mt-1 text-caption font-normal text-primary-700 underline underline-offset-2"
+                  >
+                    {etapesDisponibles.every((e) =>
+                      cochees.includes(cleEtape(parcours.code, e.code))
+                    )
+                      ? 'Tout décocher'
+                      : 'Tout cocher'}
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {etapesDisponibles.map((etape) => (
+              <tr key={etape.code} className="border-b border-border last:border-b-0">
+                <th
+                  scope="row"
+                  className="p-2 text-left font-normal text-secondary-900"
+                >
+                  {etape.libelle}
+                </th>
+
+                {parcoursDisponibles.map((parcours) => {
+                  const cle = cleEtape(parcours.code, etape.code)
+                  const id = `etape-${role.role}-${parcours.code}-${etape.code}`
+
+                  return (
+                    <td key={parcours.code} className="p-2 text-center">
+                      <input
+                        id={id}
+                        name="etapes"
+                        type="checkbox"
+                        value={cle}
+                        checked={cochees.includes(cle)}
+                        onChange={(evenement) => basculer(cle, evenement.target.checked)}
+                        aria-label={`${etape.libelle} — ${parcours.libelle}`}
+                        className="h-4 w-4 accent-primary-700"
+                      />
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {cochees.length === 0 && (
+        <Alert role="status">
+          <AlertDescription>
+            Aucune étape cochée : les porteurs de ce rôle ne pourront faire avancer aucun dossier,
+            même s’ils en ont le droit et qu’ils le voient.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {etat.erreur && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{etat.erreur}</AlertDescription>
+        </Alert>
+      )}
+
+      {etat.succes && (
+        <Alert role="status">
+          <AlertDescription>{etat.succes}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" size="sm" disabled={enCours}>
+        {enCours ? 'Enregistrement…' : 'Enregistrer la grille'}
       </Button>
     </form>
   )
@@ -749,9 +1062,25 @@ function FormulaireParcours({
 }) {
   const [etat, envoyer, enCours] = useActionState(actionModifierParcoursRole, ETAT)
   const [cochees, setCochees] = useState<string[]>(role.parcours.map((p) => p.code))
+  const [alertes, setAlertes] = useState<string[]>(
+    role.parcours.filter((p) => p.alerteCircuitCritique).map((p) => p.code)
+  )
 
   function basculer(code: string, actif: boolean) {
     setCochees((actuelles) =>
+      actif ? [...new Set([...actuelles, code])] : actuelles.filter((c) => c !== code)
+    )
+
+    /*
+      ⚠️ DÉCOCHER UN TYPE RETIRE SON ALERTE, et l'écran le montre au lieu de le faire en
+      silence côté serveur. Les deux vivent sur la même ligne : le type parti, l'alerte l'est
+      aussi. Laisser la case cochée à l'écran aurait laissé croire qu'elle survivait.
+    */
+    if (!actif) setAlertes((actuelles) => actuelles.filter((c) => c !== code))
+  }
+
+  function basculerAlerte(code: string, actif: boolean) {
+    setAlertes((actuelles) =>
       actif ? [...new Set([...actuelles, code])] : actuelles.filter((c) => c !== code)
     )
   }
@@ -770,23 +1099,60 @@ function FormulaireParcours({
           const id = `parcours-${role.role}-${parcours.code}`
           const actif = cochees.includes(parcours.code)
 
+          const idAlerte = `circuit-${role.role}-${parcours.code}`
+
           return (
-            <label
+            <div
               key={parcours.code}
-              htmlFor={id}
-              className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors hover:bg-muted/40"
+              className="rounded-md border border-border transition-colors hover:bg-muted/40"
             >
-              <input
-                id={id}
-                name="parcours"
-                type="checkbox"
-                value={parcours.code}
-                checked={actif}
-                onChange={(evenement) => basculer(parcours.code, evenement.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
-              />
-              <span className="text-sm text-secondary-900">{parcours.libelle}</span>
-            </label>
+              <label htmlFor={id} className="flex cursor-pointer items-start gap-3 p-3">
+                <input
+                  id={id}
+                  name="parcours"
+                  type="checkbox"
+                  value={parcours.code}
+                  checked={actif}
+                  onChange={(evenement) => basculer(parcours.code, evenement.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
+                />
+                <span className="text-sm text-secondary-900">{parcours.libelle}</span>
+              </label>
+
+              {/*
+                ⚠️ L'ALERTE DU CIRCUIT ACCÉLÉRÉ SE COCHE PAR TYPE, et n'apparaît que sous un type
+                ouvert : elle vit sur la même ligne en base, et n'aurait aucun support sinon.
+
+                Elle était écrite dans le code, type par type. Un rôle créé ici n'y figurait pas,
+                n'était donc alerté d'aucune déclaration critique, et ne recevait simplement
+                jamais rien — le plus silencieux des oublis, sur le circuit le plus urgent.
+              */}
+              {actif && (
+                <label
+                  htmlFor={idAlerte}
+                  className="flex cursor-pointer items-start gap-3 border-t border-border px-3 py-2 ps-9"
+                >
+                  <input
+                    id={idAlerte}
+                    name="circuitCritique"
+                    type="checkbox"
+                    value={parcours.code}
+                    checked={alertes.includes(parcours.code)}
+                    onChange={(evenement) =>
+                      basculerAlerte(parcours.code, evenement.target.checked)
+                    }
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
+                  />
+                  <span className="text-caption text-secondary-700">
+                    Alerté en circuit accéléré
+                    <span className="mt-0.5 block text-muted-foreground">
+                      Prévenu immédiatement dès qu’une déclaration de ce type, dans son périmètre,
+                      est qualifiée critique.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
           )
         })}
       </div>

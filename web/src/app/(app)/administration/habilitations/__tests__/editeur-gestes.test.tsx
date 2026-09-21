@@ -10,6 +10,37 @@ const PARCOURS_TEST = [
   { code: 'grief_employe', libelle: 'Grief / plainte (Employé)' },
 ]
 
+/**
+ * Les colonnes de la grille des étapes et le catalogue des comportements, tels que le serveur les
+ * envoie. Deux étapes et deux comportements suffisent à exercer l'écran.
+ */
+const ETAPES_TEST = [
+  { code: 'affecte', libelle: 'Affecté' },
+  { code: 'en_analyse', libelle: 'En analyse' },
+]
+
+const COMPORTEMENTS_TEST = [
+  { cle: 'traite_dossiers', libelle: 'A la charge des dossiers de son périmètre', aide: 'Titulaire.' },
+  { cle: 'cloisonne_par_rattachement', libelle: 'Borné à son site ou à sa direction', aide: 'Périmètre.' },
+  {
+    cle: 'voit_seulement_ses_declarations',
+    libelle: 'Ne voit que ses propres déclarations',
+    aide: 'Déclarant.',
+  },
+  {
+    cle: 'voit_identite_declarant',
+    libelle: "Voit l'identité du déclarant",
+    aide: 'Sans données nominatives si décoché.',
+  },
+]
+
+/** Les trois listes que l'écran reçoit toujours ensemble. */
+const REFERENTIELS = {
+  parcoursDisponibles: PARCOURS_TEST,
+  etapesDisponibles: ETAPES_TEST,
+  comportementsDisponibles: COMPORTEMENTS_TEST,
+}
+
 
 /**
  * Les GESTES de l'écran des habilitations, exercés dans un vrai DOM.
@@ -29,7 +60,8 @@ const PARCOURS_TEST = [
  */
 vi.mock('../actions', () => ({
   actionChangerActivationRole: async () => ({}),
-  actionChangerChargeDesDossiers: async () => ({}),
+  actionChangerComportementsRole: async () => ({}),
+  actionModifierEtapesRole: async () => ({}),
   actionCreerRole: async () => ({}),
   actionModifierHabilitations: async () => ({}),
   actionModifierIdentiteRole: async () => ({}),
@@ -85,9 +117,21 @@ const ROLE: RoleVue = {
   ajoutees: [],
   livre: true,
   rattachements: 2,
-  parcours: [{ code: 'Événement Indésirable (Employé)', libelle: 'Événement Indésirable (Employé)' }],
+  parcours: [
+    {
+      code: 'ei_employe',
+      libelle: 'Événement Indésirable (Employé)',
+      alerteCircuitCritique: true,
+    },
+  ],
   tousLesParcours: false,
-  traiteLesDossiers: false,
+  comportements: {
+    traite_dossiers: false,
+    cloisonne_par_rattachement: true,
+    voit_seulement_ses_declarations: false,
+    voit_identite_declarant: true,
+  },
+  etapes: [{ parcours: 'ei_employe', statut: 'affecte' }],
 }
 
 /** Rôle créé depuis l'interface : supprimable, et sans accès aux dossiers. */
@@ -104,11 +148,18 @@ const ROLE_CREE: RoleVue = {
   rattachements: 0,
   parcours: [],
   tousLesParcours: false,
-  traiteLesDossiers: false,
+  comportements: {
+    traite_dossiers: false,
+    cloisonne_par_rattachement: false,
+    voit_seulement_ses_declarations: false,
+    // Vrai par défaut : c'est le RETRAIT qui se coche.
+    voit_identite_declarant: true,
+  },
+  etapes: [],
 }
 
 function afficher(roles: RoleVue[] = [ROLE]) {
-  render(<EditeurHabilitations roles={roles} domaines={DOMAINES} parcoursDisponibles={PARCOURS_TEST} />)
+  render(<EditeurHabilitations roles={roles} domaines={DOMAINES} {...REFERENTIELS} />)
   return userEvent.setup()
 }
 
@@ -316,6 +367,224 @@ describe('Ce qu’un onglet ne doit pas faire disparaître', () => {
     ).map((champ) => champ.value)
 
     expect(envoyes.sort()).toEqual(['dossiers.close', 'dossiers.view'])
+  })
+})
+
+describe('⚠️ La grille « qui fait avancer quoi »', () => {
+  /*
+    ⚠️ LE RÉGLAGE LE PLUS SILENCIEUX DU DISPOSITIF, et celui que l'écran n'offrait pas.
+
+    Il vivait dans une table du code : un rôle créé depuis l'interface n'y figurait pas, ses
+    porteurs voyaient le dossier, portaient le droit de le faire avancer, et le bouton restait
+    absent sans qu'aucun message ne l'explique. Ces cas tiennent les deux moitiés du geste : la
+    grille montre ce qui est ENREGISTRÉ, et elle SOUMET ce qui est coché.
+  */
+  it('montre une case par type et par étape, cochée d’après le rôle', async () => {
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
+
+    // Deux types × deux étapes dans le jeu de test : la grille doit les proposer toutes.
+    for (const etape of ['Affecté', 'En analyse']) {
+      for (const type of ['Événement Indésirable (Employé)', 'Grief / plainte (Employé)']) {
+        expect(
+          screen.getByLabelText(`${etape} — ${type}`),
+          `la case ${etape} × ${type} manque`
+        ).toBeDefined()
+      }
+    }
+
+    // ROLE porte `ei_employe/affecte` : elle seule doit être cochée.
+    const cochee = screen.getByLabelText(
+      'Affecté — Événement Indésirable (Employé)'
+    ) as HTMLInputElement
+    const vide = screen.getByLabelText(
+      'En analyse — Événement Indésirable (Employé)'
+    ) as HTMLInputElement
+
+    expect(cochee.checked, 'la grille ne montre pas ce qui est enregistré').toBe(true)
+    expect(vide.checked).toBe(false)
+  })
+
+  it('⚠️ soumet « type/étape », la forme que la Server Action attend', async () => {
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
+
+    await clavier.click(screen.getByLabelText('En analyse — Grief / plainte (Employé)'))
+
+    // Ce que le serveur lira : les champs eux-mêmes, pas l'état des cases.
+    const envoyes = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[name="etapes"]')
+    )
+      .filter((champ) => champ.checked)
+      .map((champ) => champ.value)
+
+    expect(envoyes.sort()).toEqual(['ei_employe/affecte', 'grief_employe/en_analyse'])
+  })
+
+  it('coche et décoche une COLONNE entière', async () => {
+    // Vingt-huit cases à cocher une à une décourage le paramétrage, et c'est ainsi qu'une grille
+    // reste à moitié remplie.
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
+
+    const colonne = screen
+      .getAllByRole('button', { name: /Tout cocher|Tout décocher/ })
+      .find((bouton) => bouton.closest('th')?.textContent?.includes('Grief'))
+
+    expect(colonne, 'la colonne n’offre aucun geste d’ensemble').toBeDefined()
+    if (!colonne) return
+
+    await clavier.click(colonne)
+
+    for (const etape of ['Affecté', 'En analyse']) {
+      expect(
+        (screen.getByLabelText(`${etape} — Grief / plainte (Employé)`) as HTMLInputElement).checked,
+        `${etape} n’a pas suivi le geste d’ensemble`
+      ).toBe(true)
+    }
+
+    // Et l'autre colonne n'a pas bougé : le geste est borné à la sienne.
+    expect(
+      (screen.getByLabelText('En analyse — Événement Indésirable (Employé)') as HTMLInputElement)
+        .checked
+    ).toBe(false)
+  })
+
+  it('⚠️ avertit quand la grille est VIDE', async () => {
+    // Aucune case cochée : les porteurs ne feront avancer aucun dossier, même s'ils en ont le
+    // droit et qu'ils le voient. C'est un paramétrage muet, et l'écran doit le dire.
+    const clavier = afficher([ROLE_CREE])
+    await ouvrir(clavier, 'Gestionnaire des supports')
+    await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
+
+    expect(screen.getByText(/ne pourront faire avancer aucun dossier/)).toBeDefined()
+  })
+
+  it('signale une colonne dont le TYPE n’est pas ouvert', async () => {
+    // On paramètre souvent la grille avant d'ouvrir le type. Les cases restent cochables — la
+    // mention explique simplement pourquoi rien ne se passe encore.
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
+
+    expect(screen.getAllByText('type non ouvert').length).toBe(1)
+  })
+})
+
+describe('⚠️ Les quatre comportements du rôle', () => {
+  it('montre chacun avec son libellé et son explication', async () => {
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Comportement' }))
+
+    for (const libelle of [
+      'A la charge des dossiers de son périmètre',
+      'Borné à son site ou à sa direction',
+      'Ne voit que ses propres déclarations',
+      "Voit l'identité du déclarant",
+    ]) {
+      expect(screen.getByLabelText(new RegExp(libelle)), `« ${libelle} » manque`).toBeDefined()
+    }
+  })
+
+  it('reprend l’état enregistré, y compris le vrai PAR DÉFAUT', async () => {
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Comportement' }))
+
+    // ⚠️ « Voit l'identité » est vrai par défaut : c'est le RETRAIT qui se coche. Le montrer
+    // décoché ferait croire à un accès sans données nominatives là où il n'y en a pas.
+    expect(
+      (screen.getByLabelText(/Voit l'identité du déclarant/) as HTMLInputElement).checked
+    ).toBe(true)
+    expect(
+      (screen.getByLabelText(/Borné à son site ou à sa direction/) as HTMLInputElement).checked
+    ).toBe(true)
+    expect(
+      (screen.getByLabelText(/A la charge des dossiers/) as HTMLInputElement).checked
+    ).toBe(false)
+  })
+
+  it('⚠️ prévient au moment où l’on retire l’identité du déclarant', async () => {
+    /*
+      Le seul de ces réglages dont l'effet ne se voit nulle part depuis l'administration : les
+      fiches continuent de s'afficher, simplement amputées du nom. Le dire au moment du geste est
+      la seule occasion.
+    */
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Comportement' }))
+
+    expect(screen.queryByText(/sans jamais voir qui a déclaré/)).toBeNull()
+
+    await clavier.click(screen.getByLabelText(/Voit l'identité du déclarant/))
+
+    expect(screen.getByText(/sans jamais voir qui a déclaré/)).toBeDefined()
+  })
+
+  it('soumet les clés du catalogue, pas les libellés', async () => {
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Comportement' }))
+    await clavier.click(screen.getByLabelText(/A la charge des dossiers/))
+
+    const envoyes = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[name="comportements"]')
+    )
+      .filter((champ) => champ.checked)
+      .map((champ) => champ.value)
+
+    expect(envoyes.sort()).toEqual([
+      'cloisonne_par_rattachement',
+      'traite_dossiers',
+      'voit_identite_declarant',
+    ])
+  })
+})
+
+describe('⚠️ L’alerte de circuit accéléré, par type de déclaration', () => {
+  it('ne s’offre que sous un type OUVERT', async () => {
+    /*
+      Elle vit sur la même ligne que le type en base : un type non coché n'a aucun support pour
+      la porter. L'offrir quand même laisserait cocher quelque chose qui ne serait pas enregistré.
+    */
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Déclarations/ }))
+
+    // ROLE ouvre `ei_employe` seulement : une seule case d'alerte.
+    expect(screen.getAllByLabelText(/Alerté en circuit accéléré/).length).toBe(1)
+
+    // On ouvre le second type : sa case d'alerte apparaît.
+    await clavier.click(screen.getByLabelText('Grief / plainte (Employé)'))
+
+    expect(screen.getAllByLabelText(/Alerté en circuit accéléré/).length).toBe(2)
+  })
+
+  it('⚠️ décocher le TYPE retire son alerte, à l’écran comme en base', async () => {
+    // Les deux vivent sur la même ligne : le type parti, l'alerte l'est aussi. Laisser la case
+    // cochée à l'écran aurait laissé croire qu'elle survivait.
+    const clavier = afficher()
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: /Déclarations/ }))
+
+    expect(
+      (screen.getByLabelText(/Alerté en circuit accéléré/) as HTMLInputElement).checked
+    ).toBe(true)
+
+    await clavier.click(screen.getByLabelText('Événement Indésirable (Employé)'))
+
+    expect(screen.queryByLabelText(/Alerté en circuit accéléré/)).toBeNull()
+
+    // Et rien n'est soumis pour ce type, ni le type ni son alerte.
+    const circuit = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[name="circuitCritique"]')
+    ).filter((champ) => champ.checked)
+
+    expect(circuit).toEqual([])
   })
 })
 

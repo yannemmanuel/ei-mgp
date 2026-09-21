@@ -5,12 +5,16 @@ import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import {
   changerActivationRole,
-  changerChargeDesDossiers,
+  changerComportementRole,
+  COMPORTEMENTS_NOMS,
+  COMPORTEMENTS_ROLE,
   creerRole,
+  modifierEtapesRole,
   modifierIdentiteRole,
   modifierParcoursRole,
   modifierPermissionsRole,
   supprimerRole,
+  type ComportementRole,
 } from '@/server/services/administration/habilitations'
 import { revaliderHabilitations } from '@/server/revalidation'
 
@@ -55,12 +59,17 @@ export async function actionModifierHabilitations(
 }
 
 /**
- * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ * Les quatre comportements du rôle — voir `COMPORTEMENTS_ROLE`.
  *
  * Même portée que les permissions : l'effet est immédiat et vaut pour tous les porteurs du rôle.
  * L'autorisation est donc revérifiée ici, indépendamment de l'affichage de l'écran.
+ *
+ * ⚠️ UN SEUL FORMULAIRE, QUATRE ÉCRITURES — et c'est voulu. Le service n'écrit et ne journalise
+ * que ce qui CHANGE réellement : cocher une case n'inscrit qu'une ligne au journal, et non quatre
+ * dont trois ne disent rien. Quatre formulaires séparés auraient obligé à quatre allers-retours
+ * pour paramétrer un rôle neuf.
  */
-export async function actionChangerChargeDesDossiers(
+export async function actionChangerComportementsRole(
   _precedent: EtatHabilitation,
   donnees: FormData
 ): Promise<EtatHabilitation> {
@@ -74,23 +83,94 @@ export async function actionChangerChargeDesDossiers(
 
   if (role === '') return { erreur: 'Rôle manquant.' }
 
-  const traite = donnees.get('traiteLesDossiers') === '1'
+  /*
+    Cases décochées : le navigateur ne les envoie pas. On lit donc le catalogue, pas le
+    formulaire — une case absente vaut « non », jamais « ne pas toucher ».
+
+    ⚠️ LE CATALOGUE EST LA SOURCE, et le service le revalide de son côté : un champ forgé ne peut
+    désigner que l'un des quatre comportements, jamais une autre colonne de `roles`.
+  */
+  const cochees = new Set(donnees.getAll('comportements').map((c) => String(c)))
 
   try {
-    await changerChargeDesDossiers(acteur, role, traite)
+    for (const comportement of COMPORTEMENTS_NOMS) {
+      await changerComportementRole(
+        acteur,
+        role,
+        comportement as ComportementRole,
+        cochees.has(comportement)
+      )
+    }
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
-    console.error('Modification de la charge des dossiers en échec', erreur)
+    console.error('Modification des comportements du rôle en échec', erreur)
+    return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revaliderHabilitations()
+
+  const actifs = COMPORTEMENTS_NOMS.filter((c) => cochees.has(c))
+
+  return {
+    succes:
+      actifs.length === 0
+        ? `« ${role} » ne porte plus aucun de ces comportements.`
+        : `Enregistré : ${actifs.map((c) => COMPORTEMENTS_ROLE[c].libelle.toLowerCase()).join(', ')}. Effet immédiat.`,
+  }
+}
+
+/**
+ * La grille « qui fait avancer quoi » : les étapes que ce rôle peut franchir, par type.
+ *
+ * ⚠️ CE GESTE PEUT BLOQUER UN CIRCUIT. Décocher la dernière case d'une colonne n'affiche aucune
+ * erreur : les dossiers arrivent à cette étape et n'en repartent jamais. Le tableau de bord
+ * d'administration remonte ces colonnes vides — c'est le seul endroit où on les verra.
+ */
+export async function actionModifierEtapesRole(
+  _precedent: EtatHabilitation,
+  donnees: FormData
+): Promise<EtatHabilitation> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'roles.manage')) {
+    return { erreur: "Vous n'êtes pas autorisé à modifier les habilitations." }
+  }
+
+  const role = String(donnees.get('role') ?? '').trim()
+
+  if (role === '') return { erreur: 'Rôle manquant.' }
+
+  /*
+    Chaque case cochée arrive sous la forme « type/étape ». Un couple mal formé est REFUSÉ plutôt
+    qu'ignoré : l'ignorer enregistrerait une grille amputée en annonçant que tout est enregistré.
+  */
+  const cases: { parcours: string; statut: string }[] = []
+
+  for (const brut of donnees.getAll('etapes')) {
+    const [parcours, statut] = String(brut).split('/')
+
+    if (!parcours || !statut) return { erreur: 'Grille des étapes illisible.' }
+
+    cases.push({ parcours, statut })
+  }
+
+  try {
+    await modifierEtapesRole(acteur, role, cases)
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Modification des étapes du rôle en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
   revaliderHabilitations()
 
   return {
-    succes: traite
-      ? `« ${role} » traite désormais les dossiers de son périmètre.`
-      : `« ${role} » ne traite plus de dossiers : ses porteurs n’apparaîtront plus comme titulaires.`,
+    succes:
+      cases.length === 0
+        ? `« ${role} » ne peut plus faire avancer aucun dossier.`
+        : `${cases.length} étape(s) enregistrée(s) pour « ${role} ». Effet immédiat.`,
   }
 }
 
@@ -118,8 +198,14 @@ export async function actionModifierParcoursRole(
   // décrit l'état complet du rôle.
   const parcours = donnees.getAll('parcours').map((p) => String(p))
 
+  /*
+    L'alerte de circuit accéléré vit sur la MÊME ligne que le type (`role_parcours`), et se règle
+    donc dans le même geste. Décocher un type emporte son alerte : la ligne disparaît.
+  */
+  const circuit = donnees.getAll('circuitCritique').map((p) => String(p))
+
   try {
-    await modifierParcoursRole(acteur, role, parcours)
+    await modifierParcoursRole(acteur, role, parcours, circuit)
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 

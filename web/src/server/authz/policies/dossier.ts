@@ -3,7 +3,7 @@ import { peutFaireAvancerDepuis } from '../etapes'
 import type { ParcoursCode } from '../parcours'
 import { peutVoirParcours } from '../parcours'
 import { directionCloisonnante, siteCloisonnant } from '../site'
-import { aPermission, aRole, aUnePermissionParmi, type UtilisateurAutorise } from '../utilisateur'
+import { aPermission, aUnePermissionParmi, type UtilisateurAutorise } from '../utilisateur'
 
 /**
  * Autorisation d'accès aux dossiers (docs/acteurs.md, RG-14).
@@ -39,9 +39,10 @@ export function peutVoirListeDossiers(u: UtilisateurAutorise): boolean {
 }
 
 export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAutorisation): boolean {
-  // Un employé déclarant ne voit QUE ses propres dossiers non anonymes : un dossier anonyme
-  // n'est jamais rattaché à son auteur, même si celui-ci était connecté (RG-06).
-  if (aRole(u, 'employe_declarant')) {
+  // Un rôle « ne voit que ses déclarations » ne voit QUE ses propres dossiers non anonymes : un
+  // dossier anonyme n'est jamais rattaché à son auteur, même connecté (RG-06). Coché sur le rôle
+  // depuis le 2026-09-21 — la fonction nommait `employe_declarant`.
+  if (u.voitSeulementSesDeclarations) {
     return !dossier.isAnonymous && dossier.declarantUserId === u.id
   }
 
@@ -128,7 +129,7 @@ export function peutChangerStatutDossier(u: UtilisateurAutorise, dossier: Dossie
   return (
     aPermission(u, 'dossiers.status.update') &&
     peutVoirDossier(u, dossier) &&
-    peutFaireAvancerDepuis(u.roles, dossier.parcoursCode, dossier.statutCode)
+    peutFaireAvancerDepuis(u, dossier.parcoursCode, dossier.statutCode)
   )
 }
 

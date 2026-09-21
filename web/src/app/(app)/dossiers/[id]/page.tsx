@@ -8,7 +8,6 @@ import { exigerUtilisateur } from '@/server/auth'
 import {
   acteursDeLEtape,
   aPermission,
-  LIBELLES_ROLE,
   peutChangerStatutDossier,
   peutCloturerDossier,
   peutCreerInvestigation,
@@ -106,6 +105,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     famillesRisque,
     suivi,
     enCharge,
+    acteursAttendus,
   ] = await Promise.all([
     historiqueDossier(id),
     affectationsActives(id),
@@ -149,6 +149,15 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       // DT-06 : le déclarant identifié n'instruit pas son propre dossier.
       declarantUserId: dossier.declarant_user_id,
     }),
+
+    /*
+      À QUI REVIENT CETTE ÉTAPE — lu dans `role_etapes`, plus dans une table du code.
+
+      Sert uniquement à expliquer le refus : « cette étape revient à … ». Le contrôle, lui,
+      est fait par `peutChangerStatutDossier()` juste en dessous, et sur les étapes résolues
+      du compte — jamais sur cette liste, qui n'est qu'un message.
+    */
+    acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode),
   ])
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
@@ -643,9 +652,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             }
             parRattachement={enCharge.length > 0 || affectations.length === 0}
             transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
-            acteursDeLEtape={(acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode) ?? []).map(
-              (role) => LIBELLES_ROLE[role] ?? role
-            )}
+            acteursDeLEtape={acteursAttendus}
             // Proposée seulement tant qu'aucune gravité n'est posée : requalifier un dossier déjà
             // qualifié n'a pas été demandé, et rouvrirait la question du circuit accéléré.
             gravitesAQualifier={

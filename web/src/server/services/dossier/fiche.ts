@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { aRole, peutVoirDossier, type UtilisateurAutorise } from '@/server/authz'
+import { peutVoirDossier, type UtilisateurAutorise } from '@/server/authz'
 import type { ParcoursCode } from '@/server/authz'
 import type { StatutCode } from './statuts'
 
@@ -13,11 +13,14 @@ import type { StatutCode } from './statuts'
  */
 
 /**
- * `comite_ethique` a un accès « sans données nominatives » (docs/acteurs.md) : il voit les
- * dossiers de son parcours, jamais l'identité du déclarant.
+ * L'accès « sans données nominatives » (docs/acteurs.md) : voir les dossiers de son périmètre,
+ * jamais l'identité du déclarant.
+ *
+ * ⚠️ SE COCHE SUR LE RÔLE depuis le 2026-09-21. Cette fonction nommait `comite_ethique` : tout
+ * autre rôle créé pour la même raison voyait les identités, et rien ne le disait.
  */
 export function peutVoirIdentite(u: UtilisateurAutorise): boolean {
-  return !aRole(u, 'comite_ethique')
+  return u.voitIdentiteDeclarant
 }
 
 export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {

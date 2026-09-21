@@ -1,8 +1,11 @@
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
-import { siteManquant, type Role } from '@/server/authz'
-import { parcoursParRole } from '@/server/services/administration/habilitations'
+import { cloisonnePourSesRoles, siteManquant } from '@/server/authz'
+import {
+  cloisonnementParRole,
+  parcoursParRole,
+} from '@/server/services/administration/habilitations'
 import {
   listerUtilisateurs,
   referentielsComptes,
@@ -22,13 +25,15 @@ export default async function PageComptes({
   const brut = parametres.q
   const recherche = (Array.isArray(brut) ? brut[0] : brut) ?? ''
 
-  const [comptes, roles, referentiels, parcoursDesRoles, tousLesParcours] = await Promise.all([
-    listerUtilisateurs(recherche),
-    rolesDisponibles(),
-    referentielsComptes(),
-    parcoursParRole(),
-    prisma.parcours.findMany({ orderBy: { ordre: 'asc' }, select: { code: true, libelle: true } }),
-  ])
+  const [comptes, roles, referentiels, parcoursDesRoles, tousLesParcours, rolesCloisonnes] =
+    await Promise.all([
+      listerUtilisateurs(recherche),
+      rolesDisponibles(),
+      referentielsComptes(),
+      parcoursParRole(),
+      prisma.parcours.findMany({ orderBy: { ordre: 'asc' }, select: { code: true, libelle: true } }),
+      cloisonnementParRole(),
+    ])
 
   /*
     Le périmètre d'un compte : l'union de ce que ses RÔLES ouvrent.
@@ -74,8 +79,18 @@ export default async function PageComptes({
           fausse sur le rattachement le plus précis — et une alerte fausse est ce qui finit par
           faire ignorer les vraies.
         */
+        /*
+          ⚠️ LA MÊME RÈGLE QUE L'AUTORISATION, appelée et non recopiée : le compte n'est borné que
+          si TOUS ses rôles porteurs d'accès le prévoient. Un `some()` écrit ici aurait alerté sur
+          des comptes que l'application, elle, ne borne pas — et une alerte fausse est ce qui finit
+          par faire ignorer les vraies.
+        */
         siteManquant: siteManquant(
-          c.roles as Role[],
+          cloisonnePourSesRoles(
+            c.roles.map(
+              (role) => rolesCloisonnes.get(role) ?? { cloisonne: false, donneAcces: false }
+            )
+          ),
           c.site_id ?? c.directions?.site_id ?? null,
           c.direction_id
         ),

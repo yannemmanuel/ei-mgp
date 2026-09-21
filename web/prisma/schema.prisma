@@ -383,6 +383,7 @@ model parcours {
   dossiers                dossiers[]
   notification_templates  notification_templates[]
   qr_codes                qr_codes[]
+  role_etapes             role_etapes[]
   role_parcours           role_parcours[]
   sla_delais              sla_delais[]
   statistiques_mensuelles statistiques_mensuelles[]
@@ -449,18 +450,22 @@ model role_has_permissions {
 }
 
 model roles {
-  id                   BigInt                 @id @default(autoincrement())
-  name                 String                 @db.VarChar(255)
-  guard_name           String                 @db.VarChar(255)
-  created_at           DateTime?              @db.Timestamp(0)
-  updated_at           DateTime?              @db.Timestamp(0)
-  libelle              String                 @db.VarChar(255)
-  description          String?
-  actif                Boolean                @default(true)
-  traite_dossiers      Boolean                @default(false)
-  model_has_roles      model_has_roles[]
-  role_has_permissions role_has_permissions[]
-  role_parcours        role_parcours[]
+  id                              BigInt                 @id @default(autoincrement())
+  name                            String                 @db.VarChar(255)
+  guard_name                      String                 @db.VarChar(255)
+  created_at                      DateTime?              @db.Timestamp(0)
+  updated_at                      DateTime?              @db.Timestamp(0)
+  libelle                         String                 @db.VarChar(255)
+  description                     String?
+  actif                           Boolean                @default(true)
+  traite_dossiers                 Boolean                @default(false)
+  cloisonne_par_rattachement      Boolean                @default(false)
+  voit_seulement_ses_declarations Boolean                @default(false)
+  voit_identite_declarant         Boolean                @default(true)
+  model_has_roles                 model_has_roles[]
+  role_etapes                     role_etapes[]
+  role_has_permissions            role_has_permissions[]
+  role_parcours                   role_parcours[]
 
   @@unique([name, guard_name], map: "roles_name_guard_name_unique")
 }
@@ -535,6 +540,7 @@ model statuts_dossier {
   dossiers                                                                   dossiers[]
   historique_statuts_historique_statuts_statut_precedent_idTostatuts_dossier historique_statuts[] @relation("historique_statuts_statut_precedent_idTostatuts_dossier")
   historique_statuts_historique_statuts_statut_suivant_idTostatuts_dossier   historique_statuts[] @relation("historique_statuts_statut_suivant_idTostatuts_dossier")
+  role_etapes                                                                role_etapes[]
 }
 
 model users {
@@ -644,13 +650,14 @@ model invitations_connexion {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model role_parcours {
-  id          BigInt    @id @default(autoincrement())
-  role_id     BigInt
-  parcours_id BigInt
-  created_at  DateTime? @db.Timestamp(0)
-  updated_at  DateTime? @db.Timestamp(0)
-  parcours    parcours  @relation(fields: [parcours_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_parcours_id_foreign")
-  roles       roles     @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_role_id_foreign")
+  id                      BigInt    @id @default(autoincrement())
+  role_id                 BigInt
+  parcours_id             BigInt
+  created_at              DateTime? @db.Timestamp(0)
+  updated_at              DateTime? @db.Timestamp(0)
+  alerte_circuit_critique Boolean   @default(false)
+  parcours                parcours  @relation(fields: [parcours_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_parcours_id_foreign")
+  roles                   roles     @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_parcours_role_id_foreign")
 
   @@unique([role_id, parcours_id], map: "role_parcours_unique")
   @@index([role_id], map: "role_parcours_role_id_index")
@@ -666,4 +673,20 @@ model familles_risque {
   created_at DateTime?  @db.Timestamp(0)
   updated_at DateTime?  @db.Timestamp(0)
   dossiers   dossiers[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model role_etapes {
+  id              BigInt          @id @default(autoincrement())
+  role_id         BigInt
+  parcours_id     BigInt
+  statut_id       BigInt
+  created_at      DateTime?       @db.Timestamp(0)
+  updated_at      DateTime?       @db.Timestamp(0)
+  parcours        parcours        @relation(fields: [parcours_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_etapes_parcours_id_foreign")
+  roles           roles           @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_etapes_role_id_foreign")
+  statuts_dossier statuts_dossier @relation(fields: [statut_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_etapes_statut_id_foreign")
+
+  @@unique([role_id, parcours_id, statut_id], map: "role_etapes_unique")
+  @@index([role_id], map: "role_etapes_role_id_index")
 }
