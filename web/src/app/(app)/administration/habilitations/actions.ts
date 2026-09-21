@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { utilisateurCourant } from '@/server/auth'
 import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
@@ -12,6 +11,7 @@ import {
   modifierPermissionsRole,
   supprimerRole,
 } from '@/server/services/administration/habilitations'
+import { revaliderHabilitations } from '@/server/revalidation'
 
 /**
  * Modification des habilitations d'un rôle.
@@ -49,7 +49,7 @@ export async function actionModifierHabilitations(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
   return { succes: `Habilitations de « ${role} » enregistrées. Effet immédiat.` }
 }
 
@@ -86,7 +86,7 @@ export async function actionModifierParcoursRole(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
 
   return {
     succes:
@@ -127,7 +127,7 @@ export async function actionModifierIdentiteRole(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
   return { succes: 'Rôle enregistré.' }
 }
 
@@ -162,7 +162,7 @@ export async function actionChangerActivationRole(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
 
   return {
     succes: actif
@@ -200,7 +200,7 @@ export async function actionCreerRole(
     return { erreur: "La création n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
 
   return {
     succes: `Rôle « ${libelle.trim()} » créé. Attribuez-le depuis la console des comptes.`,
@@ -235,6 +235,6 @@ export async function actionSupprimerRole(
     return { erreur: "La suppression n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath('/administration/habilitations')
+  revaliderHabilitations()
   return { succes: 'Rôle supprimé. Le journal en garde la trace.' }
 }

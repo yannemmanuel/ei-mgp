@@ -1,12 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import { peutEnvoyerMessage, type ParcoursCode } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import { envoyerMessage } from '@/server/services/messagerie/messagerie'
 import type { EtatAction } from './actions'
+import { revaliderDossier } from '@/server/revalidation'
 
 /**
  * Messagerie côté ACTEUR authentifié (EX-NOT-07).
@@ -52,6 +52,6 @@ export async function actionEnvoyerMessageAgent(
     return { erreur: "Le message n'a pas pu être envoyé. Vous pouvez réessayer." }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Message envoyé.' }
 }

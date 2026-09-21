@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
@@ -20,6 +19,7 @@ import {
 } from '@/server/services/action-corrective/action-corrective'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import type { EtatAction } from './actions'
+import { revaliderDossier } from '@/server/revalidation'
 
 /**
  * Actions du module Actions correctives (EX-ACT-01 à 05).
@@ -98,7 +98,7 @@ export async function actionCreerActionCorrective(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Action corrective créée.' }
 }
 
@@ -126,7 +126,7 @@ export async function actionAvancerAction(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
+  revaliderDossier(contexte.dossierId)
   return { succes: 'Avancement mis à jour.' }
 }
 
@@ -152,7 +152,7 @@ export async function actionVerifierEfficacite(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
+  revaliderDossier(contexte.dossierId)
   return { succes: 'Vérification enregistrée.' }
 }
 
@@ -174,6 +174,6 @@ export async function actionCloturerActionCorrective(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
+  revaliderDossier(contexte.dossierId)
   return { succes: 'Action clôturée.' }
 }

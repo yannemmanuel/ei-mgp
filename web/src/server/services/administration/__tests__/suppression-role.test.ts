@@ -132,16 +132,32 @@ describe('Suppression d’un rôle', () => {
     ).toContain('_count.model_has_roles > 0')
   })
 
-  it('⚠️ refuse toujours un rôle livré QUE QUELQU’UN porte', async () => {
-    // La moitié qui protège : le refus doit désormais parler d'attribution, et de rien d'autre.
-    const porte = await prisma.model_has_roles.findFirst({
-      where: { model_type: MODEL_TYPE_USER, roles: { guard_name: 'web' } },
-      select: { roles: { select: { name: true } } },
+  it('⚠️ refuse un rôle porté, quel que soit son nom', async () => {
+    /*
+      ⚠️ CE CAS NE TOUCHE AUCUN RÔLE RÉEL, et c'est une leçon payée deux fois.
+
+      Sa première écriture cherchait un rôle réellement porté et tentait de le supprimer, en
+      attendant un refus. Le problème est que l'assertion ne constate l'échec qu'APRÈS l'appel :
+      le jour où la garde ne joue pas, le rôle est déjà supprimé quand le cas le signale.
+      `correspondant_mgp` a disparu ainsi, et a dû être restauré depuis le journal d'audit.
+
+      Un cas qui détruit ce qu'il vérifie n'est pas un cas. Celui-ci fabrique donc son rôle, lui
+      attache un compte, et vérifie le refus sur cette cible jetable — la garde est la même, le
+      risque n'existe plus.
+    */
+    const role = await roleJetable()
+    const compte = await prisma.users.findFirstOrThrow({ select: { id: true } })
+
+    await prisma.model_has_roles.create({
+      data: { role_id: role.id, model_type: MODEL_TYPE_USER, model_id: compte.id },
     })
+    liensCrees.push(role.id)
 
-    expect(porte, 'aucun rôle n’est porté : le cas ne prouverait rien').not.toBeNull()
-    if (!porte) return
+    await expect(supprimerRole(ACTEUR, role.name)).rejects.toThrow(/portent encore/i)
 
-    await expect(supprimerRole(ACTEUR, porte.roles.name)).rejects.toThrow(/portent encore/)
+    expect(
+      await prisma.roles.count({ where: { id: role.id } }),
+      'la garde n’a pas retenu la suppression'
+    ).toBe(1)
   })
 })

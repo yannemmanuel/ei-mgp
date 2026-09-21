@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
@@ -21,6 +20,7 @@ import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
 import { basculerContentieux } from '@/server/services/rgpd/conservation'
 import { aPermission } from '@/server/authz'
 import { qualifierFamilleRisque } from '@/server/services/dossier/famille-risque'
+import { revaliderDossier } from '@/server/revalidation'
 
 /**
  * Actions de gestion d'un dossier.
@@ -106,7 +106,7 @@ export async function actionChangerStatut(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Statut mis à jour.' }
 }
 
@@ -133,7 +133,7 @@ export async function actionRejeter(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Dossier rejeté (non recevable).' }
 }
 
@@ -159,7 +159,7 @@ export async function actionCloturer(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Dossier clôturé.' }
 }
 
@@ -186,7 +186,7 @@ export async function actionReouvrir(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Dossier réouvert.' }
 }
 
@@ -220,7 +220,7 @@ export async function actionBasculerContentieux(
     return { erreur: "L'opération n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
 
   return {
     succes: contentieux
@@ -271,7 +271,7 @@ export async function actionQualifierFamilleRisque(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
 
   return {
     succes: brut === '' ? 'Famille de risque retirée.' : 'Famille de risque enregistrée.',
@@ -301,7 +301,7 @@ export async function actionQualifierGravite(
       acteurId: utilisateur.id,
     })
 
-    revalidatePath(`/dossiers/${dossierId}`)
+    revaliderDossier(dossierId)
 
     return {
       succes: devientCritique

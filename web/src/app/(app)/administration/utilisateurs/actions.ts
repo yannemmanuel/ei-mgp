@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { utilisateurCourant } from '@/server/auth'
 import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
@@ -11,6 +10,7 @@ import {
 import { envoyerIdentifiants } from '@/server/services/administration/courriel-identifiants'
 import { creerInvitation } from '@/server/services/administration/invitation'
 import { configurationSmtp } from '@/server/services/notification/transport'
+import { revaliderComptes } from '@/server/revalidation'
 
 /**
  * Console des comptes.
@@ -113,7 +113,7 @@ export async function actionEnregistrerCompte(
       { sansMotDePasse: creation && parInvitation }
     )
 
-    revalidatePath('/administration/utilisateurs')
+    revaliderComptes()
 
     if (!creation) {
       return { succes: 'Compte mis à jour.' }
@@ -202,7 +202,7 @@ export async function actionRegenererMotDePasse(
   try {
     const motDePasse = await regenererMotDePasse(acteur, cible)
 
-    revalidatePath('/administration/utilisateurs')
+    revaliderComptes()
 
     return { succes: 'Nouveau mot de passe attribué.', motDePasseInitial: motDePasse }
   } catch (erreur) {

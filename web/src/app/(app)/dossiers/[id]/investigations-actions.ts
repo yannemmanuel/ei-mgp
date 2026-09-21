@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 import { exigerUtilisateur } from '@/server/auth'
 import {
@@ -14,6 +13,7 @@ import {
 } from '@/server/services/investigation/investigation'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import type { EtatAction } from './actions'
+import { revaliderDossier } from '@/server/revalidation'
 
 /**
  * Actions du module Investigations (EX-INV-01 à 04).
@@ -105,7 +105,7 @@ export async function actionOuvrirInvestigation(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${dossierId}`)
+  revaliderDossier(dossierId)
   return { succes: 'Fiche d’investigation ouverte.' }
 }
 
@@ -127,7 +127,7 @@ export async function actionMettreAJourInvestigation(
     return { erreur: messageErreur(erreur) }
   }
 
-  revalidatePath(`/dossiers/${contexte.dossierId}`)
+  revaliderDossier(contexte.dossierId)
   return { succes: 'Fiche mise à jour.' }
 }
 

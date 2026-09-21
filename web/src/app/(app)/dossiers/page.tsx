@@ -22,6 +22,16 @@ import { listerDossiers, referentielsFiltres } from '@/server/services/dossier/l
 
 export const metadata: Metadata = { title: 'Dossiers' }
 
+/*
+  ⚠️ RENDU À LA DEMANDE, comme toutes les autres listes.
+
+  C'était la SEULE à ne pas le déclarer. Elle l'était de fait — elle lit `searchParams` —, mais
+  l'écrire la met à l'abri du jour où ce ne serait plus le cas : une liste de dossiers servie
+  depuis un cache montrerait des statuts périmés sans que rien ne le signale, et c'est exactement
+  le reproche qui a été fait à l'application.
+*/
+export const dynamic = 'force-dynamic'
+
 const dateFr = (d: Date | null) =>
   d ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' }).format(d) : '—'
 
