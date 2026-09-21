@@ -10,6 +10,12 @@ import { ErreurWorkflow } from './workflow'
  *
  * Confondre les deux reviendrait à demander au déclarant de qualifier lui-même son signalement,
  * ce qu'il n'est pas en mesure de faire — et ce que le dispositif n'a pas à lui demander.
+ *
+ * ⚠️ ELLE NE S'APPLIQUE PLUS À TOUS LES TYPES depuis le 2026-09-21. L'évènement indésirable n'en
+ * relève pas : sa nomenclature propre — catégorie au dépôt, gravité à la qualification — dit déjà
+ * ce qu'il faut en savoir. Ce n'est PAS écrit dans le code : `parcours.familles_risque_actives` se
+ * coche type par type dans `/administration/familles-risque`, pour que la décision se défasse sans
+ * déploiement.
  */
 
 export type FamilleRisque = {
@@ -28,12 +34,40 @@ export async function famillesRisqueActives(): Promise<FamilleRisque[]> {
   return lignes
 }
 
+/** Ce type de déclaration demande-t-il une famille de risque à ses traitants ? */
+export async function typeQualifieLaFamille(parcoursCode: string): Promise<boolean> {
+  const parcours = await prisma.parcours.findFirst({
+    where: { code: parcoursCode },
+    select: { familles_risque_actives: true },
+  })
+
+  return parcours?.familles_risque_actives ?? false
+}
+
+/**
+ * Familles proposées sur CE type de déclaration — vide si le type n'en relève pas.
+ *
+ * ⚠️ UNE LISTE VIDE FAIT DISPARAÎTRE LA CARTE de la fiche, et c'est exactement l'effet voulu : la
+ * question ne se pose plus, plutôt que de se poser sans réponse possible. La fiche continue en
+ * revanche d'AFFICHER la famille d'un dossier qui en porte une — décocher un type retire du choix
+ * futur, jamais du passé, comme pour tous les référentiels ici.
+ */
+export async function famillesRisqueProposees(parcoursCode: string): Promise<FamilleRisque[]> {
+  if (!(await typeQualifieLaFamille(parcoursCode))) return []
+
+  return famillesRisqueActives()
+}
+
 /**
  * Pose ou retire la famille de risque d'un dossier.
  *
  * ⚠️ `familleId` à `null` RETIRE la qualification, et c'est voulu : une famille posée par erreur
  * doit pouvoir être défaite. Sans cela, la seule issue serait d'en choisir une autre, également
  * fausse.
+ *
+ * ⚠️ LE RETRAIT RESTE POSSIBLE MÊME SUR UN TYPE QUI NE QUALIFIE PLUS. C'est la seule issue pour un
+ * dossier qui portait une famille avant que son type ne soit décoché : l'interdire enfermerait la
+ * donnée. Seule la POSE est refusée.
  *
  * ⚠️ UNE FAMILLE DÉSACTIVÉE NE PEUT PLUS ÊTRE POSÉE, mais les dossiers qui la portent la gardent.
  * C'est la règle de tous les référentiels ici : désactiver retire du CHOIX, jamais du passé.
@@ -43,6 +77,32 @@ export async function qualifierFamilleRisque(params: {
   familleId: bigint | null
 }): Promise<void> {
   if (params.familleId !== null) {
+    /*
+      ⚠️ LE TYPE DOIT EN RELEVER, et ce contrôle est ici — pas dans l'écran.
+
+      La carte disparaît de la fiche quand le type ne qualifie pas de famille ; masquer un
+      formulaire n'est pas une restriction. Une requête forgée poserait sinon une famille sur un
+      évènement indésirable, que rien ensuite n'afficherait ni ne permettrait de défaire depuis
+      l'écran — une donnée invisible et coincée.
+
+      Lu sur le DOSSIER, et non reçu en paramètre : l'appelant pourrait se tromper de type, et
+      c'est précisément ce que la garde doit empêcher.
+    */
+    const dossier = await prisma.dossiers.findUnique({
+      where: { id: params.dossierId },
+      select: { parcours: { select: { code: true, libelle: true, familles_risque_actives: true } } },
+    })
+
+    if (!dossier) {
+      throw new ErreurWorkflow('Dossier inconnu.')
+    }
+
+    if (!dossier.parcours.familles_risque_actives) {
+      throw new ErreurWorkflow(
+        `« ${dossier.parcours.libelle} » ne relève pas des familles de risque. Ce réglage se change dans l’administration.`
+      )
+    }
+
     const famille = await prisma.familles_risque.findUnique({
       where: { id: params.familleId },
       select: { actif: true },

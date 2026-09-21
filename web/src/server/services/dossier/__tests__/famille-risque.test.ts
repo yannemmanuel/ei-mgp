@@ -1,6 +1,11 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { famillesRisqueActives, qualifierFamilleRisque } from '../famille-risque'
+import {
+  famillesRisqueActives,
+  famillesRisqueProposees,
+  qualifierFamilleRisque,
+  typeQualifieLaFamille,
+} from '../famille-risque'
 import { ErreurWorkflow } from '../workflow'
 import { repartitionParFamilleRisque } from '../../reporting/indicateurs'
 import { FILTRE_VIDE } from '../../reporting/filtre'
@@ -17,6 +22,11 @@ import {
  * ⚠️ À ne pas confondre avec la catégorie : celle-ci vient du déclarant au moment du dépôt, dans
  * ses mots ; la famille est une lecture de traitant, après analyse. Les deux coexistent sur la
  * fiche, et rien ne doit les faire fusionner.
+ *
+ * ⚠️ ELLE NE S'APPLIQUE PLUS À TOUS LES TYPES depuis le 2026-09-21 : l'évènement indésirable n'en
+ * relève pas. Ce n'est pas écrit dans le code — `parcours.familles_risque_actives` se coche dans
+ * `/administration/familles-risque` —, et les cas ci-dessous exercent donc les deux côtés : un
+ * type qui qualifie, et un type qui ne qualifie pas.
  */
 const dossiers: string[] = []
 
@@ -24,12 +34,18 @@ afterAll(async () => {
   await nettoyerDossiers(dossiers)
 })
 
-async function nouveauDossier(): Promise<string> {
-  const categorie = await categoriePour('ei_employe')
+/** Le type sur lequel se jouent les cas de qualification : il doit en relever. */
+const TYPE_QUALIFIANT = 'grief_employe'
+
+/** Et celui qui n'en relève pas, pour exercer le refus. */
+const TYPE_SANS_FAMILLE = 'ei_employe'
+
+async function dossierDeType(parcours: 'grief_employe' | 'ei_employe'): Promise<string> {
+  const categorie = await categoriePour(parcours)
   const gravite = await graviteParNiveau(1)
 
   const { dossierId } = await creerDeclaration({
-    parcours: 'ei_employe',
+    parcours,
     canalCaptageCode: 'qr_code',
     anonyme: true,
     donneesDossier: {
@@ -42,6 +58,15 @@ async function nouveauDossier(): Promise<string> {
   dossiers.push(dossierId)
   return dossierId
 }
+
+/**
+ * Un dossier d'un type QUI QUALIFIE une famille.
+ *
+ * ⚠️ C'ÉTAIT UN ÉVÈNEMENT INDÉSIRABLE jusqu'au 2026-09-21. Le laisser aurait fait échouer chaque
+ * cas de qualification — le service refuse désormais d'en poser une sur ce type — et donné à
+ * croire à une régression là où il n'y a qu'un changement de fabrique.
+ */
+const nouveauDossier = () => dossierDeType(TYPE_QUALIFIANT)
 
 describe('Qualification d’un dossier', () => {
   it('pose une famille, puis la remplace', async () => {
@@ -117,6 +142,93 @@ describe('Qualification d’un dossier', () => {
   })
 })
 
+describe('⚠️ La famille ne se demande que sur les types qui en relèvent', () => {
+  it('ne propose RIEN sur un évènement indésirable', async () => {
+    /*
+      ⚠️ UNE LISTE VIDE FAIT DISPARAÎTRE LA CARTE de la fiche, et c'est l'effet voulu : la question
+      ne se pose plus, plutôt que de se poser sans réponse possible.
+    */
+    expect(await typeQualifieLaFamille(TYPE_SANS_FAMILLE)).toBe(false)
+    expect(await famillesRisqueProposees(TYPE_SANS_FAMILLE)).toEqual([])
+  })
+
+  it('les propose sur un type qui en relève', async () => {
+    expect(await typeQualifieLaFamille(TYPE_QUALIFIANT)).toBe(true)
+
+    const proposees = await famillesRisqueProposees(TYPE_QUALIFIANT)
+
+    expect(proposees.length, 'aucune famille proposée : le cas ne prouverait rien').toBeGreaterThan(
+      0
+    )
+    expect(proposees.map((f) => f.id)).toEqual((await famillesRisqueActives()).map((f) => f.id))
+  })
+
+  it('⚠️ REFUSE de poser une famille sur un type qui n’en relève pas', async () => {
+    /*
+      ⚠️ LE CONTRÔLE EST DANS LE SERVICE, PAS DANS L'ÉCRAN, et c'est tout l'objet de ce cas.
+
+      La carte disparaît de la fiche — mais masquer un formulaire n'est pas une restriction. Une
+      requête forgée poserait sinon une famille sur un évènement indésirable : une donnée que rien
+      n'afficherait plus et que l'écran ne permettrait plus de défaire.
+    */
+    const familles = await famillesRisqueActives()
+    const dossierId = await dossierDeType(TYPE_SANS_FAMILLE)
+
+    await expect(
+      qualifierFamilleRisque({ dossierId, familleId: familles[0].id })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+
+    expect(
+      (await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })).famille_risque_id,
+      'la famille a été posée malgré le refus'
+    ).toBeNull()
+  })
+
+  it('⚠️ laisse RETIRER une famille sur un type qui n’en relève plus', async () => {
+    /*
+      La contrepartie indispensable du refus ci-dessus. Un dossier qualifié AVANT que son type ne
+      soit décoché doit pouvoir être défait : interdire aussi le retrait l'enfermerait avec une
+      donnée que plus rien n'affiche et que personne ne peut corriger.
+
+      On pose la famille pendant que le type qualifie encore, puis on le décoche — exactement la
+      situation qu'un administrateur crée en décochant une case.
+    */
+    const familles = await famillesRisqueActives()
+    const dossierId = await dossierDeType(TYPE_QUALIFIANT)
+
+    await qualifierFamilleRisque({ dossierId, familleId: familles[0].id })
+
+    const type = await prisma.parcours.findFirstOrThrow({
+      where: { code: TYPE_QUALIFIANT },
+      select: { id: true },
+    })
+
+    try {
+      await prisma.parcours.update({
+        where: { id: type.id },
+        data: { familles_risque_actives: false },
+      })
+
+      // La pose est refusée…
+      await expect(
+        qualifierFamilleRisque({ dossierId, familleId: familles[1].id })
+      ).rejects.toBeInstanceOf(ErreurWorkflow)
+
+      // …mais le retrait passe.
+      await qualifierFamilleRisque({ dossierId, familleId: null })
+
+      expect(
+        (await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })).famille_risque_id
+      ).toBeNull()
+    } finally {
+      await prisma.parcours.update({
+        where: { id: type.id },
+        data: { familles_risque_actives: true },
+      })
+    }
+  })
+})
+
 describe('⚠️ Répartition par famille sur le tableau de bord', () => {
   it('compte les dossiers NON QUALIFIÉS sous leur propre ligne', async () => {
     /*
@@ -124,7 +236,9 @@ describe('⚠️ Répartition par famille sur le tableau de bord', () => {
       qui n'en a pas est un dossier qu'on n'a pas encore lu. Taire ces lignes ferait croire à une
       répartition complète et masquerait exactement ce qu'il reste à faire.
     */
-    await nouveauDossier()
+    // ⚠️ D'un type QUI qualifie : un évènement indésirable n'apparaît plus du tout dans ce bloc,
+    // et le cas se serait mis à ne rien prouver.
+    await dossierDeType(TYPE_QUALIFIANT)
 
     const lignes = await repartitionParFamilleRisque(FILTRE_VIDE)
     const nonQualifiee = lignes.find((l) => l.libelle === 'Non qualifiée')
@@ -133,13 +247,30 @@ describe('⚠️ Répartition par famille sur le tableau de bord', () => {
     expect(nonQualifiee?.total ?? 0).toBeGreaterThan(0)
   })
 
-  it('somme exactement le nombre de dossiers du périmètre', async () => {
-    // Une répartition dont les parts ne font pas le total se lit comme une erreur de calcul —
-    // et c'est ce qui arriverait si la ligne « Non qualifiée » manquait.
+  it('⚠️ ne somme que les dossiers des types QUI QUALIFIENT une famille', async () => {
+    /*
+      Une répartition dont les parts ne font pas le total se lit comme une erreur de calcul — et
+      c'est ce qui arriverait si la ligne « Non qualifiée » manquait.
+
+      ⚠️ LE TOTAL A CHANGÉ DE SENS le 2026-09-21. Les évènements indésirables ne qualifient plus de
+      famille : les compter aurait gonflé « Non qualifiée » pour toujours, alors que c'est
+      précisément la ligne qu'on lit comme « ce qu'il reste à faire ». Elle aurait annoncé un
+      arriéré que personne ne pouvait résorber.
+    */
     const lignes = await repartitionParFamilleRisque(FILTRE_VIDE)
     const somme = lignes.reduce((acc, l) => acc + l.total, 0)
 
-    expect(somme).toBe(await prisma.dossiers.count())
+    const attendu = await prisma.dossiers.count({
+      where: { parcours: { familles_risque_actives: true } },
+    })
+
+    expect(somme).toBe(attendu)
+
+    // Et le cas ne prouverait rien si tous les types qualifiaient : il faut au moins un exclu.
+    expect(
+      await prisma.dossiers.count({ where: { parcours: { familles_risque_actives: false } } }),
+      'aucun dossier d’un type non qualifiant : le cas ne prouverait rien'
+    ).toBeGreaterThan(0)
   })
 
   it('place « Non qualifiée » en dernier', async () => {

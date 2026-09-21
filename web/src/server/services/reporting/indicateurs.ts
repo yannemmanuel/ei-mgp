@@ -171,9 +171,29 @@ export async function repartitionParParcours(filtre: FiltreReporting): Promise<L
 export async function repartitionParFamilleRisque(
   filtre: FiltreReporting
 ): Promise<LigneRepartition[]> {
+  /*
+    ⚠️ SEULS LES TYPES QUI QUALIFIENT UNE FAMILLE, depuis le 2026-09-21.
+
+    L'évènement indésirable n'en relève plus. Sans ce filtre, ses dossiers auraient grossi la ligne
+    « Non qualifiée » pour toujours — et cette ligne est justement celle qu'on lit comme « ce qu'il
+    reste à faire ». Elle aurait annoncé un arriéré que personne ne pouvait résorber, sur la
+    répartition la plus récente et la moins connue du tableau de bord.
+
+    ⚠️ Si AUCUN type ne qualifie de famille, la liste revient vide et le bloc disparaît : un
+    graphique qui n'a rien à montrer vaut moins qu'un blanc.
+  */
+  const typesQualifiants = await prisma.parcours.findMany({
+    where: { familles_risque_actives: true },
+    select: { id: true },
+  })
+
+  if (typesQualifiants.length === 0) return []
+
   const groupes = await prisma.dossiers.groupBy({
     by: ['famille_risque_id'],
-    where: clauseFiltre(filtre),
+    where: {
+      AND: [clauseFiltre(filtre), { parcours_id: { in: typesQualifiants.map((p) => p.id) } }],
+    },
     _count: { _all: true },
   })
 

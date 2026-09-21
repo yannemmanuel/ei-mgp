@@ -474,11 +474,22 @@ async function VueConsolidee({
         récente et la moins connue — la mettre en pleine largeur est ce qui lui donne une chance
         d'être lue.
       */}
-      <Repartition
-        titre="Par famille de risque"
-        lignes={indicateurs.parFamilleRisque}
-        total={indicateurs.total}
-      />
+      {/*
+        ⚠️ MASQUÉ QUAND AUCUN TYPE NE QUALIFIE DE FAMILLE. Le bloc porte alors zéro ligne, et un
+        graphique vide se lit comme une panne plutôt que comme un réglage.
+      */}
+      {indicateurs.parFamilleRisque.length > 0 && (
+        <Repartition
+          titre="Par famille de risque"
+          lignes={indicateurs.parFamilleRisque}
+          /*
+            ⚠️ LE TOTAL DES LIGNES, et non le total des dossiers : la répartition ne porte plus que
+            sur les types qui qualifient une famille. Garder le total général aurait affiché des
+            pourcentages qui ne font jamais 100 %, sans dire pourquoi.
+          */
+          total={indicateurs.parFamilleRisque.reduce((somme, l) => somme + l.total, 0)}
+        />
+      )}
 
       <Card>
         <CardHeader>

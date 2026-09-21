@@ -96,6 +96,19 @@ const GROUPES: Groupe[] = [
         unite: ['catégorie', 'catégories'],
       },
       {
+        /*
+          ⚠️ CETTE ENTRÉE EST NÉE D'UN RETRAIT (2026-09-21). Le métier a retiré les familles de
+          risque des évènements indésirables « mais en laissant une possibilité de paramétrage » :
+          la décision se coche ici, type par type, plutôt que de vivre dans le code.
+        */
+        libelle: 'Familles de risque',
+        href: '/administration/familles-risque',
+        permission: 'referentiels.categories.manage',
+        description: 'À quels types de déclaration la famille est demandée au traitement.',
+        compter: () => prisma.familles_risque.count({ where: { actif: true } }),
+        unite: ['famille', 'familles'],
+      },
+      {
         libelle: 'Sites et directions',
         href: '/administration/organisation',
         permission: 'referentiels.sites.manage',

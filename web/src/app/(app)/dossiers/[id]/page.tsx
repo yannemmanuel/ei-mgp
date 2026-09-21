@@ -51,7 +51,7 @@ import { PanneauInvestigations } from './panneau-investigations'
 import { PanneauActionsCorrectives } from './panneau-actions-correctives'
 import { PanneauMessagerie } from './panneau-messagerie'
 import { PanneauPiecesJointes } from './panneau-pieces-jointes'
-import { famillesRisqueActives } from '@/server/services/dossier/famille-risque'
+import { famillesRisqueProposees } from '@/server/services/dossier/famille-risque'
 
 export const metadata: Metadata = { title: 'Dossier' }
 
@@ -129,8 +129,14 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       select: { id: true, libelle: true },
     }),
 
-    // Familles de risque proposées au traitement — neuf lignes, même raisonnement.
-    famillesRisqueActives(),
+    /*
+      Familles de risque proposées au traitement — neuf lignes, même raisonnement.
+
+      ⚠️ SELON LE TYPE depuis le 2026-09-21 : l'évènement indésirable n'en relève pas, et la liste
+      revient vide. La carte disparaît alors de la fiche — la question ne se pose plus, plutôt que
+      de se poser sans réponse possible. Ce qui est déjà posé reste affiché plus bas.
+    */
+    famillesRisqueProposees(pourPolicy.parcoursCode),
     // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
     // les trois quarts des fiches.
     estEvenementIndesirable(pourPolicy.parcoursCode) ? suiviEi(id) : Promise.resolve(null),

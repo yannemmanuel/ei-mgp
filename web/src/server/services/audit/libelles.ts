@@ -52,6 +52,10 @@ const OBJETS: Record<string, string> = {
   tranche_anciennete: 'Tranche d’ancienneté',
   suivi: 'Suivi de dossier',
   user: 'Compte',
+  // Le TYPE de déclaration lui-même, depuis que ses réglages se paramètrent (familles de risque,
+  // 2026-09-21). « Parcours » est le nom technique ; « Type de déclaration » est celui que les
+  // écrans emploient, et c'est celui qu'on lit dans le journal.
+  parcours: 'Type de déclaration',
 }
 
 const VERBES: Record<string, string> = {
@@ -80,6 +84,7 @@ const VERBES: Record<string, string> = {
   roles_modifies: '— rôles modifiés',
   statut_change: '— statut changé',
   supprime: 'supprimé',
+  supprimee: 'supprimée',
   tentative_echouee: '— tentative échouée',
 }
 

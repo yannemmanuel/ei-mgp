@@ -36,6 +36,10 @@ export const MODELES = {
   lieu: String.raw`App\Models\Lieu`,
   ville: String.raw`App\Models\Ville`,
   trancheAnciennete: String.raw`App\Models\TrancheAnciennete`,
+  // Le TYPE de déclaration lui-même, depuis que ses réglages se paramètrent (familles de risque,
+  // 2026-09-21). `libelleObjet()` le rend « Parcours » sans table de traduction : le nom court de
+  // la classe est déjà lisible.
+  parcours: String.raw`App\Models\Parcours`,
 } as const
 
 export type ModeleAudite = (typeof MODELES)[keyof typeof MODELES]
