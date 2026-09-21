@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   actionChangerActivationRole,
+  actionChangerChargeDesDossiers,
   actionCreerRole,
   actionModifierHabilitations,
   actionModifierIdentiteRole,
@@ -55,6 +56,8 @@ export type RoleVue = {
   parcours: ParcoursVue[]
   /** Le rôle les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
   tousLesParcours: boolean
+  /** Ce rôle a la CHARGE des dossiers de son périmètre : ses porteurs en sont les titulaires. */
+  traiteLesDossiers: boolean
 }
 
 const ETAT: EtatHabilitation = {}
@@ -440,6 +443,10 @@ function PanneauRole({
                 role={role}
                 parcoursDisponibles={parcoursDisponibles}
               />
+
+              <div className="mt-4 border-t border-border pt-4">
+                <FormulaireCharge key={String(role.traiteLesDossiers)} role={role} />
+              </div>
             </div>
 
             <div
@@ -672,6 +679,67 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
  * sans aucun type ne montre aucun dossier, ce qui ressemble à une panne quand on l'a fait sans
  * le savoir.
  */
+/**
+ * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ *
+ * ⚠️ À NE PAS CONFONDRE AVEC « peut faire avancer un dossier », qui est un droit. Celui-ci dit qui
+ * en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le droit, pas la charge.
+ *
+ * La distinction avait été manquée — « qui traite » se déduisait du droit de faire avancer, si
+ * bien que le Service MGP apparaissait comme titulaire de tous les dossiers. L'écran l'énonce
+ * donc, plutôt que de laisser deviner ce que la case recouvre.
+ */
+function FormulaireCharge({ role }: { role: RoleVue }) {
+  const [etat, envoyer, enCours] = useActionState(actionChangerChargeDesDossiers, ETAT)
+  const [traite, setTraite] = useState(role.traiteLesDossiers)
+
+  return (
+    <form action={envoyer} className="space-y-3">
+      <input type="hidden" name="role" value={role.role} />
+      <input type="hidden" name="traiteLesDossiers" value={traite ? '1' : '0'} />
+
+      <p className="text-sm font-medium text-secondary-900">Charge des dossiers</p>
+
+      <label
+        htmlFor={`charge-${role.role}`}
+        className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors hover:bg-muted/40"
+      >
+        <input
+          id={`charge-${role.role}`}
+          type="checkbox"
+          checked={traite}
+          onChange={(evenement) => setTraite(evenement.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
+        />
+        <span className="min-w-0 text-sm text-secondary-900">
+          Ce rôle TRAITE les dossiers de son périmètre
+          <span className="mt-1 block text-caption text-muted-foreground">
+            Ses porteurs apparaissent comme titulaires sur la fiche et voient ces dossiers dans
+            « vos dossiers à traiter ». À réserver à ceux qui instruisent — un rôle qui arbitre,
+            relance ou consulte ne le prend pas, même s’il peut faire avancer un dossier.
+          </span>
+        </span>
+      </label>
+
+      {etat.erreur && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{etat.erreur}</AlertDescription>
+        </Alert>
+      )}
+
+      {etat.succes && (
+        <Alert role="status">
+          <AlertDescription>{etat.succes}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button type="submit" size="sm" disabled={enCours}>
+        {enCours ? 'Enregistrement…' : 'Enregistrer la charge'}
+      </Button>
+    </form>
+  )
+}
+
 function FormulaireParcours({
   role,
   parcoursDisponibles,

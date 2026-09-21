@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
 import {
-  aPermission,
   directionCloisonnante,
   PARCOURS_CODES,
   rattachementCouvre,
@@ -68,10 +67,10 @@ export type CompteEnCharge = {
 /**
  * Tous les comptes qui TRAITENT des déclarations, chargés UNE fois.
  *
- * ⚠️ « Traiter » se lit `dossiers.status.update`, pas un nom de rôle. C'est le droit de faire
- * avancer un dossier, et c'est ce qui sépare celui qui en répond de celui qui le lit : un
- * auditeur, un DPO, un comité d'éthique voient sans traiter. Nommer les rôles un par un aurait
- * figé dans le code une liste que l'écran des habilitations permet désormais de changer.
+ * ⚠️ « TRAITER » EST UN PARAMÈTRE DU RÔLE, coché dans les habilitations — ni un nom écrit dans le
+ * code, ni une permission voisine. Cette liste se lisait dans `dossiers.status.update` : le
+ * Service MGP, qui porte ce droit sans être traitant, apparaissait comme titulaire de tous les
+ * dossiers. Ce sont les correspondants qui instruisent, et cela ne se déduit d'aucun droit.
  *
  * ⚠️ `parcours` EST RENSEIGNÉ, contrairement à avant. Tant que seuls les évènements indésirables
  * échappaient à l'affectation, le rôle de chargé de sécurité suffisait à désigner qui répondait ;
@@ -117,6 +116,7 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
           role_has_permissions: {
             select: { permissions: { select: { name: true, guard_name: true } } },
           },
+          traite_dossiers: true,
           role_parcours: {
             where: { parcours: { actif: true } },
             select: { parcours: { select: { code: true } } },
@@ -129,6 +129,7 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
   const rolesParCompte = new Map<bigint, Role[]>()
   const permissionsParCompte = new Map<bigint, Set<Permission>>()
   const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>()
+  const traitants = new Set<bigint>()
 
   for (const lien of liens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
@@ -138,6 +139,9 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
       ...(rolesParCompte.get(lien.model_id) ?? []),
       lien.roles.name as Role,
     ])
+
+    // Un seul rôle traitant suffit : porter en plus un rôle d'observation ne retire pas la charge.
+    if (lien.roles.traite_dossiers) traitants.add(lien.model_id)
 
     const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
     for (const rhp of lien.roles.role_has_permissions) {
@@ -163,9 +167,10 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
         roles: rolesParCompte.get(c.id) ?? [],
         permissions: permissionsParCompte.get(c.id) ?? new Set<Permission>(),
         parcours: [...(parcoursParCompte.get(c.id) ?? [])],
+        traiteLesDossiers: traitants.has(c.id),
       } satisfies UtilisateurAutorise,
     }))
-    .filter((c) => aPermission(c.pourCloisonnement, 'dossiers.status.update'))
+    .filter((c) => c.pourCloisonnement.traiteLesDossiers)
 }
 
 

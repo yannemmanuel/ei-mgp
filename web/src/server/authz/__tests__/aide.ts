@@ -41,6 +41,28 @@ const PARCOURS_LIVRES: Partial<Record<Role, readonly ParcoursCode[]>> = {
 }
 
 /**
+ * Rôles qui ont la CHARGE des dossiers — reflet du paramétrage livré.
+ *
+ * ⚠️ CE N'EST PLUS UNE DÉDUCTION. « Traiter » se lisait dans `dossiers.status.update` : le
+ * Service MGP, qui porte ce droit sans instruire, apparaissait comme titulaire de tous les
+ * dossiers. C'est une donnée d'organisation, cochée rôle par rôle dans les habilitations.
+ *
+ * ⚠️ `habilitation-parcours.test.ts` compare ce reflet à la base, comme pour les parcours : le
+ * laisser dériver ferait passer des cas sur un paramétrage qui n'existe nulle part.
+ */
+const TRAITENT_LES_DOSSIERS = new Set<Role>([
+  'charge_securite',
+  'secretaire_csst',
+  'rqse',
+  'correspondant_drh',
+  'correspondant_dadd',
+  'correspondant_dl',
+  'correspondant_mgp',
+  'responsable_mgp_structure',
+  'responsable_grief_employe',
+])
+
+/**
  * Fabrique un utilisateur autorisé à partir de ses rôles, en résolvant ses permissions ET ses
  * types de déclaration exactement comme le ferait `chargerUtilisateurAutorise()` depuis la base.
  *
@@ -74,6 +96,7 @@ export function utilisateurAvecRoles(...roles: Role[]): UtilisateurAutorise {
     roles,
     permissions,
     parcours: [...new Set(roles.flatMap((role) => PARCOURS_LIVRES[role] ?? []))],
+    traiteLesDossiers: roles.some((role) => TRAITENT_LES_DOSSIERS.has(role)),
   }
 }
 

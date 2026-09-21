@@ -5,6 +5,7 @@ import { aPermission } from '@/server/authz'
 import { ErreurWorkflow } from '@/server/services/dossier/workflow'
 import {
   changerActivationRole,
+  changerChargeDesDossiers,
   creerRole,
   modifierIdentiteRole,
   modifierParcoursRole,
@@ -51,6 +52,46 @@ export async function actionModifierHabilitations(
 
   revaliderHabilitations()
   return { succes: `Habilitations de « ${role} » enregistrées. Effet immédiat.` }
+}
+
+/**
+ * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ *
+ * Même portée que les permissions : l'effet est immédiat et vaut pour tous les porteurs du rôle.
+ * L'autorisation est donc revérifiée ici, indépendamment de l'affichage de l'écran.
+ */
+export async function actionChangerChargeDesDossiers(
+  _precedent: EtatHabilitation,
+  donnees: FormData
+): Promise<EtatHabilitation> {
+  const acteur = await utilisateurCourant()
+
+  if (!acteur || !aPermission(acteur, 'roles.manage')) {
+    return { erreur: "Vous n'êtes pas autorisé à modifier les habilitations." }
+  }
+
+  const role = String(donnees.get('role') ?? '').trim()
+
+  if (role === '') return { erreur: 'Rôle manquant.' }
+
+  const traite = donnees.get('traiteLesDossiers') === '1'
+
+  try {
+    await changerChargeDesDossiers(acteur, role, traite)
+  } catch (erreur) {
+    if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
+
+    console.error('Modification de la charge des dossiers en échec', erreur)
+    return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
+  }
+
+  revaliderHabilitations()
+
+  return {
+    succes: traite
+      ? `« ${role} » traite désormais les dossiers de son périmètre.`
+      : `« ${role} » ne traite plus de dossiers : ses porteurs n’apparaîtront plus comme titulaires.`,
+  }
 }
 
 /**

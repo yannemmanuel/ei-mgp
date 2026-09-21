@@ -79,6 +79,7 @@ export default async function PageHabilitations() {
           rattachements: ligne.rattachements,
           parcours: ligne.parcours.map((p) => ({ code: p.code, libelle: p.libelle })),
           tousLesParcours: ligne.parcours.length === parcoursDisponibles.length,
+          traiteLesDossiers: ligne.traiteLesDossiers,
         }))}
         domaines={domaines}
         parcoursDisponibles={parcoursDisponibles.map((p) => ({

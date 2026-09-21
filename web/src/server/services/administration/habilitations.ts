@@ -121,6 +121,14 @@ export type LigneHabilitation = {
    * alors sans porter sur aucun dossier.
    */
   readonly parcours: readonly { readonly code: ParcoursCode; readonly libelle: string }[]
+  /**
+   * Ce rôle a la CHARGE des dossiers de son périmètre.
+   *
+   * Ses porteurs apparaissent comme titulaires sur les fiches et voient ces dossiers dans « vos
+   * dossiers à traiter ». Un rôle d'arbitrage ou d'observation ne l'a pas, même s'il peut faire
+   * avancer un dossier.
+   */
+  readonly traiteLesDossiers: boolean
 }
 
 export type EcartHabilitation = {
@@ -153,6 +161,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
         libelle: true,
         description: true,
         actif: true,
+        traite_dossiers: true,
         role_has_permissions: { select: { permissions: { select: { name: true } } } },
       },
     }),
@@ -208,6 +217,9 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       livre,
       rattachements: rattachements.get(role) ?? 0,
       parcours: parcoursDesRoles.get(role) ?? [],
+      // Faux pour un rôle décrit par le code mais absent de la base : il ne confère rien, donc il
+      // ne traite rien non plus.
+      traiteLesDossiers: enBase?.traite_dossiers ?? false,
     }
   })
 
@@ -473,6 +485,58 @@ export async function modifierIdentiteRole(
  * comptes concernés sans qu'il faille les réattribuer un par un. C'est la différence entre
  * suspendre un rôle et le vider.
  */
+/**
+ * Ce rôle a-t-il la CHARGE des dossiers de son périmètre ?
+ *
+ * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle : ils
+ * apparaissent — ou cessent d'apparaître — comme titulaires sur chaque fiche de leur périmètre, et
+ * ces dossiers entrent ou sortent de leur « vos dossiers à traiter ».
+ *
+ * ⚠️ DISTINCT DE `dossiers.status.update`. Ce droit dit qu'on peut faire AVANCER un dossier ; ce
+ * paramètre dit qu'on en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le
+ * droit, pas la charge. Avoir déduit l'un de l'autre l'a fait apparaître comme titulaire de tous
+ * les dossiers — c'est le défaut que ce paramètre corrige.
+ */
+export async function changerChargeDesDossiers(
+  acteur: { id: bigint },
+  role: string,
+  traite: boolean
+): Promise<void> {
+  const ligne = await prisma.roles.findFirst({
+    where: { name: role, guard_name: GUARD },
+    select: { id: true, traite_dossiers: true },
+  })
+
+  if (!ligne) throw new ErreurWorkflow('Rôle inconnu.')
+
+  if (ligne.traite_dossiers === traite) return
+
+  await prisma.roles.update({
+    where: { id: ligne.id },
+    data: { traite_dossiers: traite, updated_at: new Date() },
+  })
+
+  await journaliser({
+    /*
+      ⚠️ CODE GÉNÉRIQUE À DESSEIN, pour l'instant.
+
+      `role.charge_modifiee` serait plus parlant, mais le journal traduit les codes depuis une
+      table qui vit dans `audit/libelles.ts` — un fichier en cours de modification ailleurs, que
+      je ne dois pas toucher sous peine d'écraser du travail. Un code sans libellé s'afficherait
+      en clair technique dans le journal.
+
+      `role.modifie` est déjà traduit, et les valeurs ci-dessous disent exactement ce qui a
+      changé. À renommer quand le fichier des libellés sera libre.
+    */
+    action: 'role.modifie',
+    acteurId: acteur.id,
+    auditableType: MODELES.role,
+    auditableId: String(ligne.id),
+    anciennes: { role, traiteLesDossiers: ligne.traite_dossiers },
+    nouvelles: { role, traiteLesDossiers: traite },
+  })
+}
+
 export async function changerActivationRole(
   acteur: { id: bigint },
   role: string,

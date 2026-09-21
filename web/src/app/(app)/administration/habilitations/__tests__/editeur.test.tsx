@@ -27,6 +27,7 @@ const inerte = async (): Promise<EtatHabilitation> => ({})
 
 vi.mock('../actions', () => ({
   actionChangerActivationRole: inerte,
+  actionChangerChargeDesDossiers: inerte,
   actionCreerRole: inerte,
   actionModifierHabilitations: inerte,
   actionModifierIdentiteRole: inerte,
@@ -65,6 +66,7 @@ const role = (libelle: string, description: string | null, permissions: string[]
   rattachements: 0,
   parcours: [],
   tousLesParcours: false,
+  traiteLesDossiers: false,
 })
 
 afterEach(cleanup)

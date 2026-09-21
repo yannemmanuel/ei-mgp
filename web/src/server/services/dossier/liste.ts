@@ -57,15 +57,17 @@ export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWher
   }
 
   /*
-    ⚠️ LE DROIT DE FAIRE AVANCER marque celui qui TRAITE, par opposition à celui qui LIT.
+    ⚠️ QUI TRAITE EST UN PARAMÈTRE, PAS UNE DÉDUCTION — correction du 2026-09-21.
 
-    Un auditeur, un DPO, un comité d'éthique voient les dossiers sans en répondre : les faire
-    entrer dans « vos dossiers à traiter » remplirait leur écran d'un travail qui n'est pas le
-    leur, et le rendrait inutilisable. Le rôle de chargé de sécurité jouait ce rôle de marqueur
-    tant que seuls les EI échappaient à l'affectation ; `dossiers.status.update` le dit pour les
-    quatre types, et se lit en base comme le reste.
+    Cette ligne lisait `dossiers.status.update`, « peut faire avancer un dossier ». Ce sont deux
+    choses différentes : le Service MGP porte ce droit — il arbitre, il relance après une
+    réouverture — sans être traitant. Il apparaissait pourtant comme titulaire de TOUS les
+    dossiers, ici comme sur la fiche.
+
+    Ce sont les correspondants qui instruisent. Aucune permission ne dit cela : c'est une donnée
+    d'organisation, et elle se coche rôle par rôle dans les habilitations.
   */
-  if (!aPermission(u, 'dossiers.status.update')) return parAffectation
+  if (!u.traiteLesDossiers) return parAffectation
 
   // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite, et rien du
   // tout quand le compte n'est borné par aucun des deux — il répond alors de tout son périmètre.

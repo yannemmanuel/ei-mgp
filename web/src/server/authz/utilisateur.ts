@@ -52,6 +52,17 @@ export type UtilisateurAutorise = {
    * depuis le 2026-09-20.
    */
   readonly parcours: readonly ParcoursCode[]
+  /**
+   * L'un de ses rôles a-t-il la CHARGE des dossiers ?
+   *
+   * ⚠️ NE SE DÉDUIT D'AUCUNE PERMISSION, et c'est la correction du 2026-09-21. « Traiter » était
+   * lu dans `dossiers.status.update` — « peut faire avancer un dossier ». Le Service MGP porte ce
+   * droit sans être traitant : il apparaissait comme titulaire de TOUS les dossiers.
+   *
+   * C'est une donnée d'organisation, pas un droit. Elle se coche rôle par rôle dans l'écran des
+   * habilitations, et se lit ici.
+   */
+  readonly traiteLesDossiers: boolean
 }
 
 export function aRole(u: UtilisateurAutorise, role: Role): boolean {
@@ -111,6 +122,9 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
             name: true,
             guard_name: true,
             actif: true,
+            // Ce rôle a-t-il la CHARGE des dossiers ? Paramétré dans les habilitations, jamais
+            // déduit d'une permission — voir `traiteLesDossiers`.
+            traite_dossiers: true,
             role_has_permissions: { select: { permissions: { select: { name: true, guard_name: true } } } },
           },
         },
@@ -151,6 +165,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
 
   const roles: Role[] = []
   const permissions = new Set<Permission>()
+  let traiteLesDossiers = false
 
   for (const lien of liensRoles) {
     if (lien.roles.guard_name !== GUARD) continue
@@ -168,6 +183,9 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     if (!lien.roles.actif) continue
 
     roles.push(lien.roles.name as Role)
+
+    // Un SEUL rôle traitant suffit : porter en plus un rôle d'observation ne retire pas la charge.
+    if (lien.roles.traite_dossiers) traiteLesDossiers = true
 
     for (const rhp of lien.roles.role_has_permissions) {
       if (rhp.permissions.guard_name === GUARD) {
@@ -214,5 +232,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
       l'écran des comptes afficherait « Grief employé · Grief employé ».
     */
     parcours: [...new Set(liensParcours.map((lien) => lien.parcours.code as ParcoursCode))],
+    traiteLesDossiers,
   }
 }

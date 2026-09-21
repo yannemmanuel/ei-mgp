@@ -29,6 +29,7 @@ const PARCOURS_TEST = [
  */
 vi.mock('../actions', () => ({
   actionChangerActivationRole: async () => ({}),
+  actionChangerChargeDesDossiers: async () => ({}),
   actionCreerRole: async () => ({}),
   actionModifierHabilitations: async () => ({}),
   actionModifierIdentiteRole: async () => ({}),
@@ -86,6 +87,7 @@ const ROLE: RoleVue = {
   rattachements: 2,
   parcours: [{ code: 'Événement Indésirable (Employé)', libelle: 'Événement Indésirable (Employé)' }],
   tousLesParcours: false,
+  traiteLesDossiers: false,
 }
 
 /** Rôle créé depuis l'interface : supprimable, et sans accès aux dossiers. */
@@ -102,6 +104,7 @@ const ROLE_CREE: RoleVue = {
   rattachements: 0,
   parcours: [],
   tousLesParcours: false,
+  traiteLesDossiers: false,
 }
 
 function afficher(roles: RoleVue[] = [ROLE]) {

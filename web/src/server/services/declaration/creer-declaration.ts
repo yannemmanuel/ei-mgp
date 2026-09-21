@@ -556,6 +556,15 @@ async function affecterAutomatiquement(
       roles: rolesParCompte.get(u.id) ?? [],
       permissions: permissionsParCompte.get(u.id) ?? new Set<Permission>(),
       parcours: u.utilisateur_parcours.map((lien) => lien.parcours.code as ParcoursCode),
+      /*
+        ⚠️ Sans objet ICI, et laissé à `false` plutôt qu'à une valeur inventée.
+
+        `rattachementCouvre()` ne lit que le rattachement et les rôles : la charge ne l'intéresse
+        pas. Ce bloc ne s'exécute d'ailleurs plus — aucun type de déclaration n'étant affecté
+        automatiquement, la fonction sort avant d'y arriver. Lui donner `true` laisserait croire
+        que ces comptes sont traitants, ce que seul le paramétrage du rôle décide.
+      */
+      traiteLesDossiers: false,
     }
 
     return rattachementCouvre(pourCloisonnement, {

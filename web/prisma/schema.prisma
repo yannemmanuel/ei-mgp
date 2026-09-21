@@ -457,6 +457,7 @@ model roles {
   libelle              String                 @db.VarChar(255)
   description          String?
   actif                Boolean                @default(true)
+  traite_dossiers      Boolean                @default(false)
   model_has_roles      model_has_roles[]
   role_has_permissions role_has_permissions[]
   role_parcours        role_parcours[]
