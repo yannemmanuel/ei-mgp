@@ -392,7 +392,15 @@ function PanneauRole({
               { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
               { cle: 'declarations', libelle: `Déclarations (${role.parcours.length})` },
               { cle: 'nom', libelle: 'Nom' },
-              ...(role.livre ? [] : [{ cle: 'activation' as const, libelle: 'Supprimer' }]),
+              /*
+                ⚠️ L'ONGLET EST OFFERT POUR TOUS LES RÔLES depuis le 2026-09-20.
+
+                Il était masqué pour les rôles livrés, que le service refusait alors d'emblée. Le
+                service ne regarde plus que l'attribution — c'est la règle demandée —, mais
+                l'écran, lui, continuait de cacher le geste : la règle avait changé côté serveur
+                sans que rien ne soit atteignable côté écran.
+              */
+              { cle: 'activation' as const, libelle: 'Supprimer' },
             ]}
           />
 
@@ -447,15 +455,13 @@ function PanneauRole({
               <FormulaireIdentite key={`${role.libelle}|${role.description ?? ''}`} role={role} />
             </div>
 
-            {!role.livre && (
-              <div
-                role="tabpanel"
-                aria-labelledby={`onglet-${role.role}-activation`}
-                hidden={onglet !== 'activation'}
-              >
-                <FormulaireSuppression role={role} />
-              </div>
-            )}
+            <div
+              role="tabpanel"
+              aria-labelledby={`onglet-${role.role}-activation`}
+              hidden={onglet !== 'activation'}
+            >
+              <FormulaireSuppression role={role} />
+            </div>
           </div>
         </div>
       </CardContent>
@@ -1037,6 +1043,24 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
           Personne ne le porte : la suppression ne retirera d’accès à personne. Le journal en
           gardera la trace.
         </p>
+      )}
+
+      {/*
+        ⚠️ L'AVERTISSEMENT PROPRE AUX RÔLES LIVRÉS, maintenant qu'ils sont supprimables.
+
+        Le code se réfère à ces noms — acteurs d'étape, cloisonnement par rattachement. Un rôle
+        supprimé n'y correspond plus à rien : ces règles cessent simplement de le désigner, sans
+        erreur et sans message. C'est le genre de conséquence qu'on ne découvre que des semaines
+        plus tard, et elle se dit donc AVANT le geste.
+      */}
+      {role.livre && role.rattachements === 0 && (
+        <Alert role="status">
+          <AlertDescription>
+            Ce rôle est nommé par le code : les règles d’étape et de cloisonnement s’y réfèrent.
+            Le supprimer ne provoquera aucune erreur — elles cesseront simplement de le désigner.
+            Si vous voulez seulement lui retirer ses droits, désactivez-le plutôt.
+          </AlertDescription>
+        </Alert>
       )}
 
       <Retour etat={etat} />

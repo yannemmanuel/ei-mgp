@@ -325,16 +325,21 @@ describe('Créer et supprimer un rôle', () => {
     expect(screen.getByText(/aucun dossier/)).toBeDefined()
   })
 
-  it('ne propose pas la suppression d’un rôle livré', async () => {
-    // Le code s'y réfère par son nom : la désactivation est la seule opération de retrait.
+  it('⚠️ propose désormais la suppression d’un rôle livré, mais la refuse s’il est porté', async () => {
+    /*
+      ⚠️ CE CAS A CHANGÉ DE SENS le 2026-09-20.
+
+      L'onglet « Supprimer » était masqué pour les rôles livrés. Il ne l'est plus : seule
+      l'attribution décide, et c'est le service qui tranche. Ce qui doit rester, c'est que le
+      geste n'aboutisse pas tant qu'un compte porte le rôle — `ROLE` en a deux.
+    */
     const clavier = afficher([ROLE])
 
     await ouvrir(clavier)
 
     // ⚠️ La désactivation n'est plus dans un onglet : elle est en évidence, toujours visible.
     expect(screen.getByRole('button', { name: 'Désactiver…' })).toBeDefined()
-    expect(screen.queryByRole('tab', { name: 'Supprimer' })).toBeNull()
-    expect(screen.queryByText('Supprimer ce rôle')).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Supprimer' })).toBeDefined()
   })
 
   it('propose la suppression d’un rôle créé ici', async () => {
@@ -378,3 +383,53 @@ function estVisible(element: HTMLElement): boolean {
   }
   return true
 }
+
+describe('⚠️ Supprimer un rôle : le geste doit être ATTEIGNABLE', () => {
+  /*
+    ⚠️ LE CAS QUI MANQUAIT, et son absence s'est vue en production.
+
+    La règle « un rôle se supprime dès que personne ne le porte » a été posée côté SERVICE, qui a
+    cessé de refuser les rôles livrés. Mais l'écran continuait de masquer l'onglet pour ces
+    mêmes rôles : la règle était juste, et le geste introuvable. Un service qu'aucun écran
+    n'atteint ne sert à rien, et rien ne le signalait.
+  */
+  const LIVRE_LIBRE: RoleVue = { ...ROLE, comptes: 0, rattachements: 0 }
+
+  it('offre l’onglet « Supprimer » même sur un rôle LIVRÉ', async () => {
+    const clavier = afficher([LIVRE_LIBRE])
+    await ouvrir(clavier)
+
+    expect(screen.getByRole('tab', { name: 'Supprimer' })).toBeDefined()
+  })
+
+  it('mène jusqu’au bouton quand personne ne porte le rôle', async () => {
+    const clavier = afficher([LIVRE_LIBRE])
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Supprimer' }))
+
+    await clavier.click(screen.getByRole('button', { name: 'Supprimer…' }))
+
+    expect(screen.getByRole('button', { name: /Confirmer la suppression/i })).toBeDefined()
+  })
+
+  it('⚠️ avertit que le CODE se réfère à ce rôle', async () => {
+    // Supprimer un rôle livré ne provoque aucune erreur : les règles qui le nomment cessent
+    // simplement de le désigner. Une conséquence qu'on ne découvre que des semaines plus tard
+    // doit être dite avant le geste.
+    const clavier = afficher([LIVRE_LIBRE])
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Supprimer' }))
+
+    expect(screen.getByText(/nommé par le code/i)).toBeDefined()
+  })
+
+  it('n’offre PAS le bouton tant qu’un compte porte le rôle', async () => {
+    // La garde qui protège quelqu'un : `ROLE` est porté par deux comptes.
+    const clavier = afficher([ROLE])
+    await ouvrir(clavier)
+    await clavier.click(screen.getByRole('tab', { name: 'Supprimer' }))
+
+    expect(screen.getByText(/portent encore ce rôle/i)).toBeDefined()
+    expect(screen.queryByRole('button', { name: /Confirmer la suppression/i })).toBeNull()
+  })
+})
