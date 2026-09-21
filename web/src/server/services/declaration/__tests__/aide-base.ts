@@ -93,35 +93,15 @@ export async function confierPourTest(dossierId: string, utilisateurId: bigint):
   })
 
   /*
-    ⚠️ Et le dossier passe à « affecté », avec sa ligne d'historique.
+    ⚠️ LE DOSSIER RESTE À « REÇU », et c'est désormais l'état que l'application produit.
 
-    C'est ce que fait `creerDeclaration()` quand l'affectation automatique aboutit. L'omettre
-    laisserait le dossier à « reçu » avec un titulaire — un état que l'application ne produit
-    jamais, et depuis lequel les transitions suivantes refuseraient. Le cas exercerait alors une
-    situation qui n'existe pas.
+    Ce bloc le faisait passer à « Affecté », pour imiter ce que faisait `creerDeclaration()` quand
+    l'affectation automatique aboutissait. « Affecté » a quitté le circuit le 2026-09-21 : un
+    dossier confié à quelqu'un reste à « Reçu » jusqu'à ce qu'on l'analyse, et c'est de là que
+    partent les transitions suivantes.
+
+    Le laisser déplacer le dossier aurait placé les cas dans un état que plus rien n'atteint — ils
+    auraient exercé une situation qui n'existe pas, ce qui est la façon la plus discrète pour une
+    suite de tests de cesser de prouver quoi que ce soit.
   */
-  const dossier = await prisma.dossiers.findUniqueOrThrow({
-    where: { id: dossierId },
-    select: { statut_id: true, statuts_dossier: { select: { code: true } } },
-  })
-
-  if (dossier.statuts_dossier.code !== 'recu') return
-
-  const affecte = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'affecte' } })
-
-  await prisma.dossiers.update({
-    where: { id: dossierId },
-    data: { statut_id: affecte.id, updated_at: new Date() },
-  })
-
-  await prisma.historique_statuts.create({
-    data: {
-      dossier_id: dossierId,
-      statut_precedent_id: dossier.statut_id,
-      statut_suivant_id: affecte.id,
-      effectue_par: utilisateurId,
-      commentaire: 'Prise en charge pour test.',
-      created_at: new Date(),
-    },
-  })
 }

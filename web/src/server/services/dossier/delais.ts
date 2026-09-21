@@ -44,7 +44,6 @@ const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
     que le déclarant connaît, et non depuis une affectation interne dont il n'a jamais rien su.
   */
   recu: 'analyse_preliminaire',
-  affecte: 'analyse_preliminaire',
   en_analyse: 'analyse_preliminaire',
   en_investigation: 'traitement_enquete',
   en_attente_information: 'traitement_enquete',
@@ -56,13 +55,20 @@ const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
  * Statuts dont l'ENTRÉE démarre le chronomètre de chaque étape suivie, par ordre de préférence.
  *
  * ⚠️ Une LISTE, et l'ordre y est la règle : on retient le premier statut dont l'historique porte
- * une entrée. L'analyse préliminaire démarre donc à l'affectation quand il y en a une — le
- * comportement de toujours, inchangé pour les griefs — et à défaut à la réception, pour les
- * dossiers qui ne sont jamais affectés. Sans ce repli, un évènement indésirable aurait eu une
- * étape mais pas de point de départ, ce qui revient à n'avoir pas d'échéance du tout.
+ * une entrée.
+ *
+ * ⚠️ « AFFECTÉ » EN EST SORTI avec le reste du circuit, le 2026-09-21. L'analyse préliminaire
+ * démarrait à l'affectation quand il y en avait une ; plus aucune n'est faite, et l'étape part
+ * donc de la RÉCEPTION — ce qui est aussi la lecture la plus juste du délai : il court depuis le
+ * dépôt, le seul moment que le déclarant connaisse.
+ *
+ * Effet sur les quatre dossiers déjà passés par « Affecté » : leur chronomètre repart de « Reçu »
+ * au lieu de « Affecté ». Les deux entrées d'historique ayant été écrites dans la MÊME
+ * transaction — l'affectation était automatique et immédiate —, l'échéance calculée ne bouge que
+ * de quelques millisecondes.
  */
 const ETAPE_VERS_STATUTS_DE_DEPART: Partial<Record<EtapeDelai, readonly StatutCode[]>> = {
-  analyse_preliminaire: ['affecte', 'recu'],
+  analyse_preliminaire: ['recu'],
   traitement_enquete: ['en_investigation'],
   mise_en_oeuvre_mesures: ['action_corrective_en_cours'],
   retour_resolution: ['resolu'],

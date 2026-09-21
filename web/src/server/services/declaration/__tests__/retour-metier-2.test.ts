@@ -13,9 +13,20 @@ import { verifierReferentiels } from '../verifier-referentiels'
 const tous = CODES_PARCOURS.map((code) => [code, PARCOURS[code]] as const)
 
 describe('« Le déclarant est-il la victime ? »', () => {
-  it('est posée sur les quatre parcours', () => {
-    for (const [code, config] of tous) {
-      const champ = config.champs.find((c) => c.nom === 'declarantEstVictime')
+  /*
+    ⚠️ POSÉE SUR LES DEUX PARCOURS EMPLOYÉ SEULEMENT depuis le 2026-09-21.
+
+    Elle l'était sur les quatre. Décision métier : elle est retirée du grief sous-traitant et du
+    grief communautaire, où elle appelait « oui » à peu près toujours — elle n'orientait donc rien
+    et ajoutait une case de plus en tête d'un formulaire rempli par des gens extérieurs à
+    l'entreprise, pour qui chaque question supplémentaire est un motif d'abandon.
+  */
+  const AVEC_LA_QUESTION = ['ei_employe', 'grief_employe'] as const
+  const SANS_LA_QUESTION = ['grief_sous_traitant', 'grief_communaute'] as const
+
+  it('est posée sur les deux parcours EMPLOYÉ', () => {
+    for (const code of AVEC_LA_QUESTION) {
+      const champ = PARCOURS[code].champs.find((c) => c.nom === 'declarantEstVictime')
 
       expect(champ, `${code} ne pose pas la question`).toBeDefined()
       expect(champ?.type, code).toBe('case')
@@ -23,15 +34,56 @@ describe('« Le déclarant est-il la victime ? »', () => {
     }
   })
 
-  it('reste posée EN ANONYME', () => {
+  it('⚠️ n’est plus posée au sous-traitant ni au riverain', () => {
+    for (const code of SANS_LA_QUESTION) {
+      const noms = PARCOURS[code].champs.map((c) => c.nom)
+
+      expect(noms, `${code} pose encore la question`).not.toContain('declarantEstVictime')
+    }
+  })
+
+  it('⚠️ n’y laisse AUCUN champ suspendu à une question qui n’est plus posée', () => {
+    /*
+      Le piège de ce retrait, et la seule chose qui l'aurait rendu silencieusement cassant.
+
+      « Direction du déclarant » et « Poste du déclarant » ne s'affichent que si la case est
+      DÉCOCHÉE (`afficherSi`). Les laisser sur un parcours dont la case a disparu les aurait rendus
+      soit toujours visibles, soit jamais — selon la façon dont le formulaire lit une condition
+      dont le champ n'existe pas. Aucune des deux n'est ce qu'on veut, et ni l'une ni l'autre ne
+      lève d'erreur.
+    */
+    for (const code of SANS_LA_QUESTION) {
+      const suspendus = PARCOURS[code].champs
+        .filter((c) => c.afficherSi?.champ === 'declarantEstVictime')
+        .map((c) => c.nom)
+
+      expect(
+        suspendus,
+        `${code} : ces champs dépendent d’une case qui n’existe plus`
+      ).toEqual([])
+    }
+  })
+
+  it('⚠️ ne cesse PAS de la stocker : les réponses déjà données restent lisibles', () => {
+    /*
+      On cesse de demander, on n'efface rien. La colonne `dossiers.declarant_est_victime` survit
+      au retrait, et la fiche la lit directement — sans passer par cette configuration. Un dossier
+      communautaire qui porte une réponse doit continuer de l'afficher.
+    */
+    const champ = PARCOURS.ei_employe.champs.find((c) => c.nom === 'declarantEstVictime')
+
+    expect(champ?.colonne, 'la question ne se stocke plus nulle part').toBe('declarantEstVictime')
+  })
+
+  it('reste posée EN ANONYME là où elle est posée', () => {
     /*
       Le cas qui compte. Marquer ce champ `identite` l'aurait fait disparaître dès l'anonymat
       coché — or c'est justement là qu'il éclaire le plus : savoir qu'un signalement anonyme vient
       d'un témoin plutôt que de la personne concernée oriente l'instruction sans rien révéler ni
       de l'un ni de l'autre.
     */
-    for (const [code, config] of tous) {
-      const visibles = champsVisibles(config, true).map((c) => c.nom)
+    for (const code of AVEC_LA_QUESTION) {
+      const visibles = champsVisibles(PARCOURS[code], true).map((c) => c.nom)
 
       expect(visibles, `${code} retire la question en anonyme`).toContain('declarantEstVictime')
     }

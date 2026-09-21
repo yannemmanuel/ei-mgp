@@ -16,7 +16,7 @@ const SIEGE = 2n
 
 const dossier = (siteId: bigint | null, directionId: bigint | null = null): DossierPourAutorisation => ({
   parcoursCode: 'ei_employe',
-  statutCode: 'affecte',
+  statutCode: 'en_analyse',
   isAnonymous: true,
   declarantUserId: null,
   siteId,

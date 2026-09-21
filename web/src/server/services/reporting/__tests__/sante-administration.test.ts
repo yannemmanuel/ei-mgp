@@ -56,26 +56,57 @@ describe('Ce qui remonte correspond à la base', () => {
   })
 
   it('⚠️ ne signale PAS une direction sans site dont quelqu’un répond', async () => {
-    const avecTitulaire = await prisma.directions.findFirst({
-      where: { actif: true, site_id: null, users: { some: { actif: true } } },
-      select: { libelle: true },
+    /*
+      ⚠️ LA SITUATION EST POSÉE ICI, plus cherchée en base — depuis le 2026-09-21.
+
+      Le cas prenait la première direction sans site ayant un compte actif. Le jour où un
+      administrateur a déplacé le dernier compte concerné, il n'a plus rien trouvé et s'est mis à
+      échouer sur un paramétrage légitime — sans qu'aucun défaut n'existe. Un cas qui dépend de la
+      configuration du jour ne prouve rien de stable.
+
+      La direction et le compte sont donc créés, puis supprimés — eux seuls, par identifiant.
+    */
+    const direction = await prisma.directions.create({
+      data: {
+        code: `ZZ_VERIF_${process.pid}_${Date.now()}`,
+        libelle: `Direction de vérification ${process.pid}-${Date.now()}`,
+        actif: true,
+        site_id: null,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true, libelle: true },
     })
 
-    expect(
-      avecTitulaire,
-      'aucune direction sans site avec titulaire : le cas ne prouverait rien'
-    ).not.toBeNull()
-    if (!avecTitulaire) return
-
-    const sansPersonne = await prisma.directions.count({
-      where: { actif: true, site_id: null, users: { none: { actif: true } } },
+    const compte = await prisma.users.create({
+      data: {
+        name: 'Titulaire de vérification',
+        email: `zz.titulaire.${process.pid}.${Date.now()}@exemple.test`,
+        actif: true,
+        direction_id: direction.id,
+        doit_changer_mot_de_passe: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
     })
-    const toutesSansSite = await prisma.directions.count({ where: { actif: true, site_id: null } })
 
-    expect(
-      sansPersonne,
-      `« ${avecTitulaire.libelle} » a un titulaire et reste comptée comme injoignable`
-    ).toBeLessThan(toutesSansSite)
+    try {
+      const sansPersonne = await prisma.directions.count({
+        where: { actif: true, site_id: null, users: { none: { actif: true } } },
+      })
+      const toutesSansSite = await prisma.directions.count({
+        where: { actif: true, site_id: null },
+      })
+
+      expect(
+        sansPersonne,
+        `« ${direction.libelle} » a un titulaire et reste comptée comme injoignable`
+      ).toBeLessThan(toutesSansSite)
+    } finally {
+      await prisma.users.delete({ where: { id: compte.id } })
+      await prisma.directions.delete({ where: { id: direction.id } })
+    }
   })
 
   it('ne compte comme « sans porteur » que des rôles réellement portés par personne', async () => {

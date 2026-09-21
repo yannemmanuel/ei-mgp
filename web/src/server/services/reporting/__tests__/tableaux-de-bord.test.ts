@@ -20,9 +20,69 @@ import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declara
  */
 const dossiers: string[] = []
 
+/**
+ * Comptes créés par ce fichier — supprimés à la fin, et eux seuls.
+ *
+ * ⚠️ CRÉÉS PLUTÔT QUE CHERCHÉS, depuis le 2026-09-21. Ce fichier prenait le premier chargé de
+ * sécurité rattaché à une direction qu'il trouvait en base. Le jour où un administrateur a
+ * déplacé ce compte sur un site, le cas n'a plus rien trouvé et s'est mis à échouer — sur un
+ * paramétrage parfaitement légitime, et sans qu'aucun défaut n'existe.
+ *
+ * Un cas qui dépend de la configuration du jour ne prouve rien de stable : il pose donc lui-même
+ * la situation qu'il exerce.
+ */
+const comptes: bigint[] = []
+
+const MODEL_TYPE_USER = String.raw`App\Models\User`
+
 afterAll(async () => {
   await nettoyerDossiers(dossiers)
+
+  /*
+    Les liens d'abord, les comptes ensuite, et bornés à leurs seuls identifiants : un filtre plus
+    large — par nom approchant, par date — finirait par emporter un compte réel.
+  */
+  if (comptes.length > 0) {
+    await prisma.model_has_roles.deleteMany({
+      where: { model_type: MODEL_TYPE_USER, model_id: { in: comptes } },
+    })
+    await prisma.users.deleteMany({ where: { id: { in: comptes } } })
+  }
 })
+
+/** Un chargé de sécurité RÉEL, rattaché à une direction — `personnesEnCharge()` lit la base. */
+async function compteChargeSurUneDirection(): Promise<bigint> {
+  const direction = await prisma.directions.findFirstOrThrow({
+    where: { actif: true },
+    select: { id: true },
+  })
+
+  const role = await prisma.roles.findFirstOrThrow({
+    where: { name: 'charge_securite', guard_name: 'web' },
+    select: { id: true },
+  })
+
+  const compte = await prisma.users.create({
+    data: {
+      name: 'Chargé de sécurité (vérification)',
+      email: `zz.charge.${process.pid}.${Date.now()}@exemple.test`,
+      actif: true,
+      direction_id: direction.id,
+      doit_changer_mot_de_passe: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    select: { id: true, direction_id: true },
+  })
+
+  comptes.push(compte.id)
+
+  await prisma.model_has_roles.create({
+    data: { role_id: role.id, model_id: compte.id, model_type: MODEL_TYPE_USER },
+  })
+
+  return compte.direction_id as bigint
+}
 
 /** Un EI déposé sur la direction voulue. */
 async function eiSurLaDirection(directionId: bigint | null): Promise<string> {
@@ -104,31 +164,18 @@ describe('⚠️ « Vos dossiers à traiter » compte les EI du rattachement', (
       ⚠️ LE COMPTE DOIT ÊTRE UN CHARGÉ DE SÉCURITÉ, pas n'importe quel compte rattaché à une
       direction. Prendre le premier venu faisait porter le cas sur un compte transverse, qui ne
       répond d'aucun EI : l'échec venait alors du choix du compte, pas de la règle.
+
+      ⚠️ ET IL EST CRÉÉ ICI, plus cherché en base — voir `compteChargeSurUneDirection()`. Le
+      chercher faisait dépendre le cas du paramétrage du jour, et il a fini par ne plus rien
+      trouver.
     */
-    const porteurs = await prisma.model_has_roles.findMany({
-      where: {
-        model_type: String.raw`App\Models\User`,
-        roles: { name: 'charge_securite', guard_name: 'web', actif: true },
-      },
-      select: { model_id: true },
-    })
-
-    const compte = await prisma.users.findFirst({
-      where: { actif: true, direction_id: { not: null }, id: { in: porteurs.map((p) => p.model_id) } },
-      select: { direction_id: true },
-    })
-
-    expect(
-      compte?.direction_id,
-      'aucun chargé de sécurité habilité sur une direction : le cas ne prouverait rien'
-    ).toBeDefined()
-    if (!compte?.direction_id) return
+    const directionId = await compteChargeSurUneDirection()
 
     // Lu par un transverse : le périmètre ne doit rien masquer de ce qu'on vérifie ici.
     const transverse = utilisateurAvecRoles('service_mgp')
     const avant = await aTraiter(transverse)
 
-    await eiSurLaDirection(compte.direction_id)
+    await eiSurLaDirection(directionId)
 
     const apres = await aTraiter(transverse)
 

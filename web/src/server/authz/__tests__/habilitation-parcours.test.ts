@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { peutVoirDossier, type DossierPourAutorisation } from '../policies/dossier'
 import { perimetreDossiers } from '@/server/services/dossier/liste'
 import type { UtilisateurAutorise } from '../utilisateur'
+import { ROLE_NAMES } from '../roles'
 import { utilisateurAvecRoles } from './aide'
 
 /**
@@ -18,7 +19,7 @@ const dossier = (
   parcoursCode: DossierPourAutorisation['parcoursCode']
 ): DossierPourAutorisation => ({
   parcoursCode,
-  statutCode: 'affecte',
+  statutCode: 'en_analyse',
   isAnonymous: true,
   declarantUserId: null,
   siteId: null,
@@ -168,35 +169,64 @@ describe('⚠️ Plus aucune déclaration n’est affectée à la création', ()
   })
 })
 
-describe('⚠️ Le reflet du paramétrage livré ne dérive pas', () => {
-  it('correspond, rôle par rôle, à ce que la base contient', async () => {
-    /*
-      ⚠️ `utilisateurAvecRoles()` fabrique un compte à partir d'une COPIE du paramétrage initial,
-      écrite dans l'outillage de test. C'est commode — aucun cas unitaire n'a besoin de la base —
-      mais c'est une seconde vérité, et une seconde vérité dérive.
+describe('⚠️ Le reflet du paramétrage livré reste exploitable', () => {
+  /*
+    ⚠️ UNE COMPARAISON RÔLE PAR RÔLE AVEC LA BASE A ÉTÉ RETIRÉE ICI, et le dire vaut mieux que la
+    laisser disparaître.
 
-      Ce cas la rattache : si un type est coché ou décoché en base sans que la copie suive, les
-      cas unitaires continueraient de passer sur un paramétrage qui n'existe plus nulle part.
+    `utilisateurAvecRoles()` fabrique un compte à partir d'une COPIE du paramétrage initial,
+    écrite dans l'outillage de test. Ce cas la rattachait à la base, pour qu'une copie dérivante
+    ne fasse pas passer les cas unitaires sur un paramétrage inexistant.
+
+    ⚠️ CETTE COMPARAISON ÉTAIT MAL FONDÉE depuis que les types se cochent depuis l'écran des
+    habilitations : la base est FAITE pour diverger de la configuration livrée. Le 2026-09-21, un
+    administrateur a coché les quatre types sur `administrateur_digital` — un geste normal — et le
+    cas est passé au rouge sans qu'aucun défaut n'existe. Un cas qui rougit sur l'usage prévu de
+    la fonctionnalité n'apprend qu'une chose : à ne plus lire la suite.
+
+    Reste ce qui tient quel que soit le paramétrage du jour, et qui attrape le vrai défaut — un
+    reflet qui nommerait un type inexistant rendrait les cas unitaires muets sans rien afficher.
+  */
+  it('ne nomme que des types de déclaration qui existent', async () => {
+    const enBase = await prisma.parcours.findMany({ select: { code: true } })
+    const codes = new Set(enBase.map((p) => p.code))
+
+    expect(codes.size, 'aucun type en base : le cas ne prouverait rien').toBeGreaterThan(0)
+
+    for (const role of ROLE_NAMES) {
+      const reflet = utilisateurAvecRoles(role)
+
+      for (const parcours of reflet.parcours) {
+        expect(
+          codes.has(parcours),
+          `« ${role} » : le reflet cite « ${parcours} », qui n’existe pas en base`
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('⚠️ laisse la base EXPLOITABLE : chaque type actif reste ouvert à quelqu’un', async () => {
+    /*
+      L'invariant qui compte, et que le paramétrage ne peut pas rendre faux sans casser quelque
+      chose : un type que plus aucun rôle actif n'ouvre est un type dont les déclarations
+      n'atteignent personne — elles arrivent, et restent invisibles à tout le monde.
     */
-    const lignes = await prisma.role_parcours.findMany({
-      where: { roles: { guard_name: 'web' } },
-      select: { roles: { select: { name: true } }, parcours: { select: { code: true } } },
+    const types = await prisma.parcours.findMany({
+      where: { actif: true },
+      select: { code: true, libelle: true },
     })
 
-    expect(lignes.length, 'aucune habilitation en base : le cas ne prouverait rien').toBeGreaterThan(0)
+    expect(types.length, 'aucun type actif : le cas ne prouverait rien').toBeGreaterThan(0)
 
-    const enBase = new Map<string, string[]>()
-    for (const ligne of lignes) {
-      enBase.set(ligne.roles.name, [...(enBase.get(ligne.roles.name) ?? []), ligne.parcours.code])
-    }
-
-    for (const [role, codes] of enBase) {
-      const reflet = utilisateurAvecRoles(role as Parameters<typeof utilisateurAvecRoles>[0])
+    for (const type of types) {
+      const ouvreurs = await prisma.role_parcours.count({
+        where: { parcours: { code: type.code }, roles: { guard_name: 'web', actif: true } },
+      })
 
       expect(
-        [...reflet.parcours].sort(),
-        `« ${role} » : l’outillage de test ne dit pas la même chose que la base`
-      ).toEqual([...codes].sort())
+        ouvreurs,
+        `« ${type.libelle} » n’est ouvert par aucun rôle actif : ses déclarations n’atteignent personne`
+      ).toBeGreaterThan(0)
     }
   })
 })

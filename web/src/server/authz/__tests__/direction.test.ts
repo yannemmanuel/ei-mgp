@@ -38,7 +38,7 @@ const dossier = (
   parcoursCode: DossierPourAutorisation['parcoursCode'] = 'ei_employe'
 ): DossierPourAutorisation => ({
   parcoursCode,
-  statutCode: 'affecte',
+  statutCode: 'en_analyse',
   isAnonymous: true,
   declarantUserId: null,
   siteId,

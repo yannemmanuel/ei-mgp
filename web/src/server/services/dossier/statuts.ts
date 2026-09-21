@@ -8,7 +8,6 @@
  */
 export const STATUTS = [
   'recu',
-  'affecte',
   'en_analyse',
   'en_investigation',
   'en_attente_information',
@@ -29,8 +28,23 @@ export type StatutCode = (typeof STATUTS)[number]
  * dédiées.
  */
 export const TRANSITIONS_AUTORISEES: Partial<Record<StatutCode, readonly StatutCode[]>> = {
-  recu: ['affecte'],
-  affecte: ['en_analyse'],
+  /*
+    ⚠️ « AFFECTÉ » A QUITTÉ LE CIRCUIT le 2026-09-21 : on n'affecte plus les dossiers.
+
+    L'état était déjà devenu inatteignable — `ROLES_AFFECTATION_AUTOMATIQUE` est vide sur les
+    quatre types depuis le 2026-09-20, donc `creerDeclaration()` n'y transitait plus —, mais rien
+    ne le disait : il restait proposé dans la grille des étapes et dans les écrans
+    d'administration, et un dossier qu'on y aurait mené n'en serait plus reparti.
+
+    ⚠️ Ses cases de `role_etapes` ont été REPORTÉES sur « Reçu », qui devient l'étape de départ.
+    Sans ce report, le seul Service MGP aurait pu démarrer un grief : les correspondants étaient
+    cochés sur « Affecté », jamais sur « Reçu ». Ils auraient vu leurs dossiers arriver sans
+    pouvoir les faire avancer d'un cran, sans message et sans erreur.
+
+    La ligne `statuts_dossier` est conservée, désactivée : huit lignes d'historique la citent, et
+    les fiches des quatre dossiers qui y sont passés doivent continuer de le montrer.
+  */
+  recu: ['en_analyse'],
   en_analyse: ['en_investigation'],
   en_investigation: ['en_attente_information', 'action_corrective_en_cours'],
   en_attente_information: ['en_investigation'],

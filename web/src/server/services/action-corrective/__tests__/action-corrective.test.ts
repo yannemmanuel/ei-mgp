@@ -49,10 +49,12 @@ async function dossierEnActionCorrective(acteurId: bigint): Promise<string> {
     select: { statuts_dossier: { select: { code: true } } },
   })
 
+  // ⚠️ « Affecté » a quitté le circuit le 2026-09-21 : « Reçu → En analyse » est la première
+  // marche. Le dossier ne peut plus être ailleurs qu'à « Reçu » à sa création — plus aucune
+  // déclaration n'est affectée —, mais la garde reste : elle dit d'où l'on part.
   if (actuel.statuts_dossier.code === 'recu') {
-    await changerStatut({ dossierId, vers: 'affecte', acteurId })
+    await changerStatut({ dossierId, vers: 'en_analyse', acteurId })
   }
-  await changerStatut({ dossierId, vers: 'en_analyse', acteurId })
   await changerStatut({ dossierId, vers: 'en_investigation', acteurId })
   await changerStatut({ dossierId, vers: 'action_corrective_en_cours', acteurId })
 

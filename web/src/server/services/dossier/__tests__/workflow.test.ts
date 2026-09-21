@@ -62,7 +62,9 @@ afterAll(async () => {
 describe('Machine à états (CDC §7.1)', () => {
   it('suit le graphe de transitions et refuse celles qui en sortent (EX-GES-04)', async () => {
     const id = await nouveauDossier()
-    await placerAuStatut(id, 'affecte')
+    // ⚠️ « Affecté » a quitté le circuit le 2026-09-21 : « Reçu → En analyse » est la première
+    // marche, et c'est là qu'un dossier naît.
+    await placerAuStatut(id, 'recu')
 
     await changerStatut({ dossierId: id, vers: 'en_analyse', acteurId: await acteur() })
     expect(await statutDe(id)).toBe('en_analyse')
@@ -77,7 +79,7 @@ describe('Machine à états (CDC §7.1)', () => {
 
   it('enregistre une entrée d’historique pour chaque transition, avec son auteur (RG-04)', async () => {
     const id = await nouveauDossier()
-    await placerAuStatut(id, 'affecte')
+    await placerAuStatut(id, 'recu')
     const acteurId = await acteur()
 
     await changerStatut({ dossierId: id, vers: 'en_analyse', acteurId, commentaire: 'Analyse ouverte.' })
@@ -106,7 +108,7 @@ describe('Machine à états (CDC §7.1)', () => {
 describe('Rejet', () => {
   it('n’est possible que depuis « En analyse » et conserve le motif', async () => {
     const id = await nouveauDossier()
-    await placerAuStatut(id, 'affecte')
+    await placerAuStatut(id, 'recu')
 
     await expect(
       rejeter({ dossierId: id, acteurId: await acteur(), motif: 'Hors périmètre' })

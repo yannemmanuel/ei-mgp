@@ -296,27 +296,20 @@ export async function creerDeclaration(params: {
       },
     })
 
-    const aEteAffecte = await affecterAutomatiquement(tx, dossier.id, dossier.categorie_id, params.parcours)
+    /*
+      ⚠️ AFFECTER NE CHANGE PLUS LE STATUT — « Affecté » a quitté le circuit le 2026-09-21.
 
-    if (aEteAffecte) {
-      const statutAffecte = await tx.statuts_dossier.findFirstOrThrow({ where: { code: 'affecte' } })
+      Une déclaration reste à « Reçu » jusqu'à ce que quelqu'un l'analyse, quel que soit le type.
+      C'est l'état dans lequel elle attend d'être traitée, et non l'attente d'un destinataire :
+      elle revient déjà à tous ceux dont l'habilitation ouvre ce type et dont le rattachement la
+      couvre.
 
-      await tx.dossiers.update({
-        where: { id: dossier.id },
-        data: { statut_id: statutAffecte.id, updated_at: new Date() },
-      })
-
-      await tx.historique_statuts.create({
-        data: {
-          dossier_id: dossier.id,
-          statut_precedent_id: statutRecu.id,
-          statut_suivant_id: statutAffecte.id,
-          commentaire: 'Affectation automatique.',
-          effectue_par: null,
-          created_at: new Date(),
-        },
-      })
-    }
+      L'appel SUBSISTE, et la fonction aussi : elle écrit `dossier_affectations` et prévient les
+      titulaires (EX-NOT-01). Rendre non vide l'une des quatre listes de
+      `ROLES_AFFECTATION_AUTOMATIQUE` suffit donc à remettre un type sous affectation automatique
+      — ce qui lui nommera des destinataires, sans pour autant lui inventer un état de plus.
+    */
+    await affecterAutomatiquement(tx, dossier.id, dossier.categorie_id, params.parcours)
 
     /*
       Sans gravité, aucun circuit accéléré à la création — et c'est voulu.
@@ -334,11 +327,18 @@ export async function creerDeclaration(params: {
             select: { effet_circuit: true },
           })
 
+    /*
+      ⚠️ `aEteAffecte` A ÉTÉ RETIRÉ DU RETOUR le 2026-09-21, avec le statut « Affecté ».
+
+      Il valait `false` depuis le 2026-09-20 — plus aucun type n'étant affecté automatiquement —
+      et aucun appelant ne le lisait : vérifié dans tout `src`, il n'avait plus un seul lecteur.
+      Un drapeau toujours faux que personne ne consulte finit par être cru sur parole par le
+      prochain à le lire.
+    */
     return {
       dossierId: dossier.id,
       reference: dossier.reference,
       estCritique: gravite?.effet_circuit === 'accelere',
-      aEteAffecte,
     }
   })
 

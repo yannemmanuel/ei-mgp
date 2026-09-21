@@ -16,7 +16,7 @@ const dossier = (
   extra: Partial<DossierPourAutorisation> = {}
 ): DossierPourAutorisation => ({
   parcoursCode,
-  statutCode: 'affecte',
+  statutCode: 'en_analyse',
   isAnonymous: true,
   declarantUserId: null,
   siteId: null,

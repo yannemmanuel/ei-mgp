@@ -94,15 +94,24 @@ const SANS_IDENTITE_DECLARANT = new Set<string>(['comite_ethique'])
  * unitaires disposent d'un compte vraisemblable, et `etapes.test.ts` la compare à la base.
  */
 const ETAPES_DESIGNEES: Record<ParcoursCode, Record<string, readonly string[]>> = {
+  /*
+    ⚠️ « AFFECTÉ » A QUITTÉ LE CIRCUIT le 2026-09-21, et ses acteurs ont été REPORTÉS sur « Reçu ».
+
+    Chaque ligne `recu` ci-dessous est donc l'UNION de l'ancien « Reçu » — le Service MGP, pour
+    l'affectation manuelle de secours — et de l'ancien « Affecté », où les correspondants étaient
+    cochés. C'est exactement ce que la migration a écrit en base, et le cas qui compare ce reflet
+    à la base le vérifie case par case.
+
+    Sans ce report, le seul Service MGP aurait pu démarrer un grief.
+  */
   ei_employe: {
-    recu: ['charge_securite', 'service_mgp'],
-    affecte: ['charge_securite', 'secretaire_csst', 'rqse'],
+    recu: ['charge_securite', 'service_mgp', 'secretaire_csst', 'rqse'],
     en_analyse: ['charge_securite', 'secretaire_csst', 'rqse'],
     reouvert: ['service_mgp', 'dg'],
   },
   grief_employe: {
-    recu: ['service_mgp'],
-    affecte: [
+    recu: [
+      'service_mgp',
       'responsable_grief_employe',
       'correspondant_drh',
       'responsable_mgp_structure',
@@ -120,15 +129,18 @@ const ETAPES_DESIGNEES: Record<ParcoursCode, Record<string, readonly string[]>> 
     reouvert: ['service_mgp', 'dg'],
   },
   grief_sous_traitant: {
-    recu: ['service_mgp'],
-    affecte: ['correspondant_dl', 'responsable_mgp_structure', 'correspondant_mgp'],
+    recu: [
+      'service_mgp',
+      'correspondant_dl',
+      'responsable_mgp_structure',
+      'correspondant_mgp',
+    ],
     en_analyse: ['correspondant_dl', 'responsable_mgp_structure', 'correspondant_mgp'],
     en_investigation: ['correspondant_dl', 'responsable_mgp_structure', 'correspondant_mgp'],
     reouvert: ['service_mgp', 'dg'],
   },
   grief_communaute: {
-    recu: ['service_mgp'],
-    affecte: [
+    recu: [
       'service_mgp',
       'correspondant_dadd',
       'responsable_mgp_structure',

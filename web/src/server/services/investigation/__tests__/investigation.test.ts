@@ -43,11 +43,11 @@ async function dossierEnInvestigation(acteurId: bigint): Promise<string> {
     select: { statuts_dossier: { select: { code: true } } },
   })
 
-  // L'affectation automatique a pu déjà placer le dossier en « Affecté ».
+  // ⚠️ « Affecté » a quitté le circuit le 2026-09-21 : « Reçu → En analyse » est la première
+  // marche, et plus aucune déclaration n'est affectée à sa création.
   if (statutActuel.statuts_dossier.code === 'recu') {
-    await changerStatut({ dossierId, vers: 'affecte', acteurId })
+    await changerStatut({ dossierId, vers: 'en_analyse', acteurId })
   }
-  await changerStatut({ dossierId, vers: 'en_analyse', acteurId })
   await changerStatut({ dossierId, vers: 'en_investigation', acteurId })
 
   return dossierId

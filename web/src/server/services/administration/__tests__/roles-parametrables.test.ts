@@ -65,24 +65,33 @@ async function roleJetable(): Promise<bigint> {
   return cree.id
 }
 
+const comptesCrees: bigint[] = []
+
+afterAll(async () => {
+  if (comptesCrees.length > 0) {
+    await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptesCrees }, model_type: MODEL_TYPE_USER } })
+    await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
+  }
+})
+
 /** Un compte de test qui PORTE le rôle jetable, pour exercer la résolution complète. */
 async function comptePorteur(roleId: bigint): Promise<bigint> {
-  const compte = await prisma.users.findFirstOrThrow({
-    where: { actif: true },
-    orderBy: { id: 'desc' },
+  const email = `test_porteur_${Date.now()}_${Math.floor(Math.random() * 1e8)}@example.com`
+  const compte = await prisma.users.create({
+    data: {
+      name: 'Porteur Test',
+      email,
+      password: 'hash',
+      actif: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
     select: { id: true },
   })
+  comptesCrees.push(compte.id)
 
-  await prisma.model_has_roles.upsert({
-    where: {
-      role_id_model_id_model_type: {
-        role_id: roleId,
-        model_id: compte.id,
-        model_type: MODEL_TYPE_USER,
-      },
-    },
-    create: { role_id: roleId, model_id: compte.id, model_type: MODEL_TYPE_USER },
-    update: {},
+  await prisma.model_has_roles.create({
+    data: { role_id: roleId, model_id: compte.id, model_type: MODEL_TYPE_USER },
   })
 
   return compte.id
@@ -119,20 +128,20 @@ describe('⚠️ Un rôle créé depuis l’interface se paramètre entièrement
     const avant = await chargerUtilisateurAutorise(compteId)
     expect(avant, 'le compte porteur est introuvable').not.toBeNull()
 
-    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'affecte' }])
+    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'en_analyse' }])
 
     const apres = await chargerUtilisateurAutorise(compteId)
     expect(apres).not.toBeNull()
     if (!apres) return
 
     expect(
-      peutFaireAvancerDepuis(apres, 'grief_employe', 'affecte'),
+      peutFaireAvancerDepuis(apres, 'grief_employe', 'en_analyse'),
       'la case cochée n’arrive pas jusqu’à la décision'
     ).toBe(true)
 
     // Et elle ne déborde pas : une case cochée n'ouvre que SON type et SON étape.
-    expect(peutFaireAvancerDepuis(apres, 'grief_employe', 'en_analyse')).toBe(false)
-    expect(peutFaireAvancerDepuis(apres, 'grief_sous_traitant', 'affecte')).toBe(false)
+    expect(peutFaireAvancerDepuis(apres, 'grief_employe', 'en_investigation')).toBe(false)
+    expect(peutFaireAvancerDepuis(apres, 'grief_sous_traitant', 'en_analyse')).toBe(false)
   })
 
   it('⚠️ décocher une case la RETIRE : l’absence vaut retrait', async () => {
@@ -140,14 +149,14 @@ describe('⚠️ Un rôle créé depuis l’interface se paramètre entièrement
     const compteId = await comptePorteur(roleId)
     const qui = await acteur()
 
-    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'affecte' }])
+    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'en_analyse' }])
     await modifierEtapesRole(qui, NOM, [])
 
     const u = await chargerUtilisateurAutorise(compteId)
     if (!u) throw new Error('compte porteur introuvable')
 
     expect(
-      peutFaireAvancerDepuis(u, 'grief_employe', 'affecte'),
+      peutFaireAvancerDepuis(u, 'grief_employe', 'en_analyse'),
       'la case décochée continue d’autoriser'
     ).toBe(false)
   })
@@ -169,7 +178,7 @@ describe('⚠️ Un rôle créé depuis l’interface se paramètre entièrement
     await roleJetable()
 
     await expect(
-      modifierEtapesRole(qui, NOM, [{ parcours: 'parcours_inexistant', statut: 'affecte' }])
+      modifierEtapesRole(qui, NOM, [{ parcours: 'parcours_inexistant', statut: 'en_analyse' }])
     ).rejects.toThrow()
   })
 
@@ -248,7 +257,7 @@ describe('⚠️ Un rôle créé depuis l’interface se paramètre entièrement
     const qui = await acteur()
     await roleJetable()
 
-    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'affecte' }])
+    await modifierEtapesRole(qui, NOM, [{ parcours: 'grief_employe', statut: 'en_analyse' }])
     await modifierParcoursRole(qui, NOM, ['grief_employe'], ['grief_employe'])
 
     const { lignes, etapesDisponibles } = await chargerHabilitations()
@@ -258,7 +267,7 @@ describe('⚠️ Un rôle créé depuis l’interface se paramètre entièrement
     if (!ligne) return
 
     expect(ligne.livre, 'un rôle créé ici n’est pas un rôle livré').toBe(false)
-    expect(ligne.etapes).toEqual([{ parcours: 'grief_employe', statut: 'affecte' }])
+    expect(ligne.etapes).toEqual([{ parcours: 'grief_employe', statut: 'en_analyse' }])
     expect(ligne.parcours.map((p) => p.code)).toEqual(['grief_employe'])
     expect(ligne.parcours[0].alerteCircuitCritique).toBe(true)
 
@@ -280,8 +289,12 @@ describe('⚠️ La grille ne propose que des étapes d’où l’on peut partir
     expect(codes, '« Clos » n’a aucune transition sortante').not.toContain('clos')
     expect(codes, '« Résolu » n’a aucune transition sortante').not.toContain('resolu')
 
-    expect(codes).toContain('affecte')
+    expect(codes).toContain('recu')
     expect(codes).toContain('reouvert')
+
+    // ⚠️ « Affecté » a quitté le circuit le 2026-09-21 : il ne doit plus être proposé à la coche,
+    // sans quoi la grille laisserait paramétrer une étape qu'aucun dossier n'atteint.
+    expect(codes, '« Affecté » est de nouveau proposé dans la grille').not.toContain('affecte')
 
     // Le libellé, pas le code : une grille de vingt-huit cases étiquetées en clair technique se
     // coche mal, et se relit plus mal encore.

@@ -134,15 +134,25 @@ const CANAUX_RETOUR = [
 ] as const
 
 /**
- * « Êtes-vous la personne concernée ? », sur les quatre parcours.
+ * « Êtes-vous la personne concernée ? » — sur les deux parcours EMPLOYÉ seulement.
  *
  * Une déclaration est souvent déposée POUR quelqu'un d'autre : un témoin, un collègue, un agent
- * relais, un chef coutumier pour un riverain. Rien ne le disait, et le traitement ne pouvait donc
- * pas savoir à qui il s'adressait — ce qui change ce qu'on peut écrire en retour sans exposer la
- * situation d'un tiers à un intermédiaire.
+ * relais. Rien ne le disait, et le traitement ne pouvait donc pas savoir à qui il s'adressait —
+ * ce qui change ce qu'on peut écrire en retour sans exposer la situation d'un tiers à un
+ * intermédiaire.
  *
  * Posé en étape 1, à côté de l'anonymat : les deux relèvent de la même décision préalable — qui
  * parle, et pour qui.
+ *
+ * ⚠️ RETIRÉ DU SOUS-TRAITANT ET DU COMMUNAUTAIRE le 2026-09-21, sur décision métier. La question
+ * y appelait la réponse « oui » à peu près toujours, et n'orientait donc rien ; elle ajoutait une
+ * case de plus en tête d'un formulaire rempli par des gens extérieurs à l'entreprise, pour qui
+ * chaque question supplémentaire est un motif d'abandon.
+ *
+ * ⚠️ LA COLONNE RESTE, ET LES RÉPONSES DÉJÀ DONNÉES AUSSI. `dossiers.declarant_est_victime` n'est
+ * ni supprimée ni vidée : la fiche la lit directement, sans passer par cette configuration, et
+ * continue donc d'afficher la réponse des dossiers qui en portent une. On cesse de demander, on
+ * n'efface rien.
  *
  * ⚠️ Pas marqué `identite`. La question se pose AUSSI en anonyme, où elle est même la plus utile :
  * savoir qu'un signalement anonyme émane d'un témoin plutôt que de la personne concernée oriente
@@ -151,7 +161,7 @@ const CANAUX_RETOUR = [
  *
  * ⚠️ Facultatif, et sans valeur par défaut en base : `declarant_est_victime` reste NULL tant que
  * la case n'a pas été vue. Une case non cochée ne vaut pas « non » — elle vaut « pas répondu », et
- * les 37 dossiers antérieurs à ce champ doivent rester distinguables de ceux qui ont dit non.
+ * les dossiers antérieurs à ce champ doivent rester distinguables de ceux qui ont dit non.
  */
 const DECLARANT_VICTIME = {
   nom: 'declarantEstVictime',
@@ -429,7 +439,6 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
-      DECLARANT_VICTIME,
       {
         // Placé EN TÊTE, donc juste sous la case d'anonymat que le formulaire rend avant les
         // champs de l'étape 1 (retour métier) : on décide d'abord de se nommer ou non, puis on
@@ -498,7 +507,6 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
-      DECLARANT_VICTIME,
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
       {
         /*

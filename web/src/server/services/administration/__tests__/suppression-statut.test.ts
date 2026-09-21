@@ -134,18 +134,26 @@ describe('La désactivation retire du CHOIX, sans toucher au passé', () => {
       effet, la colonne `actif` n'aurait été qu'un drapeau que rien ne lit — la promesse d'une
       protection inexistante.
     */
+    /*
+      ⚠️ EXERCÉ SUR « En analyse », et plus sur « Affecté ».
+
+      « Affecté » servait ici de cobaye parce qu'il était la seule destination depuis « Reçu ». Il
+      a quitté le circuit le 2026-09-21 — on n'affecte plus les dossiers —, et le prendre encore
+      pour cible aurait vérifié la désactivation d'un état que plus rien ne propose : le cas
+      serait resté vert sans rien prouver.
+    */
     const avant = await transitionsManuelles('recu')
     expect(
       avant.map((t) => t.code),
       'rien n’est proposé depuis « reçu » : le cas ne prouverait rien'
-    ).toContain('affecte')
+    ).toContain('en_analyse')
 
-    const affecte = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'affecte' } })
+    const cible = await prisma.statuts_dossier.findFirstOrThrow({ where: { code: 'en_analyse' } })
 
-    await modifierStatut(await acteur(), affecte.id, {
-      libelleInterne: affecte.libelle_interne,
-      libelleAffiche: affecte.libelle_affiche,
-      ordre: affecte.ordre,
+    await modifierStatut(await acteur(), cible.id, {
+      libelleInterne: cible.libelle_interne,
+      libelleAffiche: cible.libelle_affiche,
+      ordre: cible.ordre,
       actif: false,
     })
 
@@ -153,7 +161,24 @@ describe('La désactivation retire du CHOIX, sans toucher au passé', () => {
     expect(
       apres.map((t) => t.code),
       'le statut désactivé est encore proposé'
-    ).not.toContain('affecte')
+    ).not.toContain('en_analyse')
+
+    /*
+      ⚠️ REMIS ACTIF AVANT DE SORTIR. « En analyse » est la PREMIÈRE marche du circuit depuis le
+      retrait de « Affecté » : le laisser éteint bloquerait tout dossier reçu, dans la base de
+      développement comme dans les cas qui tournent ensuite.
+    */
+    await modifierStatut(await acteur(), cible.id, {
+      libelleInterne: cible.libelle_interne,
+      libelleAffiche: cible.libelle_affiche,
+      ordre: cible.ordre,
+      actif: true,
+    })
+
+    expect(
+      (await transitionsManuelles('recu')).map((t) => t.code),
+      'le statut n’a pas été remis en service'
+    ).toContain('en_analyse')
   })
 
   it('⚠️ laisse en place les dossiers qui s’y trouvent déjà', async () => {

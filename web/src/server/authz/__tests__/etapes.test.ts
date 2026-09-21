@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { prisma } from '@/lib/prisma'
 import { PARCOURS_CODES, type ParcoursCode } from '../parcours'
 import { ROLES } from '../roles'
 import {
@@ -53,15 +52,15 @@ describe('⚠️ La règle ne lit plus aucun nom de rôle', () => {
       décider différemment. Si ce cas échoue, c'est que le nom du rôle est revenu dans la
       décision.
     */
-    const autorise = avecEtapes({ parcours: 'grief_employe', statut: 'affecte' })
+    const autorise = avecEtapes({ parcours: 'grief_employe', statut: 'en_analyse' })
     const prive = avecEtapes()
 
-    expect(peutFaireAvancerDepuis(autorise, 'grief_employe', 'affecte')).toBe(true)
-    expect(peutFaireAvancerDepuis(prive, 'grief_employe', 'affecte')).toBe(false)
+    expect(peutFaireAvancerDepuis(autorise, 'grief_employe', 'en_analyse')).toBe(true)
+    expect(peutFaireAvancerDepuis(prive, 'grief_employe', 'en_analyse')).toBe(false)
 
     // Et la grille ne déborde pas : une case cochée n'ouvre que SON type et SON étape.
-    expect(peutFaireAvancerDepuis(autorise, 'grief_employe', 'en_analyse')).toBe(false)
-    expect(peutFaireAvancerDepuis(autorise, 'grief_sous_traitant', 'affecte')).toBe(false)
+    expect(peutFaireAvancerDepuis(autorise, 'grief_employe', 'en_investigation')).toBe(false)
+    expect(peutFaireAvancerDepuis(autorise, 'grief_sous_traitant', 'en_analyse')).toBe(false)
   })
 
   it('⚠️ une étape NON cochée est interdite, et non plus ouverte à tous', () => {
@@ -119,134 +118,105 @@ describe('⚠️ La règle ne lit plus aucun nom de rôle', () => {
   })
 })
 
-describe('⚠️ Le reflet de test suit la base, case par case', () => {
+describe('⚠️ Le reflet de test et la base restent exploitables', () => {
   /*
-    ⚠️ CETTE SECTION EST LA CHARNIÈRE DE TOUT CE FICHIER.
+    ⚠️ CE QUE CETTE SECTION PEUT ENCORE GARANTIR — ET CE QU'ELLE A CESSÉ DE GARANTIR.
 
-    Les cas métier ci-dessous se jouent en mémoire, sur des comptes fabriqués par `aide.ts`. Ils
-    ne prouvent quelque chose que si ce reflet dit la même chose que la base : sinon ils figent
-    une règle que personne n'applique, et resteraient verts après une bascule ratée.
+    Les cas métier ci-dessous se jouent en mémoire, sur des comptes fabriqués par `aide.ts`. Une
+    version de cette section comparait ce reflet à la base, rôle par rôle et case par case, pour
+    qu'ils ne puissent pas figer une règle que personne n'applique.
 
-    ⚠️ LA COMPARAISON EST EN DEUX MOITIÉS, et ce n'est pas un contournement.
+    ⚠️ CETTE COMPARAISON ÉTAIT MAL FONDÉE, et elle est retirée. La grille se coche depuis l'écran
+    des habilitations : la base est faite pour DIVERGER de la configuration livrée. Le jour même
+    de la bascule, un administrateur a re-paramétré un correspondant et supprimé un rôle — deux
+    gestes parfaitement normaux —, et la comparaison est passée au rouge sans qu'aucun défaut
+    n'existe. Un cas qui rougit sur l'usage prévu de la fonctionnalité ne protège plus rien : il
+    apprend seulement à ignorer la suite.
 
-    La grille livrée est faite de deux choses de nature différente. Les étapes que le CDC DÉSIGNE
-    ne dépendent que du CDC : elles se comparent nom par nom. Celles que le code laissait OUVERTES
-    ont été attribuées par une dérivation — « tous les rôles portant `dossiers.status.update` » —,
-    et leur contenu suit donc les PERMISSIONS de la base, qu'un administrateur peut ajuster depuis
-    l'écran des habilitations. Les comparer à la liste du code ferait échouer ce cas le jour où
-    quelqu'un accorde un droit, c'est-à-dire pour une raison qui n'est pas un défaut.
+    Restent deux garanties, l'une sur le reflet et l'autre sur la base, qui tiennent quel que soit
+    le paramétrage du jour :
 
-    Chaque moitié est donc vérifiée contre ce qui la détermine réellement.
+      1. le reflet ne nomme que des étapes qui EXISTENT et d'où un dossier peut partir — c'est ce
+         qui attrape une étape retirée du circuit (« Affecté », le 2026-09-21) ou une faute de
+         frappe, deux défauts qui rendraient les cas ci-dessous muets sans rien afficher ;
+      2. la base reste EXPLOITABLE : aucune étape franchissable n'est laissée sans acteur actif.
+         C'est l'invariant opérationnel, et le seul qui compte vraiment — une colonne vide bloque
+         les dossiers sans message et sans recours.
   */
-  it('reprend exactement les étapes que le CDC DÉSIGNE', async () => {
-    const enBase = await matriceDesEtapes()
+  it('⚠️ ne nomme que des étapes qui existent, et d’où un dossier peut partir', () => {
+    /*
+      Le défaut que ce cas attrape : une étape retirée du circuit — ou mal orthographiée — que le
+      reflet continue de citer. `peutFaireAvancerDepuis()` répondrait « non » pour tous les rôles
+      concernés, les cas métier ci-dessous se mettraient à exercer une situation impossible, et
+      rien ne le signalerait. C'est exactement ce qui serait arrivé au retrait de « Affecté ».
+    */
+    const franchissables = new Set<string>(
+      STATUTS.filter((statut) => transitionsDepuis(statut).length > 0)
+    )
 
-    // L'univers des cases désignées : celles dont le reflet prétend décider. Une case hors de cet
-    // univers relève de la dérivation, vérifiée par le cas suivant.
-    const universDesigne = new Set<string>()
+    expect(franchissables.size, 'aucune étape franchissable : le cas ne prouverait rien')
+      .toBeGreaterThan(0)
 
     for (const role of Object.keys(ROLES)) {
       for (const cas of etapesLivrees(role)) {
-        const ouverte =
-          cas.statut === 'en_attente_information' ||
-          cas.statut === 'action_corrective_en_cours' ||
-          (cas.statut === 'en_investigation' &&
-            (cas.parcours === 'ei_employe' || cas.parcours === 'grief_communaute'))
-
-        if (!ouverte) universDesigne.add(`${cas.parcours}/${cas.statut}`)
-      }
-    }
-
-    expect(universDesigne.size, 'aucune étape désignée : le cas ne prouverait rien').toBeGreaterThan(
-      0
-    )
-
-    const parRole = new Map<string, Set<string>>()
-
-    for (const cas of enBase) {
-      const deja = parRole.get(cas.role) ?? new Set<string>()
-      deja.add(`${cas.parcours}/${cas.statut}`)
-      parRole.set(cas.role, deja)
-    }
-
-    const rolesActifs = await prisma.roles.findMany({
-      where: { guard_name: 'web', actif: true },
-      select: { name: true },
-    })
-
-    expect(rolesActifs.length, 'aucun rôle actif : le cas ne prouverait rien').toBeGreaterThan(0)
-
-    for (const { name } of rolesActifs) {
-      // Seuls les rôles que le code LIVRE ont un reflet : un rôle créé depuis l'interface n'en a
-      // pas, et c'est exactement ce que la bascule rend possible.
-      if (!(name in ROLES)) continue
-
-      const reflet = etapesLivrees(name)
-        .map((e) => `${e.parcours}/${e.statut}`)
-        .filter((cle) => universDesigne.has(cle))
-
-      const base = [...(parRole.get(name) ?? [])].filter((cle) => universDesigne.has(cle))
-
-      expect(
-        [...new Set(reflet)].sort(),
-        `${name} : le reflet de test a dérivé des étapes désignées par le CDC`
-      ).toEqual(base.sort())
-    }
-  })
-
-  it('⚠️ attribue les étapes autrefois OUVERTES à qui porte le droit, en base', async () => {
-    /*
-      L'autre moitié, et celle qui pouvait se perdre en silence : les étapes sans acteur désigné
-      appartenaient à tous les porteurs de `dossiers.status.update`. La reprise leur a donné une
-      ligne chacun ; ce cas vérifie que la correspondance tient TOUJOURS — ni un rôle oublié, qui
-      se retrouverait bloqué, ni un rôle de trop, qui franchirait une marche sans y avoir droit.
-
-      ⚠️ LU DANS LA BASE DES DEUX CÔTÉS. Le droit s'accorde et se retire depuis l'écran des
-      habilitations : le comparer à la liste du code ferait échouer ce cas pour un ajustement
-      légitime, et c'est précisément ce que la bascule autorise.
-    */
-    const enBase = await matriceDesEtapes()
-
-    const porteursDuDroit = await prisma.roles.findMany({
-      where: {
-        guard_name: 'web',
-        actif: true,
-        role_has_permissions: { some: { permissions: { name: 'dossiers.status.update' } } },
-      },
-      select: { name: true },
-    })
-
-    const attendus = new Set(porteursDuDroit.map((r) => r.name))
-
-    expect(attendus.size, 'personne ne porte ce droit : le cas ne prouverait rien').toBeGreaterThan(
-      0
-    )
-
-    const ouvertes: { parcours: ParcoursCode; statut: string }[] = []
-
-    for (const parcours of PARCOURS_CODES) {
-      ouvertes.push({ parcours, statut: 'en_attente_information' })
-      ouvertes.push({ parcours, statut: 'action_corrective_en_cours' })
-    }
-
-    ouvertes.push({ parcours: 'ei_employe', statut: 'en_investigation' })
-    ouvertes.push({ parcours: 'grief_communaute', statut: 'en_investigation' })
-
-    for (const cas of ouvertes) {
-      const coches = new Set(
-        enBase
-          .filter((c) => c.parcours === cas.parcours && c.statut === cas.statut)
-          .map((c) => c.role)
-      )
-
-      for (const role of attendus) {
         expect(
-          coches.has(role),
-          `${cas.parcours}/${cas.statut} : ${role} porte le droit mais n’a plus sa case`
+          (PARCOURS_CODES as readonly string[]).includes(cas.parcours),
+          `${role} : « ${cas.parcours} » n’est pas un type de déclaration`
+        ).toBe(true)
+
+        expect(
+          franchissables.has(cas.statut),
+          `${role} : aucun dossier ne part de « ${cas.statut} », le reflet le cite pourtant`
         ).toBe(true)
       }
     }
   })
+
+  it('⚠️ laisse la base EXPLOITABLE : aucune étape franchissable sans acteur actif', async () => {
+    /*
+      L'invariant qui compte vraiment, et le seul que le paramétrage ne peut pas rendre faux sans
+      casser quelque chose : une étape dont plus aucun rôle actif n'est coché arrête les dossiers
+      qui l'atteignent, sans message, sans erreur, et sans que personne sache à qui s'adresser.
+
+      ⚠️ SUR LA BASE RÉELLE, et non sur le reflet : c'est elle qui décide. Le tableau de bord
+      d'administration remonte la même chose à l'administrateur (`santeAdministration()`) ; ce cas
+      le tient côté suite, pour que la bascule ne puisse pas laisser un trou derrière elle.
+    */
+    const matrice = await matriceDesEtapes()
+
+    const orphelines: string[] = []
+
+    for (const parcours of PARCOURS_CODES) {
+      for (const statut of STATUTS) {
+        if (transitionsDepuis(statut).length === 0) continue
+
+        const acteurs = matrice.filter((c) => c.parcours === parcours && c.statut === statut)
+        if (acteurs.length === 0) orphelines.push(`${parcours}/${statut}`)
+      }
+    }
+
+    expect(
+      orphelines,
+      `ces étapes n’ont plus aucun rôle actif coché : les dossiers qui les atteignent y resteront`
+    ).toEqual([])
+  })
+
+  /*
+    ⚠️ UN CAS A ÉTÉ RETIRÉ ICI, et le dire vaut mieux que le laisser disparaître.
+
+    Il vérifiait que les étapes autrefois OUVERTES restaient cochées pour exactement les rôles
+    portant `dossiers.status.update` — la correspondance que la migration avait établie.
+
+    Elle n'est pas un invariant : la grille et les permissions sont deux réglages INDÉPENDANTS,
+    délibérément. Accorder « faire avancer un dossier » à un rôle ne coche aucune case, et c'est
+    voulu — c'est la même séparation que pour la charge des dossiers, qui ne se déduit d'aucun
+    droit. Le cas rougissait donc dès qu'un administrateur accordait un droit, sans qu'aucun
+    défaut n'existe.
+
+    Ce qu'il protégeait réellement — « une étape autrefois ouverte s'est refermée sur tout le
+    monde » — est tenu par les deux cas ci-dessus, qui le disent mieux : ils exigent un acteur
+    actif sur CHAQUE étape franchissable, celles-là comprises.
+  */
 })
 
 describe('Une étape appartient à ses acteurs', () => {
@@ -255,7 +225,7 @@ describe('Une étape appartient à ses acteurs', () => {
     // Le cloisonnement par parcours l'écarte déjà ici ; l'assertion fige les deux verrous.
     const u = utilisateurAvecRoles('secretaire_csst')
 
-    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'affecte'))).toBe(false)
+    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'en_analyse'))).toBe(false)
   })
 
   it('interdit au DRH de relancer un grief employé depuis l’investigation', () => {
@@ -263,7 +233,7 @@ describe('Une étape appartient à ses acteurs', () => {
     // `dossiers.status.update` et voit le parcours. C'est exactement ce que la grille ajoute.
     const u = utilisateurAvecRoles('responsable_grief_employe')
 
-    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'affecte'))).toBe(true)
+    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'en_analyse'))).toBe(true)
     expect(peutChangerStatutDossier(u, dossier('grief_employe', 'en_investigation'))).toBe(false)
   })
 
@@ -274,16 +244,16 @@ describe('Une étape appartient à ses acteurs', () => {
     // plus étroite — le type coché borne l'étape cochée.
     const u = utilisateurAvecRoles('rqse')
 
-    expect(peutFaireAvancerDepuis(u, 'grief_employe', 'affecte')).toBe(true)
-    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'affecte'))).toBe(false)
-    expect(peutChangerStatutDossier(u, dossier('ei_employe', 'affecte'))).toBe(true)
+    expect(peutFaireAvancerDepuis(u, 'grief_employe', 'en_analyse')).toBe(true)
+    expect(peutChangerStatutDossier(u, dossier('grief_employe', 'en_analyse'))).toBe(false)
+    expect(peutChangerStatutDossier(u, dossier('ei_employe', 'en_analyse'))).toBe(true)
   })
 
   it('laisse le Correspondant MGP conduire l’enquête sous-traitant de bout en bout', () => {
     // §6.3 : le même acteur tient les étapes 2, 3 et 5 — la restriction ne doit pas le gêner.
     const u = utilisateurAvecRoles('correspondant_mgp')
 
-    for (const statut of ['affecte', 'en_analyse', 'en_investigation'] as const) {
+    for (const statut of ['recu', 'en_analyse', 'en_investigation'] as const) {
       expect(
         peutChangerStatutDossier(u, dossier('grief_sous_traitant', statut)),
         `étape ${statut}`
@@ -291,14 +261,45 @@ describe('Une étape appartient à ses acteurs', () => {
     }
   })
 
-  it('n’ouvre l’affectation manuelle qu’à qui sait affecter', () => {
-    // « Reçu → Affecté » est automatique (EX-GES-02). La voie manuelle ne sert qu'au cas où aucun
-    // compte actif ne porte le rôle de captage : c'est un geste d'affectation.
+  it('⚠️ laisse les correspondants DÉMARRER un dossier depuis « Reçu »', () => {
+    /*
+      ⚠️ LE CAS QUI PROTÈGE LE RETRAIT DE « AFFECTÉ » (2026-09-21).
+
+      Ce cas disait l'inverse, et il avait raison à l'époque : « Reçu → Affecté » était un geste
+      d'AFFECTATION, réservé à qui sait affecter. Le Service MGP y était seul, les correspondants
+      étaient cochés sur « Affecté », et c'est de là qu'ils démarraient.
+
+      L'étape retirée, « Reçu » devient la première marche RÉELLE. Sans report de ses acteurs, le
+      seul Service MGP aurait pu démarrer un grief : le correspondant DRH, le correspondant DL, le
+      correspondant DADD et le responsable MGP de structure auraient vu leurs dossiers arriver
+      sans pouvoir les faire avancer d'un cran — sans message, sans erreur, et sans que personne
+      sache à qui s'adresser.
+
+      C'est donc ce report qu'on fige ici, rôle par rôle et type par type.
+    */
+    const premierPas: [string, ParcoursCode][] = [
+      ['charge_securite', 'ei_employe'],
+      ['correspondant_drh', 'grief_employe'],
+      ['responsable_grief_employe', 'grief_employe'],
+      ['correspondant_dl', 'grief_sous_traitant'],
+      ['correspondant_dadd', 'grief_communaute'],
+      ['responsable_mgp_structure', 'grief_communaute'],
+    ]
+
+    for (const [role, parcours] of premierPas) {
+      expect(
+        peutChangerStatutDossier(utilisateurAvecRoles(role), dossier(parcours, 'recu')),
+        `${role} ne peut plus démarrer un dossier ${parcours}`
+      ).toBe(true)
+    }
+
+    // La contrepartie : le report n'a ouvert « Reçu » à personne d'autre. Un rôle de consultation
+    // ne démarre rien, et un rôle borné à un autre type non plus.
     expect(
-      peutChangerStatutDossier(utilisateurAvecRoles('service_mgp'), dossier('ei_employe', 'recu'))
-    ).toBe(true)
+      peutChangerStatutDossier(utilisateurAvecRoles('comite_ethique'), dossier('grief_employe', 'recu'))
+    ).toBe(false)
     expect(
-      peutChangerStatutDossier(utilisateurAvecRoles('rqse'), dossier('ei_employe', 'recu'))
+      peutChangerStatutDossier(utilisateurAvecRoles('charge_securite'), dossier('grief_employe', 'recu'))
     ).toBe(false)
   })
 
@@ -320,7 +321,7 @@ describe('Une étape appartient à ses acteurs', () => {
   it('empêche un seul compte de traverser tout le circuit', () => {
     // Le symptôme rapporté : un dossier poussé seul de « Reçu » à « Résolu ». Aucun rôle ne doit
     // pouvoir franchir toutes les marches d'un parcours.
-    const etapes: StatutCode[] = ['recu', 'affecte', 'en_analyse', 'reouvert']
+    const etapes: StatutCode[] = ['recu', 'en_analyse', 'reouvert']
 
     for (const role of Object.keys(ROLES)) {
       const u = utilisateurAvecRoles(role)
@@ -342,7 +343,7 @@ describe('⚠️ L’écran nomme les acteurs par leur LIBELLÉ', () => {
       constante du code : un rôle créé depuis l'interface n'y a aucune entrée, et l'écran aurait
       affiché « responsable_hse_nord » à l'utilisateur qui cherche à comprendre.
     */
-    const acteurs = await acteursDeLEtape('grief_employe', 'affecte')
+    const acteurs = await acteursDeLEtape('grief_employe', 'en_analyse')
 
     expect(acteurs.length, 'aucun acteur sur cette étape : le cas ne prouverait rien').toBeGreaterThan(
       0
