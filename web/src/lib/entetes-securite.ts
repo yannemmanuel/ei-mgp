@@ -49,10 +49,11 @@ export type EnteteHttp = { readonly key: string; readonly value: string }
  * le proxy et un rendu dynamique de chaque page — un chantier à part, qui n'a pas sa place dans
  * la correction d'un défaut ouvert. Ce qui est fermé ici l'est vraiment : aucun script EXTERNE ne
  * peut être chargé, et rien ne peut sortir de l'origine.
+ *
+ * ⚠️ ET `'unsafe-eval'` EN DÉVELOPPEMENT SEULEMENT — voir `SCRIPT_SRC`.
  */
 const DIRECTIVES_CSP: readonly string[] = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
@@ -64,6 +65,30 @@ const DIRECTIVES_CSP: readonly string[] = [
   "form-action 'self'",
   "frame-ancestors 'none'",
 ]
+
+/**
+ * ⚠️ `'unsafe-eval'` EN DÉVELOPPEMENT SEULEMENT, ET C'EST INDISPENSABLE.
+ *
+ * React en mode développement appelle `eval()` pour ses outils de mise au point — reconstruire
+ * une pile d'appels venue d'un autre environnement, notamment. Sans cette source, le navigateur
+ * refuse l'appel et l'écran se remplit d'erreurs :
+ *
+ *   « eval() is not supported in this environment. If this page was served with a
+ *     Content-Security-Policy header, make sure that 'unsafe-eval' is included. »
+ *
+ * C'est exactement ce qui s'est produit à la première mise en service de cette politique : elle
+ * avait été vérifiée sur une construction de PRODUCTION (`next start`), jamais en `next dev` —
+ * alors que les en-têtes s'appliquent aux deux. La vérification portait sur le mode où le défaut
+ * ne pouvait pas apparaître.
+ *
+ * ⚠️ ET JAMAIS EN PRODUCTION. React le dit lui-même dans son message : « React will never use
+ * eval() in production mode ». L'y laisser rouvrirait le vecteur d'injection le plus direct qui
+ * soit, pour un besoin qui n'existe pas.
+ */
+const SCRIPT_SRC = {
+  developpement: "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  production: "script-src 'self' 'unsafe-inline'",
+} as const
 
 /**
  * ⚠️ `upgrade-insecure-requests` EST RÉSERVÉ À LA PRODUCTION, et l'écarter en local n'est pas de
@@ -102,7 +127,14 @@ const HSTS = 'max-age=63072000; includeSubDomains'
  * @param production Vrai en production seulement — commande le seul en-tête dangereux en local.
  */
 export function entetesSecurite(production: boolean): EnteteHttp[] {
-  const directives = production ? [...DIRECTIVES_CSP, DIRECTIVE_PRODUCTION] : DIRECTIVES_CSP
+  /*
+    L'ordre importe peu au navigateur, mais `script-src` est placé en deuxième position — juste
+    après `default-src` — pour que la politique se relise dans le même ordre quel que soit
+    l'environnement.
+  */
+  const directives = production
+    ? [DIRECTIVES_CSP[0], SCRIPT_SRC.production, ...DIRECTIVES_CSP.slice(1), DIRECTIVE_PRODUCTION]
+    : [DIRECTIVES_CSP[0], SCRIPT_SRC.developpement, ...DIRECTIVES_CSP.slice(1)]
 
   const entetes: EnteteHttp[] = [
     { key: 'Content-Security-Policy', value: directives.join('; ') },

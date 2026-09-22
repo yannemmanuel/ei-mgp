@@ -110,6 +110,40 @@ describe('⚠️ Ce que les en-têtes doivent laisser OUVERT', () => {
     expect(directive('script-src')).toContain("'unsafe-inline'")
     expect(directive('style-src')).toContain("'unsafe-inline'")
   })
+
+  it('⚠️ laisse React appeler eval() EN DÉVELOPPEMENT', () => {
+    /*
+      ⚠️ LE DÉFAUT QUE CE CAS A PRIS, une fois la politique déjà en service.
+
+      React en mode développement appelle `eval()` pour ses outils de mise au point. Sans
+      `'unsafe-eval'`, le navigateur refuse l'appel et l'écran se remplit d'erreurs :
+      « eval() is not supported in this environment ».
+
+      La politique avait été vérifiée sur une construction de PRODUCTION (`next start`), jamais en
+      `next dev` — alors que les en-têtes s'appliquent aux deux. La vérification portait sur le
+      seul mode où le défaut ne pouvait pas apparaître.
+    */
+    expect(
+      directive('script-src', false),
+      'React ne pourra pas appeler eval() : le mode développement sera inutilisable'
+    ).toContain("'unsafe-eval'")
+  })
+
+  it('⚠️ ne laisse JAMAIS eval() partir en production', () => {
+    /*
+      La contrepartie, et elle est impérative. React le dit lui-même : « React will never use
+      eval() in production mode ». L'y laisser rouvrirait le vecteur d'injection le plus direct
+      qui soit, pour un besoin qui n'existe pas.
+    */
+    expect(
+      directive('script-src', true),
+      'unsafe-eval part en production : le vecteur d’injection le plus direct est rouvert'
+    ).not.toContain("'unsafe-eval'")
+
+    expect(csp(true), 'unsafe-eval apparaît ailleurs dans la politique').not.toContain(
+      "'unsafe-eval'"
+    )
+  })
 })
 
 describe('⚠️ HSTS ne doit JAMAIS sortir en développement', () => {
@@ -164,7 +198,15 @@ describe('⚠️ HSTS ne doit JAMAIS sortir en développement', () => {
 
     expect(sansCspNiHsts(false)).toEqual(sansCspNiHsts(true))
 
-    // Et la CSP ne diffère QUE par cette directive.
-    expect(csp(true).replace('; upgrade-insecure-requests', '')).toBe(csp(false))
+    /*
+      Et la CSP ne diffère que par les deux directives nommées : `upgrade-insecure-requests`, qui
+      n'apparaît qu'en production, et `'unsafe-eval'`, qui n'apparaît qu'en développement. Toute
+      autre divergence ferait que ce qu'on vérifie en local cesse de dire ce qui part en
+      production.
+    */
+    expect(
+      csp(true).replace('; upgrade-insecure-requests', ''),
+      'la politique diverge ailleurs que sur les deux directives prévues'
+    ).toBe(csp(false).replace(" 'unsafe-eval'", ''))
   })
 })
