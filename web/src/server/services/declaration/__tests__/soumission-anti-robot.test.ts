@@ -89,10 +89,13 @@ describe('⚠️ Une déclaration légitime passe — le défaut que ce fichier 
     */
     const resultat = await traiterSoumission(await formulaire())
 
+    // Le détail des refus est affiché dans le message : sans lui, un échec ici obligerait à
+    // instrumenter le service pour savoir QUEL champ a été rejeté.
+    expect(resultat.erreurGenerale, 'refus global sur une déclaration valide').toBeUndefined()
     expect(
-      resultat.erreurGenerale ?? JSON.stringify(resultat.erreurs ?? {}),
-      'une déclaration valide a été refusée'
-    ).toBeUndefined()
+      Object.entries(resultat.erreurs ?? {}),
+      'des champs ont été refusés sur une déclaration valide'
+    ).toEqual([])
 
     expect(resultat.succes, 'aucune référence rendue').toBeDefined()
     expect(resultat.succes?.reference).toMatch(/^EI-\d{4}-\d{6}$/)
