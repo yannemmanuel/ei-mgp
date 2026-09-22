@@ -261,9 +261,12 @@ describe('⚠️ CRUD des familles de risque', () => {
 
   const libelleUnique = (quoi: string) => `ZZ verification ${quoi} ${process.pid} ${Date.now()}`
 
-  async function familleJetable(actif = true): Promise<{ id: bigint; libelle: string }> {
+  async function familleJetable(
+    actif = true,
+    parcoursId: bigint | null = null
+  ): Promise<{ id: bigint; libelle: string }> {
     const libelle = libelleUnique('famille')
-    await creerFamilleRisque(await acteur(), { libelle, actif })
+    await creerFamilleRisque(await acteur(), { libelle, actif, parcoursId })
 
     const creee = await prisma.familles_risque.findFirstOrThrow({
       where: { libelle },
@@ -305,13 +308,13 @@ describe('⚠️ CRUD des familles de risque', () => {
   it('refuse un libellé vide, et un libellé sans aucune lettre', async () => {
     const qui = await acteur()
 
-    await expect(creerFamilleRisque(qui, { libelle: '   ', actif: true })).rejects.toBeInstanceOf(
+    await expect(creerFamilleRisque(qui, { libelle: '   ', actif: true, parcoursId: null })).rejects.toBeInstanceOf(
       ErreurWorkflow
     )
 
     // « --- » ne produit aucun code : la ligne serait créée avec un code vide, en collision avec
     // la suivante du même genre.
-    await expect(creerFamilleRisque(qui, { libelle: '---', actif: true })).rejects.toBeInstanceOf(
+    await expect(creerFamilleRisque(qui, { libelle: '---', actif: true, parcoursId: null })).rejects.toBeInstanceOf(
       ErreurWorkflow
     )
   })
@@ -322,7 +325,7 @@ describe('⚠️ CRUD des familles de risque', () => {
     const creee = await familleJetable()
 
     await expect(
-      creerFamilleRisque(await acteur(), { libelle: creee.libelle, actif: true })
+      creerFamilleRisque(await acteur(), { libelle: creee.libelle, actif: true, parcoursId: null })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
 
@@ -335,7 +338,7 @@ describe('⚠️ CRUD des familles de risque', () => {
     const avant = await prisma.familles_risque.findUniqueOrThrow({ where: { id: creee.id } })
 
     const nouveau = libelleUnique('renommee')
-    await modifierFamilleRisque(await acteur(), creee.id, { libelle: nouveau, actif: true })
+    await modifierFamilleRisque(await acteur(), creee.id, { libelle: nouveau, actif: true, parcoursId: null })
 
     const apres = await prisma.familles_risque.findUniqueOrThrow({ where: { id: creee.id } })
 
@@ -350,7 +353,7 @@ describe('⚠️ CRUD des familles de risque', () => {
     const dossierId = await dossierDeType(TYPE_QUALIFIANT)
 
     await qualifierFamilleRisque({ dossierId, familleId: creee.id })
-    await modifierFamilleRisque(await acteur(), creee.id, { libelle: creee.libelle, actif: false })
+    await modifierFamilleRisque(await acteur(), creee.id, { libelle: creee.libelle, actif: false, parcoursId: null })
 
     expect(
       (await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })).famille_risque_id,
@@ -421,7 +424,7 @@ describe('⚠️ CRUD des familles de risque', () => {
       ).toBeGreaterThan(0)
 
       await expect(
-        modifierFamilleRisque(qui, survivante.id, { libelle: survivante.libelle, actif: false })
+        modifierFamilleRisque(qui, survivante.id, { libelle: survivante.libelle, actif: false, parcoursId: null })
       ).rejects.toBeInstanceOf(ErreurWorkflow)
 
       await expect(supprimerFamilleRisque(qui, survivante.id)).rejects.toBeInstanceOf(
@@ -442,7 +445,7 @@ describe('⚠️ CRUD des familles de risque', () => {
         data: { familles_risque_actives: false },
       })
 
-      await modifierFamilleRisque(qui, survivante.id, { libelle: survivante.libelle, actif: false })
+      await modifierFamilleRisque(qui, survivante.id, { libelle: survivante.libelle, actif: false, parcoursId: null })
 
       expect(
         (await prisma.familles_risque.findUniqueOrThrow({ where: { id: survivante.id } })).actif
@@ -533,5 +536,296 @@ describe('⚠️ CRUD des familles de risque', () => {
 
     expect(effacees?.libelle, 'le libellé effacé n’est pas consigné').toBe(ligne.libelle)
     expect(effacees?.code, 'le code effacé n’est pas consigné').toBe(ligne.code)
+  })
+})
+
+describe('⚠️ Une famille est rattachée à un TYPE de déclaration', () => {
+  /*
+    ⚠️ LE RATTACHEMENT EST CE QUI RESSERRE LA LISTE. Un traitant de grief communautaire ne doit
+    plus voir les familles réservées aux salariés — c'est l'affichage que le métier a demandé
+    d'optimiser. Celles qui ne portent aucun rattachement restent proposées partout : « Autre » ou
+    « Corruption et fraude » relèvent réellement des quatre types.
+  */
+  const jetables: bigint[] = []
+
+  const libelleUnique = (quoi: string) => `ZZ rattachement ${quoi} ${process.pid} ${Date.now()}`
+
+  async function famillePour(parcoursCode: string | null): Promise<{ id: bigint; libelle: string }> {
+    const parcours =
+      parcoursCode === null
+        ? null
+        : await prisma.parcours.findFirstOrThrow({
+            where: { code: parcoursCode },
+            select: { id: true },
+          })
+
+    const libelle = libelleUnique(parcoursCode ?? 'commune')
+    await creerFamilleRisque(await acteur(), {
+      libelle,
+      actif: true,
+      parcoursId: parcours?.id ?? null,
+    })
+
+    const creee = await prisma.familles_risque.findFirstOrThrow({
+      where: { libelle },
+      select: { id: true, libelle: true },
+    })
+
+    jetables.push(creee.id)
+    return creee
+  }
+
+  afterAll(async () => {
+    if (jetables.length === 0) return
+
+    await prisma.dossiers.updateMany({
+      where: { famille_risque_id: { in: jetables } },
+      data: { famille_risque_id: null },
+    })
+    await prisma.familles_risque.deleteMany({ where: { id: { in: jetables } } })
+  })
+
+  it('⚠️ ne propose sur un type QUE les siennes et les communes', async () => {
+    const pourEmploye = await famillePour('grief_employe')
+    const pourCommunaute = await famillePour('grief_communaute')
+    const commune = await famillePour(null)
+
+    const proposees = (await famillesRisqueProposees('grief_employe')).map((f) => f.id)
+
+    expect(proposees, 'sa propre famille n’est pas proposée').toContainEqual(pourEmploye.id)
+    expect(proposees, 'la famille commune n’est pas proposée').toContainEqual(commune.id)
+    expect(
+      proposees,
+      'une famille réservée à un AUTRE type est proposée : la liste ne s’est pas resserrée'
+    ).not.toContainEqual(pourCommunaute.id)
+  })
+
+  it('⚠️ REFUSE de poser sur un dossier une famille réservée à un autre type', async () => {
+    /*
+      ⚠️ LE VERROU EST DANS LE SERVICE, PAS DANS LA LISTE.
+
+      La liste affichée est déjà filtrée ; la filtrer ne suffit pas. Une requête forgée — ou un
+      formulaire resté ouvert pendant qu'un administrateur rattachait la famille ailleurs —
+      poserait sinon une qualification que la fiche ne propose pas, et que personne ne saurait
+      d'où elle vient.
+    */
+    const pourCommunaute = await famillePour('grief_communaute')
+    const dossierId = await dossierDeType(TYPE_QUALIFIANT)
+
+    await expect(
+      qualifierFamilleRisque({ dossierId, familleId: pourCommunaute.id })
+    ).rejects.toThrow(/réservée/)
+
+    expect(
+      (await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })).famille_risque_id,
+      'la famille d’un autre type a été posée malgré le refus'
+    ).toBeNull()
+  })
+
+  it('accepte une famille COMMUNE sur n’importe quel type', async () => {
+    const commune = await famillePour(null)
+    const dossierId = await dossierDeType(TYPE_QUALIFIANT)
+
+    await qualifierFamilleRisque({ dossierId, familleId: commune.id })
+
+    expect(
+      (await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })).famille_risque_id
+    ).toBe(commune.id)
+  })
+
+  it('⚠️ compte le rang DANS le type, jamais à travers toute la table', async () => {
+    /*
+      Prendre toute la table pour groupe ferait passer la première famille d'un type dans le type
+      précédent : un geste de mise en ordre deviendrait un geste de rattachement, silencieusement.
+    */
+    const parcours = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_sous_traitant' },
+      select: { id: true },
+    })
+
+    const premiere = await famillePour('grief_sous_traitant')
+    const seconde = await famillePour('grief_sous_traitant')
+
+    const groupe = () =>
+      prisma.familles_risque.findMany({
+        where: { parcours_id: parcours.id },
+        orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+        select: { id: true, ordre: true },
+      })
+
+    const avant = await groupe()
+    expect(avant[avant.length - 1].id, 'la dernière créée n’est pas en fin de groupe').toBe(
+      seconde.id
+    )
+
+    await deplacerFamilleRisque(await acteur(), seconde.id, 'monter')
+
+    const apres = await groupe()
+    const positions = apres.map((l) => String(l.id))
+
+    expect(positions.indexOf(String(seconde.id))).toBeLessThan(
+      positions.indexOf(String(premiere.id))
+    )
+
+    // Renumérotée EN ENTIER dans le groupe : des rangs en double donneraient un classement qui
+    // dépend de l'ordre de lecture de la base.
+    expect(apres.map((l) => l.ordre)).toEqual(apres.map((_, i) => i + 1))
+
+    // Et le geste n'a pas débordé : les familles communes n'ont pas changé de groupe.
+    const communes = await prisma.familles_risque.count({ where: { parcours_id: null } })
+    expect(communes, 'le déplacement a déplacé des familles d’un autre groupe').toBeGreaterThan(0)
+  })
+
+  it('⚠️ CHANGER de type place la famille en fin du nouveau groupe', async () => {
+    // Garder son ancien rang lui ferait hériter d'un rang déjà pris, et le classement deviendrait
+    // ambigu — deux familles au même rang, départagées par la base.
+    const famille = await famillePour('grief_employe')
+    const cible = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_communaute' },
+      select: { id: true },
+    })
+
+    await modifierFamilleRisque(await acteur(), famille.id, {
+      libelle: famille.libelle,
+      actif: true,
+      parcoursId: cible.id,
+    })
+
+    const apres = await prisma.familles_risque.findUniqueOrThrow({
+      where: { id: famille.id },
+      select: { parcours_id: true, ordre: true },
+    })
+
+    expect(apres.parcours_id).toBe(cible.id)
+
+    const rangs = await prisma.familles_risque.findMany({
+      where: { parcours_id: cible.id },
+      select: { ordre: true },
+    })
+
+    expect(apres.ordre, 'la famille déplacée n’est pas en fin de son nouveau groupe').toBe(
+      Math.max(...rangs.map((r) => r.ordre))
+    )
+
+    // Et elle a quitté l'ancien : elle n'y est plus proposée.
+    expect(
+      (await famillesRisqueProposees('grief_employe')).map((f) => f.id)
+    ).not.toContainEqual(famille.id)
+  })
+
+  it('⚠️ suffixe le code plutôt que de refuser deux familles homonymes', async () => {
+    /*
+      « Autre » pour le grief employé et « Autre » pour le grief communautaire sont deux familles
+      légitimes et distinctes ; le code est pourtant unique en base. Refuser la seconde aurait
+      obligé à inventer un libellé bancal pour contourner une contrainte technique.
+    */
+    const employe = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_employe' },
+      select: { id: true },
+    })
+    const communaute = await prisma.parcours.findFirstOrThrow({
+      where: { code: 'grief_communaute' },
+      select: { id: true },
+    })
+
+    const libelle = libelleUnique('homonyme')
+    const qui = await acteur()
+
+    await creerFamilleRisque(qui, { libelle, actif: true, parcoursId: employe.id })
+    await creerFamilleRisque(qui, { libelle, actif: true, parcoursId: communaute.id })
+
+    const deux = await prisma.familles_risque.findMany({
+      where: { libelle },
+      select: { id: true, code: true },
+    })
+
+    jetables.push(...deux.map((d) => d.id))
+
+    expect(deux.length, 'la seconde homonyme a été refusée').toBe(2)
+    expect(new Set(deux.map((d) => d.code)).size, 'les deux portent le même code').toBe(2)
+    expect(
+      deux.some((d) => d.code.endsWith('grief_communaute')),
+      'le code n’a pas été suffixé par le type'
+    ).toBe(true)
+  })
+
+  it('refuse un type de déclaration inconnu', async () => {
+    // Un identifiant forgé rattacherait la famille à rien, et elle ne serait plus proposée nulle
+    // part — invisible sans qu'aucune erreur ne le dise.
+    await expect(
+      creerFamilleRisque(await acteur(), {
+        libelle: libelleUnique('forge'),
+        actif: true,
+        parcoursId: 999_999n,
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+  })
+
+  it('⚠️ refuse de retirer la dernière famille D’UN TYPE, en le nommant', async () => {
+    /*
+      ⚠️ LA GARDE COMPTAIT GLOBALEMENT avant le rattachement : elle se taisait dès qu'il restait
+      une famille active, même réservée à un autre type. Retirer la dernière du grief
+      sous-traitant passait donc sans un mot.
+
+      On isole : toutes les communes sont désactivées, le sous-traitant n'a plus que la sienne.
+    */
+    const qui = await acteur()
+
+    /*
+      ⚠️ LE TYPE DOIT QUALIFIER, et on le POSE plutôt que de le supposer.
+
+      La garde ne s'applique qu'aux types qui demandent une famille. Un cas précédent de ce
+      fichier laisse le paramétrage sur deux types seulement : sans cette ligne, le sous-traitant
+      ne qualifiait pas, la garde se taisait à juste titre, et le cas échouait en accusant le
+      service. Un cas qui dépend de l'ambiance laissée par ses voisins ne prouve rien.
+    */
+    await modifierTypesQualifiants(qui, [
+      'grief_employe',
+      'grief_sous_traitant',
+      'grief_communaute',
+    ])
+
+    const propre = await famillePour('grief_sous_traitant')
+
+    const communes = await prisma.familles_risque.findMany({
+      where: { actif: true, parcours_id: null },
+      select: { id: true },
+    })
+
+    const autresDuType = await prisma.familles_risque.findMany({
+      where: {
+        actif: true,
+        parcours: { code: 'grief_sous_traitant' },
+        NOT: { id: propre.id },
+      },
+      select: { id: true },
+    })
+
+    const aEteindre = [...communes, ...autresDuType].map((f) => f.id)
+
+    try {
+      await prisma.familles_risque.updateMany({
+        where: { id: { in: aEteindre } },
+        data: { actif: false },
+      })
+
+      await expect(
+        modifierFamilleRisque(qui, propre.id, {
+          libelle: propre.libelle,
+          actif: false,
+          parcoursId: (
+            await prisma.parcours.findFirstOrThrow({
+              where: { code: 'grief_sous_traitant' },
+              select: { id: true },
+            })
+          ).id,
+        })
+      ).rejects.toThrow(/Sous-traitant/)
+    } finally {
+      await prisma.familles_risque.updateMany({
+        where: { id: { in: aEteindre } },
+        data: { actif: true },
+      })
+    }
   })
 })

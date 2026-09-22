@@ -51,11 +51,26 @@ export async function typeQualifieLaFamille(parcoursCode: string): Promise<boole
  * question ne se pose plus, plutôt que de se poser sans réponse possible. La fiche continue en
  * revanche d'AFFICHER la famille d'un dossier qui en porte une — décocher un type retire du choix
  * futur, jamais du passé, comme pour tous les référentiels ici.
+ *
+ * ⚠️ RATTACHÉES AU TYPE depuis le 2026-09-22, et c'est ce qui resserre la liste : un traitant de
+ * grief communautaire ne voit plus les familles réservées aux salariés. Celles qui ne portent
+ * AUCUN rattachement (`parcours_id` nul) restent proposées partout — « Autre » ou « Corruption et
+ * fraude » relèvent réellement des quatre types, et les dupliquer quatre fois aurait rendu chaque
+ * renommage quadruple.
  */
 export async function famillesRisqueProposees(parcoursCode: string): Promise<FamilleRisque[]> {
   if (!(await typeQualifieLaFamille(parcoursCode))) return []
 
-  return famillesRisqueActives()
+  const lignes = await prisma.familles_risque.findMany({
+    where: {
+      actif: true,
+      OR: [{ parcours_id: null }, { parcours: { code: parcoursCode } }],
+    },
+    orderBy: { ordre: 'asc' },
+    select: { id: true, libelle: true },
+  })
+
+  return lignes
 }
 
 /**
@@ -105,7 +120,7 @@ export async function qualifierFamilleRisque(params: {
 
     const famille = await prisma.familles_risque.findUnique({
       where: { id: params.familleId },
-      select: { actif: true },
+      select: { actif: true, libelle: true, parcours: { select: { code: true, libelle: true } } },
     })
 
     if (!famille) {
@@ -115,6 +130,23 @@ export async function qualifierFamilleRisque(params: {
     if (!famille.actif) {
       throw new ErreurWorkflow(
         'Cette famille de risque est désactivée : elle n’est plus proposée. Choisissez-en une autre.'
+      )
+    }
+
+    /*
+      ⚠️ ET ELLE DOIT RELEVER DE CE TYPE — second verrou, ajouté avec le rattachement.
+
+      La liste affichée sur la fiche est déjà filtrée ; la filtrer ne suffit pas. Une requête
+      forgée — ou un formulaire resté ouvert pendant qu'un administrateur rattachait la famille à
+      un autre type — poserait sinon sur un grief communautaire une famille réservée aux salariés.
+      Le dossier afficherait alors une qualification que sa propre liste ne propose pas, et que
+      personne ne saurait d'où elle vient.
+
+      Une famille SANS rattachement relève de tous les types : elle passe.
+    */
+    if (famille.parcours !== null && famille.parcours.code !== dossier.parcours.code) {
+      throw new ErreurWorkflow(
+        `« ${famille.libelle} » est réservée aux déclarations de type « ${famille.parcours.libelle} ».`
       )
     }
   }

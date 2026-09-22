@@ -118,11 +118,21 @@ export async function actionModifierFamille(
   // Lire « on » aurait rendu TOUTE famille inactive à l'enregistrement, sans message.
   const actif = donnees.get('actif') === '1'
 
+  /*
+    ⚠️ LA CHAÎNE VIDE VAUT « TOUS LES TYPES », et non « pas de valeur ».
+
+    C'est l'option que la liste déroulante propose en tête. La traiter comme une absence aurait
+    fait échouer l'enregistrement sur un choix parfaitement valide — celui, justement, que portent
+    les neuf familles livrées.
+  */
+  const brutParcours = String(donnees.get('parcoursId') ?? '').trim()
+  const parcoursId = brutParcours === '' ? null : BigInt(brutParcours)
+
   try {
     if (id === '') {
-      await creerFamilleRisque(autorisation.acteur, { libelle, actif })
+      await creerFamilleRisque(autorisation.acteur, { libelle, actif, parcoursId })
     } else {
-      await modifierFamilleRisque(autorisation.acteur, BigInt(id), { libelle, actif })
+      await modifierFamilleRisque(autorisation.acteur, BigInt(id), { libelle, actif, parcoursId })
     }
   } catch (erreur) {
     return echec('Enregistrement d’une famille de risque', erreur)

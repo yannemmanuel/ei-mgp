@@ -13,6 +13,8 @@ export type TypeVue = {
   actif: boolean
   qualifieLaFamille: boolean
   dossiersQualifies: number
+  /** Familles que CE type propose réellement : les siennes, plus celles de « tous les types ». */
+  famillesProposees: number
 }
 
 const ETAT: EtatFamilles = {}
@@ -25,14 +27,7 @@ const ETAT: EtatFamilles = {}
  * La décision se coche donc ici plutôt que de vivre dans le code, où la défaire aurait demandé un
  * déploiement.
  */
-export function PanneauTypes({
-  types,
-  famillesActives,
-}: {
-  types: TypeVue[]
-  /** Combien de familles sont proposables — cocher un type sans aucune ne montre rien. */
-  famillesActives: number
-}) {
+export function PanneauTypes({ types }: { types: TypeVue[] }) {
   const [etat, envoyer, enCours] = useActionState(actionModifierTypesQualifiants, ETAT)
   const [coches, setCoches] = useState<string[]>(() =>
     types.filter((t) => t.qualifieLaFamille).map((t) => t.code)
@@ -54,6 +49,15 @@ export function PanneauTypes({
   const conserves = types
     .filter((t) => t.qualifieLaFamille && !coches.includes(t.code) && t.dossiersQualifies > 0)
     .reduce((somme, t) => somme + t.dossiersQualifies, 0)
+
+  /*
+    Les types qu'on s'apprête à cocher — ou qui le sont déjà — sans qu'aucune famille ne leur soit
+    proposée. Calculé sur les cases TELLES QU'ELLES SONT À L'ÉCRAN, donc l'avertissement apparaît
+    au moment où l'on coche, et non après l'enregistrement.
+  */
+  const typesSansFamille = types.filter(
+    (t) => coches.includes(t.code) && t.famillesProposees === 0
+  )
 
   return (
     <Card>
@@ -95,9 +99,18 @@ export function PanneauTypes({
                       )}
                     </span>
                     <span className="mt-1 block text-caption text-muted-foreground">
+                      {/*
+                        ⚠️ CE QUE CE TYPE PROPOSE, en premier. Depuis que les familles sont
+                        rattachées, un type peut être coché et n'avoir AUCUNE famille à offrir —
+                        le traitant voit alors une carte vide, sans message. C'est le chiffre qui
+                        rend cette situation visible ici, ligne par ligne.
+                      */}
+                      {type.famillesProposees === 0
+                        ? 'Aucune famille ne lui est proposée.'
+                        : `${type.famillesProposees} famille${type.famillesProposees > 1 ? 's' : ''} proposée${type.famillesProposees > 1 ? 's' : ''}.`}{' '}
                       {type.dossiersQualifies === 0
-                        ? 'Aucun dossier de ce type n’en porte pour l’instant.'
-                        : `${type.dossiersQualifies} dossier${type.dossiersQualifies > 1 ? 's' : ''} de ce type en porte${type.dossiersQualifies > 1 ? 'nt' : ''} déjà une.`}
+                        ? 'Aucun dossier n’en porte pour l’instant.'
+                        : `${type.dossiersQualifies} dossier${type.dossiersQualifies > 1 ? 's' : ''} en porte${type.dossiersQualifies > 1 ? 'nt' : ''} déjà une.`}
                     </span>
                   </span>
                 </label>
@@ -118,15 +131,22 @@ export function PanneauTypes({
 
           {/*
             ⚠️ LA PANNE SILENCIEUSE que ce couple de réglages peut produire : un type qui demande
-            une famille alors qu'aucune n'est proposée. Le traitant voit une liste vide — ou rien
-            du tout —, et l'administrateur voit la case cochée. Le service refuse de retirer la
-            dernière famille ; ici, c'est l'autre bout du problème qu'on annonce.
+            une famille alors qu'aucune ne lui est proposée. Le traitant voit une liste vide — ou
+            rien du tout —, et l'administrateur voit la case cochée.
+
+            ⚠️ TYPE PAR TYPE depuis le rattachement (2026-09-22). Le contrôle portait sur le total
+            des familles actives : il se taisait dès qu'il en restait UNE, même réservée à un autre
+            type. Un grief communautaire coché pouvait donc n'avoir rien à offrir sans que rien ne
+            le dise — exactement la situation que ce bloc existe pour attraper.
           */}
-          {coches.length > 0 && famillesActives === 0 && (
+          {typesSansFamille.length > 0 && (
             <Alert variant="destructive" role="alert">
               <AlertDescription>
-                Aucune famille n’est proposée pour l’instant : ces types demanderaient une
-                qualification sans rien à choisir. Ajoutez ou réactivez une famille ci-dessus.
+                {typesSansFamille.length === 1
+                  ? `« ${typesSansFamille[0].libelle} » demande une famille de risque, mais aucune ne lui est proposée : ses traitants n’auraient rien à choisir.`
+                  : `Ces types demandent une famille sans qu’aucune ne leur soit proposée : ${typesSansFamille.map((t) => t.libelle).join(', ')}.`}{' '}
+                Ajoutez-en une ci-dessus, en la réservant au type ou en la laissant sur « Tous les
+                types ».
               </AlertDescription>
             </Alert>
           )}

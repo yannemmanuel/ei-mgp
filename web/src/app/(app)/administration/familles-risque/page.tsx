@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { chargerParametrageFamillesRisque } from '@/server/services/administration/familles-risque'
 import { EditeurReferentiel } from '../editeur-referentiel'
@@ -28,18 +29,41 @@ export const dynamic = 'force-dynamic'
 export default async function PageFamillesRisque() {
   await exigerPermission('referentiels.categories.manage')
 
-  const { types, familles } = await chargerParametrageFamillesRisque()
+  const [{ types, familles }, parcours] = await Promise.all([
+    chargerParametrageFamillesRisque(),
+    prisma.parcours.findMany({ orderBy: { ordre: 'asc' }, select: { id: true, libelle: true } }),
+  ])
+
+  /*
+    Le rang d'une famille se compte DANS son type — « Tous les types » formant un groupe à part.
+
+    Sans ce groupe, monter la première famille d'un type la ferait passer dans le type précédent :
+    un geste de mise en ordre deviendrait un geste de rattachement, silencieusement. Le service
+    applique la même règle de son côté ; ici, c'est l'écran qui cesse de proposer le geste aux
+    extrémités.
+  */
+  const TOUS = 'tous'
 
   return (
     <div className="space-y-6">
       <EditeurReferentiel
         titre="Familles de risque"
-        description="Ce que les traitants peuvent choisir pour rattacher une déclaration, une fois instruite."
-        colonnes={['Rang', 'Code', 'Libellé', 'Dossiers', 'État']}
+        description="Ce que les traitants peuvent choisir pour rattacher une déclaration, une fois instruite. Une famille peut être réservée à un type, ou proposée sur tous."
+        colonnes={['Type de déclaration', 'Rang', 'Code', 'Libellé', 'Dossiers', 'État']}
         lignes={familles.map((f, index) => ({
           id: f.id,
+          groupe: f.parcoursId ?? TOUS,
           cellules: [
-            String(index + 1),
+            /*
+              ⚠️ LA COLONNE EN TÊTE, comme sur l'écran des catégories : c'est la clé de lecture de
+              la table. Reléguée en fin de ligne, elle obligeait à parcourir chaque ligne pour
+              savoir à qui la famille s'adresse — ce que le rattachement doit justement éviter.
+            */
+            f.parcoursLibelle ?? 'Tous les types',
+            String(
+              familles.slice(0, index + 1).filter((autre) => (autre.parcoursId ?? TOUS) === (f.parcoursId ?? TOUS))
+                .length
+            ),
             f.code,
             f.libelle,
             /*
@@ -50,9 +74,28 @@ export default async function PageFamillesRisque() {
             f.dossiers === 0 ? '—' : String(f.dossiers),
             { badge: f.actif ? 'Proposée' : 'Retirée', variant: f.actif ? 'default' : 'secondary' },
           ],
-          valeurs: { libelle: f.libelle, actif: f.actif },
+          valeurs: {
+            parcoursId: f.parcoursId ?? '',
+            libelle: f.libelle,
+            actif: f.actif,
+          },
         }))}
         champs={[
+          {
+            /*
+              ⚠️ PAS `requis`, et l'option vide porte un vrai libellé.
+
+              « Tous les types » est un choix légitime — « Autre » ou « Corruption et fraude »
+              relèvent des quatre —, pas une absence de réponse. Marquer le champ obligatoire
+              aurait forcé à dupliquer ces familles quatre fois, et « — Sélectionner — » aurait
+              laissé croire qu'on avait oublié de répondre.
+            */
+            type: 'liste',
+            nom: 'parcoursId',
+            libelle: 'Type de déclaration concerné',
+            vide: 'Tous les types',
+            options: parcours.map((p) => ({ valeur: String(p.id), libelle: p.libelle })),
+          },
           { type: 'texte', nom: 'libelle', libelle: 'Libellé', requis: true, max: 255 },
           { type: 'booleen', nom: 'actif', libelle: 'Proposée aux traitants' },
         ]}
@@ -78,8 +121,8 @@ export default async function PageFamillesRisque() {
           actif: t.actif,
           qualifieLaFamille: t.qualifieLaFamille,
           dossiersQualifies: t.dossiersQualifies,
+          famillesProposees: t.famillesProposees,
         }))}
-        famillesActives={familles.filter((f) => f.actif).length}
       />
     </div>
   )

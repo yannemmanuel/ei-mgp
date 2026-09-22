@@ -26,6 +26,16 @@ export type TypeDeclaration = {
   readonly qualifieLaFamille: boolean
   /** Dossiers de ce type portant DÉJÀ une famille — ce qu'un décochage laisserait derrière lui. */
   readonly dossiersQualifies: number
+  /**
+   * Familles que ce type propose RÉELLEMENT : les siennes, plus celles de « tous les types ».
+   *
+   * ⚠️ C'est ce chiffre qui dit si cocher la case sert à quelque chose. Un type coché qui ne
+   * propose rien affiche aux traitants une carte vide, sans message — la panne silencieuse que cet
+   * écran doit rendre visible. Calculé ICI plutôt que dans la page : le déduire à l'écran
+   * demandait d'apparier les types aux familles par leur libellé, ce qui casse au premier
+   * renommage.
+   */
+  readonly famillesProposees: number
 }
 
 export type FamilleRisqueVue = {
@@ -33,6 +43,15 @@ export type FamilleRisqueVue = {
   readonly code: string
   readonly libelle: string
   readonly actif: boolean
+  /**
+   * Type de déclaration auquel elle est réservée — `null` = proposée sur TOUS les types.
+   *
+   * ⚠️ « Tous les types » n'est pas un défaut de paramétrage : « Autre » ou « Corruption et
+   * fraude » relèvent réellement des quatre. Les dupliquer quatre fois aurait fait passer le
+   * référentiel de neuf lignes à trente-six, et rendu chaque renommage quadruple.
+   */
+  readonly parcoursId: string | null
+  readonly parcoursLibelle: string | null
   /** Nombre de dossiers qui la portent, tous types confondus. */
   readonly dossiers: number
 }
@@ -54,24 +73,41 @@ export async function chargerParametrageFamillesRisque(): Promise<ParametrageFam
     prisma.parcours.findMany({
       orderBy: { ordre: 'asc' },
       select: {
+        id: true,
         code: true,
         libelle: true,
         actif: true,
         familles_risque_actives: true,
-        _count: { select: { dossiers: { where: { famille_risque_id: { not: null } } } } },
+        _count: {
+          select: {
+            dossiers: { where: { famille_risque_id: { not: null } } },
+            familles_risque: { where: { actif: true } },
+          },
+        },
       },
     }),
     prisma.familles_risque.findMany({
-      orderBy: { ordre: 'asc' },
+      /*
+        Groupées par type, puis par rang. C'est l'ordre dans lequel l'écran les affiche, et celui
+        dans lequel le rang se compte : monter la première famille d'un type ne doit pas la faire
+        passer dans le type précédent.
+      */
+      orderBy: [{ parcours: { ordre: 'asc' } }, { ordre: 'asc' }],
       select: {
         id: true,
         code: true,
         libelle: true,
         actif: true,
+        parcours_id: true,
+        parcours: { select: { libelle: true } },
         _count: { select: { dossiers: true } },
       },
     }),
   ])
+
+  // Les familles sans rattachement sont proposées sur TOUS les types : elles s'ajoutent au compte
+  // de chacun.
+  const communes = familles.filter((f) => f.actif && f.parcours_id === null).length
 
   return {
     types: types.map((t) => ({
@@ -80,12 +116,16 @@ export async function chargerParametrageFamillesRisque(): Promise<ParametrageFam
       actif: t.actif,
       qualifieLaFamille: t.familles_risque_actives,
       dossiersQualifies: t._count.dossiers,
+      // Les siennes, plus les communes : c'est ce que le traitant verra dans sa liste.
+      famillesProposees: t._count.familles_risque + communes,
     })),
     familles: familles.map((f) => ({
       id: String(f.id),
       code: f.code,
       libelle: f.libelle,
       actif: f.actif,
+      parcoursId: f.parcours_id === null ? null : String(f.parcours_id),
+      parcoursLibelle: f.parcours?.libelle ?? null,
       dossiers: f._count.dossiers,
     })),
   }
@@ -166,6 +206,17 @@ export type SensDeplacement = 'monter' | 'descendre'
 export type DonneesFamille = {
   readonly libelle: string
   readonly actif: boolean
+  /** Type auquel la réserver, ou `null` pour « tous les types ». */
+  readonly parcoursId: bigint | null
+}
+
+/** Vérifie que le type existe — un identifiant forgé rattacherait la famille à rien. */
+async function verifierParcours(parcoursId: bigint | null): Promise<void> {
+  if (parcoursId === null) return
+
+  const existe = await prisma.parcours.count({ where: { id: parcoursId } })
+
+  if (existe === 0) throw new ErreurWorkflow('Type de déclaration inconnu.')
 }
 
 /**
@@ -185,31 +236,94 @@ function codeDepuisLibelle(libelle: string): string {
 }
 
 /**
- * ⚠️ AU MOINS UNE FAMILLE ACTIVE TANT QU'UN TYPE EN DEMANDE UNE.
+ * Un code libre, dérivé du libellé — suffixé par le type si la base le porte déjà.
  *
- * Le trou que cette garde ferme est silencieux : un type coché dont plus aucune famille n'est
- * active affiche une carte de qualification VIDE — ou, selon le chemin, ne l'affiche plus du tout.
- * Le traitant voit alors disparaître une étape de son travail sans qu'aucun message ne l'explique,
- * et l'administrateur, lui, voit toujours la case cochée.
+ * ⚠️ LE RATTACHEMENT REND LES COLLISIONS NORMALES. « Autre » réservée au grief employé et
+ * « Autre » réservée au grief communautaire sont deux familles légitimes et distinctes ; le code
+ * est pourtant unique en base. Refuser la seconde aurait obligé à inventer un libellé bancal pour
+ * contourner une contrainte technique — c'est le code qui doit s'adapter, pas le libellé.
  *
- * Deux issues sont laissées ouvertes, et c'est ce qui rend la garde acceptable : décocher les
- * types d'abord, ou activer une autre famille. Le message le dit.
+ * Le suffixe n'est ajouté QU'EN CAS DE COLLISION : les codes déjà écrits ne bougent pas, et un
+ * libellé sans homonyme garde un code lisible.
  */
-async function refuserSiPlusAucuneFamilleProposable(exclureId: bigint): Promise<void> {
-  const typesQualifiants = await prisma.parcours.count({ where: { familles_risque_actives: true } })
+async function codeLibre(libelle: string, parcoursId: bigint | null): Promise<string> {
+  const base = codeDepuisLibelle(libelle)
 
-  if (typesQualifiants === 0) return
+  if (base === '') {
+    throw new ErreurWorkflow(
+      'Ce libellé ne produit aucun code technique : utilisez au moins une lettre ou un chiffre.'
+    )
+  }
 
-  const autresActives = await prisma.familles_risque.count({
-    where: { actif: true, NOT: { id: exclureId } },
+  const pris = async (code: string) =>
+    (await prisma.familles_risque.count({ where: { code } })) > 0
+
+  if (!(await pris(base))) return base
+
+  if (parcoursId !== null) {
+    const parcours = await prisma.parcours.findUnique({
+      where: { id: parcoursId },
+      select: { code: true },
+    })
+
+    if (parcours) {
+      const suffixe = `${base}_${parcours.code}`.slice(0, 64)
+      if (!(await pris(suffixe))) return suffixe
+    }
+  }
+
+  const deja = await prisma.familles_risque.findFirst({
+    where: { code: base },
+    select: { libelle: true },
   })
 
-  if (autresActives > 0) return
+  throw new ErreurWorkflow(
+    `« ${deja?.libelle ?? base} » porte déjà ce code technique (${base}). Choisissez un autre libellé.`
+  )
+}
+
+/**
+ * ⚠️ AUCUN TYPE QUALIFIANT NE DOIT SE RETROUVER SANS AUCUNE FAMILLE À PROPOSER.
+ *
+ * Le trou que cette garde ferme est silencieux : un type coché dont plus aucune famille n'est
+ * proposée affiche une carte de qualification VIDE — ou, selon le chemin, ne l'affiche plus du
+ * tout. Le traitant voit alors disparaître une étape de son travail sans qu'aucun message ne
+ * l'explique, et l'administrateur, lui, voit toujours la case cochée.
+ *
+ * ⚠️ VÉRIFIÉ TYPE PAR TYPE depuis le rattachement (2026-09-22). La garde comptait les familles
+ * actives GLOBALEMENT : elle se taisait dès qu'il en restait une, même réservée à un autre type.
+ * Retirer la dernière famille du grief communautaire passait donc sans un mot tant qu'il restait
+ * une famille pour les salariés — exactement la situation qu'elle existe pour empêcher.
+ *
+ * Deux issues sont laissées ouvertes, et c'est ce qui rend la garde acceptable : décocher le type
+ * concerné, ou lui proposer une autre famille. Le message nomme le type.
+ */
+async function refuserSiPlusAucuneFamilleProposable(exclureId: bigint): Promise<void> {
+  const typesQualifiants = await prisma.parcours.findMany({
+    where: { familles_risque_actives: true },
+    select: { id: true, libelle: true },
+  })
+
+  if (typesQualifiants.length === 0) return
+
+  const restantes = await prisma.familles_risque.findMany({
+    where: { actif: true, NOT: { id: exclureId } },
+    select: { parcours_id: true },
+  })
+
+  // Une famille sans rattachement compte pour TOUS les types.
+  const communes = restantes.filter((f) => f.parcours_id === null).length
+  const propres = new Set(restantes.filter((f) => f.parcours_id !== null).map((f) => f.parcours_id))
+
+  const orphelins = typesQualifiants.filter((t) => communes === 0 && !propres.has(t.id))
+
+  if (orphelins.length === 0) return
+
+  const noms = orphelins.map((t) => `« ${t.libelle} »`).join(', ')
 
   throw new ErreurWorkflow(
-    'C’est la dernière famille proposée, et ' +
-      `${typesQualifiants} type${typesQualifiants > 1 ? 's' : ''} de déclaration en demande${typesQualifiants > 1 ? 'nt' : ''} une. ` +
-      'Activez-en une autre, ou décochez ces types, avant de retirer celle-ci.'
+    `Sans elle, ${orphelins.length > 1 ? 'ces types n’auraient' : 'ce type n’aurait'} plus aucune famille à proposer : ${noms}. ` +
+      `Proposez-${orphelins.length > 1 ? 'leur' : 'lui'} une autre famille, ou décochez-${orphelins.length > 1 ? 'les' : 'le'}, avant de retirer celle-ci.`
   )
 }
 
@@ -224,34 +338,31 @@ export async function creerFamilleRisque(
     throw new ErreurWorkflow('Le libellé est obligatoire.')
   }
 
-  const code = codeDepuisLibelle(libelle)
+  await verifierParcours(donnees.parcoursId)
 
-  if (code === '') {
-    throw new ErreurWorkflow(
-      'Ce libellé ne produit aucun code technique : utilisez au moins une lettre ou un chiffre.'
-    )
-  }
+  const code = await codeLibre(libelle, donnees.parcoursId)
 
-  const deja = await prisma.familles_risque.findFirst({ where: { code }, select: { libelle: true } })
-
-  if (deja) {
-    throw new ErreurWorkflow(`« ${deja.libelle} » porte déjà ce code technique (${code}).`)
-  }
-
-  // Le rang la place en DERNIER : une famille nouvelle n'a aucune raison de passer devant celles
-  // que les traitants ont l'habitude de voir en tête.
-  const dernier = await prisma.familles_risque.aggregate({ _max: { ordre: true } })
+  /*
+    Le rang la place en DERNIER DE SON GROUPE : une famille nouvelle n'a aucune raison de passer
+    devant celles que les traitants ont l'habitude de voir en tête, et le rang se compte dans le
+    type — comme pour les catégories.
+  */
+  const dernier = await prisma.familles_risque.aggregate({
+    where: { parcours_id: donnees.parcoursId },
+    _max: { ordre: true },
+  })
 
   const creee = await prisma.familles_risque.create({
     data: {
       code,
       libelle,
       actif: donnees.actif,
+      parcours_id: donnees.parcoursId,
       ordre: (dernier._max.ordre ?? 0) + 1,
       created_at: new Date(),
       updated_at: new Date(),
     },
-    select: { id: true, code: true, libelle: true, actif: true, ordre: true },
+    select: { id: true, code: true, libelle: true, actif: true, ordre: true, parcours_id: true },
   })
 
   await journaliser({
@@ -260,7 +371,13 @@ export async function creerFamilleRisque(
     auditableType: MODELES.familleRisque,
     auditableId: String(creee.id),
     anciennes: null,
-    nouvelles: { code: creee.code, libelle: creee.libelle, actif: creee.actif, ordre: creee.ordre },
+    nouvelles: {
+      code: creee.code,
+      libelle: creee.libelle,
+      actif: creee.actif,
+      ordre: creee.ordre,
+      parcours_id: creee.parcours_id === null ? null : String(creee.parcours_id),
+    },
   })
 }
 
@@ -281,9 +398,11 @@ export async function modifierFamilleRisque(
     throw new ErreurWorkflow('Le libellé est obligatoire.')
   }
 
+  await verifierParcours(donnees.parcoursId)
+
   const avant = await prisma.familles_risque.findUnique({
     where: { id: familleId },
-    select: { code: true, libelle: true, actif: true },
+    select: { code: true, libelle: true, actif: true, parcours_id: true, ordre: true },
   })
 
   if (!avant) throw new ErreurWorkflow('Famille de risque inconnue.')
@@ -292,11 +411,38 @@ export async function modifierFamilleRisque(
     await refuserSiPlusAucuneFamilleProposable(familleId)
   }
 
-  if (avant.libelle === libelle && avant.actif === donnees.actif) return
+  const changeDeType = avant.parcours_id !== donnees.parcoursId
+
+  /*
+    ⚠️ CHANGER DE TYPE RETIRE LA FAMILLE DU CHOIX DES DOSSIERS DÉJÀ QUALIFIÉS, sans effacer leur
+    qualification : ils la gardent et l'affichent, mais ne pourraient plus la re-sélectionner.
+
+    Ce n'est pas une perte de donnée, et ce n'est pas bloqué — un rattachement posé par erreur doit
+    pouvoir être corrigé. L'écran l'annonce avant l'enregistrement, parce que c'est exactement le
+    genre d'effet qu'on ne devine pas depuis un menu déroulant.
+  */
+  if (avant.libelle === libelle && avant.actif === donnees.actif && !changeDeType) return
+
+  // Le rang se compte DANS le type : une famille qui change de groupe reprend le rang du bout,
+  // faute de quoi elle hériterait d'un rang déjà pris et le classement deviendrait ambigu.
+  const rang = changeDeType
+    ? ((
+        await prisma.familles_risque.aggregate({
+          where: { parcours_id: donnees.parcoursId },
+          _max: { ordre: true },
+        })
+      )._max.ordre ?? 0) + 1
+    : avant.ordre
 
   await prisma.familles_risque.update({
     where: { id: familleId },
-    data: { libelle, actif: donnees.actif, updated_at: new Date() },
+    data: {
+      libelle,
+      actif: donnees.actif,
+      parcours_id: donnees.parcoursId,
+      ordre: rang,
+      updated_at: new Date(),
+    },
   })
 
   await journaliser({
@@ -304,8 +450,16 @@ export async function modifierFamilleRisque(
     acteurId: acteur.id,
     auditableType: MODELES.familleRisque,
     auditableId: String(familleId),
-    anciennes: { libelle: avant.libelle, actif: avant.actif },
-    nouvelles: { libelle, actif: donnees.actif },
+    anciennes: {
+      libelle: avant.libelle,
+      actif: avant.actif,
+      parcours_id: avant.parcours_id === null ? null : String(avant.parcours_id),
+    },
+    nouvelles: {
+      libelle,
+      actif: donnees.actif,
+      parcours_id: donnees.parcoursId === null ? null : String(donnees.parcoursId),
+    },
   })
 }
 
@@ -325,6 +479,7 @@ export async function supprimerFamilleRisque(acteur: Acteur, familleId: bigint):
       libelle: true,
       actif: true,
       ordre: true,
+      parcours_id: true,
       _count: { select: { dossiers: true } },
     },
   })
@@ -362,6 +517,7 @@ export async function supprimerFamilleRisque(acteur: Acteur, familleId: bigint):
       libelle: cible.libelle,
       actif: cible.actif,
       ordre: cible.ordre,
+      parcours_id: cible.parcours_id === null ? null : String(cible.parcours_id),
     },
     nouvelles: null,
   })
@@ -379,7 +535,21 @@ export async function deplacerFamilleRisque(
   familleId: bigint,
   sens: SensDeplacement
 ): Promise<void> {
+  /*
+    ⚠️ LE RANG SE COMPTE DANS SON TYPE, comme pour les catégories.
+
+    Prendre toute la table pour groupe ferait passer la première famille d'un type dans le type
+    précédent : un geste de mise en ordre deviendrait un geste de rattachement, silencieusement.
+  */
+  const cible = await prisma.familles_risque.findUnique({
+    where: { id: familleId },
+    select: { parcours_id: true },
+  })
+
+  if (!cible) throw new ErreurWorkflow('Famille de risque inconnue.')
+
   const lignes = await prisma.familles_risque.findMany({
+    where: { parcours_id: cible.parcours_id },
     orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
     select: { id: true, ordre: true },
   })

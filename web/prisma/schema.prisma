@@ -382,6 +382,7 @@ model parcours {
   familles_risque_actives Boolean                   @default(true)
   categories              categories[]
   dossiers                dossiers[]
+  familles_risque         familles_risque[]
   notification_templates  notification_templates[]
   qr_codes                qr_codes[]
   role_etapes             role_etapes[]
@@ -666,14 +667,18 @@ model role_parcours {
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model familles_risque {
-  id         BigInt     @id @default(autoincrement())
-  code       String     @unique(map: "familles_risque_code_unique") @db.VarChar(64)
-  libelle    String     @db.VarChar(255)
-  ordre      Int        @default(0)
-  actif      Boolean    @default(true)
-  created_at DateTime?  @db.Timestamp(0)
-  updated_at DateTime?  @db.Timestamp(0)
-  dossiers   dossiers[]
+  id          BigInt     @id @default(autoincrement())
+  code        String     @unique(map: "familles_risque_code_unique") @db.VarChar(64)
+  libelle     String     @db.VarChar(255)
+  ordre       Int        @default(0)
+  actif       Boolean    @default(true)
+  created_at  DateTime?  @db.Timestamp(0)
+  updated_at  DateTime?  @db.Timestamp(0)
+  parcours_id BigInt?
+  dossiers    dossiers[]
+  parcours    parcours?  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "familles_risque_parcours_id_foreign")
+
+  @@index([parcours_id], map: "familles_risque_parcours_id_index")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
