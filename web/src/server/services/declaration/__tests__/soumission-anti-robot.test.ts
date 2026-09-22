@@ -63,8 +63,18 @@ async function formulaire(horodatage?: string): Promise<FormData> {
   donnees.set('niveauGraviteId', String(gravite.id))
   donnees.set('description', 'Vérification : description factuelle suffisamment longue pour passer.')
   donnees.set('dateSurvenance', new Date().toISOString().slice(0, 10))
-  // Le lieu est un champ du parcours, obligatoire dans la configuration livrée.
-  donnees.set('lieu', 'Atelier 3')
+  /*
+    Les champs obligatoires du parcours livré, découverts un à un en suivant les refus du schéma.
+
+    ⚠️ Les poser explicitement plutôt que de les déduire de la configuration est délibéré : un
+    fixture qui se régénère depuis `PARCOURS` passerait toujours, y compris le jour où un champ
+    devient obligatoire sans que personne ne l'ait voulu. Ici, un champ ajouté fait échouer ce cas
+    — et c'est le bon moment pour décider s'il doit vraiment être exigé du déclarant.
+  */
+  // Le lieu est contraint au référentiel : une valeur libre est refusée, et c'est voulu.
+  const lieu = await prisma.lieux.findFirstOrThrow({ where: { actif: true }, select: { libelle: true } })
+  donnees.set('lieu', lieu.libelle)
+  donnees.set('caractereRepetitif', 'premiere_fois')
   donnees.set('piegeAraignee', '')
   donnees.set('horodatageAffichage', horodatage ?? signerHorodatage(Date.now() - 4_000))
 
