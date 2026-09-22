@@ -1,7 +1,7 @@
 # Déploiement Netlify — application Next.js du dossier `web/`.
 #
-# Le dépôt contient aussi l'application Laravel d'origine, conservée comme référence pendant la
-# migration : `base` isole la construction au seul sous-dossier Next.js.
+# L'application vit dans `web/`, le dépôt porte aussi `docs/` : `base` isole la construction au
+# seul sous-dossier Next.js.
 
 [build]
   base = "web"
@@ -18,9 +18,9 @@
 
 # --- Tâches planifiées -------------------------------------------------------------------------
 #
-# Next.js n'a pas d'ordonnanceur. Ces fonctions programmées remplacent le `php artisan
-# schedule:run` du cron système : chacune appelle la route protégée correspondante avec
-# `TACHES_SECRET`. Une seule chaîne d'autorisation, donc un seul endroit à auditer.
+# Next.js n'a pas d'ordonnanceur : ces fonctions programmées en tiennent lieu. Chacune appelle la
+# route protégée correspondante avec `TACHES_SECRET`. Une seule chaîne d'autorisation, donc un
+# seul endroit à auditer.
 #
 # Les horaires sont en UTC. Décalés de quinze minutes pour ne pas ouvrir six connexions à la base
 # au même instant — Neon limite les connexions simultanées.

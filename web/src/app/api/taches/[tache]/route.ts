@@ -16,7 +16,7 @@ import { TACHES, estTacheConnue } from '@/server/services/taches/registre'
  *   elle échoue fermée, jamais ouverte.
  * - **Comparaison à temps constant**, pour ne pas laisser deviner le secret octet par octet.
  * - **Aucune session utilisateur.** Ce n'est pas une action d'acteur : les traces d'audit
- *   produites portent `user_id = NULL`, comme le fait Laravel hors requête HTTP.
+ *   produites portent `user_id = NULL` : aucune personne n'est à l'origine du geste.
  */
 
 export const runtime = 'nodejs'

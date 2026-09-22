@@ -34,13 +34,13 @@ Couleurs sémantiques (statut/gravité — **distinctes de la marque, ne changen
 - `ActivityTimeline` — remplace la `<ul>` d'historique par une frise verticale (puce + date + auteur + commentaire).
 - `DataTable` — wrapper commun (en-tête, tri optionnel, pagination, empty state, densité) pour les ~11 tableaux existants, **sans** réécrire leur logique de requête/filtre.
 - `NotificationMenu` — cloche dans la topbar, si le module Notifications (phase 9) expose une liste consultable côté utilisateur (à vérifier avec le propriétaire de ce module avant de construire l'UI).
-- `Skeleton` — génrique, pour les zones à chargement Livewire visible.
+- `Skeleton` — générique, pour les zones dont le chargement est visible (`loading.tsx`).
 - `FileUpload` (dropzone) — remplace `<input type="file">` stylé par une zone de dépôt avec liste de fichiers/progression/suppression.
 - Pages `403`/`404`/`500` personnalisées (`resources/views/errors/`).
 
 ## Composants demandés déjà couverts autrement (ne pas dupliquer)
 
-- "PrimaryButton/SecondaryButton/DangerButton/GhostButton" → déjà couverts par `.btn-*`, pas besoin de composants Blade séparés pour un simple jeu de classes.
+- "PrimaryButton/SecondaryButton/DangerButton/GhostButton" → déjà couverts par `.btn-*`, pas besoin d'un composant séparé pour un simple jeu de classes.
 - "Alert/SuccessMessage/ErrorMessage/WarningMessage/InfoMessage" → déjà couverts par `.alert-*` + `<x-toast-container>`.
 - "ConfirmationModal" → `<x-modal>` + `wire:confirm` couvrent déjà ce besoin (voir audit).
 - "KPICard/MetricCard" → déjà présentes sur le dashboard (`border-l-4 border-l-brand-green`), pourraient être extraites en composant `<x-kpi-card>` si on en ajoute d'autres (léger, pas urgent).

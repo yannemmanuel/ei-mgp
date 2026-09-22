@@ -15,7 +15,7 @@ import { FormulaireDeclaration } from './formulaire'
  */
 /**
  * Rendu dynamique imposé, PAS de prerendu statique : les categories et niveaux de gravite sont
- * administrables (Phase 10 cote Laravel) et doivent refleter la base a chaque affichage, et
+ * administrables et doivent refleter la base a chaque affichage, et
  * l'horodatage anti-robot (DT-14) doit etre frais. Un prerendu figerait les deux a la
  * compilation.
  */

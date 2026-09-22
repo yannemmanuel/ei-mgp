@@ -2,19 +2,22 @@
 
 Source : CDC §8 (Exigences fonctionnelles détaillées), croisée avec §16 (Critères d'acceptation
 fonctionnelle) et §18.5 (Matrice de synthèse). Les identifiants `EX-*` sont ceux du CDC — **conservés
-tels quels** pour garder la traçabilité (ils devront apparaître dans les noms de tests Pest/PHPUnit,
-ex. `test_ex_dec_03_anonymat_masque_identite`).
+tels quels** pour garder la traçabilité : ils doivent apparaître dans les noms des cas de test,
+ex. « EX-DEC-03 : l'anonymat masque l'identité ».
 
 Colonnes :
 - **Priorité** : Essentielle / Importante / Souhaitable (définition CDC §8, page 32).
-- **Composant Laravel prévu** : où l'exigence sera implémentée (indicatif, affiné en Phase 1).
+- **Composant d'origine** : où l'exigence avait été implémentée dans la première version, en
+  Laravel. ⚠️ **CES NOMS NE DÉSIGNENT PLUS AUCUN FICHIER** depuis le portage en Next.js. La
+  colonne est conservée comme trace de traçabilité historique ; pour savoir où une exigence vit
+  AUJOURD'HUI, chercher son identifiant `EX-*` dans `web/src`, où les tests le citent.
 - **Statut** : `À faire` pour toutes les lignes à l'issue de la Phase 0 (aucun code encore écrit).
   Passé à `Fait` en Phase 13, à l'issue de l'audit de traçabilité consolidé (DT-32) qui a recoupé
   chaque ID contre `tests/` et corrigé les deux seules lacunes réelles trouvées (RG-09, RG-11).
 
 ## Module 1 — Déclaration
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-DEC-01 | Accès formulaire via QR code dédié par parcours | Essentielle | Déclarant | Route publique + `QrCode` model + redirection contrôleur | Fait |
 | EX-DEC-02 | Accès complémentaire par lien web direct | Importante | Déclarant | Routes `/declarer/{parcours}` sans dépendance QR | Fait |
@@ -29,7 +32,7 @@ Colonnes :
 
 ## Module 2 — Gestion des dossiers
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-GES-01 | Liste des dossiers filtrable (parcours, catégorie, statut, gravité, période) | Essentielle | Acteurs de traitement | Livewire `DossierList` + `DossierFilter` value object | Fait |
 | EX-GES-02 | Affectation automatique selon parcours/catégorie | Essentielle | Système | `AffectationAutomatiqueService` déclenché à la création | Fait |
@@ -40,7 +43,7 @@ Colonnes :
 
 ## Module 3 — Investigations
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-INV-01 | Ouverture fiche d'investigation liée à un dossier | Importante | Correspondant MGP / Enquêteur | Modèle `Investigation` (FK `dossier_id` non-null) | Fait |
 | EX-INV-02 | Saisie des constats d'enquête | Importante | Correspondant MGP / Enquêteur | Champs `faits_constates`, `personnes_rencontrees` | Fait |
@@ -50,7 +53,7 @@ Colonnes :
 
 ## Module 4 — Actions correctives
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-ACT-01 | Création d'action(s) corrective(s) depuis recommandations validées, responsable + échéance | Essentielle | Acteurs de traitement | Modèle `ActionCorrective` | Fait |
 | EX-ACT-02 | Affectation à un responsable de mise en œuvre | Essentielle | Système, Acteurs de traitement | FK `responsable_id` | Fait |
@@ -60,7 +63,7 @@ Colonnes :
 
 ## Module 5 — Notifications
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-NOT-01 | Notification auto à l'affectation d'un dossier | Essentielle | Système | Event `DossierAffecte` → Listener → `Notification` | Fait |
 | EX-NOT-02 | Notification au déclarant identifié à chaque changement de statut majeur | Importante | Système, Déclarant identifié | Event `StatutDossierChange` (canal conditionné à `declarant_user_id` non-null) | Fait |
@@ -72,7 +75,7 @@ Colonnes :
 
 ## Module 6 — Reporting
 
-| ID | Description (résumé CDC) | Priorité | Acteur | Composant Laravel prévu | Statut |
+| ID | Description (résumé CDC) | Priorité | Acteur | Composant d’origine | Statut |
 |---|---|---|---|---|---|
 | EX-REP-01 | Tableau de bord centralisé consolidant les 4 parcours | Essentielle | Service MGP/DADD, Direction | Livewire `DashboardConsolide` + requêtes agrégées | Fait |
 | EX-REP-02 | Filtrage par parcours/catégorie/période/site-direction/gravité | Importante | Service MGP/DADD, Direction | `ReportingFilter` value object partagé avec Module 2 | Fait |

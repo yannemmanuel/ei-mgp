@@ -1,15 +1,18 @@
 # Acteurs, rôles applicatifs et permissions
 
 Source : CDC §3 (Parties prenantes), §18.4 (Matrice RACI simplifiée). Chaque acteur métier du CDC
-est mappé à un **rôle Spatie** unique. Le nommage des rôles est un slug technique ; le libellé
+est mappé à un **rôle** unique. Le nommage des rôles est un slug technique ; le libellé
 métier officiel (CDC) est conservé dans la colonne « Acteur CDC » pour ne jamais perdre la
 correspondance.
 
 ## 1. Principe de conception
 
 - Un utilisateur peut cumuler plusieurs rôles (ex. un DRH peut aussi être Correspondant MGP dans une
-  petite structure) : le RBAC Spatie le permet nativement (many-to-many `model_has_roles`).
-- Les permissions sont **toujours vérifiées côté serveur** (Policies + middleware `permission:`),
+  petite structure) : l'attribution est un many-to-many (`model_has_roles`).
+
+  ⚠️ **Cumuler n'est pas être deux fois restreint**, c'est porter un mandat plus large : un compte
+  n'est borné à son rattachement que si TOUS ses rôles porteurs d'accès le prévoient.
+- Les permissions sont **toujours vérifiées côté serveur** (`src/server/authz`),
   jamais uniquement par masquage de menu (§7, §25, §34 du prompt).
 - Le **cloisonnement par parcours** (un RQSE ne doit voir que les dossiers EI, un Correspondant MGP
   Sous-traitant ne doit pas voir les dossiers Communauté sauf si le même utilisateur cumule les

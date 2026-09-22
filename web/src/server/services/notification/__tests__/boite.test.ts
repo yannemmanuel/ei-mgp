@@ -9,7 +9,6 @@ import {
 } from '../boite'
 import { MODELES } from '@/server/modeles'
 
-/** Port de `App\Livewire\Notifications\NotificationCenter`. */
 const NOTIFIABLE_USER = MODELES.utilisateur
 const creees: string[] = []
 

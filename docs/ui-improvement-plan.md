@@ -17,7 +17,7 @@ Basé sur : (a) ce qui a le plus d'impact utilisateur immédiat, (b) ce qui est 
 | 3 | `Breadcrumb` | Remplace les "← Retour" ad hoc sur ~8 pages | — | Faible |
 | 4 | `DataTable` commun | Uniformise les ~11 tableaux sans toucher requêtes/filtres | Décision palette | Moyen — toucher 11 vues, prévoir vérif visuelle une par une |
 | 5 | `FileUpload` dropzone | Remplace l'input natif sur les 4 formulaires publics | — | Faible, isolé au front-office |
-| 6 | Pages 403/404/500 | Personnalisation Laravel standard | — | Aucun |
+| 6 | Pages 403/404/500 | `not-found.tsx` / `error.tsx` par segment | — | Aucun |
 | 7 | `Skeleton` + états de chargement bouton | Généralise `wire:loading` déjà utilisé ponctuellement | — | Faible |
 | 8 | `NotificationMenu` | Dépend de ce qu'expose réellement le module Notifications (à vérifier avec son propriétaire — développé en parallèle par un autre processus) | Audit du module Notifications existant | Moyen — dépend d'une API pas encore confirmée |
 | 9 | Responsive systématique | Passage des 7 points de rupture sur les écrans non encore testés (Administration, Audit, listes Investigations/Actions correctives) | — | Faible, corrections ciblées |
@@ -33,4 +33,4 @@ Basé sur : (a) ce qui a le plus d'impact utilisateur immédiat, (b) ce qui est 
 
 ## Vérification à chaque phase
 
-Reprise du protocole déjà utilisé sur ce projet : `npm run build` sans erreur, lint PHP (`php -l`) sur les fichiers modifiés, `php artisan test` (293 tests actuels) sans régression, vérification navigateur réel (Playwright) sur desktop + mobile pour les écrans touchés, captures avant/après pour les changements visuellement significatifs.
+Protocole de vérification : `npx tsc --noEmit` et `npx eslint src` sans erreur, `npm run build` sans erreur, `npx vitest run` sans régression — ⚠️ en lisant le COMPTE DE FICHIERS et non la seule couleur, un worker qui n'a pas démarré laissant la suite verte —, vérification en navigateur réel sur desktop et mobile pour les écrans touchés, captures avant/après pour les changements visuellement significatifs.

@@ -30,7 +30,7 @@ Table des transitions autorisées (reprise exacte CDC §7.1) :
 | Rejeté (non recevable) | En analyse | *(terminal)* | Acteur en charge de la recevabilité |
 
 **Décision d'implémentation (voir `decisions-techniques.md` DT-05)** : les statuts `Brouillon` et
-`Soumis` sont traités comme des **états transitoires côté formulaire** (état du composant Livewire
+`Soumis` sont traités comme des **états transitoires côté formulaire** (état du composant React
 avant validation), et non comme des lignes persistées dans `dossiers`. La ligne `dossiers` est créée
 directement au statut `Reçu` lors de la soumission réussie (cf. §15 du prompt : les 13 étapes de
 création sont exécutées dans une seule transaction). Cette simplification ne change aucune règle

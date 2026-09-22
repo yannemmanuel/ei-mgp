@@ -182,9 +182,9 @@ export async function actionEnregistrerCompte(
 /**
  * Réattribue un mot de passe à un compte dont l'utilisateur a perdu le sien.
  *
- * Seule voie de récupération opérationnelle aujourd'hui : le parcours en libre-service de
- * Laravel est inatteignable (aucune vue enregistrée) et exigerait de toute façon un transport
- * e-mail, qui n'est pas branché.
+ * ⚠️ SEULE VOIE DE RÉCUPÉRATION AUJOURD'HUI. Il n'existe aucun parcours en libre-service : le
+ * mot de passe oublié se règle par un administrateur, et pas autrement. Un libre-service
+ * exigerait un transport e-mail, qui n'est pas branché.
  */
 export async function actionRegenererMotDePasse(
   _precedent: EtatCompte,

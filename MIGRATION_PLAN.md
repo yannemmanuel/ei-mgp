@@ -2261,6 +2261,2354 @@ l'Enquêteur « 1 en retard · 5 sans destinataire », le Service MGP et l'audit
 
 ---
 
+### ✅ Étape 31 — Le retrait de Laravel, jusqu'aux noms
+
+Le framework avait disparu du dépôt ; il restait dans la BASE et dans le VOCABULAIRE. Trois
+évolutions et un nettoyage l'en sortent.
+
+#### Ce qui a été retiré de la base
+
+**Huit tables mortes** — `failed_jobs`, `job_batches`, `jobs` (la file d'attente, remplacée par les
+tâches Netlify), `cache_locks` (verrous dont la limitation de débit n'a pas besoin : son incrément
+tient dans un seul `ON CONFLICT`), `password_reset_tokens`, `migrations`, `tranches_anciennete`
+(décision métier : cinq paliers d'années n'ont rien à gagner à être paramétrables), et
+**`sessions`**.
+
+⚠️ Les 14 lignes de `sessions` étaient une raison de PLUS de la supprimer : des jetons d'un
+dispositif qui n'authentifie plus personne, sans expiration, portant encore adresse IP et agent
+utilisateur de comptes réels.
+
+**Les noms de classe PHP dans quatre colonnes polymorphes** (330 lignes d'audit, 20 pièces jointes,
+12 attributions de rôle). Les codes ne sont pas inventés : chacun reprend le préfixe que
+`audit_logs.action` employait DÉJÀ pour le même objet. Les deux colonnes d'une même ligne se
+contredisaient — l'action disait `statut_dossier.modifie`, le type disait `App\Models\StatutDossier`
+— et une seconde table de correspondance existait dans le code pour les réconcilier à l'affichage.
+Elle a disparu avec l'écart.
+
+**`guard_name`**, la garde de spatie. Elle sépare plusieurs systèmes d'authentification
+coexistants ; il n'y en a qu'un. Les 18 rôles et 36 permissions portaient tous `web`, écrit en dur
+à chaque insertion : le code filtrait sur une valeur qu'il venait lui-même de garantir, une
+quarantaine de conditions qui n'ont jamais exclu une ligne. **Une cérémonie n'est pas neutre** — un
+filtre qui ne filtre rien se LIT comme un filtre qui protège. L'unicité se resserre au passage,
+`UNIQUE(name, guard_name)` devenant `UNIQUE(name)`, les nouveaux index étant créés AVANT la
+suppression de la colonne pour que la contrainte ne soit jamais levée.
+
+44 tables → **36**.
+
+#### Ce qui a été retiré du dépôt
+
+`storage/` à la racine — 155 fichiers : 115 vues Blade compilées, 24 fichiers temporaires Livewire,
+un log de 1,3 Mo, des caches framework, et 6 pièces jointes vérifiées **identiques à l'octet près**
+(sha256, une par une) à celles du magasin vivant. Celui-ci, `web/storage/private/`, porte
+exactement les 20 lignes de `pieces_jointes` et n'a pas été touché.
+
+#### Ce qui reste, et pourquoi
+
+| Ce qui reste | Raison |
+|---|---|
+| `normaliser()` (`stockage/magasin.ts`) | Les 20 pièces déjà déposées sont rangées sous `pieces-jointes/App\Models\Dossier/`. Leur `chemin` est stocké ligne par ligne : supprimer cette conversion les rendrait **introuvables** |
+| Le préfixe bcrypt `$2y# Plan de migration — EI-MGP : Laravel 12 → Next.js
+
+Document de référence de la migration. **À maintenir à jour à chaque étape** : il est la seule
+mémoire durable du projet de migration (les décisions prises en conversation se perdent).
+
+---
+
+## 1. Principe directeur
+
+L'application Laravel **reste en service et fait autorité** jusqu'à la bascule finale. Elle n'est
+pas seulement un point de départ : c'est la **spécification exécutable** de la cible.
+
+Baseline figée : commit `f371aae`, tag **`baseline-laravel`** — 295 tests verts (670 assertions),
+Larastan niveau 5 sans erreur, Pint propre.
+
+> Toute divergence de comportement constatée pendant la migration se tranche en faveur du
+> comportement Laravel de cette baseline, sauf décision explicite documentée ici.
+
+---
+
+## 2. Architecture actuelle (source)
+
+Laravel 12 / PHP 8.4 · PostgreSQL 18 · Livewire 4 · Tailwind 4 · Pest 3 · Larastan L5
+
+Application de **Mécanisme de Gestion des Plaintes** : déclaration et traitement d'Événements
+Indésirables et de griefs sur **4 parcours** (EI Employé, Grief Employé, Grief Sous-traitant,
+Grief Communauté).
+
+| Élément | Nombre |
+|---|---|
+| Fichiers PHP applicatifs | 107 |
+| Composants Livewire | 20 |
+| Services métier | 13 |
+| Policies | 6 (+1 via `Gate::define`) |
+| Enums PHP backed | 12 |
+| Events / Listeners | 4 / 6 |
+| Commandes planifiées | 5 |
+| Tables métier / total | 27 / 35 |
+| Rôles / permissions | 15 / 34 |
+| Tests | 295 (61 fichiers) |
+
+**Aucun Controller CRUD, aucune API REST.** Tout passe par des composants Livewire *stateful*
+côté serveur : les ~60 opérations métier sont des méthodes de composants, pas des routes HTTP.
+
+Couches strictes, respectées sans exception :
+
+```
+Composant Livewire (UI + état)  →  jamais de logique métier
+Service applicatif (13)         →  point d'entrée UNIQUE de chaque opération
+Policy                          →  autorisation, toujours revérifiée serveur
+Eloquent / PostgreSQL
+```
+
+---
+
+## 3. Architecture cible
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind 4 · shadcn/ui ·
+React Hook Form + Zod · Prisma 7 · PostgreSQL (**la même base**)
+
+L'application Next.js vit dans **`web/`**, sous-dossier du dépôt Laravel, afin de conserver la
+référence exécutable en parallèle. Le `package.json` racine reste celui de Vite/Laravel.
+
+```
+web/src/
+├── app/{(public),(auth),(app)}/     # App Router
+├── server/
+│   ├── services/                    # portage 1:1 des 13 services Laravel
+│   └── authz/                       # permissions, rôles, scope parcours, policies
+├── actions/                         # Server Actions (≈60)
+├── lib/{prisma.ts,validations/}
+├── components/{ui,forms,tables,layout}/
+└── types/
+web/prisma/schema.prisma             # introspecté, jamais migré
+jobs/                                # 5 tâches planifiées (worker externe)
+```
+
+---
+
+## 4. Mapping des concepts
+
+| Laravel | Next.js |
+|---|---|
+| `routes/web.php` | App Router (arborescence `app/`) |
+| Composant Livewire (état serveur) | React Server/Client Component + Server Action |
+| Action Livewire (`submit()`…) | Server Action |
+| Service applicatif | `server/services/*` (portage direct) |
+| Policy | `server/authz/policies/*` |
+| Permission Spatie | `server/authz/permissions.ts` |
+| Middleware `auth`/`permission:` | `proxy.ts` (redirection seule) + vérification serveur dans chaque page/action |
+| Form Request / `$this->validate()` | Schéma Zod |
+| Eloquent | Prisma Client |
+| Migration Laravel | **Aucune** — schéma introspecté depuis la base existante |
+| Observer Eloquent | Extension Prisma / appel explicite en service |
+| Event + Listener | Appel direct en service (ou file d'attente) |
+| Scheduler + Queue | Worker externe (cron système / Vercel Cron) |
+| Blade | React + Tailwind + shadcn/ui |
+| Enum PHP backed | Union TypeScript / enum Prisma |
+
+---
+
+## 5. Règles métier à préserver — non négociables
+
+Source : `docs/regles-metier.md` (RG-01→15, RGI-01→13), `docs/exigences-*.md`,
+`docs/decisions-techniques.md` (DT-01→34).
+
+Les plus critiques, à vérifier explicitement à chaque module :
+
+| Règle | Exigence |
+|---|---|
+| **RG-06** | Anonymat total : aucune donnée d'identité collectée, stockée ou affichée. Garantie **structurelle** (la ligne `declaration_identites` n'existe pas), pas seulement applicative. |
+| **RG-03** | Aucune suppression de dossier. Toutes les FK métier sont en `RESTRICT`, aucun `deleted_at` nulle part. |
+| **RG-04** | Historique et journal d'audit **inaltérables** (append-only, aucune voie d'update/delete). |
+| **RG-07** | Réouverture réservée à `service_mgp` / `dg`, motif obligatoire. |
+| **RG-08** | Circuit accéléré (gravité Critique) déclenché **en synchrone**, jamais via une file. |
+| **RG-10** | Clôture bloquée tant qu'une action corrective est ouverte ou son efficacité non vérifiée. |
+| **RG-14** | Données nominatives restreintes par rôle ; exports non nominatifs **par défaut**. |
+| **DT-02** | `administrateur_digital` n'a **aucun** accès aux dossiers. |
+| **acteurs.md** | `comite_ethique` voit les dossiers **sans données nominatives**. |
+| **DT-06** | Un utilisateur ne peut jamais être affecté traitant de son propre dossier. |
+
+> ⚠️ **RG-06 est une propriété de sûreté, pas une fonctionnalité.** Il s'agit d'un dispositif de
+> signalement : une réidentification expose des personnes réelles à des représailles. Une
+> régression ici ne produit pas un bug visible mais une fuite silencieuse.
+
+---
+
+## 6. Journal des étapes
+
+### ✅ Étape 0 — Stabilisation de l'existant (commit `f371aae`, tag `baseline-laravel`)
+
+- Refonte UI produite hors session intégrée à la baseline (documentée dans
+  `docs/page-redesign-map.md`, `docs/design-system-v2.md`, `docs/uiux-redesign.md`).
+- **Défaut corrigé** : `DashboardConsolide::updated()` accédait aux *computed properties* Livewire
+  depuis l'intérieur de la classe. Le correctif a révélé le vrai défaut sous-jacent — les lignes de
+  `selectRaw()+groupBy()` ne sont pas des modèles et leurs colonnes agrégées n'existent sur aucun
+  modèle. Introduction du DTO typé `App\Support\LigneHistoriqueMensuel`.
+- **Test corrigé** : le test de cache DT-34 dépendait implicitement du rendu du formulaire complet ;
+  le wizard ne rendant plus que l'étape courante, il mesurait un premier chargement au lieu du cache.
+  Le cache lui-même était correct — aucune régression de production.
+- Résultat : 295/295 tests, Larastan vert, Pint vert, arbre git propre.
+
+### ✅ Étape 1 — Socle Next.js + Prisma introspecté
+
+- Next.js 16.3.4 · React 19.2.8 · Tailwind 4 · TypeScript 5, dans `web/`.
+- **Prisma épinglé en 7.10.0 (stable)** : `npm install prisma` installait `8.0.0-rc.12`, publiée
+  sous le tag `latest` alors que **7.10.0 est la ligne stable** (tag `prev`). L'installation était
+  en outre incohérente (client 7 stable / CLI 8 RC). Les deux sont désormais épinglés en `7.10.0`.
+- Introspection **non destructive** (`prisma db pull`) de la base réelle : **35 modèles**.
+- Vérification en lecture seule contre la base réelle : relations traversées correctement, ULID
+  26 caractères préservés, RBAC conforme au seeder Laravel (15 rôles, 34 permissions, 84
+  associations).
+- `next build`, `tsc --noEmit` et `eslint` verts.
+
+#### Changements de rupture Prisma 7 rencontrés
+
+| Rupture | Résolution |
+|---|---|
+| `datasource.url` refusé dans `schema.prisma` | URL déplacée dans `prisma.config.ts` |
+| `.env` plus chargé automatiquement | `process.loadEnvFile()` (natif Node ≥ 20.12) |
+| `PrismaClient` exige un *driver adapter* | `@prisma/adapter-pg` + `new PrismaPg({ connectionString })` |
+
+### ✅ Étape 2 — Couche d'autorisation
+
+Port de la couche d'autorisation en fonctions pures et testables, sous `web/src/server/authz/` :
+34 permissions, 15 rôles, cloisonnement par parcours (`RoleParcoursScope`) et les 6 policies.
+19 tests verts, dont un **test de parité qui compare le portage au contenu réel de la base**
+(permissions, rôles, associations rôle × permission).
+
+**Décision — authentification : Auth.js v5, Credentials + stratégie JWT.**
+Un adaptateur base de données exigerait des tables `Session`/`Account`/`VerificationToken`
+inexistantes, ce qu'interdit la règle « ne jamais migrer cette base » ; Lucia est abandonné
+depuis 2025. La stratégie JWT n'exige aucune table nouvelle.
+**Le jeton ne portera que l'identité** : rôles et permissions sont résolus depuis la base à
+chaque vérification (`chargerUtilisateurAutorise`), exactement comme spatie/laravel-permission.
+Un changement de rôle ou une désactivation prend donc effet immédiatement, sans attendre
+l'expiration du jeton.
+
+**Décision — les tests d'autorisation sont écrits à l'étape 2, pas reportés à l'étape 13.**
+L'authz est le chemin critique : tous les modules s'appuient dessus. Empiler du code non vérifié
+dessus reviendrait à propager une erreur d'autorisation dans toute l'application.
+
+#### Deux constats de sécurité
+
+**1. La base de dev avait dérivé du seeder (corrigé).** Le test de parité a détecté 84
+associations en base contre 86 dans `RolePermissionSeeder` : `service_mgp` n'avait pas
+`audit.view` (ajouté en Phase 11) et `auditeur` n'avait pas `dossiers.view.all`. Le seeder fait
+autorité (couvert par `RolePermissionSeedingTest`, vert) — la base n'avait simplement pas été
+re-seedée. Corrigé par `php artisan db:seed --class=RolePermissionSeeder` (idempotent :
+`firstOrCreate` + `syncPermissions`, n'affecte ni les dossiers ni `model_has_roles`).
+→ **Conséquence : dans l'application Laravel de dev, l'auditeur ne voyait pas tous les dossiers.**
+
+**2. `users.actif` ne bloque RIEN dans Laravel (divergence assumée).** Il n'existe aucune
+personnalisation d'authentification (`Fortify::authenticateUsing` absent) : `actif` ne sert qu'à
+filtrer les *destinataires* d'affectation et de notification. **Un utilisateur désactivé peut
+donc toujours se connecter et conserve l'intégralité de ses droits.**
+→ Le portage Next.js **refusera la connexion et l'autorisation** si `actif = false`. Divergence
+délibérée par rapport à la baseline, consignée ici : reproduire un contournement de désactivation
+sur un dispositif de signalement serait indéfendable. `UtilisateurAutorise` porte déjà le champ
+`actif` à cette fin ; l'application effective se fera à l'étape 3 (authentification).
+
+### ✅ Étape 3 — Authentification
+
+Auth.js v5 (Credentials + JWT), vérification bcrypt contre les hachages Laravel existants,
+limitation de débit, page de connexion, déconnexion, et pont session → autorisation.
+**31 tests verts.**
+
+Vérifié de bout en bout sur le serveur réel : trois comptes existants se connectent **sans
+réinitialisation de mot de passe**, et leurs droits sont résolus correctement —
+`administrateur_digital` obtient 4 permissions et **aucun parcours** (DT-02 respecté),
+`auditeur` les 4 parcours, `service_mgp` ses 23 permissions. Un mauvais mot de passe ne crée
+aucune session ; `/dashboard` et `/` redirigent vers `/login` sans session.
+
+| Point | Décision |
+|---|---|
+| `middleware.ts` **déprécié en Next.js 16** | Renommé `src/proxy.ts`. Il ne fait qu'une redirection de confort : **aucun accès base**, la doc précisant qu'il peut être déployé en CDN. L'autorisation réelle est refaite dans chaque page/action. |
+| `unauthorized()` / `forbidden()` | **Écartés** : encore expérimentaux en 16 (`experimental.authInterrupts`). La couche de sécurité ne doit pas dépendre d'une API instable. `redirect('/login')` (stable) reproduit d'ailleurs exactement le comportement Laravel pour un invité ; un 403 lève `ErreurAutorisation`, dont le rendu sera traité à l'étape 4. |
+| `AUTH_URL` obligatoire | Auth.js v5 rejette les hôtes non déclarés (`UntrustedHost`, protection contre l'injection d'en-tête `Host`). Configuré explicitement plutôt que de désactiver le contrôle via `trustHost`. |
+| Réinitialisation de mot de passe | **Non encore portée** — nécessite une décision sur l'envoi d'e-mails. La table `password_reset_tokens` existe déjà. À traiter avant la bascule (fonctionnalité Laravel existante, donc à ne pas perdre). |
+
+#### Défaut corrigé : les rôles n'étaient jamais résolus
+
+`const MODEL_TYPE_USER = 'App\Models\User'` (antislashs simples) vaut en réalité
+**`AppModelsUser`** en JavaScript : `\M` et `\U` ne sont pas des séquences d'échappement
+valides, et les antislashs sont supprimés **silencieusement**, sans la moindre erreur. La
+comparaison avec `model_has_roles.model_type` échouait donc toujours : **tout utilisateur se
+retrouvait sans aucun rôle ni permission** — l'application était intégralement verrouillée, de
+la façon la plus discrète possible.
+
+Les tests de policy ne l'avaient pas vu : ils utilisent une fabrique en mémoire et
+n'atteignent jamais la base. Seule la connexion réelle l'a révélé. Corrigé par `String.raw`, et
+couvert désormais par `chargement.test.ts`, qui charge un compte réel depuis la base.
+
+> Leçon retenue pour la suite : tout portage d'une valeur littérale contenant des antislashs
+> (noms de classes PHP, expressions régulières) doit passer par `String.raw` et être couvert par
+> un test touchant la base — un test en mémoire ne peut pas détecter ce type d'erreur.
+
+### ✅ Étape 4 — Design system et layouts
+
+shadcn/ui installé, palette **SODECI** appliquée, coquille du back-office (barre latérale +
+en-tête + tiroir mobile), frontières d'erreur, page de connexion reprise.
+
+L'identité visuelle n'est pas réinventée : elle reprend `docs/visual-direction.md` et
+`docs/design-system-v2.md` — **Option A** (vert SODECI `#00A651` primaire, navy secondaire,
+orange accent), échelles complètes, échelle typographique nommée, Instrument Sans + Source Serif 4.
+Ce qui est modernisé, c'est l'exécution : composants accessibles, icônes Lucide (Laravel
+recopiait ses SVG à la main, limite relevée par `docs/audit-frontend-2026-08-29.md`).
+
+**Pas de mode sombre**, conformément à la décision argumentée de `visual-direction.md`. Le bloc
+`.dark` est retiré, mais `@custom-variant dark` est **conservé volontairement** : lié à une classe
+jamais posée, il neutralise le `prefers-color-scheme` par défaut de Tailwind — sans lui, un
+visiteur en mode sombre système recevrait les styles `dark:` des composants shadcn alors que les
+tokens resteraient clairs.
+
+Navigation portée fidèlement depuis `layouts/app.blade.php`, avec ses conditions d'affichage.
+Vérifié sur le serveur réel : `administrateur_digital` ne voit **ni Dossiers ni Audit** (DT-02
+respecté jusque dans l'interface), l'auditeur ni Investigations ni Actions, `service_mgp` tout.
+Masquer un lien reste un confort — chaque page refera sa propre vérification serveur.
+
+#### Défaut évité : le 403 n'aurait fonctionné qu'en développement
+
+`exigerPermission()` levait `ErreurAutorisation`, que `error.tsx` reconnaissait par `error.name`.
+Or **Next.js retire `name` et `message` des erreurs serveur en production** (pour éviter les
+fuites) : la frontière aurait affiché « une erreur est survenue » au lieu de « accès refusé »,
+uniquement en production — l'environnement où le défaut est le plus coûteux à diagnostiquer.
+Corrigé : `exigerPermission()` redirige vers `/acces-refuse`, comportement identique en
+développement et en production. `error.tsx` est recentré sur les pannes techniques.
+
+> Divergence assumée : Laravel répond en HTTP 403, ici l'utilisateur est redirigé vers une page
+> de refus explicite. L'accès est bloqué de la même façon ; seule la présentation diffère.
+
+#### Note d'API
+
+Cette version de shadcn/ui repose sur **Base UI**, pas Radix : la composition polymorphe s'écrit
+`render={<Link />}` et non `asChild`. Vérifié empiriquement plutôt que supposé.
+
+### ✅ Étape 5a — Module Déclaration : services métier et validations
+
+Le module Déclaration est le plus vaste et le plus sensible du projet. Il est livré en deux
+temps : **5a les services métier et les validations** (où vivent les règles), **5b les
+formulaires** (4 parcours, wizard, page de suivi).
+
+Portés dans `web/src/server/services/declaration/` : génération de référence (RG-01), code
+d'accès (RG-02), pièces jointes (RGI-04), et l'orchestrateur `creerDeclaration()`. Schémas Zod
+dans `web/src/lib/validations/declaration.ts`. **55 tests verts** (24 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **RG-01** | Format `{PRÉFIXE}-{ANNÉE}-{NNNNNN}`, un préfixe par parcours, séquence incrémentée indépendamment par parcours. |
+| **RG-02** | Code à 6 chiffres vérifiable, **jamais stocké en clair** — seul le haché bcrypt est persisté. |
+| **RG-06** | Aucune ligne `declaration_identites` créée si anonyme, **même lorsqu'une identité est fournie** ; aucun compte rattaché même si le déclarant était connecté. |
+| **RG-04** | Entrée d'historique initiale systématique. |
+| **RG-08** | Gravité Critique signalée pour déclenchement synchrone du circuit accéléré. |
+| **RG-09** | Catégorie « Autre » orientée vers `service_mgp`, et **pas** vers les rôles de captage du parcours. |
+| **RGI-01/02** | Date des faits jamais postérieure à aujourd'hui (le jour même reste accepté) ; description ≥ 20 caractères. |
+| **RGI-04** | 5 fichiers / 50 Mo, type réel revérifié sur les octets d'en-tête. |
+| **RG-15** | Consentement RGPD bloquant pour le seul parcours Sous-traitant. |
+| **DT-14** | Champ piège et délai minimal de remplissage. |
+
+#### Points d'implémentation
+
+- **ULID en minuscules** : Laravel (`HasUlids`) produit des identifiants minuscules ; la
+  bibliothèque `ulid` génère en majuscules. Sans conversion, les identifiants des deux
+  applications auraient différé de casse dans la même colonne.
+- **Verrou `FOR UPDATE`** : Prisma ne l'expose pas, la génération de référence passe donc par une
+  requête brute. Sans ce verrou, deux déclarations simultanées sur un même parcours liraient la
+  même dernière référence et tenteraient d'écrire le même numéro.
+- **Type MIME réel** vérifié sur les octets d'en-tête (`file-type`), équivalent du `finfo` de PHP :
+  le type annoncé par le navigateur n'est jamais une preuve suffisante.
+- **Notifications non branchées** : `creerDeclaration()` retourne `estCritique` plutôt que
+  d'émettre un évènement. Le module Notifications arrive à l'étape 9 — c'est une dépendance
+  réelle, pas un raccourci.
+- **Tests écrivant réellement en base** : seule façon de vérifier la transaction, le verrou de
+  séquence et l'affectation automatique. Chaque dossier créé est supprimé en fin de test, et
+  l'état de la base a été vérifié identique avant/après. La suppression n'existe QUE dans ces
+  utilitaires de test — l'application n'expose aucune voie de suppression (RG-03).
+
+### ✅ Étape 5b — Module Déclaration : formulaires publics et suivi
+
+Les 4 formulaires publics (wizard en 4 étapes), le récépissé, la page de suivi `/suivi` et la
+redirection QR `/q/[token]`. **69 tests verts** (14 nouveaux).
+
+**Une configuration déclarative plutôt que 4 formulaires.** Les 4 parcours partagent la même
+mécanique (wizard, anonymat, anti-spam, téléversement) et ne diffèrent que par leurs champs.
+`parcours-config.ts` les décrit une seule fois, et cette même source alimente **le rendu ET la
+validation Zod** : décrire les champs deux fois garantirait qu'ils divergent. Le portage littéral
+des 4 composants Livewire aurait quadruplé la mécanique commune.
+
+Vérifié sur serveur réel — chaque parcours rend bien ses champs propres : `directionId` pour
+l'EI Employé, `ancienneteAnnees` pour le Grief Employé, `consentementRgpd` + `entreprise` pour le
+seul Sous-traitant (RG-15), `localite` + `statutPlaignant` pour la Communauté.
+
+**RGI-03** (masquage des champs d'identité en anonyme) est verrouillé par des tests couvrant les
+4 parcours, en complément de la garantie structurelle côté service. Seule exception documentée :
+`statutPlaignant` qualifie la plainte, pas la personne.
+
+**Page de suivi (EX-NOT-06, RGI-12)** : référence + code d'accès uniquement. Verrouillage sur
+l'IP **et** sur la référence visée — sans le second, un attaquant distribué contournerait la
+limite par IP. Message d'échec unique quel qu'en soit le motif, et chaque échec journalisé pour
+l'auditeur/DPO avec la seule référence tentée, jamais le code saisi. Le déclarant ne voit que le
+statut **affiché** (RGI-10/11), jamais le statut interne.
+
+#### Trois corrections en cours de route
+
+- **Pages pré-rendues en statique.** `generateStaticParams` figeait catégories et niveaux de
+  gravité — pourtant administrables — ainsi que l'horodatage anti-robot, à la compilation. Rendu
+  dynamique forcé, comme Laravel qui lit ces référentiels à chaque requête.
+- **Horodatage anti-robot impur.** `Date.now()` pendant le rendu d'un composant serveur viole la
+  règle de pureté React. Déplacé au montage côté client : cela mesure d'ailleurs plus fidèlement
+  le temps d'ouverture réel du formulaire. Contrepartie assumée — la valeur devient forgeable,
+  mais le champ piège et la limitation de débit restent vérifiés côté serveur.
+- **Coût bcrypt en test.** Un test créant 4 déclarations dépassait le délai imparti : bcrypt au
+  coût 12 est volontairement lent. `BCRYPT_ROUNDS` est désormais configurable et abaissé à 4 en
+  test **uniquement** — exactement ce que fait le `phpunit.xml` de Laravel. La suite est passée de
+  42 s à 6,6 s, sans rien affaiblir en production (défaut inchangé à 12).
+
+#### Contrôle ajouté par rapport à Laravel
+
+La Server Action vérifie que la **catégorie soumise appartient bien au parcours** de la
+déclaration. Sans ce contrôle, un identifiant forgé rattacherait une déclaration à la catégorie
+d'un autre parcours. Le formulaire Livewire ne présentait que les catégories du parcours, mais ne
+revalidait pas cette appartenance à la soumission.
+
+### ✅ Étape 6a — Module Dossiers : workflow, affectation et délais
+
+Portés dans `web/src/server/services/dossier/` : machine à états (`workflow.ts`), réaffectation
+(`affectation.ts`), suivi des délais (`delais.ts`). **80 tests verts** (11 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-GES-04** | Graphe de transitions respecté ; toute transition hors graphe refusée. |
+| **RG-04** | Entrée d'historique pour chaque transition, avec son auteur et son commentaire. |
+| **RG-10** | Clôture bloquée tant qu'une action corrective est ouverte **ou** son efficacité non vérifiée ; possible dès que les deux conditions sont levées. |
+| **RG-07** | Réouverture possible uniquement depuis « Clôturé », motif obligatoire. |
+| **EX-GES-03** | Réaffectation : motif obligatoire, titulaire précédent désactivé, type tracé. |
+| **DT-06** | Le déclarant identifié ne peut pas être affecté à son propre dossier — et n'est pas proposé dans la liste. |
+| **DT-04** | Un délai non validé par le métier ne produit aucune échéance. |
+
+#### 🔴 Défaut majeur trouvé dans la baseline Laravel — corrigé (commit `d38368c`)
+
+`DossierWorkflowService::cloturer()` **ne renseignait jamais `dossiers.date_cloture`**, alors que
+DT-31 affirme explicitement le contraire. Trois fonctionnalités en dépendent et étaient donc
+silencieusement inopérantes :
+
+1. `IndicateurService::delaiMoyenJours()` — délai moyen de traitement toujours nul.
+2. `StatistiqueMensuelleService` — délais archivés toujours nuls.
+3. **`PolitiqueConservationService` (RG-11)** — archivage et anonymisation ne se seraient
+   **jamais** déclenchés : la politique de conservation des données personnelles était
+   entièrement inerte.
+
+Le défaut était latent (aucune clôture n'a encore eu lieu en base) et **invisible pour les 295
+tests** : chacun de ceux qui ont besoin de `date_cloture` la posait lui-même par `update()`,
+si bien qu'aucun n'exerçait le chemin de production. C'est l'angle mort classique d'un test qui
+fabrique son entrée au lieu de la faire produire par le code testé.
+
+> Leçon : lorsqu'un champ est écrit par un service et lu par un autre, au moins un test doit
+> traverser les deux — un test qui pose la valeur à la main ne prouve rien sur son producteur.
+
+#### Observation annexe
+
+`historique_statuts.created_at` est en `timestamp(0)` — précision à la seconde. Trier
+l'historique par cette seule colonne (ce que fait `DossierDetailPage` côté Laravel) départage
+arbitrairement des entrées créées dans la même seconde. Sans conséquence fonctionnelle, mais
+l'ordre d'affichage de la frise peut varier ; le portage trie par `id`, strictement croissant.
+
+### ✅ Étape 6b — Module Dossiers : liste filtrable et fiche
+
+Liste `/dossiers` (filtres, pagination), fiche `/dossiers/[id]` et ses 5 actions de gestion.
+**87 tests verts** (7 nouveaux).
+
+#### Le test qui compte : périmètre de liste ≡ policy
+
+Le périmètre de la liste (clause SQL) et `peutVoirDossier()` (prédicat) sont **deux
+implémentations de la même règle**. Rien ne les empêche structurellement de diverger — et une
+divergence signifierait qu'une liste affiche un dossier que la fiche refuse, ou l'inverse. Un
+test les croise donc sur des dossiers réels, pour six rôles différents.
+
+Vérifié en conditions réelles, sur le même dossier Grief Communauté :
+
+| Compte | Liste | Accès direct |
+|---|---|---|
+| `service_mgp` (transversal) | 10 dossiers, 4 parcours | **200** |
+| `secretaire_csst` (EI seul) | 7 dossiers, **EI uniquement** | **404** |
+| `administrateur_digital` | **redirigé** (DT-02) | **404** |
+
+**404 et non 403, délibérément** : sur un dispositif de signalement, distinguer « interdit » de
+« inexistant » révèle l'existence d'un dossier. `chargerFiche()` retourne `null` dans les deux
+cas.
+
+#### Autres points
+
+- **L'identité n'est pas chargée** pour un rôle qui n'y a pas droit (`comite_ethique`), elle
+  n'est pas seulement masquée à l'affichage : ce qui n'atteint jamais le composant ne peut pas
+  fuiter par un oubli de condition.
+- **Chaque Server Action revérifie l'autorisation** au moment de l'exécution, même quand
+  l'interface a déjà masqué la commande.
+- **Validation réelle du statut soumis** au lieu d'un cast : TypeScript a signalé qu'un
+  `as StatutCode` sur une valeur de formulaire était un mensonge — une chaîne forgée serait
+  passée jusqu'au service.
+- **État des filtres dans l'URL**, pas dans le composant : un filtre appliqué reste partageable
+  et survit à un rechargement.
+
+### ✅ Étape 7 — Module Investigations
+
+Service `web/src/server/services/investigation/` (ouverture, mise à jour, soumission,
+validation) et panneau intégré à la fiche dossier. **95 tests verts** (8 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-INV-01** | Ouverture possible uniquement sur un dossier « En investigation ». |
+| **RGI-05** | Date d'ouverture jamais antérieure à la recevabilité du dossier. |
+| **EX-INV-02/03/04** | Constats, causes et recommandations, modifiables tant que « en cours ». |
+| **EX-INV-04** | Soumission refusée sans recommandations — elles sont la source des actions correctives. |
+| **RGI-06 / EX-INV-05** | La validation ne peut **jamais** être faite par l'enquêteur lui-même. |
+
+#### Deux points de conception
+
+- **La date de recevabilité réutilise `dateDebutEtape()`** du module Délais plutôt que d'être
+  recalculée. Deux définitions de la même date finiraient par diverger, et RGI-05 dépend
+  entièrement de cette définition.
+- **Les policies s'évaluent côté serveur**, et le composant client ne reçoit que des booléens
+  déjà calculés (`peutModifier`, `peutValider`). Il ne dispose jamais de quoi les recalculer —
+  en particulier RGI-06, dont la vérification exige de comparer l'enquêteur à l'utilisateur
+  courant.
+
+Le test d'ouverture amène le dossier à « En investigation » par de **vraies transitions** et non
+par un statut forcé en base : RGI-05 s'appuie sur `historique_statuts`, qu'un raccourci laisserait
+vide — le test passerait alors sans rien prouver.
+
+### ✅ Étape 8 — Module Actions correctives
+
+Service `web/src/server/services/action-corrective/` et panneau intégré à la fiche dossier.
+**106 tests verts** (11 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-ACT-01** | Création seulement sur dossier « Action corrective en cours » ; rattachement possible aux seules investigations **validées**. |
+| **EX-ACT-02** | Responsable et échéance obligatoires. |
+| **EX-ACT-03** | Graphe d'avancement respecté ; recalcul des retards. |
+| **EX-ACT-04** | Vérification d'efficacité seulement une fois l'action réalisée. |
+| **RGI-07** | Échéance strictement postérieure à la date de création. |
+| **RGI-08** | Commentaire obligatoire pour une vérification **positive** — pas pour une négative. |
+| **RGI-09** | Clôture seulement après vérification positive. |
+| **EX-ACT-05 / DT-27** | Le dossier avance automatiquement à « Résolu » quand la **dernière** action est close — déclenché ici, jamais par une tâche planifiée. |
+
+#### Points de vigilance traités
+
+- **Le recalcul des retards ne touche jamais une action « réalisée »** : son échéance est
+  derrière elle, mais le travail est fait — la marquer en retard serait faux. Un test le vérifie
+  explicitement.
+- **Rattachement d'investigation filtré sur le dossier parent** : sans ce filtre, un identifiant
+  forgé rattacherait une action à l'investigation d'un autre dossier.
+- **Défaut évité à la relecture** : la liste des responsables réutilisait les utilisateurs
+  chargés pour la *réaffectation*, qui n'est peuplée que si l'utilisateur détient
+  `dossiers.reassign`. Un rôle pouvant créer une action sans ce droit aurait obtenu une liste
+  vide. Les deux listes sont désormais chargées indépendamment, chacune selon sa propre
+  permission.
+- La transition automatique vers « Résolu » est testée sur **deux** actions : la première
+  clôture ne doit rien déclencher, la seconde doit faire avancer le dossier.
+
+### ✅ Étape 9a — Notifications : service, destinataires et évènements
+
+Service piloté par gabarit, résolution des destinataires, et branchement des trois évènements
+métier. **114 tests verts** (8 nouveaux).
+
+| Règle | Vérification |
+|---|---|
+| **EX-NOT-01** | Notification aux titulaires à l'affectation. |
+| **EX-NOT-02 / RGI-10** | Notification au déclarant **identifié** à chaque changement de statut, avec le libellé **affiché** — jamais le libellé interne. |
+| **RG-08 / EX-NOT-05** | Circuit accéléré déclenché **en synchrone** à la soumission d'une déclaration Critique, avec la matrice de destinataires du CDC §6.5. |
+| **audit §2** | Chaque envoi audité : évènement, canal, destinataire. |
+| **audit §5 / RG-06** | Le **contenu n'est jamais journalisé** pour un dossier anonyme — le journal ne doit pas devenir une voie de réidentification. |
+| **DT-28** | Destinataires e-mail supplémentaires du gabarit (hors RBAC). |
+
+#### Décisions de portage
+
+- **Le déclenchement vit dans les SERVICES, pas dans les Server Actions.** Une notification
+  oubliée dans une action passerait inaperçue ; RG-08 exige une garantie, pas une convention.
+  C'est l'équivalent des évènements Eloquent émis dans les services Laravel.
+- **Notification après commit, jamais dedans.** Notifier à l'intérieur de la transaction
+  enverrait des messages pour une opération qui peut encore être annulée. `appliquerTransition()`
+  **retourne** le libellé affiché plutôt que de le stocker dans un état de module — première
+  version écartée car un état mutable partagé est fragile en concurrence.
+- **Envoi « best effort »** : un échec de notification ne doit jamais annuler l'opération métier.
+  Perdre une notification est regrettable ; perdre une déclaration ne l'est pas.
+- **Lignes `notifications` au format Laravel** (`type`, `notifiable_type`, `data` JSON) : les deux
+  applications restent capables de lire la même boîte pendant la migration.
+- **Transport e-mail abstrait, journal par défaut** — la baseline Laravel tourne en
+  `MAIL_MAILER=log`. ⚠️ Aucun e-mail ne quitte le serveur tant qu'un transport réel n'est pas
+  branché (risque ouvert n° 12).
+
+Les tests créent **leurs propres gabarits** : la base de développement n'en contient aucun, et
+dépendre d'un jeu de données préexistant les rendrait muets sans le signaler.
+
+---
+
+### ✅ Étape 9b — Messagerie sécurisée, tâches planifiées et centre de notifications
+
+**Livré** — 133 tests, `typecheck`, `lint` et `build` au vert ; base de développement
+strictement identique avant/après (10 dossiers, 32 historique, 161 audit_logs, 0 notification,
+0 message ; séquence de références rétablie à `EI-2026-000007`).
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/messagerie/messagerie.ts` | Envoi, liste, marquage lu (EX-NOT-07) |
+| `server/services/notification/taches-planifiees.ts` | Relance J-3, escalade (EX-NOT-03/04) |
+| `server/services/notification/boite.ts` | Boîte de réception « outil » |
+| `server/auth/session-suivi.ts` | Authentification du déclarant par cookie signé |
+| `(public)/suivi/{messagerie-actions,panneau-messagerie}` | Messagerie déclarant |
+| `(app)/dossiers/[id]/{messagerie-actions,panneau-messagerie}` | Messagerie acteur |
+| `components/layout/cloche-notifications.tsx` | Centre de notifications (en-tête) |
+
+#### La session de suivi : ce qui remplace la session Laravel
+
+Laravel s'appuyait sur `session('suivi_verifie_'.$id)`. Next.js n'a pas de session serveur : le
+jeton est donc un **cookie signé HMAC** portant uniquement l'identifiant du dossier prouvé et une
+date d'expiration (30 min), `httpOnly`, jamais lu ni écrit par le client.
+
+Trois propriétés, chacune couverte par un test :
+
+- **Aucun compte n'y figure.** Un déclarant anonyme dialogue sans que son identité existe nulle
+  part (RG-06). Y attacher un `user_id` « par commodité » détruirait la garantie.
+- **Il est infalsifiable.** Sans signature, remplacer l'identifiant dans le cookie ouvrirait la
+  messagerie de n'importe quel dossier sans en connaître le code d'accès.
+- **Il ouvre UN dossier**, celui dont la référence et le code viennent d'être prouvés.
+
+Le portillon a été vérifié **en requête HTTP réelle** contre le serveur de développement, pas
+seulement en test unitaire : sans cookie, avec un cookie falsifié et avec un cookie expiré,
+l'accès est refusé ; avec un cookie légitime, la conversation est renvoyée.
+
+⚠️ **Non vérifié de bout en bout** : le chemin d'**envoi** d'un message déclarant n'a pas pu être
+appelé en HTTP direct (l'encodage multipart de `useActionState` embarque l'état précédent et
+n'est pas reproductible à la main sans navigateur). Il partage exactement le même portillon
+`dossierDeLaSessionSuivi()` que le chemin de lecture, qui lui est prouvé, et la propriété RG-06
+— `expediteur_user_id` forcé à NULL — est prouvée par test contre la base réelle. Une passe
+manuelle au navigateur reste à faire avant bascule.
+
+#### 🔴 Troisième défaut latent dans la baseline Laravel : `notification_templates` était VIDE
+
+Après `sla_delais` (étape 9a) et `date_cloture` (étape 6a), voici la troisième occurrence du même
+angle mort — et la plus grave. La table `notification_templates` ne contenait **aucune ligne**.
+
+Conséquence dans l'application Laravel en service : `NotificationService` ne trouvait jamais de
+gabarit actif, et **aucune notification n'était jamais émise**, sur aucun canal. Ni l'e-mail
+d'affectation, ni la mise à jour de statut au déclarant, ni la relance J-3, ni l'escalade, ni
+l'alerte du circuit critique (RG-08). Le centre de notifications de Laravel était par
+construction toujours vide. EX-NOT-01 à 05 étaient intégralement inopérants.
+
+`NotificationTemplateSeeder` n'utilise que `updateOrCreate` — aucune suppression, aucun
+`truncate` : il a été exécuté sans risque pour les données. **17 gabarits** (7 « outil »,
+10 « email »), 7 évènements couverts.
+
+#### Le même angle mort, trois fois : les tests qui fabriquent leurs propres données
+
+> *Un test qui fabrique son entrée ne teste jamais le producteur de cette entrée.*
+
+`date_cloture` (chaque test posait la date lui-même), `sla_delais` (`seedReferentiels()` par
+test), `notification_templates` (les tests créent leurs gabarits). À chaque fois, la suite est
+verte et la donnée de référence peut manquer indéfiniment en base sans que rien ne le signale.
+
+**Contre-mesure retenue** : `chargement.test.ts` et `parite-laravel.test.ts` valident déjà l'état
+réel de la base, pas seulement le comportement du code. À étendre à chaque table de référentiel
+à l'étape 11.
+
+#### Effet de bord du peuplement : hygiène des tests renforcée
+
+Une fois les gabarits présents, toute déclaration ou tout changement de statut effectué par un
+test émet de **vraies** notifications. Deux conséquences traitées :
+
+1. **Assertions rendues spécifiques.** Compter les lignes `notification.envoyee` d'un dossier ne
+   distinguait plus la relance des notifications d'affectation : les tests filtrent maintenant
+   par `evenement_code`.
+2. **Nettoyage global ajouté** (`vitest.setup.mts`). Les lignes `notifications` (non rattachées à
+   un dossier) et `audit_logs` (append-only, sans clé étrangère vers `dossiers`) survivaient à la
+   suppression des dossiers de test et désignaient des dossiers inexistants. Un repère pris avant
+   chaque fichier délimite ce que la campagne produit ; seul cela est supprimé — le journal
+   d'audit réel n'est jamais touché.
+
+   ⚠️ **10 lignes `notification.envoyee` orphelines** subsistent d'une exécution antérieure à ce
+   correctif. Elles référencent des dossiers de test supprimés. Non supprimées : effacer des
+   lignes d'audit relève d'une décision explicite.
+
+#### Test de relance J-3 : la prémisse était fausse, pas le code
+
+Le premier test affirmait qu'un dossier fraîchement affecté n'est pas relancé. Une fois
+`sla_delais` peuplée, il a échoué : `grief_employe`/`analyse_preliminaire` vaut **3 jours
+ouvrés**, donc un tel dossier est légitimement à J-3 et la relance part — correctement.
+
+Le délai étant en jours **ouvrés**, sa conversion en jours calendaires dépend du jour de la
+semaine : coder une valeur en dur rendrait le test vert ou rouge selon la date d'exécution. Le
+test mesure donc le reste réel puis assère l'**invariant** — `relance ⟺ restants === 3` — et un
+second cas couvre le sens inverse sur une échéance largement dépassée.
+
+---
+
+### ✅ Étape 10 — Reporting, indicateurs et exports
+
+**Livré** — 159 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après.
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/reporting/filtre.ts` | Filtre unique du module (EX-REP-02) |
+| `server/services/reporting/indicateurs.ts` | 7 indicateurs agrégés en SQL (EX-REP-03) |
+| `server/services/reporting/statistiques-mensuelles.ts` | Archivage mensuel + historique (EX-REP-05) |
+| `server/services/reporting/export.ts` | Lignes d'export et colonnes (EX-REP-04/06) |
+| `server/services/reporting/classeur.ts` | Classeur `.xlsx` (exceljs) |
+| `server/services/reporting/document-pdf.tsx` | Rapport PDF (@react-pdf/renderer) |
+| `app/api/exports/dossiers/route.ts` | Téléchargement, autorisations revérifiées |
+| `(app)/dashboard/{page,filtres,boutons-export}` | Tableau de bord consolidé (EX-REP-01) |
+
+#### Parité vérifiée chiffre par chiffre contre Laravel
+
+Les deux implémentations ont été exécutées sur la **même base**, et comparées :
+
+```
+total 10 · résolution 10 % · clôture 0 % · délai —
+parcours  EI(7) Communauté(1) Employé(1) Sous-traitant(1)
+statut    Affecté(6) En investigation(1) En attente(2) Résolu(1)
+gravité   Faible(3) Modéré(2) Élevé(2) Critique(3)
+```
+
+Sortie **identique** des deux côtés sur les 7 indicateurs. C'est la vérification la plus directe
+possible d'un port de calcul : pas une relecture du code, une confrontation des résultats.
+
+`délai moyen = —` parce qu'aucun dossier de la base ne porte de `date_cloture` : conséquence
+directe du défaut corrigé à l'étape 6a, aucun dossier n'ayant été clôturé depuis.
+
+#### RG-14 / EX-REP-06 vérifié en HTTP réel, pas seulement en test
+
+`docs/exigences-securite.md` §6 exige qu'« aucun paramètre d'URL ne permette de forcer
+l'inclusion de données nominatives sans revérification côté serveur ». Vérifié avec trois comptes
+réels contre le serveur de développement :
+
+| Compte | Requête | Résultat |
+|---|---|---|
+| aucun | `?format=xlsx` | 307 vers `/login` (proxy) |
+| cookie de session contrefait | `?format=xlsx` | **401** — la garde de la route, que le proxy ne peut pas rendre |
+| `correspondant_mgp` | `?format=xlsx` | **403** |
+| `service_mgp` | `?format=xlsx` | 200, 8 colonnes |
+| `service_mgp` | `?nominatif=1` | 200, **11 colonnes** |
+| `dg` | `?nominatif=1` | 200, **8 colonnes** — le paramètre est ignoré |
+
+Le fichier du DG est **strictement identique** à un export non nominatif : ni colonne, ni valeur.
+La donnée n'est même pas lue — la jointure `declaration_identites` est conditionnée à
+l'autorisation, si bien qu'un oubli d'affichage ne pourrait pas la divulguer.
+
+#### Ajout par rapport à Laravel : traçabilité de l'export nominatif
+
+La baseline ne journalise aucun export. Or c'est la seule voie par laquelle des données
+personnelles quittent le système, et le DPO doit pouvoir savoir qui a extrait quoi.
+`rapport.export_nominatif` est donc écrit dans `audit_logs` — **uniquement** pour un export
+réellement nominatif : un export anonyme ne sort aucune identité. Les paramètres reçus y sont
+consignés en entier, y compris ceux qui ont été refusés.
+
+Non listé dans `docs/exigences-audit.md` §2 : ajout assumé, à valider.
+
+#### Remplacements de bibliothèques
+
+| Laravel | Next.js | Note |
+|---|---|---|
+| `maatwebsite/excel` | `exceljs` 4.4.0 | Vrai `.xlsx` (signature ZIP vérifiée en test), pas un CSV renommé |
+| `barryvdh/laravel-dompdf` | `@react-pdf/renderer` 4.9.0 | Mise en page **réécrite** : dompdf part d'un gabarit Blade, react-pdf compose en React |
+| Chart.js | CSS pur | Barres proportionnelles rendues côté serveur — même lecture, sans dépendance de graphique, lisible sans JavaScript et à l'impression |
+
+`exceljs` introduit `uuid < 11.1.1` (avis modéré : contrôle de bornes manquant sur `buf` en
+v3/v5/v6). **Non atteignable** : exceljs n'appelle que `uuid.v4()`, sans argument `buf`, dans un
+seul module d'extension de mise en forme conditionnelle. Vérifié dans le code installé, pas
+supposé. Même traitement que `mysql2` (risque n° 7).
+
+#### Points d'implémentation
+
+- **Le filtre est unique.** Tableau de bord, indicateurs et exports partagent le même objet : si
+  l'export traduisait les filtres à sa façon, un rapport pourrait ne pas correspondre à l'écran
+  et l'écart serait indétectable. Les liens d'export recopient les paramètres d'URL courants.
+- **Borne de fin inclusive.** `whereDate(..., '<=', fin)` de Laravel compare des DATES : un `lte`
+  sur un timestamp exclurait tout ce qui a été soumis après minuit. La borne est portée à
+  23:59:59.999.
+- **`Prisma.sql` pour la seule requête brute.** Aucune API d'agrégat de Prisma ne sait soustraire
+  deux dates. Les valeurs du filtre passent en paramètres liés ; seuls les noms de colonnes sont
+  des littéraux écrits dans le code.
+- **Archivage mensuel non réinscriptible.** Un mois déjà archivé n'est jamais recalculé — un test
+  ajoute un dossier après coup et vérifie que la valeur publiée ne bouge pas.
+- **Pas de compteur « dossiers en retard » global** sur le tableau de bord : le calcul d'échéance
+  interroge `historique_statuts` dossier par dossier, et l'exécuter sur tout le périmètre à
+  chaque chargement de la page la plus visitée créerait un vrai N+1. Il faudrait une colonne
+  recalculée, sur le modèle de `actions_correctives.statut`.
+
+#### Observation : `statistiques_mensuelles` est vide
+
+Zéro ligne en base. Contrairement aux trois cas précédents, ce n'est **pas** un défaut : cette
+table est alimentée par une commande planifiée (`CalculerStatistiquesMensuelles`), et aucun
+ordonnanceur n'a jamais été mis en place. L'historique mensuel du tableau de bord est donc
+légitimement vide tant que l'étape 12 n'a pas branché les tâches planifiées.
+
+---
+
+### ✅ Étape 11 — Administration des référentiels
+
+**Livré** — 186 tests, `typecheck`, `lint` et `build` au vert. Les 7 consoles de la baseline sont
+portées : comptes, catégories, statuts, sites, canaux, gabarits de notification, QR codes.
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/audit/journal.ts` | Écriture d'audit, format Laravel (`modele.verbe` + différentiel) |
+| `server/services/administration/referentiels.ts` | Catégories, statuts, sites, canaux, gabarits |
+| `server/services/administration/qr-codes.ts` | Génération, retrait, rendu SVG |
+| `server/services/administration/utilisateurs.ts` | Comptes, rôles, mot de passe initial |
+| `(app)/administration/*` | 7 écrans + éditeur de référentiel commun |
+| `server/auth/hachage.ts` | Hachage bcrypt compatible PHP |
+
+#### 🔴 Défaut que j'avais introduit à l'étape 5a : le hachage bcrypt était illisible par Laravel
+
+En voulant documenter que `bcryptjs` et PHP sont interchangeables, je l'ai vérifié — et c'était
+**faux**.
+
+```
+Hash::check('...', '$2b$04$...')
+→ RuntimeException: This password does not use the Bcrypt algorithm.
+```
+
+`bcryptjs` écrit `$2b$` ; PHP ne reconnaît que `$2y$`, et Laravel refuse tout le reste. Or
+`AccessCodeService::verifier()` utilise `Hash::check`. Conséquence, tant que les deux
+applications cohabitent :
+
+- **tout code d'accès** produit par Next aurait été définitivement invérifiable côté Laravel —
+  un déclarant n'aurait plus pu consulter son propre dossier depuis l'application en service ;
+- **tout compte** créé depuis la console d'administration n'aurait pas pu s'y connecter.
+
+L'algorithme et le coût sont pourtant identiques : seul l'en-tête de format diffère. Le hachage
+passe désormais par `server/auth/hachage.ts`, qui réécrit le préfixe en `$2y$` — vérifié dans les
+deux sens contre le PHP du projet, et figé par un test.
+
+**Aucune donnée n'était corrompue** : les 10 dossiers et les 6 comptes de la base portent tous des
+empreintes `$2y$` produites par Laravel. Le défaut était latent, il se serait manifesté à la
+première déclaration réellement déposée via Next.
+
+Ce que cet épisode montre : mes tests hachent et vérifient **du même côté**. Ils ne pouvaient pas
+détecter une incompatibilité qui n'existe qu'au passage de la frontière entre les deux
+applications. Même famille d'angle mort que les référentiels manquants (risque n° 15).
+
+#### 🔴 Quatrième défaut latent de la baseline : `url_cible` n'est lu par rien
+
+`QrCodesAdmin` propose de modifier l'URL cible d'un QR code, affiche « URL cible mise à jour », et
+son docblock annonce que cela « permet de réorienter un QR physique déjà imprimé sans le
+régénérer ».
+
+Or `QrCodeRedirectController` ne lit jamais cette colonne : il recalcule la destination à partir
+de `parcours.code`. **Modifier l'URL cible n'a donc aucun effet.** Le test Pest existant
+(`QrCodesAdminTest`) n'assère que l'écriture en base, jamais la redirection — encore une fois, le
+test vérifie l'écriture, pas le comportement.
+
+Le portage **reproduit le comportement** (rien ne disparaît) mais **cesse de mentir** : l'écran
+indique que la valeur est documentaire. Rendre la redirection effective serait un changement de
+sémantique à part entière — et créerait une redirection ouverte pilotée depuis
+l'administration : à décider explicitement, pas à glisser dans une migration.
+
+#### ⚠️ Ma propre erreur : 17 lignes d'audit détruites
+
+Le nettoyage de mes nouveaux tests supprimait des lignes d'`audit_logs` en filtrant sur le seul
+`auditable_id`. Cette colonne est un texte **partagé par tous les modèles** : « 34 » y désigne
+aussi bien une catégorie qu'une investigation. Les identifiants de mes catégories et comptes de
+test ont donc collisionné avec de vraies lignes.
+
+**17 lignes d'audit de la baseline ont été supprimées** (`audit_logs` : 161 → 144). Elles sont
+**irrécupérables** : ni sauvegarde dans le projet, ni archivage WAL (`archive_mode = off`).
+
+C'est une atteinte à une table que le cahier des charges désigne comme strictement en ajout seul,
+causée par mon propre code de test — pas par l'application, dont aucun chemin ne supprime d'audit.
+
+**Correctif structurel** : `nettoyerAudit(auditableType, ids)` dans `aide-base.ts` rend le type
+obligatoire dans la signature ; un nettoyage non typé n'est plus exprimable. Vérifié : la suite
+complète laisse désormais `audit_logs` à 144 avant et après.
+
+#### Décisions de portage
+
+- **Aucune suppression, nulle part.** Un test structurel échoue si une fonction dont le nom
+  évoque une suppression apparaît un jour dans le module des référentiels.
+- **Statuts et canaux en modification seule.** `code` est la colonne pivot du graphe de
+  transitions (statuts) et une énumération du CDC §6.7 (canaux).
+- **Éditeur de référentiel commun** aux cinq écrans de même forme : les écrire cinq fois
+  multiplierait les endroits où l'absence de suppression peut diverger.
+- **Journal d'audit au format Laravel** — `auditable_type` porte le nom de classe PHP, l'action
+  suit `modele.verbe`, et seuls les champs réellement modifiés sont consignés. La console d'audit
+  de Laravel lit donc ces lignes à l'identique.
+- **`password` exclu de l'audit** au même titre que `remember_token` et `access_code_hash` :
+  jamais d'empreinte dans un champ JSON, même hachée.
+- **Mot de passe initial** généré aléatoirement, renvoyé une seule fois dans l'état de l'action,
+  jamais persisté en clair ni journalisé.
+
+#### DT-02 vérifié en HTTP réel
+
+La séparation « paramétrage technique » / « référentiel métier » n'est pas seulement documentée :
+
+| Compte | `/administration/utilisateurs` | `/administration/categories` |
+|---|---|---|
+| `administrateur_digital` | **200** | **307 → /acces-refuse** |
+| `service_mgp` | **307 → /acces-refuse** | **200** |
+| `correspondant_mgp` | 307 → /acces-refuse | 307 → /acces-refuse |
+
+Le sommaire n'affiche que les entrées accessibles : comptes, canaux et QR codes pour
+l'administrateur ; catégories, statuts, sites et gabarits pour le Service MGP ; aucune pour un
+rôle de traitement.
+
+#### Non porté, volontairement
+
+`docs/exigences-audit.md` §2 cite les **niveaux de gravité** parmi les référentiels administrables,
+mais la baseline n'a **aucun écran** pour eux (`NiveauGravite` est bien observé pour l'audit, sans
+console associée). Rien n'est donc porté : inventer un écran absent du CDC sortirait du périmètre
+d'une migration. À arbitrer.
+
+---
+
+### ✅ Étape 12 — Audit, RGPD et tâches planifiées
+
+**Livré** — 204 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après (`audit_logs` : 144 → 144).
+
+| Fichier | Rôle |
+|---|---|
+| `server/services/audit/consultation.ts` | Lecture du journal, pagination, filtres |
+| `(app)/audit/{page,filtres}` | Console d'audit, lecture seule |
+| `server/services/rgpd/conservation.ts` | Archivage, anonymisation, blocage contentieux (RG-11) |
+| `server/services/taches/registre.ts` | Les 5 tâches planifiées |
+| `app/api/taches/[tache]/route.ts` | Déclencheur externe protégé |
+
+#### Le point dur : Next.js n'a pas d'ordonnanceur
+
+Laravel déclare `Schedule::command(...)->daily()` dans `routes/console.php` et s'appuie sur un
+`php artisan schedule:run` lancé par le cron système. Rien d'équivalent ici.
+
+Les 5 tâches sont donc exposées par `POST /api/taches/{nom}`, appelé par un ordonnanceur
+**externe** (cron système, Vercel Cron, ordonnanceur d'entreprise). C'est une différence
+d'exploitation, pas de comportement — mais elle est structurante : **sans ce déclencheur câblé,
+aucune relance ne part, aucun retard n'est détecté, aucune donnée n'est anonymisée.** À faire
+avant la bascule.
+
+RG-08 n'est pas concerné : le circuit critique est synchrone à la soumission.
+
+#### Sécurité du déclencheur — vérifiée en HTTP réel
+
+Cette route exécute des traitements de masse, dont l'anonymisation définitive de données
+personnelles. Elle n'a pas de session utilisateur : sa seule protection est un secret partagé.
+
+| Requête | Résultat |
+|---|---|
+| `GET` | **405** — un GET serait déclenchable par un préchargement ou un robot |
+| `POST` sans jeton | **401** |
+| `POST` jeton erroné | **401** |
+| `POST` jeton correct, tâche inconnue | **404** |
+| `POST` jeton correct | **200**, exécutée, tracée |
+
+Et en test, les configurations dégradées : `TACHES_SECRET` absent → **503**, secret de moins de
+32 caractères → **503**. La route **échoue fermée**, jamais ouverte. Un préfixe correct du secret
+est refusé comme n'importe quel jeton faux (comparaison à temps constant).
+
+`src/proxy.ts` a dû être ajusté : sans cela il redirigeait le cron vers `/login` avant que la
+route ne soit atteinte. `/api/taches` y figure désormais — non parce qu'il serait public, mais
+parce qu'il porte une authentification **plus stricte** que la présence d'un cookie.
+
+#### RG-11 — ce que fait exactement l'anonymisation
+
+- **La ligne `dossiers` n'est jamais supprimée.** Seule `declaration_identites` disparaît. RG-03
+  interdit la suppression, RG-12 exige que les statistiques agrégées restent calculables sans
+  limite de durée.
+- **Périmètre `date_cloture IS NOT NULL`.** Un dossier rejeté n'y entre jamais (DT-32).
+- **Le blocage « contentieux » n'expire pas.** Testé à vingt ans : le dossier reste intact, il est
+  compté, jamais traité. Seul le DPO peut le lever.
+- **Le journal ne recopie pas l'identité au moment de l'effacer** — seul le NOMBRE de lignes
+  retirées y figure. Consigner la valeur reviendrait à la déplacer dans l'audit plutôt qu'à la
+  supprimer, et l'audit se conserve plus longtemps que la donnée.
+
+Le verrou « contentieux » manquait au portage : `fiche.ts` lisait la colonne, mais aucune commande
+ne permettait de la basculer. Sans lui, la tâche RG-11 aurait anonymisé des dossiers que le DPO
+entendait protéger. Ajouté sur la fiche dossier, réservé à `rgpd.conservation.manage`.
+
+#### Audit §5 — restriction d'origine vérifiée dans le rendu
+
+L'IP et le user-agent peuvent réidentifier un déclarant anonyme. `service_mgp` a `audit.view`
+sans avoir droit à ces colonnes.
+
+| Rôle | `/audit` | Colonne « Origine » | Adresse dans le HTML |
+|---|---|---|---|
+| `auditeur` | 200 | présente | présente |
+| `service_mgp` | 200 | **absente** | **absente** |
+| `correspondant_mgp` | 307 → /acces-refuse | — | — |
+
+La donnée n'est pas masquée à l'affichage : elle n'est **pas lue** — le `select` Prisma est
+conditionné à l'autorisation. Un oubli de rendu ne pourrait donc pas la divulguer.
+
+#### Ajout par rapport à Laravel : traçabilité des exécutions
+
+`tache.executee` et `tache.echouee` sont écrits dans `audit_logs` à chaque passage. La baseline
+n'en garde aucune trace : une tâche qui échoue chaque nuit y est indiscernable d'une tâche qui
+n'a rien à faire. Comme `rapport.export_nominatif` (risque n° 16), cet ajout n'est pas listé dans
+`docs/exigences-audit.md` §2 — à valider.
+
+---
+
+### ✅ Étape 13 — Non-régression : les 67 exigences
+
+**Livré** — 232 tests, `typecheck`, `lint` et `build` au vert ; base de développement identique
+avant/après.
+
+Méthode reprise de DT-32, que le projet a lui-même documentée : extraction des identifiants
+`EX-*` / `RG-*` / `RGI-*` des documents d'exigences, recoupement automatique avec ce que citent
+les tests et le code du portage, puis **tri manuel** de chaque absence.
+
+**Point de départ : 25 identifiants sans test citant.** Point d'arrivée : **0**.
+
+| Catégorie | Nombre | Traitement |
+|---|---|---|
+| Faux négatifs — comportement couvert, notation qui échappe à la recherche | 9 | Titre de test corrigé |
+| Réellement non testés | 15 | Tests ajoutés |
+| Réellement non implémentés | 1 | **Fonctionnalité portée** |
+
+#### 🔴 Une fonctionnalité manquait au portage : la saisie relais
+
+`EX-DEC-10` et `RG-13` ne référençaient rien, ni dans les tests ni dans le code : la route
+`/relais/{parcours}` de Laravel n'avait **pas été portée**. C'est exactement ce que la consigne
+« aucune fonctionnalité existante ne doit disparaître » interdit, et cela n'aurait été visible
+qu'à l'usage — un agent relais n'aurait eu aucune entrée dans l'application.
+
+Portée à l'identique : accès réservé à `dossiers.create`, canal d'origine obligatoire parmi
+`ligne_verte` / `boite_suggestions` / `agent_local`, et l'agent tracé comme **téléverseur**,
+jamais comme déclarant.
+
+Le cœur de la soumission a été extrait dans `server/services/declaration/soumission.ts`, partagé
+par les deux voies. Ce n'est pas une commodité : RG-13 exige que la déclaration relayée suive
+**exactement** le même workflow. Deux implémentations finiraient par diverger, et la divergence
+porterait sur des règles de sûreté. Seules deux choses diffèrent, et elles sont explicites — le
+canal, et le fait que les protections anti-robot ne s'appliquent qu'au canal public (un agent
+authentifié saisit parfois plusieurs déclarations d'affilée).
+
+Vérifié en HTTP réel : sans session → `/login` ; `service_mgp` et `auditeur` → `/acces-refuse`
+(aucun compte de démo ne porte `dossiers.create`) ; avec le rôle `agent_relais` attribué
+temporairement → 200, sélecteur de canal rendu avec ses 3 options. Le rôle a été retiré ensuite,
+`model_has_roles` revenu à 6.
+
+#### Deux tests dont la prémisse était fausse
+
+Même schéma qu'à l'étape 9b — le code avait raison, mon test avait tort :
+
+- **EX-NOT-02** : j'attendais une notification de changement de statut sur un dossier anonyme.
+  Il n'y a personne à qui écrire — `declarantIdentifie()` renvoie une liste vide. Le test assère
+  désormais les deux sens, et le cas anonyme devient une **garantie d'anonymat vérifiée** plutôt
+  qu'un échec.
+- **EX-GES-05** : j'utilisais « trop court » comme synthèse invalide. La chaîne fait exactement
+  10 caractères, soit la borne du service — le test aurait été vert sans rien prouver.
+
+#### Un constat opérationnel : les délais d'EI Employé ne sont pas validés
+
+Sur `ei_employe` — le parcours majoritaire (7 des 10 dossiers) — trois étapes sur quatre portent
+`est_valide_metier = false` : `analyse_preliminaire`, `traitement_enquete`,
+`mise_en_oeuvre_mesures`. Seule la clôture (6 mois) est validée.
+
+Ce n'est **pas un défaut** : ce sont les cellules « à valider » du CDC (§1.8 point 4), et DT-04
+prescrit qu'un délai provisoire ne déclenche aucune escalade. Mais la conséquence mérite d'être
+dite : **sur ce parcours, aucune échéance n'est calculée, aucune relance J-3 ne part et aucune
+escalade ne se produit** tant que le métier n'a pas arrêté ses valeurs. Un test fige désormais ce
+comportement dans les deux sens, pour qu'il reste un choix et non une surprise.
+
+#### Ce que « 0 identifiant restant » signifie — et ce que cela ne signifie pas
+
+Les 67 exigences sont désormais citées par un test. C'est une traçabilité, **pas une preuve de
+couverture fonctionnelle exhaustive** : 9 des identifiants ont été résolus en corrigeant un titre
+de test, sans nouvelle assertion — parce que le comportement était réellement couvert sous un
+autre nom, ce qui a été vérifié cas par cas avant d'annoter.
+
+Trois exigences restent couvertes de façon **structurelle** plutôt que comportementale, faute de
+pouvoir exécuter une Server Action hors requête HTTP : `EX-NOT-06` et `RGI-12` (la page de suivi
+n'interroge que la référence, jamais l'e-mail ni le téléphone) et `EX-DEC-05` (liste des routes
+publiques). Ces tests lisent le source plutôt que d'exercer le comportement — ils détectent une
+régression d'écriture, pas une régression d'exécution. La passe manuelle au navigateur avant
+bascule reste nécessaire (risque n° 14).
+
+---
+
+### 🟡 Étape 14 — Préparation de la bascule (le retrait de Laravel n'est PAS fait)
+
+**Livré** — 235 tests, `typecheck`, `lint` et `build` au vert. Tout le pré-requis non destructif
+de la bascule est en place. **Aucun fichier Laravel n'a été supprimé** : cela demande votre
+validation explicite, et l'inventaire ci-dessous existe pour que vous puissiez la donner en
+connaissance de cause.
+
+#### 🔴 Cinquième défaut latent : la réinitialisation de mot de passe est inatteignable
+
+`config/fortify.php` active `Features::resetPasswords()`, et `php artisan route:list` confirme les
+quatre routes (`forgot-password`, `reset-password`). Mais :
+
+- `FortifyServiceProvider` n'enregistre que `Fortify::loginView()` — ni
+  `requestPasswordResetLinkView`, ni `resetPasswordView`. Les routes rendraient une vue nulle.
+- `resources/views/auth/` ne contient que `login.blade.php`.
+- La page de connexion ne comporte **aucun lien** « mot de passe oublié ».
+
+La fonctionnalité est donc déclarée mais inutilisable. Il n'y avait rien à « ne pas faire
+disparaître ».
+
+**Traitement retenu.** Un parcours en libre-service serait de toute façon inopérant sans transport
+e-mail (risque n° 12). Le manque est comblé là où il fonctionne aujourd'hui : la console des
+comptes permet de **réattribuer un mot de passe**, affiché une seule fois, jamais persisté en
+clair ni journalisé — même schéma que la création de compte. Refusé sur un compte désactivé :
+réattribuer un mot de passe à un accès coupé donnerait l'illusion d'un accès rétabli.
+
+Le parcours en libre-service reste ouvert (risque n° 10), désormais conditionné au seul transport
+e-mail.
+
+#### Documentation livrée
+
+`web/README.md` et `web/ARCHITECTURE.md`, demandés au §19 du cahier de migration et jamais écrits
+jusqu'ici. Le README porte les avertissements d'exploitation (base partagée, tests écrivant en
+base, tâches à câbler) ; ARCHITECTURE explique les principes — l'autorisation refaite côté
+serveur, la donnée non autorisée jamais chargée, les contraintes héritées du schéma Laravel, et
+les trois règles de test nées des défauts trouvés en chemin.
+
+#### Ce que le retrait de Laravel supprimerait
+
+| Dossier | Fichiers | Lignes PHP |
+|---|---|---|
+| `app/` | 113 | 7 608 |
+| `resources/` | 63 | 3 647 |
+| `tests/` (61 fichiers Pest) | 63 | 4 808 |
+| `database/` | 65 | 2 543 |
+| `config/` | 15 | 2 635 |
+| `routes/`, `bootstrap/`, `public/` | 17 | 589 |
+| `vendor/` | 66 paquets | — |
+
+**Trois éléments méritent une décision séparée du reste :**
+
+1. **`database/migrations/` (31 fichiers) est la SOURCE du schéma.** Prisma ne fait qu'introspecter
+   la base ; il n'existe aujourd'hui aucune autre définition du schéma. Les supprimer laisserait
+   une base sans historique de structure et sans moyen de la recréer. **Recommandation : les
+   conserver, même après retrait du reste**, ou porter les migrations vers Prisma avant.
+2. **`database/seeders/` (12 fichiers) est la SOURCE des référentiels.** Trois d'entre eux ont
+   déjà servi à réparer des tables vides pendant cette migration. Aucun équivalent n'existe côté
+   Next.
+3. **`tests/` (61 fichiers, 4 808 lignes) encode des cas limites que les 235 tests du portage ne
+   reproduisent pas tous.** Tant que Laravel tourne, ils restent exécutables et constituent un
+   filet indépendant.
+
+Le reste — `app/`, `resources/`, `config/`, `routes/`, `bootstrap/`, `public/`, `vendor/` — peut
+être retiré une fois la bascule validée en production.
+
+#### Conditions à remplir AVANT la bascule
+
+| # | Condition | État |
+|---|---|---|
+| 1 | Ordonnanceur externe câblé sur `/api/taches/*` | ❌ Non fait — sans lui, aucune relance, aucune escalade, aucune anonymisation |
+| 2 | `TACHES_SECRET` provisionné (32 caractères minimum) | ❌ À faire en production |
+| 3 | Transport e-mail réel branché | ❌ Non fait — les envois sont journalisés, pas expédiés |
+| 4 | Limitation de débit sur magasin partagé | ❌ En mémoire — contournable en multi-instances |
+| 5 | Sauvegardes et archivage WAL | ❌ `archive_mode = off`, aucune sauvegarde |
+| 6 | Délais métier arrêtés sur `ei_employe` | ❌ Trois étapes sur quatre non validées |
+| 7 | Passe manuelle au navigateur (envoi de message déclarant, saisie relais complète) | ❌ À faire |
+| 8 | Arbitrage sur `url_cible` des QR codes | ❌ En attente |
+| 9 | Décision sur les niveaux de gravité administrables | ❌ En attente |
+| 10 | Validation des trois ajouts d'audit hors CDC | ❌ En attente |
+
+**Aucune de ces dix conditions n'est remplie à ce jour.** Les six premières sont bloquantes au
+sens strict : sans elles, le portage fonctionne en démonstration mais pas en service.
+
+---
+
+### ✅ Étape 14b — Deux conditions de bascule levées
+
+**Livré** — 245 tests, `typecheck`, `lint` et `build` au vert ; base identique avant/après.
+
+Les six conditions bloquantes relevaient soit de l'infrastructure, soit du métier — sauf deux,
+qui étaient du code. Elles sont traitées.
+
+#### Condition n° 4 — la limitation de débit vit désormais en base
+
+Le compteur était en mémoire de processus : sur un déploiement multi-instances, il suffisait de
+frapper une autre instance pour repartir de zéro. Cela annulait la seule protection contre
+l'énumération d'un code d'accès à 6 chiffres — un million de combinaisons, sans limite effective.
+
+Les compteurs vivent maintenant dans la table `cache`, sous le préfixe `next:debit:` (Laravel
+utilise `ei-mgp-cache-`, aucun croisement possible). L'incrément est fait par **un unique ordre
+SQL** avec `ON CONFLICT` : un `SELECT` suivi d'un `UPDATE` laisserait exactement la fenêtre de
+concurrence qu'un attaquant cherche.
+
+Prouvé par un test : **dix incréments lancés simultanément, exactement cinq autorisés**, et le
+compteur en base à 10.
+
+⚠️ Les deux applications tiennent des compteurs **distincts** pendant la cohabitation : le
+`RateLimiter` de Laravel sérialise en PHP et préfixe ses clés autrement. L'objectif était le
+partage entre instances Next, pas l'interopérabilité — et la base contient bien, côté Laravel,
+ses propres entrées `declaration-submit:127.0.0.1`.
+
+**Régression que j'ai introduite au passage, et corrigée.** L'ancienne signature normalisait la
+casse du PREMIER argument (l'e-mail) ; ma réécriture normalisait le second. Or les appels
+existants n'ont pas tous le même ordre — `cleThrottle(email, ip)` à la connexion,
+`cleThrottle('suivi-ref', reference)` au suivi. Une variation de casse de l'e-mail aurait suffi à
+repartir de zéro. Les deux parties sont désormais normalisées, et le test couvre les deux
+positions.
+
+Une sixième tâche planifiée (`purger-compteurs-debit`) entretient la table : sans équivalent
+Laravel, où le framework purge lui-même son cache.
+
+#### Condition n° 3 — le transport e-mail est branché, il reste à le configurer
+
+`TransportSmtp` (nodemailer) s'active dès que `MAIL_HOST` et `MAIL_FROM` sont renseignés ; sinon
+le repli journalise, comme `MAIL_MAILER=log`. **Le démarrage annonce lequel des deux est actif** :
+un environnement de production qui croit expédier alors qu'il journalise est aussi dangereux
+qu'un fournisseur imposé dans le code.
+
+Ce n'est plus une lacune de code mais un paramétrage. Deux détails ont été traités en chemin :
+
+- **Isolation des échecs d'envoi.** Un serveur SMTP injoignable interrompait la boucle : les
+  tâches planifiées parcourant tous les dossiers actifs, une seule adresse en erreur aurait privé
+  tous les suivants de leur relance. Chaque envoi est désormais isolé, et **l'audit n'est écrit
+  qu'en cas de succès** — consigner un envoi qui n'a pas eu lieu tromperait l'auditeur.
+- **Avis GHSA-p6gq-j5cr-w38f** (haute gravité, nodemailer ≤ 9) introduit par l'installation.
+  `next-auth` déclare une dépendance de pair `^7 || ^8`, mais ne charge nodemailer que pour son
+  fournisseur Email — nous utilisons `Credentials`. Un `override` npm épingle donc la **10.0.1**,
+  corrigée. L'audit revient aux 6 vulnérabilités préexistantes, sans nouvelle.
+  `disableFileAccess` et `disableUrlAccess` sont activés en complément.
+
+#### État des dix conditions
+
+| # | Condition | État |
+|---|---|---|
+| 1 | Ordonnanceur externe câblé | ✅ Fonctions programmées Netlify livrées (étape 16) |
+| 2 | `TACHES_SECRET` en production | ✅ Généré (`web/secrets-production.txt`) ; reste à saisir dans Netlify |
+| 3 | Transport e-mail | ✅ **Branché** — reste à renseigner `MAIL_HOST` / `MAIL_FROM` |
+| 4 | Limitation de débit partagée | ✅ **Fait** |
+| 5 | Sauvegardes | ✅ Script de vidage livré (étape 16) ; reste à activer la rétention Neon et à planifier le vidage |
+| 6 | Délais métier sur `ei_employe` | ❌ Décision métier |
+| 7 | Passe manuelle au navigateur | ❌ À faire |
+| 8 | Arbitrage `url_cible` des QR codes | ✅ Sans objet — point d'entrée unique (étape 15) |
+| 9 | Niveaux de gravité administrables | ✅ Fait (étape 15) |
+| 10 | Validation des ajouts d'audit hors CDC | ✅ Validés (étape 15) |
+
+Il ne reste **aucune condition relevant du code**. Les huit restantes appellent une décision
+d'infrastructure ou métier.
+
+---
+
+### ✅ Étape 15 — Décisions métier appliquées
+
+**Livré** — 255 tests, `typecheck`, `lint` et `build` au vert ; base cohérente avant/après.
+
+Quatre décisions ont été prises par le métier. Trois demandaient du code.
+
+#### 1. Délai EI arbitré à 5 jours, et délais rendus paramétrables
+
+`ei_employe / analyse_preliminaire` passe de **3 jours ouvrés « provisoire »** à **5 jours ouvrés
+« validé »**. Le parcours majoritaire produit donc désormais une échéance, et avec elle les
+relances J-3 et les escalades qui en dépendaient — elles étaient inertes jusqu'ici (risque n° 21,
+levé).
+
+La valeur est posée dans `SlaDelaiSeeder` (qui fait autorité) **et** appliquée en base : 17 délais
+validés sur 22.
+
+⚠️ **Les deux autres étapes d'EI Employé restent provisoires** — `traitement_enquete` (15 j) et
+`mise_en_oeuvre_mesures` (30 j). Seul le délai nommé a été arbitré ; je n'ai pas étendu la
+décision aux valeurs que vous n'avez pas citées. Elles se règlent maintenant depuis l'écran.
+
+**Nouvel écran `/administration/delais`** : valeur, unité, note, et surtout le commutateur
+« validé par le métier ». Un test vérifie le cycle complet — dévalider éteint l'échéance,
+revalider la rétablit — parce que c'est exactement ce que DT-04 promet, et que le cache des
+délais est purgé à l'enregistrement (sans quoi une correction resterait sans effet et
+l'administrateur croirait avoir agi).
+
+#### 2. Point d'entrée unique : un QR code, un lien, un choix
+
+`/declarer` devient l'écran de choix : **évènement indésirable** ou **plainte** ; si plainte, à
+quel titre (employé, sous-traitant, communauté). Tous les QR codes y mènent — `/q/{jeton}` ne
+consulte plus le parcours du support.
+
+Deux gains directs : un seul support à imprimer, et plus aucun risque qu'une affiche périmée
+envoie vers le mauvais formulaire. Les quatre routes `/declarer/{parcours}` restent atteignables :
+un lien déjà diffusé continue de fonctionner.
+
+Le vocabulaire de l'écran est celui du déclarant — « ce qui vous est arrivé », pas « parcours » —
+et il indique explicitement que le service réorientera un dossier mal classé sans qu'il faille le
+redéposer. Quelqu'un qui hésite entre un incident et une plainte ne connaît pas notre
+nomenclature.
+
+`qr_codes.parcours_id` reste obligatoire en base : il ne documente plus que le contexte
+d'émission du support, et l'écran d'administration le dit.
+
+#### 3. Niveaux de gravité paramétrables
+
+**Nouvel écran `/administration/gravites`** : libellé, couleur, effet de circuit, activation.
+Comble le manque relevé au risque n° 18 — `exigences-audit.md` §2 les citait parmi les
+référentiels administrables, sans écran dans la baseline.
+
+Trois garde-fous, parce que ce référentiel commande des comportements :
+
+- **`niveau` et `code` ne sont pas modifiables.** Ils ordonnent l'échelle et sont référencés par
+  les dossiers déjà classés ; en changer la valeur les déplacerait silencieusement.
+- **La couleur doit être hexadécimale.** Elle est injectée en style inline sur le tableau de
+  bord : une valeur libre y serait un vecteur d'injection.
+- **Le dernier niveau actif ne peut pas être désactivé.** Sans lui, plus aucune déclaration ne
+  pourrait être déposée.
+
+`effet_circuit` reste modifiable — c'est bien une décision métier — mais l'écran annonce ce qu'il
+déclenche : l'alerte immédiate de la Direction (RG-08).
+
+#### 4. Les trois ajouts d'audit sont validés
+
+`rapport.export_nominatif`, `tache.executee` / `tache.echouee` et `user.mot_de_passe_regenere`
+sont désormais inscrits dans `docs/exigences-audit.md` §2 comme évènements audités à part
+entière, avec leur justification. Ils ne sont plus des ajouts « hors CDC ».
+
+#### Deux permissions ajoutées, des deux côtés
+
+`referentiels.delais.manage` et `referentiels.gravites.manage`, portées par `service_mgp`
+(référentiels métier, DT-02). Ajoutées **au seeder Laravel** autant qu'au portage : le test de
+parité compare la liste du code au contenu réel de la table et échoue à la moindre divergence.
+36 permissions, 88 associations, les deux applications d'accord.
+
+Vérifié en HTTP : `service_mgp` accède aux deux écrans, `administrateur_digital` en est refusé —
+la séparation DT-02 tient sur les nouveaux écrans comme sur les anciens.
+
+---
+
+### ✅ Étape 16 — Cible Netlify + Neon, tous les délais paramétrables
+
+**Livré** — 258 tests (stables sur deux exécutions consécutives), `typecheck`, `lint` et `build`
+au vert.
+
+#### 🔴 Bloquant de déploiement : les pièces jointes s'écrivent sur le disque
+
+`services/declaration/pieces-jointes.ts` fait `mkdir` + `writeFile` sous `process.cwd()`. Sur
+Netlify le système de fichiers est **en lecture seule** hors `/tmp`, lui-même éphémère :
+**toute déclaration comportant une pièce jointe échouera en production**.
+
+Ce n'est pas une dégradation, c'est un arrêt. Il faut un stockage objet — Netlify Blobs ou S3 —
+en remplacement de `writeFile`. Le point de bascule est unique (`stockerFichiers`), donc
+l'adaptation est circonscrite ; elle n'est pas faite ici parce qu'elle demande de choisir le
+fournisseur et de porter aussi la lecture, aujourd'hui absente (aucune route de téléchargement
+n'existe : les pièces sont écrites, jamais relues).
+
+#### 🔴 Défaut trouvé par un test intermittent : `priorisation` manquait
+
+Deux cas de l'écran des gravités échouaient une fois sur trois. La cause n'était pas le test mais
+mon code : `EFFETS_CIRCUIT` ne listait que `standard` et `accelere`, alors que
+`App\Enums\EffetCircuit` en compte **trois** — `priorisation`, que porte le niveau « Élevé ».
+
+Conséquence : **l'écran refusait d'enregistrer ce niveau**, et un administrateur qui aurait choisi
+l'une des deux valeurs proposées en aurait changé le comportement sans le vouloir.
+
+L'intermittence venait d'un `findFirst` sans ordre : PostgreSQL renvoyait tantôt le niveau
+« Élevé », tantôt un autre. Deux corrections, pas une :
+
+- toutes les lectures de test portent désormais un `orderBy` explicite — une ligne arbitraire
+  masque un défaut au lieu de le signaler ;
+- trois tests de parité comparent les énumérations du code aux valeurs **réellement présentes en
+  base** (effets de circuit, unités et étapes de délai). Une liste incomplète ne se voit pas tant
+  qu'on ne tombe pas sur la bonne ligne : c'est la base qui doit trancher, pas la mémoire.
+
+#### Tous les délais sont paramétrables
+
+- **Les 5 derniers délais « provisoires » sont activés** : les 15 délais rattachés à un statut
+  sont désormais suivis (contre 10). Plus aucune valeur volontairement inerte — puisqu'elles se
+  règlent depuis l'application, la distinction n'avait plus d'objet.
+- **Création possible** depuis l'écran : certains couples (parcours, étape) n'avaient aucune
+  ligne. EI Employé n'a par exemple pas de délai pour « Retour après résolution » — un dossier EI
+  passé à « Résolu » n'a donc aucune échéance. Cela se comble maintenant sans toucher à la base.
+
+**7 délais sur 22 restent structurellement sans effet**, et l'écran le dit désormais par un badge
+« Sans effet » :
+
+| Étape | Lignes | Pourquoi |
+|---|---|---|
+| `retour_information` | 3 | Aucun statut ne s'y rattache dans `STATUT_VERS_ETAPE` |
+| `cloture` | 4 | Porte le délai GLOBAL, lu par `estEnRetardGlobalement` — fonction que **rien n'appelle**, ni ici ni dans Laravel |
+
+Les afficher comme réglables sans le dire aurait laissé croire à un suivi qui n'existe pas.
+
+#### Déploiement Netlify + Neon
+
+| Élément | Contenu |
+|---|---|
+| `netlify.toml` | Construction du seul dossier `web/`, six fonctions programmées avec leurs horaires |
+| `web/netlify/functions/*.mts` | Chaque fonction appelle `/api/taches/{nom}` avec `TACHES_SECRET` — l'autorisation reste dans la route, un seul endroit à auditer |
+| `tsconfig.json` | `netlify/` exclu : autre cible de compilation, qui exige des imports avec extension |
+| `web/scripts/sauvegarde.mjs` | `pg_dump` avec rotation à 30 jours et garde-fou sur un vidage anormalement petit |
+| `web/secrets-production.txt` | `TACHES_SECRET` et `AUTH_SECRET` générés, **ignoré par git** |
+
+**Neon** : chaîne *pooled* obligatoire (hôte en `-pooler`) — chaque fonction serverless ouvre sa
+propre connexion et le point d'entrée direct s'épuiserait. La rétention d'historique de Neon fait
+office de sauvegarde continue ; le vidage logique protège de ce qu'elle ne couvre pas (perte du
+compte, changement de fournisseur).
+
+⚠️ Un vidage **contient des données personnelles** : mêmes obligations que la base, et surtout pas
+dans un artefact de CI.
+
+---
+
+### ✅ Étape 17 — Pièces jointes : le dernier bloquant technique est levé
+
+**Livré** — 267 tests, `typecheck`, `lint` et `build` au vert ; base inchangée.
+
+#### Une fonctionnalité manquait, en plus du bloquant
+
+En traitant le stockage, j'ai découvert que **le portage n'avait aucune route de téléchargement**.
+Laravel en a une (`PieceJointeDownloadController`, protégée par la Policy du dossier) : les pièces
+étaient donc écrites et jamais relues côté Next. Deuxième fonctionnalité absente après la saisie
+relais — et invisible du recoupement de l'étape 13, qui ne vérifiait qu'EX-DEC-06 (les limites de
+dépôt).
+
+`/api/pieces-jointes/{id}` la rétablit. Elle remonte au dossier parent — la pièce peut être
+attachée au dossier, à une investigation ou à une action corrective — et revérifie
+`peutVoirDossier`. Une pièce hors périmètre et une pièce inexistante répondent **la même chose** :
+distinguer les deux confirmerait l'existence du dossier à qui n'y a pas droit.
+
+#### Stockage abstrait : disque ou objet, selon l'hébergement
+
+`services/stockage/magasin.ts` remplace l'écriture directe. Netlify Blobs en serverless, disque
+ailleurs ; `STOCKAGE_MAGASIN` tranche explicitement. Le magasin retenu est enregistré sur chaque
+ligne (`pieces_jointes.disque`, colonne qui existait déjà pour cet usage) : **une pièce écrite
+hier reste lisible même si le magasin par défaut change demain**.
+
+#### Deux pièges de bascule trouvés en vérifiant
+
+Le premier téléchargement d'une pièce réelle a répondu **500**. Deux causes distinctes, toutes
+deux fatales en production et invisibles en lecture de code :
+
+1. **Racine différente.** Laravel écrit dans `storage/app/private`, le portage attendait
+   `web/storage/private`. `STOCKAGE_RACINE` pointe désormais sur le stockage de Laravel pendant
+   la cohabitation.
+2. **Antislashs dans les chemins.** Laravel enregistre `pieces-jointes/App\Models\Dossier/...`,
+   son dossier dérivant du nom de classe PHP. Windows les interprète comme des séparateurs,
+   **Linux non** : sur Netlify, toute pièce d'avant la bascule aurait été introuvable. Les chemins
+   sont normalisés à la lecture comme à l'écriture.
+
+Après correction : téléchargement en 200, `Content-Disposition` correct, et la signature PNG du
+fichier réellement écrit par Laravel.
+
+#### Transfert vers le stockage objet
+
+`npm run migrer-pieces-jointes` copie les pièces du disque vers le magasin d'objets et met à jour
+`disque`. Idempotent, n'efface rien, et **vérifie l'empreinte SHA-256** de chaque fichier avant
+transfert — transférer un fichier altéré propagerait la corruption. La ligne n'est marquée
+qu'APRÈS l'écriture : une interruption laisse la pièce lisible sur le disque.
+
+Simulation exécutée sur les 6 pièces existantes : **toutes lisibles, toutes conformes à leur
+empreinte**. L'intégrité des données déjà déposées est donc vérifiée, pas supposée.
+
+---
+
+### ✅ Étape 18 — Bascule : Laravel est retiré
+
+**Fait sur validation explicite, réitérée.** 267 tests, `typecheck`, `lint` et `build` au vert
+**après** le retrait — le portage ne dépendait de rien du côté supprimé.
+
+#### Ce qui a été extrait AVANT de supprimer
+
+Ma recommandation initiale était de conserver `database/migrations` et `database/seeders`, seules
+définitions du schéma et des référentiels. En préparant le retrait, j'ai vu que cette
+recommandation ne tenait pas : **une fois le framework parti, ni les migrations ni les seeders ne
+sont exécutables** — ils dépendent de `vendor/`, d'`artisan` et des modèles de `app/`. Les garder
+n'aurait conservé que des documents, pas une capacité à recréer un environnement.
+
+Le prérequis réel était donc de les porter :
+
+| Fichier | Contenu | Vérification |
+|---|---|---|
+| `web/prisma/schema-initial.sql` | 35 tables, 38 index, 41 clés étrangères | Généré par `prisma migrate diff` |
+| — complété à la main | contrainte `niveaux_gravite_niveau_check` | Prisma ne modélise pas les CHECK : sans cet ajout, une base recréée accepterait une gravité hors de l'échelle 1-4 |
+| `web/prisma/referentiels.json` | 12 tables, 238 lignes | Aucune donnée métier ni personnelle |
+| `web/prisma/seed.mts` | Rejeu par `upsert` | Exécuté sur la base existante : ni doublon, ni perte |
+
+#### Deux données qui n'étaient dans aucun dépôt
+
+- **Les 6 pièces jointes** vivaient dans `storage/app/private`, non versionné. Supprimer
+  `storage/` les aurait détruites. Elles ont été déplacées dans `web/storage/private`, puis
+  vérifiées : les six empreintes SHA-256 correspondent toujours à ce que la base enregistre.
+- **`web/storage/` n'était pas ignoré par git.** Un commit y aurait fait entrer des pièces
+  jointes — donc des données personnelles — dans un historique qui ne se purge pas. Corrigé avant
+  toute écriture.
+
+#### Ce qui a été retiré, ce qui reste
+
+Retiré : `app/`, `bootstrap/`, `config/`, `database/`, `public/`, `resources/`, `routes/`,
+`stubs/`, `tests/`, `vendor/`, `node_modules/`, `artisan`, `composer.*`, `phpstan.neon`,
+`phpunit.xml`, `vite.config.js`, et les `package.json`/`package-lock.json` de la racine.
+
+Conservé : `web/`, `docs/` — **une vingtaine de fichiers du portage y renvoient explicitement**
+pour justifier une règle, ce n'est pas une archive —, `MIGRATION_PLAN.md`, `netlify.toml`, et
+`storage/` (non versionné, seconde copie des pièces jointes ; supprimable une fois la bascule
+confirmée).
+
+Deux étiquettes rendent l'opération réversible : `baseline-laravel` (l'application d'origine) et
+`avant-retrait-laravel` (l'état juste avant suppression, commit `f780b84`).
+
+#### Ce que la bascule ne règle pas
+
+Le retrait de Laravel ne met pas l'application en service. **Aucun e-mail ne partira** tant que
+`MAIL_HOST` et `MAIL_FROM` ne sont pas renseignés — le démarrage l'annonce, mais il faut le lire.
+Et la passe manuelle au navigateur (message déclarant, saisie relais complète) reste à faire :
+aucun test ne l'a exercée de bout en bout.
+
+---
+
+### ✅ Étape 19 — Délai global câblé, et une caractérisation corrigée
+
+**Livré** — 269 tests, `typecheck`, `lint` et `build` au vert ; base inchangée.
+
+#### Je m'étais trompé sur `retour_information`
+
+À l'étape 16, j'ai signalé 7 délais « structurellement sans effet » comme un problème à arbitrer.
+En cherchant à les câbler, j'ai relu **DT-23**, qui traite déjà les deux cas — et l'un des deux
+n'était pas un défaut :
+
+> *« Ne pas inventer un statut interne artificiel pour cette étape — elle reste enregistrée dans
+> `sla_delais` à titre de référence (traçabilité CDC complète) mais n'est pas suivie comme
+> échéance autonome avec compte à rebours. »*
+
+« Retour d'information au plaignant » figure au §6 du CDC mais n'a pas de statut au §7.1 : elle se
+produit **pendant** « En investigation ». Ne pas la suivre séparément est une **décision assumée**,
+prise et documentée en Phase 6. Mes 3 lignes « sans effet » sur cette étape sont donc conformes,
+pas résiduelles. L'écran les affiche désormais « Référence CDC », et non plus « Sans effet » —
+la nuance n'est pas cosmétique : elle distingue un choix d'un oubli.
+
+#### En revanche, le délai global n'était pas câblé — et c'était bien un manque
+
+DT-23 dit que « Clôture, suivi et évaluation » est « traitée comme un délai global mesuré depuis
+la création ». La fonction existait (`estEnRetardGlobalement`), **rien ne l'appelait** — ni dans
+le portage, ni dans la baseline Laravel.
+
+Conséquence : **un dossier pouvait respecter chacune de ses étapes et s'éterniser sans que rien
+ne le signale.** C'est précisément le cas que le délai d'enveloppe existe pour attraper — un
+dossier qui n'est jamais en retard nulle part, et qui traîne un an.
+
+Trois branchements :
+
+| Où | Quoi |
+|---|---|
+| `dateLimiteGlobale()` | Exposée — la date était calculée en interne, jamais lisible |
+| `detecterRetards()` | Escalade sur dépassement d'étape **ou** d'enveloppe, une seule alerte par dossier |
+| Fiche dossier | Pastille « Délai global dépassé » |
+
+Le palier « Direction » (+50 %) continue de se mesurer sur l'étape courante : un dépassement
+global n'a pas de pourcentage propre à comparer.
+
+Un test fige le cas qui manquait : un dossier **à jour sur son étape** — vérifié explicitement —
+mais créé il y a 37 mois est désormais escaladé. Aucun dossier réel n'est concerné aujourd'hui, le
+plus ancien datant du 28 août 2026 pour une enveloppe de 6 mois.
+
+---
+
+### ✅ Étape 20 — Deux écrans jamais portés, et une navigation qui les cachait
+
+**Demande** : rendre la navigation plus fluide, retirer l'information inutile, hiérarchiser ce qui
+reste.
+
+#### Ce que la revue de navigation a trouvé d'abord
+
+La barre latérale proposait huit entrées. Quatre d'entre elles — « Mes investigations »,
+« Investigations », « Mes actions », « Actions correctives » — pointaient vers `/investigations`
+et `/actions-correctives`. **Ces deux routes répondaient 404.**
+
+Vérifié dans l'historique Git, avant le retrait de Laravel (commit `33a441e`) :
+
+```
+routes/web.php
+  Route::get('/investigations', InvestigationListPage::class)
+  Route::get('/actions-correctives', ActionCorrectiveListPage::class)
+  Route::get('/dossiers/{dossier}/investigations/{investigation}', InvestigationDetailPage::class)
+```
+
+Les trois composants existaient (`app/Livewire/Investigations/`,
+`app/Livewire/ActionsCorrectives/`). Deux vues transverses — toutes investigations confondues,
+toutes actions confondues — n'ont jamais été portées. Ce n'est pas un lien mort : c'est une
+**fonctionnalité perdue en migration**, contre l'engagement « aucune fonctionnalité existante ne
+doit disparaître ».
+
+Deux indices étaient présents dans le code sans que rien ne les relie :
+`peutVoirListeInvestigations()` et `peutVoirListeActions()` étaient écrites, exportées, et
+**appelées nulle part**. Des policies pour des écrans absents.
+
+Aucun test ne pouvait le voir : la navigation était une liste de chaînes, et rien ne confrontait
+ce qu'elle annonce à ce que l'application sert.
+
+#### Les deux écrans, portés
+
+| Écran | Source | Choix de portage |
+|---|---|---|
+| `/investigations` | `InvestigationListPage` | Filtres statut / parcours / enquêteur / période, tri par ouverture décroissante |
+| `/actions-correctives` | `ActionCorrectiveListPage` | Filtres statut / parcours / responsable / échéance, tri par échéance croissante |
+
+Le cloisonnement par parcours est poussé **en SQL avant pagination**, comme dans la baseline
+(`whereHas('dossier.parcours')`) : filtrer après lecture donnerait des pages incomplètes et ferait
+transiter par le serveur des lignes hors périmètre. Onze cas le vérifient contre la base réelle,
+rôle par rôle, dans les deux sens — rien de trop, rien qui manque.
+
+`InvestigationDetailPage` n'est **pas** reportée comme page autonome : consultation, modification
+et validation hiérarchique vivent déjà dans le panneau de la fiche dossier. Les lignes des listes
+mènent donc à `/dossiers/{id}#investigations`. Rouvrir une seconde surface d'édition ferait exister
+deux chemins pour le même geste — et RGI-06 (l'enquêteur ne valide jamais sa propre fiche) est
+précisément une règle qu'on ne veut pas voir dupliquée.
+
+Le décompte de jours avant échéance est calculé **au rendu**, pas lu depuis `statut` : la colonne
+ne bascule en `en_retard` qu'au passage quotidien de la tâche planifiée, et une action qui vient
+d'expirer afficherait encore « en cours ».
+
+#### La refonte de navigation
+
+| Avant | Après | Pourquoi |
+|---|---|---|
+| 8 entrées, 4 destinations | 6 entrées, 6 destinations | « Mes X » et « X » menaient au même chemin, à un paramètre près : le repère d'écran courant s'allumait sur les deux lignes à la fois |
+| Filtre « les miennes » dans la barre | Bascule en haut de chaque liste | Se voit, s'annule, se combine avec les autres critères |
+| Aucun `loading.tsx` | Trois niveaux de squelettes | Chaque page lit la base : sans repère, le clic paraissait n'avoir rien produit |
+| Rôles techniques dans la barre (`admin_digital`) | Menu de compte, libellés lisibles | Trois informations consultées rarement occupaient le coin droit en permanence |
+| « ← Retour à la liste » | Fil d'Ariane | Dit aussi où l'on est, et permet de remonter de plusieurs crans |
+
+#### Hiérarchie de l'information
+
+**Fiche dossier** — jusqu'à sept cartes empilées, deux à trois écrans de défilement, sans moyen de
+savoir avant d'y arriver s'il y a des messages en attente. Un sommaire d'ancres les annonce avec
+leur décompte (« Messagerie 3 »), et la colonne d'actions devient collante : changer de statut
+n'impose plus de remonter.
+
+**Listes** — la carte de huit filtres dépliée en permanence repoussait les données sous la ligne de
+flottaison. Elle se replie ; restent la bascule de périmètre et **une puce par critère actif**, qui
+répond à la question que huit champs ne répondaient pas : pourquoi cette liste est-elle si courte ?
+
+**Tableau de bord** — « Actions correctives en retard : 3 » ne menait nulle part ; le nombre ouvre
+maintenant la liste filtrée. Et la carte « Votre activité » n'est plus affichée quand elle est
+vide : un directeur, qui n'a jamais de dossier affecté, lisait chaque jour un encadré lui annonçant
+qu'il n'en avait pas.
+
+**Administration** — dix consoles à plat, dans l'ordre où elles avaient été écrites, regroupées en
+quatre familles. La carte « Habilitations » annonçait encore « Lecture seule — la matrice est
+décidée dans le code », faux depuis l'étape précédente.
+
+**Catégories** — « Autre » apparaissait quatre fois dans les listes déroulantes, une fois par
+parcours, sans moyen de les distinguer. Le parcours est accolé au libellé tant qu'aucun n'est
+choisi.
+
+#### Ce qui empêche la récidive
+
+`src/components/layout/__tests__/navigation.test.ts` confronte chaque destination déclarée à
+l'existence du fichier `page.tsx` correspondant, refuse deux entrées vers le même chemin, et exige
+que tout rôle conserve au moins le tableau de bord (DT-31). C'est le test qui manquait.
+
+**Livré** — 303 tests (39 fichiers), `typecheck` et `lint` au vert, dix routes vérifiées en HTTP
+réel avec session. Base inchangée : ces écrans ne font que lire.
+
+---
+
+### ✅ Étape 21 — Rôles administrables : renommer, décrire, désactiver
+
+**Demande** : « On doit pouvoir modifier et désactiver un rôle. »
+
+#### Ce qu'on peut modifier, et ce qu'on ne peut pas
+
+Les permissions d'un rôle étaient déjà modifiables (étape 20). Restaient son nom lisible et son
+existence. Trois colonnes ajoutées à `roles` :
+
+| Colonne | Modifiable | Pourquoi |
+|---|---|---|
+| `libelle` | oui | Ce que les gens lisent. Vivait dans `authz/libelles.ts`, donc figé au déploiement |
+| `description` | oui | À quoi sert ce rôle, pour qui — la question que pose tout nouvel arrivant |
+| `actif` | oui | La seule forme de retrait : un rôle ne se supprime pas (RG-03) |
+| `name` | **non, et jamais** | Identifiant technique |
+
+`name` reste hors d'atteinte et aucune interface ne l'expose. Il est référencé par
+`model_has_roles`, par le catalogue `authz/roles.ts` et par le cloisonnement `authz/parcours.ts` :
+un rôle renommé disparaîtrait de `ROLES_PAR_PARCOURS` et n'ouvrirait plus aucun parcours — **sans
+lever la moindre erreur**. Le rôle continuerait d'exister, ses porteurs ne verraient simplement
+plus rien. C'est exactement le genre de panne qu'on met des semaines à imputer.
+
+#### Ce que « désactiver » veut dire
+
+Rien, si la désactivation se contentait de griser une ligne dans un écran d'administration. Elle
+se joue dans `chargerUtilisateurAutorise()`, relu à chaque requête : un rôle inactif ne confère
+**ni permission ni parcours**, dès l'appel suivant, pour tous ses porteurs.
+
+Le rôle est retiré de `roles` et pas seulement ses permissions : `parcoursAutorises()` et `aRole()`
+s'appuient dessus, et un rôle éteint qui continuerait d'ouvrir un parcours serait le pire des deux
+mondes.
+
+Les rattachements `model_has_roles` sont **conservés**. C'est la différence entre suspendre un rôle
+et le vider : réactiver rend leurs droits aux comptes concernés sans avoir à les réattribuer un par
+un. La console des comptes affiche d'ailleurs toujours un rôle désactivé déjà porté, décochable
+seulement à dessein — sans quoi enregistrer un numéro de téléphone aurait suffi à rompre le
+rattachement.
+
+#### Le garde-fou, réécrit
+
+Le contrôle du « dernier administrateur » ne regardait que le retrait de `roles.manage`. Désactiver
+le rôle qui la porte produit exactement le même effet, par un chemin qu'il ne voyait pas.
+
+Il raisonne désormais sur l'**état résultant** plutôt que sur l'opération demandée : les deux
+chemins convergent vers le même calcul, et un troisième, s'il apparaît, y tombera aussi.
+
+#### Deux défauts trouvés en route
+
+**La sauvegarde ne fonctionnait pas.** `scripts/sauvegarde.mjs` passait `DATABASE_URL` telle quelle
+à `pg_dump`, qui refuse les paramètres propres à Prisma : `paramètre de la requête URI invalide :
+« schema »`. Aucune sauvegarde n'avait donc jamais été produite — sur une base que le risque 19
+signale déjà comme dépourvue de reprise. Corrigé par une liste blanche des paramètres libpq (une
+liste noire laisserait passer le prochain paramètre que Prisma inventera), `schema` étant traduit
+en `--schema` plutôt que perdu. Sauvegarde prise avant la migration : 123 Ko.
+
+**Le statut HTTP ne dit pas si l'accès est refusé.** En vérifiant la désactivation sur des requêtes
+réelles, `/audit` répondait 200 alors que le rôle était éteint — j'ai d'abord conclu à un défaut.
+La coquille `(app)/layout.tsx` commence à diffuser avant que la page n'appelle
+`exigerPermission()` : l'en-tête est déjà parti en 200, et la redirection voyage dans la charge RSC
+sous la forme `acces-refuse;307`. L'accès était bel et bien bloqué ; c'est ma mesure qui était
+fausse. Consigné dans `ARCHITECTURE.md` §5 — un contrôle d'autorisation qui lit le code de retour
+conclut à l'inverse de la réalité.
+
+#### Migration
+
+`prisma/evolutions/2026-09-08-roles-administrables.sql`, appliquée à la main puis réintrospectée
+par `prisma db pull`. Purement additive : trois colonnes, aucune donnée touchée, réversible par
+trois `DROP COLUMN`. `prisma migrate` reste exclu — la base vient de Laravel et ne porte aucun
+historique de migration Prisma, qui proposerait de la réinitialiser.
+
+`next.config.ts` accepte désormais `NEXT_DIST_DIR` : après un `prisma generate`, le serveur de
+développement en cours garde son ancien client et répond 500 jusqu'à son redémarrage. Une seconde
+instance sur un répertoire de build distinct permet de vérifier sans interrompre celle de la
+personne qui travaille.
+
+**Livré** — 310 tests (40 fichiers), `typecheck` et `lint` au vert. Propriété de sûreté vérifiée
+sur requêtes HTTP réelles : rôle `auditeur` désactivé → `/audit` et `/dossiers` refusés,
+`/dashboard` toujours ouvert (DT-31), rôle restauré → accès rétabli.
+
+---
+
+### ✅ Étape 22 — Le formulaire de déclaration perdait les saisies
+
+**Demande** : bloquer le passage à l'étape suivante tant que les champs obligatoires ne sont pas
+renseignés ; retirer le plancher de 20 caractères de la description au profit d'un plafond de 200.
+
+#### Le défaut trouvé en ouvrant le fichier
+
+Les quatre étapes étaient rendues sous condition — `{etape === 1 && …}`, `{etape === 2 && …}`.
+Passer à l'étape suivante **démontait** les champs de la précédente, et React retirait leurs nœuds
+du DOM. Or `FormData` ne collecte que les champs présents dans le formulaire.
+
+Conséquence : arrivé à l'étape 4, la soumission ne portait plus que les pièces jointes. Identité,
+contexte, catégorie, gravité, description — tout avait été détruit en chemin. **Aucune déclaration
+ne pouvait aboutir par ce formulaire.**
+
+Rien ne le signalait : les tests de service appellent `creerDeclaration()` directement, avec leurs
+propres données. Quatrième occurrence de la règle inscrite en tête de la section 6 — *un test qui
+fabrique son entrée ne teste jamais le producteur de cette entrée*.
+
+Les étapes restent désormais montées ; seule leur visibilité change.
+
+#### Bloquer l'avancement
+
+« Continuer » était un `type="button"` qui incrémentait un compteur. La validation native du
+navigateur ne se déclenche qu'à la soumission : rien n'empêchait de traverser les quatre étapes
+sans rien saisir, et les manques n'apparaissaient qu'à l'envoi, tous à la fois.
+
+Garder les étapes montées interdit en revanche de s'en remettre à la validation native : le
+navigateur refuserait d'envoyer le formulaire en désignant un champ obligatoire d'une étape
+masquée, qu'il ne peut pas focaliser — l'envoi échouerait **sans qu'aucun message n'apparaisse**.
+
+D'où `noValidate` et `validerEtapes()`, qui reprend le même contrôle :
+
+| Geste | Contrôle |
+|---|---|
+| « Continuer » | Les champs de l'étape courante. Bloque et place le curseur sur le premier en défaut |
+| « Envoyer » | Les quatre étapes. Ramène à la première en défaut — on peut être revenu vider un champ |
+| Frappe dans un champ | Efface son message, pour ne pas laisser une erreur affichée pendant la correction |
+
+`checkValidity()` fonctionne sur un champ masqué ; c'est `reportValidity()` qui échoue à y placer
+le curseur. On collecte donc les messages soi-même, on affiche l'étape fautive, **puis** on donne
+le focus.
+
+Rien de tout cela ne remplace la validation serveur : le message du serveur prime toujours sur
+celui du navigateur pour un même champ.
+
+#### Description : plancher retiré, plafond posé
+
+Arbitrage métier, en remplacement de **RGI-02** (« obligatoire, 20 caractères minimum ») :
+**facultative, 200 caractères au plus**.
+
+Le plancher écartait des signalements légitimes tenant en trois mots — « Extincteur vide, atelier
+3 » passe à 27 caractères, « Fuite gaz zone B » est refusé à 16. Le plafond tient à la lecture : au
+delà de deux ou trois phrases l'essentiel se dilue, et la messagerie du dossier existe pour le
+détail.
+
+**Conséquence assumée** : un dossier peut désormais exister sans description. `dossiers.description`
+est `TEXT NOT NULL` — c'est une chaîne vide qui est écrite, jamais NULL. La fiche dossier le dit
+explicitement plutôt que d'afficher un cadre vide, qu'on prendrait pour un défaut d'affichage.
+Aucun dossier existant n'est concerné : le plus long en compte 105.
+
+#### Ce qui empêche la récidive
+
+Quatre cas structurels dans `non-regression.test.ts`, vérifiés discriminants — ils échouent sur le
+code d'avant, passent sur celui d'après : aucune étape rendue sous condition, les quatre portant
+`data-etape`, « Continuer » passant par `continuer()`, l'envoi revalidant l'ensemble. Un cinquième
+garde RGI-03 : garder les étapes montées ne doit pas avoir transformé le retrait des champs
+d'identité en simple masquage — un champ présent dans le DOM est un champ soumissible.
+
+#### Deux nettoyages au passage
+
+`prettier` reformatait les 446 lignes du fichier — il n'est pas la mise en forme de ce dépôt. Les
+modifications ont été rejouées sur la version versionnée : 210 lignes touchées au lieu de 638.
+
+`eslint.config.mjs` ignore désormais `.next-*/**` : une instance de vérification lancée en
+parallèle faisait remonter 6 534 avertissements de code généré, sous lesquels les vrais
+disparaissaient.
+
+**Livré** — 316 tests (40 fichiers), `typecheck` et `lint` au vert. Formulaire vérifié sur deux
+parcours en HTTP réel : quatre étapes présentes simultanément dans le DOM, 18 champs portés par une
+même soumission, description sans `required` ni `minLength`, `maxlength=200` et compteur « 0/200 ».
+Base inchangée.
+
+---
+
+### ✅ Étape 23 — Le workflow avait un graphe, pas d'acteurs
+
+**Signalement** : « Les statuts changent mais les workflows ne sont pas respectés. Les déclarations
+ne quittent pas d'un écran à un autre. Tout le monde peut voir pratiquement tout. »
+
+Trois symptômes, deux défauts, et une part de conception à assumer telle quelle.
+
+#### 1. Le graphe contraignait les états, jamais les acteurs
+
+`services/dossier/statuts.ts` interdisait bien de sauter de « Reçu » à « Clôturé ». Mais
+`peutChangerStatutDossier()` se résumait à *permission + périmètre de parcours* : **n'importe quel
+porteur de `dossiers.status.update` pouvait pousser seul un dossier de bout en bout**, y compris à
+des étapes que le CDC confie à d'autres.
+
+Le constat n'est pas théorique : `GEM-2026-000002`, créé le 08/09 à 08:32, se trouvait à
+« Résolu » sans qu'aucune affectation n'existe — un seul compte l'avait mené jusque-là.
+
+Or `docs/workflows.md` §3 le demandait noir sur blanc :
+
+> les « acteurs responsables » par étape [...] sont modélisés comme un **ensemble de rôles
+> autorisés à faire progresser le dossier à cette étape**, vérifié par Policy, pas comme un unique
+> `assignee_id`.
+
+Cette table n'existait pas. Elle existe désormais — `authz/etapes.ts` — transcrite des quatre
+circuits du CDC (§6.1 à §6.4), et croisée avec le cloisonnement par parcours.
+
+**Ce que le CDC ne dit pas reste ouvert.** Quatre acteurs n'ont aucun rôle applicatif :
+« Responsable identifié » (§6.1 étape 4), « DL » (§6.3), « Équipe dédiée » (§6.4 étape 5),
+« Déclarant ou tiers ». Leur inventer une correspondance aurait bloqué du travail légitime au nom
+d'une règle que personne n'a écrite : l'absence de désignation vaut absence de restriction, et un
+test le fige comme un choix, non comme un oubli.
+
+**Une divergence entre deux documents, laissée visible.** `workflows.md` §6.2 cite le RQSE parmi
+les acteurs de l'analyse d'un grief employé ; `acteurs.md` §2 lui donne « Dossiers ei_employe ».
+Les deux transcriptions restent fidèles à leur source — c'est leur intersection qui s'applique,
+donc la règle la plus étroite. Un test l'énonce plutôt que de trancher en silence.
+
+#### 2. `dossiers.view.own` ne voulait pas dire « ses dossiers »
+
+La permission était traitée à l'identique de `dossiers.view` : les trois rôles de captage
+(`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) voyaient **l'intégralité des
+dossiers de leur parcours** quand `acteurs.md` §2 leur accorde « écriture captage, lecture de ses
+dossiers ».
+
+Le défaut venait de la baseline — `DossierPolicy::view` faisait exactement la même chose — et
+avait été porté fidèlement. Rien ne l'a signalé parce que le test qui croise la clause SQL et la
+policy ne testait aucun rôle en `view.own` : les deux implémentations concordaient sur une règle
+fausse des deux côtés.
+
+« Ses dossiers » = ceux qui lui sont affectés (l'affectation automatique EX-GES-02 lui confie
+précisément ce qu'il capte) ou ceux qu'il a lui-même déclarés.
+
+#### 3. « Tout le monde voit tout » : en partie voulu
+
+| Rôle | Avant | Après | Statut |
+|---|---|---|---|
+| `rgp`, `captage_grief_communaute`, `captage_grief_soustraitant` | tout leur parcours | leurs seuls dossiers | corrigé |
+| `service_mgp`, `dg`, `dpo`, `auditeur` | 11/11 | 11/11 | **conforme** — `acteurs.md` §2 leur donne les 4 parcours |
+| `secretaire_csst`, `rqse` | 7/11 (tous les EI) | inchangé | conforme — « Dossiers `ei_employe` » |
+| `administrateur_digital` | 0 | 0 | conforme — DT-02 |
+
+Quatre rôles voient encore l'ensemble des dossiers, et c'est la spécification : transverse pour le
+Service MGP et la DG, données personnelles pour le DPO, lecture d'audit pour l'auditeur. Le
+restreindre serait un changement de CDC, pas une correction.
+
+#### 4. « Les déclarations ne quittent pas d'un écran à un autre »
+
+La spécification écarte explicitement la réaffectation automatique (« pas comme un unique
+`assignee_id` »). Le passage d'un acteur à l'autre ne se joue donc pas sur l'affectation mais sur
+**qui a la main à cette étape** — ce qui manquait, et que le point 1 installe.
+
+Deux ajouts le rendent lisible :
+
+- **La fiche dit chez qui le dossier attend.** Ne pas pouvoir le faire avancer est normal ; sans
+  message, l'absence de bouton passait pour une panne. La carte « Étape suivante » nomme désormais
+  les acteurs de l'étape.
+- **La liste sait montrer ce qui appelle une action.** « Être affecté » et « avoir la main » sont
+  deux choses distinctes : plusieurs personnes suivent un dossier toute sa vie, une seule catégorie
+  d'acteurs le fait progresser à un instant donné. Le filtre « À moi d'agir » les sépare.
+
+#### Le revers d'une restriction, testé
+
+Une étape dont aucun compte actif ne porte le rôle bloquerait le dossier pour toujours, sans
+message et sans recours — pire que la permissivité qu'on corrige. Un cas lit la configuration
+réelle des comptes et échoue si une étape désignée se retrouve sans preneur. Il passe aujourd'hui,
+mais de justesse : l'analyse d'un grief employé ne tient qu'au seul compte `correspondant_mgp`.
+
+**Vérifié sur requêtes HTTP réelles**, cinq sessions :
+
+| Compte | Voit | Peut faire avancer |
+|---|---|---|
+| `service_mgp` | 11/11 | **3** — les 6 dossiers EI « Affecté » indiquent « attend Secrétaire CSST / RQSE » |
+| `secretaire_csst` | 7/11 | 7 — ses propres étapes, aucun blocage |
+| `correspondant_mgp` | 4/11 | 2 |
+| `auditeur` | 11/11 | 0 |
+| `administrateur_digital` | liste refusée | — |
+
+La clôture reste ouverte au Service MGP sur un dossier « Résolu » : la restriction d'étape n'a pas
+débordé sur `dossiers.close` ni sur `dossiers.reopen`, qui ont leurs propres permissions.
+
+**Livré** — 329 tests (41 fichiers), `typecheck` et `lint` au vert. Base inchangée.
+
+---
+
+### ✅ Étape 24 — Un clic de trop, et le cloisonnement par site
+
+Deux signalements sans rapport l'un avec l'autre.
+
+#### 1. « Il saute l'étape des pièces jointes pour aller à la fin »
+
+Lire le source n'a rien donné, inspecter le HTML servi non plus : les quatre étapes sont montées,
+les boutons portent `type="button"`, le champ fichier est là. Le défaut vit dans **l'interaction**,
+et rien dans la suite ne l'exerçait.
+
+D'où un environnement DOM, le seul du dépôt. L'hypothèse s'est vérifiée au premier essai :
+« Continuer » et « Envoyer ma déclaration » occupent la même place, et à la dernière étape le
+premier est remplacé **sur place** par le second. Un double-clic sur « Continuer » à l'étape 3 fait
+donc partir la déclaration — le second clic atteint un bouton qui n'existait pas au premier.
+
+L'étape 22 l'a rendu visible sans le créer : la soumission prématurée échouait auparavant côté
+serveur et ramenait au formulaire ; depuis que les saisies survivent à la navigation, elle aboutit.
+
+Le correctif énonce l'invariant plutôt qu'un délai : **un envoi ne peut pas être déclenché par le
+geste qui vient de le faire apparaître**. `MouseEvent.detail` compte les clics d'une même rafale ;
+au-delà de 1, le clic appartient au geste précédent. Un seuil de temps aurait fait dépendre la
+correction du réglage du système.
+
+#### 2. « Un secrétaire est habilité par site, et un site a une ou plusieurs directions »
+
+L'état des lieux avant de commencer :
+
+| Constat | Conséquence |
+|---|---|
+| `dossiers.site_id` existait, **jamais renseigné** (13 dossiers, 0 site) | Rien à cloisonner |
+| `directions` et `sites` étaient **deux référentiels indépendants** | « un site a plusieurs directions » n'était pas modélisé |
+| La direction était mise à **NULL pour une déclaration anonyme** | Point décisif, ci-dessous |
+
+**La chaîne** : le déclarant choisit une direction → la direction porte un site
+(`directions.site_id`, ajouté) → le dossier en hérite à la création → seuls les comptes de ce site
+le voient. Le site n'est pas demandé : le déduire évite deux informations à tenir cohérentes, et
+une contradiction entre elles qu'aucun écran ne saurait arbitrer.
+
+**Le point décisif : la direction n'est pas une donnée d'identité.** Elle était traitée comme
+telle, donc effacée pour une déclaration anonyme. Combinée aux choix retenus, **tout signalement
+anonyme serait devenu un dossier sans site, que nul secrétaire n'aurait vu** — l'inverse exact de
+ce que l'anonymat sert à obtenir. Une direction compte des centaines de personnes : la connaître
+n'identifie personne, pas plus que le lieu, déjà obligatoire et collecté anonymement. Elle est
+désormais demandée dans les deux cas, stockée sur `dossiers`, jamais dans
+`declaration_identites` — un test vérifie qu'aucune ligne d'identité n'apparaît.
+
+**Trois arbitrages, et leurs revers assumés :**
+
+| Décision | Revers |
+|---|---|
+| Dossier sans site → visible des seuls rôles transverses | Les 13 dossiers actuels échappent aux secrétaires tant qu'aucune direction n'est rattachée |
+| Compte sans site → **pas** de cloisonnement | Un oubli de paramétrage ne vide pas l'écran d'un compte qui travaillait la veille ; la console des comptes le signale par une pastille « Site manquant » |
+| Cumul avec un rôle non cloisonné → pas de cloisonnement | Cumuler « Secrétaire CSST » et « Correspondant MGP », c'est porter un mandat plus large, pas être deux fois restreint. Masquer est la direction dangereuse de l'erreur |
+
+Cinq rôles cloisonnés : `secretaire_csst`, `rqse`, `rgp`, `captage_grief_communaute`,
+`captage_grief_soustraitant`. Le site **s'ajoute** au parcours, il ne le remplace pas.
+
+**Une console pour les directions**, sans nouvelle permission — `referentiels.sites.manage` couvre
+les deux faces du même référentiel d'organisation. Elle alerte sur les directions orphelines : une
+déclaration qui les vise produit un dossier que personne d'habilité ne verra. Le sommaire de
+l'administration compte d'ailleurs les directions **sans** site, pas les directions — c'est ce
+nombre qui appelle une action.
+
+Changer le site d'une direction ne réécrit pas les dossiers déjà déposés : leur `site_id` dit de
+quel site relevait le signalement au moment des faits. Réattribuer rétroactivement ferait changer
+de mains des dossiers en cours sans que personne l'ait décidé.
+
+**Vérifié** — 346 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+le formulaire public demande « Direction concernée » sans session ouverte ; la console des
+directions affiche « 3 directions sans site de rattachement » en les nommant ; la console des
+comptes marque « Site manquant » sur le Secrétaire CSST. Base rendue à l'identique — les trois
+directions retrouvent leur rattachement d'origine après les tests.
+
+**Reste à faire, côté données** : rattacher les 3 directions à leur site, et donner un site aux
+comptes concernés. Tant que ce n'est pas fait, rien ne change pour personne — c'est voulu.
+
+---
+
+### ✅ Étape 25 — L'organisation devient administrable, et une classe de test intermittent tombe
+
+**Demande** : « le CRUD des sites, directions, faire les affectations ».
+
+#### Ce qui existait déjà, et ce qui manquait
+
+Sites et directions avaient bien leur console — la seconde venait d'être ajoutée à l'étape 24 — et
+le formulaire de compte comportait déjà les listes « Site » et « Direction ». Rien de tout cela
+n'était **praticable** pour autant : on ne pouvait pas voir qui était rattaché où sans ouvrir les
+comptes un par un, ni savoir ce qui dépendait d'un site avant de le désactiver.
+
+| Écran | Ajouté |
+|---|---|
+| Sites | Colonnes **Directions** et **Comptes** — ce qui dépend du site, visible avant d'agir |
+| Directions | (créée à l'étape 24) rattachement au site, alerte sur les orphelines |
+| Comptes | Colonne **Rattachement** : site, direction, et leur désaccord éventuel |
+
+**Le D de CRUD n'existe pas, et n'existera pas.** Ni site, ni direction, ni référentiel ne se
+supprime : une entrée déjà citée par un dossier ne peut pas disparaître sans rendre l'historique
+incohérent (RG-03). Les écrans le disent en toutes lettres, et la désactivation tient ce rôle.
+
+#### Deux incohérences que l'écran ne laissait pas voir
+
+**Désactiver un site dont des directions dépendent.** Le site d'un dossier découle de sa
+direction : désactiver le site laisserait ces directions pointer vers un rattachement hors service,
+et les déclarations qui les visent continueraient d'être acheminées vers un site que
+l'administration croit fermé. Le service refuse désormais, en nommant le nombre de directions à
+détacher d'abord.
+
+**Un compte dont le site et la direction se contredisent.** Rien ne l'interdit techniquement, mais
+l'un des deux est faux — et le dossier qu'on croira lui adresser partira ailleurs. La console le
+signale plutôt que de le laisser vivre.
+
+#### Une classe de test intermittent, éliminée
+
+La suite a échoué une fois sur `utilisateurs.test.ts` : deux lignes d'audit comparées par leur
+position, dans un `findMany` **sans `orderBy`**. PostgreSQL ne promet aucun ordre ; le cas passait
+par chance depuis des semaines, et une jointure ajoutée ailleurs a suffi à retourner le tirage.
+
+C'est le même défaut que celui corrigé à l'étape 15 sur `findFirst`. Plutôt que l'instance, la
+classe : les **neuf** requêtes d'audit non triées de la suite reçoivent un `orderBy: { id: 'asc' }`.
+Trois exécutions complètes consécutives au vert.
+
+**Vérifié** — 350 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+la console des sites affiche « Siège · 0 directions · 1 compte », celle des directions marque les
+trois comme « Aucun site », et celle des comptes montre « Superviseur CSST — Site manquant » face à
+« Talou Serges — Siège / Direction des Ressources Humaines ». Base rendue à l'identique : les
+sites et directions retrouvent leur état d'origine après les tests.
+
+---
+
+### ✅ Étape 27 — Sites et directions dans un seul écran
+
+**Demande** : « une interface CRUD des sites, directions, faire les affectations. Un site peut
+avoir plusieurs directions et une direction est rattachée à 0 ou un site. »
+
+Le modèle décrit était déjà celui en place (`directions.site_id` nullable, étape 24). Ce qui
+manquait, c'était **l'interface** : deux consoles séparées obligeaient à ouvrir chaque direction
+pour lire — puis changer — une information qui n'a de sens que rapportée au site. La question
+qu'on se pose devant ces référentiels n'est jamais « quels sites existent ? » mais « quelles
+directions relèvent de quel site ? ».
+
+`/administration/sites` et `/administration/directions` sont donc fusionnées en
+**`/administration/organisation`** :
+
+| | |
+|---|---|
+| Structure | Un bloc par site, ses directions à l'intérieur, et une section « Sans site » |
+| Création | Site et direction, depuis le même en-tête |
+| Modification | En place, sans quitter l'écran |
+| **Affectation** | Une liste déroulante par direction, qui **soumet d'elle-même** — déplacer vingt directions ne doit pas demander vingt formulaires |
+
+`rattacherDirection()` est un geste distinct de l'enregistrement, et c'est délibéré : c'est le seul
+qui déplace une direction d'un site à l'autre, et le journal doit pouvoir le dire — `direction.rattachee`,
+`direction.detachee` — sans qu'on ait à comparer quatre colonnes pour deviner ce qui a changé. Un
+rattachement qui ne change rien n'écrit rien : un journal qui consigne des non-événements devient
+illisible.
+
+**Le D de CRUD n'existe toujours pas** (RG-03). Trois garde-fous le remplacent, tous vérifiés côté
+service : un site ne se désactive pas tant que des directions y sont rattachées ; une direction ne
+se rattache pas à un site désactivé ; et les dossiers déjà déposés ne sont jamais réécrits — leur
+`site_id` dit de quel site relevait le signalement au moment des faits.
+
+**Un test de plus, pour une porte restée ouverte.** Le sommaire de `/administration` porte ses
+propres liens, qu'aucun test ne reliait à l'arborescence — le même angle mort que celui de la barre
+latérale, corrigé à l'étape 20. Fusionner deux consoles était l'occasion de le fermer : chaque
+`href` du sommaire doit désormais correspondre à un `page.tsx` existant.
+
+#### Ce que les données disent déjà
+
+Deux déclarations déposées pendant le développement, à 11:46 et 11:47, confirment la chaîne et sa
+limite :
+
+- `EI-2026-000008` — anonyme, **direction « Direction des Ressources Humaines » conservée**, site
+  `null` parce que cette direction n'est rattachée à aucun site. La correction de l'étape 24 tient :
+  l'anonymat n'efface plus la direction.
+- `GCO-2026-000002` — anonyme, **aucune direction**, parce que le formulaire Grief Communauté n'en
+  demande pas.
+
+Ce second point est un problème ouvert : seul le parcours `ei_employe` collecte une direction. Les
+dossiers des trois parcours Griefs n'auront donc jamais de site, et les rôles de captage cloisonnés
+par site (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`) ne verraient plus rien
+le jour où un site leur serait attribué. La règle « compte sans site = pas de cloisonnement » les
+protège aujourd'hui, pas demain.
+
+**Vérifié** — 354 tests (44 fichiers), `typecheck` et `lint` au vert. Sur requêtes HTTP réelles :
+le sommaire n'affiche plus qu'une entrée « Sites et directions — 3 directions sans site » ;
+l'écran fusionné rend « 3 sites · 3 directions », l'alerte des orphelines, un bloc par site
+(« Siège · SITE-SIEGE · 0 direction · 1 compte ») et **trois sélecteurs de rattachement** listant
+« — Aucun site — » et les trois sites actifs ; `/administration/sites` répond 404, comme prévu.
+Base rendue à l'identique.
+
+---
+
+### ✅ Étape 28 — Changer son mot de passe après la première connexion
+
+**Demande** : « une interface où l'utilisateur modifie son mot de passe après la première
+connexion ».
+
+#### Ce que la colonne enregistre vraiment
+
+Pas « la première connexion », mais un fait plus précis et plus utile : **le mot de passe a été
+choisi par quelqu'un d'autre**. Un administrateur crée un compte, lit la valeur générée une fois,
+la transmet — elle est donc connue d'un tiers, et l'est peut-être restée du canal emprunté, tant
+que son porteur ne l'a pas remplacée. Le même raisonnement vaut après une **régénération**, qui
+n'est pas une première connexion mais appelle exactement la même correction.
+
+`users.doit_changer_mot_de_passe` est donc posée à vrai à la création d'un compte et à chaque
+régénération, levée par le porteur seul.
+
+Ce n'est pas une subtilité de vocabulaire : tant que la valeur est connue de deux personnes, une
+action faite sous ce compte n'est imputable à personne avec certitude — ce qui vide de son sens le
+journal d'audit sur lequel repose la conformité du dispositif.
+
+#### L'écran vit hors de la coquille, et ce n'est pas du rangement
+
+`/mot-de-passe` est une route de premier niveau, délibérément **hors du groupe `(app)`**. C'est la
+coquille du back-office qui redirige vers elle tout compte dont le mot de passe est provisoire : si
+l'écran vivait sous cette coquille, il se redirigerait vers lui-même. Boucle infinie, et le compte
+serait définitivement inaccessible — un défaut qui ne se verrait qu'en production, sur le premier
+compte créé. Deux cas structurels figent les deux moitiés de cette propriété, qu'aucun test
+d'exécution ne peut atteindre : un layout ne s'appelle pas hors requête.
+
+Une seule issue est laissée à qui n'a pas encore changé : la déconnexion. Proposer « retour au
+tableau de bord » rendrait l'obligation contournable d'un clic. L'écran reste par ailleurs
+accessible volontairement, depuis le menu de compte.
+
+#### Trois décisions sur la règle elle-même
+
+| Décision | Pourquoi |
+|---|---|
+| **12 caractères minimum**, aucune règle de composition | Le générateur de l'administration en produit quatorze : accepter moins laisserait choisir plus faible que ce que la machine attribue. Les règles de composition produisent des mots de passe prévisibles (« Motdepasse1! ») sans entropie réelle — le NIST recommande de les abandonner depuis 2017 |
+| **72 OCTETS maximum**, pas caractères | bcrypt ignore silencieusement au-delà : deux phrases différant après cette borne ouvriraient le même compte. Un accent pèse deux octets, un emoji jusqu'à quatre — 40 caractères accentués dépassent déjà la limite tout en paraissant courts |
+| **Mot de passe actuel exigé**, même session ouverte | Sans lui, un poste laissé déverrouillé quelques secondes suffirait à s'approprier le compte : le voleur en changerait la clé sans avoir jamais connu l'ancienne, et le porteur légitime se retrouverait dehors |
+
+Aucun `trim()` sur la valeur : une espace en tête ou en fin fait partie du mot de passe, et la
+retirer en silence rendrait impossible de se reconnecter avec ce qu'on croit avoir saisi.
+
+Le journal consigne le fait, jamais la valeur ni son empreinte — et l'auteur est le porteur
+lui-même, ce qui distingue ce geste d'une régénération administrative.
+
+#### Vérifié de bout en bout
+
+Sur requêtes HTTP réelles, avec un compte jetable créé puis supprimé :
+
+```
+compte créé              doit changer : true
+connexion (provisoire)   ok
+  /dashboard             307 → /mot-de-passe
+  /mot-de-passe          200 — « Choisissez votre mot de passe »
+    sortie « Se déconnecter »        : oui
+    lien « Retour au tableau de bord » : non
+changement, puis reconnexion
+  /dashboard             200 (plus de redirection)
+  l'ancien mot de passe ouvre encore : non
+```
+
+**Livré** — 400 tests (50 fichiers), `typecheck` et `lint` au vert. Base rendue à l'identique :
+aucun compte de test ne subsiste.
+
+**Portée** : les comptes créés AVANT cette étape ne sont pas concernés — la colonne vaut faux pour
+les lignes existantes, à dessein. Obliger les comptes en service à changer au prochain accès n'est
+pas une décision de migration mais d'exploitation ; la commande figure en commentaire dans le
+fichier d'évolution.
+
+---
+
+### ✅ Étape 29 — Audit de bout en bout
+
+Passe complète sur le projet, à la recherche de ce qui ne lève aucune erreur mais fausse le
+fonctionnement. Cinq anomalies trouvées et corrigées, deux constats laissés ouverts.
+
+#### Ce qui a été vérifié, et qui tient
+
+| Dimension | Résultat |
+|---|---|
+| `typecheck`, `lint` | Au vert |
+| **Build de production** | Passe (`next build`), 24 routes générées |
+| Intégrité de la base | **Aucune anomalie** sur 22 contrôles : référentiels, orphelins, RG-04, RG-06, invariant d'administration, absence de secret dans l'audit |
+| Autorisation, en HTTP réel | Correcte pour les 4 rôles éprouvés, sur 23 routes, avec et sans session |
+| Dépendances | 6 vulnérabilités, toutes préexistantes et documentées (risque 7) |
+
+#### Anomalie 1 — Une page lisait la base sans revérifier la session
+
+`acces-refuse/page.tsx`, écrite la veille, interrogeait `roles` pour nommer qui détient le droit
+manquant — sans appeler aucune garde. Seul `proxy.ts` en gardait l'entrée, alors que son propre
+en-tête dit qu'il **n'est pas un contrôle d'accès** : il ne consulte pas la base et peut s'exécuter
+en périphérie. Une page de refus qui répondrait à un visiteur non authentifié lui apprendrait la
+structure des rôles sans qu'il ait jamais eu de compte.
+
+Corrigée, et surtout **outillée** : `auth/__tests__/gardes.test.ts` vérifie que chaque page du
+back-office appelle une garde, et que chaque Server Action en appelle une ou figure dans une liste
+d'entrées publiques justifiées une par une. Vérifié discriminant — la version commitée la veille
+échoue.
+
+#### Anomalie 2 — Une session de suivi qu'on ne pouvait pas fermer
+
+`fermerSessionSuivi()` existait, exportée, **appelée nulle part**. La session du déclarant vivait
+ses trente minutes sans qu'on puisse l'interrompre. Sur un poste partagé — cybercafé, poste
+d'accueil, téléphone prêté, tous ordinaires pour un plaignant communauté — la personne suivante
+lisait le dossier et sa messagerie. Un bouton « Quitter le suivi » referme désormais la session.
+
+#### Anomalie 3 — Deux boîtes de notifications, dont une morte
+
+`notification.ts` exportait `notificationsNonLues` et `marquerNotificationsLues`, doublons de
+`boite.ts` que personne n'appelait. La duplication n'était pas inoffensive : **la version morte
+oubliait `updated_at`**, que sa jumelle vivante met à jour. Qui l'aurait reprise en la croyant
+équivalente aurait laissé des lignes datées de travers. Retirées.
+
+#### Anomalies 4 et 5 — Deux droits qui n'agissent pas
+
+L'écran des habilitations propose d'accorder ou de retirer 36 droits. Deux ne sont consultés par
+aucun code : les accorder ou les retirer ne change **rien**, alors que l'écran donne à croire le
+contraire.
+
+- **`dossiers.assign`** — la première affectation est automatique (EX-GES-02), les suivantes
+  relèvent de `dossiers.reassign`. `peutAffecterDossier()` le cite, mais rien n'appelle cette
+  policy.
+- **`rgpd.acces.view`** — jamais consultée ici, ni dans la baseline Laravel, où `git grep` n'en
+  trouve aucun appel non plus : le défaut est hérité, pas introduit par le portage. L'accès aux
+  identités passe en réalité par `peutVoirIdentite()`, une liste d'exclusion à un seul nom — tout
+  le monde voit, sauf `comite_ethique`.
+
+Ni l'un ni l'autre n'est supprimé : ils viennent de la baseline et vivent dans la table
+`permissions`. Ils sont **déclarés** — l'écran affiche « Sans effet aujourd'hui — aucun écran ne le
+consulte » — et deux cas figent la liste : une permission jamais consultée doit être déclarée, une
+permission déclarée sans effet ne doit pas avoir d'appelant, et un troisième droit décoratif ferait
+échouer la suite.
+
+#### Ce que l'audit a corrigé de ses propres outils
+
+**Un refus prend trois formes, pas une.** La note d'`ARCHITECTURE.md` §5 n'en documentait qu'une —
+le marqueur `;307` dans la charge RSC. Le balayage des routes a d'abord conclu que **tout était
+ouvert pour tout le monde**, y compris l'auditeur sur la saisie relais. La cause n'était pas dans
+l'application : Next signale aussi le refus par un `<meta http-equiv="refresh">` sur un rendu
+streamé, et par un vrai 307 quand rien n'a encore été diffusé. Une note incomplète sur la manière de
+vérifier vaut un défaut : elle produit des conclusions fausses avec l'apparence de la rigueur. Les
+trois formes sont maintenant tabulées.
+
+#### Laissé ouvert, sciemment
+
+- **Un seul compte peut gérer les habilitations.** L'invariant interdit de retirer le dernier
+  accès, mais un seul porteur reste une fragilité d'exploitation : sa désactivation ne casse rien
+  formellement et bloque tout en pratique.
+- **`peutVoirIdentite()` est une liste d'exclusion, pas une permission.** Basculer sur
+  `rgpd.acces.view` changerait qui voit les identités pour la moitié des rôles — un arbitrage
+  métier, pas une correction technique.
+
+**Livré** — 406 tests (51 fichiers), `typecheck`, `lint` et `build` au vert. Base rendue à
+l'identique : aucune écriture de l'audit.
+
+---
+
+### ✅ Étape 30 — Le tableau de bord dit enfin quoi faire
+
+**Signalement** : « on a des tableaux de bord vides ou pas assez explicites ».
+
+Le constat, sur la base réelle : quatre taux et trois répartitions, soit de quoi décrire ce qui
+s'est passé — rien pour décider quoi faire le matin. « Taux de clôture 0 % », « délai moyen — »,
+« actions en retard 0 », « investigations à valider 0 » : quatre cases vides. Et les rôles de
+traitement, qui n'ont pas `reporting.view`, n'avaient même pas cela : une liste de cinq lignes,
+sans compte ni urgence.
+
+Pendant ce temps, **cinq déclarations attendaient sans destinataire** et **sept dossiers avaient
+dépassé leur échéance** — sans que rien ne l'affiche.
+
+#### Le chiffre qui manquait, et pourquoi il manquait
+
+Le nombre de dossiers en retard avait été écarté à dessein : `dateDebutEtape()` interroge
+`historique_statuts` dossier par dossier, et l'appeler sur tout un périmètre à chaque affichage de
+la page la plus visitée aurait créé un vrai N+1. La note était juste ; la conclusion, trop courte.
+
+`datesLimites()` calcule le même résultat en **deux requêtes** au lieu d'une par dossier, borné aux
+dossiers ouverts dont l'étape est suivie. La règle n'est pas réécrite : le lot passe par les mêmes
+`etapeActuelle`, `ETAPE_VERS_STATUT_DE_DEPART`, `delaisValides` et `ajouter` que le calcul
+unitaire — deux définitions de la même échéance finiraient par diverger, et l'écart se verrait
+d'abord sur une alerte qui ne part pas. Un cas les croise sur les dossiers réels, un par un.
+
+#### Ce que l'écran montre maintenant
+
+Une bande d'urgences en tête, **pour tous les rôles**, qui ne s'affiche que si elle a quelque chose
+à dire — une carte annonçant zéro tous les jours cesse d'être lue :
+
+| Carte | Pour qui |
+|---|---|
+| Vos dossiers en retard | tous |
+| En retard sur votre périmètre | ceux dont le périmètre dépasse leurs affectations |
+| Reçus sans destinataire | tous — le cas se produit quand aucun compte actif ne porte le rôle de captage du parcours |
+| Dossiers qui vous sont affectés | tous |
+
+Chaque chiffre mène à la liste correspondante, y compris le nouveau filtre `nonAffectes`, et un cas
+vérifie que la carte et la liste comptent pareil : cliquer sur « 5 » pour en découvrir sept serait
+pire que ne rien afficher.
+
+#### Les cases qui restent vides disent pourquoi
+
+« Taux de clôture 0 % » se lit comme un mauvais résultat, alors qu'il dit qu'il n'y a rien à
+mesurer. Chaque indicateur vide porte sa cause — « aucun dossier clôturé à ce jour », « se calcule
+à la clôture » —, et l'historique mensuel nomme la tâche qui le remplira
+(`calculer-statistiques-mensuelles`, mensuelle) plutôt que de laisser croire à une perte de
+données. Les taux s'affichent enfin arrondis : « 9,09 % » sur 22 dossiers promettait une précision
+que l'échantillon ne porte pas.
+
+**Vérifié** — 414 tests (53 fichiers), `typecheck` et `lint` au vert. Sur quatre sessions HTTP
+réelles : le Secrétaire CSST voit « 6 en retard · 12 affectés » là où il n'avait qu'une liste,
+l'Enquêteur « 1 en retard · 5 sans destinataire », le Service MGP et l'auditeur « 7 en retard ·
+5 sans destinataire ». Base inchangée.
+
+---
+
+ | Les empreintes en base le portent toutes. La raison change — homogénéité d'un champ plutôt qu'interopérabilité — le comportement, non |
+| L'entrée d'audit `tranche_anciennete` | Deux lignes consignent des modifications réelles. Le journal décrit le PASSÉ : sa table de noms ne se purge pas quand le présent change |
+| `cache`, `notifications`, `model_has_roles`, `role_has_permissions` | Forme héritée, fonction bien vivante |
+| Ce document, les audits datés, `decisions-techniques.md` | Ce sont des ARCHIVES. Réécrire un audit après coup le fait cesser d'être un audit ; falsifier un journal de décisions efface le raisonnement qu'il sert à conserver. Ils portent désormais un bandeau qui le dit |
+
+#### Huit constantes pour une seule valeur
+
+La constante qui porte le `model_type` des comptes était recopiée à l'identique dans **huit
+fichiers**, de l'autorisation au stockage. C'est ce qui rendait le renommage dangereux : huit
+copies d'une valeur qui doit être la même partout, c'étaient huit occasions d'en oublier une.
+
+Elle était en outre piégeuse : en guillemets ordinaires, `'App\Models\User'` vaut
+« AppModelsUser » — `\M` et `\U` ne sont pas des séquences d'échappement valides, et JavaScript
+supprime silencieusement les antislashs. Aucune erreur n'était levée ; la comparaison échouait
+toujours, et le compte se retrouvait sans aucun rôle. Il fallait donc `String.raw`, huit fois.
+
+Le code ne contient plus d'antislash, et la valeur vient d'un seul endroit : `@/server/modeles`,
+module feuille sans aucune importation — donc utilisable depuis `authz` sans y traîner la moitié du
+serveur.
+
+#### Un remède qui a débordé
+
+Le retrait des lignes `guard_name` laissait des indentations bancales. Le script de réalignement
+écrit pour les corriger a **reflué des commentaires et réindenté un littéral SQL** dans des fichiers
+qu'il n'avait aucune raison de toucher. Annulé sur ces fichiers, puis les seules corrections voulues
+réappliquées à la main. La leçon vaut d'être notée : une heuristique de mise en forme appliquée à
+tout un arbre touche ce qu'on ne regarde pas.
+
+**Vérifié** — 93 fichiers de test, 800 cas au vert, `typecheck`, `lint` et `build` propres. Les
+2 échecs restants sont la paire connue de `gravite.test.ts` : le circuit accéléré des évènements
+indésirables est coché sur deux rôles que plus aucun compte ne porte. **Qualifier un EI de critique
+n'alerte personne aujourd'hui** — trou de paramétrage, pas défaut de code.
+
+⚠️ **Une suite verte ne prouve pas que tous les fichiers ont tourné.** Sur ce poste, des workers
+vitest expirent au démarrage : le fichier n'est pas exécuté, et le total baisse sans qu'aucun échec
+n'apparaisse. Lire le COMPTE DE FICHIERS, pas la couleur.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
@@ -2313,8 +4661,11 @@ Chemin critique : `authz → Déclaration → Dossiers/workflow → Notification
 
 ## 9. Interdits absolus
 
-- ❌ `prisma migrate dev` / `migrate reset` / `db push` — la base est **partagée avec Laravel en
-  service**. Seule `prisma db pull` (lecture seule) est autorisée.
-- ❌ Supprimer ou modifier l'application Laravel avant la bascule validée.
+- ❌ `prisma migrate dev` / `migrate reset` / `db push`. Seule `prisma db pull` est autorisée.
+
+  ⚠️ **La raison d'origine a disparu, l'interdit demeure — et pour une raison plus forte.** La
+  base n'est plus partagée avec une seconde application ; mais `migrate reset` **PROPOSE
+  D'EFFACER**, et cette base porte des déclarations réelles. Le schéma évolue par les fichiers
+  SQL de `prisma/evolutions/`, appliqués à la main puis récupérés par `db pull`.
 - ❌ Considérer un module « terminé » sans sa vérification d'autorisation **côté serveur**.
 - ❌ Committer `web/.env` (contient l'URL de connexion avec mot de passe — déjà gitignoré).

@@ -3,8 +3,7 @@ import Link from 'next/link'
 /**
  * Coquille du front-office public (déclaration, suivi).
  *
- * Le panneau de contexte est la bonne direction déjà posée côté Laravel
- * (`layouts/guest.blade.php`) : accroche en serif, réassurance, étapes. Il reste visible en
+ * Le panneau de contexte — accroche en serif, réassurance, étapes — reste visible en
  * permanence sur grand écran — la réassurance doit être constante pour un déclarant qui peut
  * être en situation de méfiance (docs/visual-direction.md).
  */

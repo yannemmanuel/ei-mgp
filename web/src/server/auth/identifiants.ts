@@ -51,7 +51,7 @@ export async function verifierIdentifiants(
 /**
  * Hachage d'un mot de passe, pour les comptes créés depuis la console d'administration.
  *
- * Passe par `@/server/auth/hachage`, qui normalise le préfixe en `$2y$` : sans cela, Laravel
+ * Passe par `@/server/auth/hachage`, qui normalise le préfixe en `$2y$` : sans cela, un même
  * refuserait le compte à la connexion (cf. le docblock de ce module).
  */
 export function hacherMotDePasse(motDePasse: string): Promise<string> {

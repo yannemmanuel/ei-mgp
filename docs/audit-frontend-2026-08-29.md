@@ -1,5 +1,13 @@
 # AUDIT FRONTEND COMPLET — EI-MGP (état réel au 2026-08-29)
 
+> ⚠️ **ARCHIVE — décrit l'application AVANT le portage en Next.js.**
+>
+> Ce document est un constat daté, et il le reste : il cite des composants Livewire, des vues
+> Blade et des fichiers PHP qui n'existent plus depuis le retrait du framework (2026-09-22). Il
+> n'est PAS mis à jour, parce qu'un audit réécrit après coup cesse d'être un audit. Pour l'état
+> actuel, lire le code ; pour ce qui a été décidé depuis, `decisions-techniques.md`.
+
+
 Audit uniquement — aucune modification de code n'a été faite pour produire ce document. Portée : outils/design utilisés, images/illustrations, disposition des éléments. Vérifié directement sur le code actuel (pas sur `docs/frontend-audit.md`/`design-system.md`, qui datent d'avant la résolution de palette et sont obsolètes sur ce point).
 
 ---

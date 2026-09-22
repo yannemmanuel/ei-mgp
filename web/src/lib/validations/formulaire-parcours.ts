@@ -25,7 +25,7 @@ function schemaChamp(champ: Champ, anonyme: boolean): z.ZodTypeAny {
 
   switch (champ.type) {
     case 'case': {
-      // Une case obligatoire doit être COCHÉE (équivalent de la règle `accepted` de Laravel),
+      // Une case obligatoire doit être COCHÉE, pas seulement présente :
       // pas simplement présente — c'est le cas du consentement RGPD (RG-15).
       return requis
         ? z.literal(true, { message: `« ${champ.libelle} » est obligatoire.` })

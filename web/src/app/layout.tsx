@@ -4,7 +4,7 @@ import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 /**
- * Polices reprises de l'application Laravel (resources/css/app.css) : Instrument Sans pour
+ * Polices reprises de la charte : Instrument Sans pour
  * l'interface, Source Serif 4 réservée aux titres et aux moments « document officiel » du
  * front-office public (accroche, numéro de référence) — jamais sur les libellés de champs ni
  * les tableaux, qui restent en sans pour la lisibilité.

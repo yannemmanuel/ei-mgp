@@ -21,7 +21,7 @@ EI-MGP n'est pas un CRM ni un outil de ticketing générique : c'est le canal pa
 
 ## Hero et front-office public
 
-Le panneau de contexte du layout `guest.blade.php` (déjà en place : accroche en `font-serif`, sous-titre de réassurance, liste d'étapes) est la bonne direction et n'a pas besoin d'être réinventé — il doit être **enrichi**, pas remplacé :
+Le panneau de contexte de la coquille publique (déjà en place : accroche en `font-serif`, sous-titre de réassurance, liste d'étapes) est la bonne direction et n'a pas besoin d'être réinventé — il doit être **enrichi**, pas remplacé :
 - Ajouter un léger élément graphique dans le panneau de contexte (motif SVG abstrait ou illustration, voir stratégie ci-dessous) pour combler l'espace vide sous la liste d'étapes sur desktop.
 - Le moment "récépissé" (confirmation avec numéro de référence en serif, bordures fines) reste le point culminant émotionnel du parcours déclarant — c'est le bon endroit pour une micro-animation d'apparition (déjà `.animate-rise-in`), pas ailleurs.
 - Le futur wizard multi-étapes (Phase 6) doit garder ce panneau de contexte visible en permanence sur desktop (réassurance constante), et le réduire à une barre de progression compacte en tête de formulaire sur mobile.

@@ -1,87 +1,130 @@
 # Exigences de sécurité applicative
 
-Source : CDC (anonymat §1.5/§6.6/RG-06, RGPD RG-11/RG-15, accès par rôle RG-14/§3), et exigences
-techniques du prompt utilisateur (§25, §34). Ce document traduit ces exigences en contrôles
-concrets Laravel.
+Source : CDC (anonymat §1.5/§6.6/RG-06, RGPD RG-11/RG-15, accès par rôle RG-14/§3) et exigences
+techniques (§25, §34). Ce document traduit ces exigences en contrôles concrets, et **nomme le
+fichier qui porte chacun** — une exigence dont on ne sait pas où elle est appliquée ne se vérifie
+pas.
+
+> ⚠️ **Réécrit le 2026-09-22.** Ce document prescrivait des contrôles Laravel : Policies PHP,
+> échappement Blade, `$fillable`, middleware `permission:`. L'application est en Next.js depuis la
+> migration, et ces prescriptions étaient devenues **inapplicables** — quelqu'un qui auditait
+> contre elles cherchait ce qui n'existe pas, et passait à côté de ce qui protège réellement. Les
+> EXIGENCES n'ont pas changé ; seuls les contrôles qui les servent sont réexprimés.
 
 ## 1. Anonymat — exigence critique
 
-| Exigence | Contrôle technique |
-|---|---|
-| Aucune donnée d'identification collectée si anonymat coché | Le formulaire Livewire ne rend même pas les champs d'identité si le toggle anonymat est actif (pas seulement `disabled`/masqué CSS) ; côté serveur, le Form Request ignore/rejette ces champs si `anonyme=true` |
-| Aucune donnée d'identification stockée | Table `declaration_identites` **non créée** (pas de ligne) pour un dossier anonyme — vérifiable par une contrainte applicative + test automatisé |
-| Aucune donnée d'identification affichée aux traitants | Aucune UI back-office ne doit référencer `declaration_identites` sans vérifier `dossier.is_anonymous === false` au préalable (revue de code systématique + test Feature dédié EX-DEC-03) |
-| Le compte employé connecté n'est jamais lié à une déclaration anonyme | `dossiers.declarant_user_id` reste NULL si `is_anonymous = true`, même si l'employé était connecté au moment de la soumission (EX-DEC-04) |
-| Suivi sans lever l'identité | Page `/suivi` accessible uniquement via `reference + code_secondaire`, jamais via une session utilisateur |
-| Messagerie sans lever l'identité | Table `messages` : côté déclarant anonyme, pas de `user_id`, authentification par jeton de session lié à `reference + code_secondaire` (RG-06) |
-| Logs d'audit non ré-identifiants | `audit_logs` ne doit jamais contenir en clair une donnée qui permettrait de recomposer l'identité d'un déclarant anonyme (ex. ne pas logger l'adresse IP de soumission dans un champ consultable par les rôles de traitement — seul l'auditeur/DPO y accède, cf. `exigences-audit.md`) |
+| Exigence | Contrôle technique | Où |
+|---|---|---|
+| Aucune donnée d'identification collectée si anonymat coché | Le formulaire ne REND PAS les champs marqués `identite` quand l'anonymat est coché — pas seulement masqués en CSS. Le serveur les jette ensuite, même s'ils lui parviennent : un navigateur peut avoir gardé une saisie antérieure, et une requête peut être forgée | `declaration/parcours-config.ts` (`identite`), `declarer/[parcours]/formulaire.tsx` |
+| Aucune donnée d'identification stockée | La ligne `declaration_identites` n'est **pas créée** pour un dossier anonyme. Ce n'est pas un champ vidé : la ligne n'existe pas | `declaration/creer-declaration.ts` |
+| Aucune donnée d'identification affichée aux traitants | La fiche ne charge l'identité qu'après vérification de `is_anonymous`, et le rôle peut en outre porter « ne voit pas l'identité du déclarant » | `dossier/fiche.ts`, `authz/utilisateur.ts` (`voitIdentiteDeclarant`) |
+| Le compte connecté n'est jamais lié à une déclaration anonyme | `dossiers.declarant_user_id` reste NULL si `is_anonymous`, même si l'employé était connecté au moment du dépôt (EX-DEC-04) | `declaration/creer-declaration.ts` |
+| Suivi sans lever l'identité | `/suivi` n'est accessible que par `référence + code d'accès`, jamais par une session utilisateur | `(public)/suivi/`, `auth/session-suivi.ts` |
+| Messagerie sans lever l'identité | Côté déclarant anonyme, aucun `expediteur_user_id` ; l'authentification passe par le jeton lié à la référence et au code (RG-06) | `services/messagerie/` |
+| Journal d'audit non ré-identifiant | `audit_logs` porte l'adresse IP et l'agent, mais ils ne sont **pas chargés** pour un rôle qui n'y a pas droit — la valeur ne transite jamais, elle n'est pas seulement masquée à l'écran | `audit/consultation.ts`, `authz` (`peutVoirAdresseIpAudit`) |
+
+⚠️ **L'anonymat est tenu EN BASE, pas seulement à l'écran.** Des contrôles d'intégrité le
+vérifient sur la base réelle : aucun dossier anonyme ne porte d'identité, aucun ne porte de
+`declarant_user_id`.
 
 ## 2. Contrôle d'accès (RBAC)
 
-- Toute permission est vérifiée **côté serveur** via Policies Laravel (`DossierPolicy`,
-  `InvestigationPolicy`, `ActionCorrectivePolicy`, `AuditLogPolicy`, `ExportPolicy`) — jamais
-  uniquement par masquage de bouton dans Blade/Livewire.
-- Middleware `permission:` (spatie) sur toutes les routes back-office.
-- Cloisonnement par parcours : une Policy vérifie systématiquement `dossier->parcours_id` en plus du
-  rôle (cf. `acteurs.md` §1).
-- **IDOR** : les routes de consultation d'un dossier par un utilisateur authentifié utilisent
-  `Route::model()` + Policy `view`, jamais un simple ID incrémental exposé sans vérification. Les
-  identifiants publics exposés (référence, `reference` colonne) ne doivent **pas** être la clé
-  primaire technique (voir `modele-donnees.md` — usage d'ULID + référence métier distincte).
-- Un utilisateur ne peut jamais être affecté comme traitant de son propre dossier (DT-06).
+Toute permission est vérifiée **côté serveur**, jamais par le seul masquage d'un bouton. Un
+utilisateur sans droit ne doit pas pouvoir contourner la restriction en appelant directement une
+action.
+
+**Quatre verrous indépendants**, et il faut les quatre :
+
+1. **La permission** — `exigerPermission()` en tête de chaque page et de chaque Server Action.
+2. **Le parcours** — le type de déclaration doit être ouvert à l'un de ses rôles (`role_parcours`).
+3. **Le rattachement** — site ou direction, quand le rôle est cloisonné
+   (`cloisonne_par_rattachement`). La direction est plus fine que le site et prime sur lui.
+4. **L'étape** — faire AVANCER un dossier suppose que l'un de ses rôles soit désigné pour l'étape
+   de départ, sur ce type de déclaration (`role_etapes`).
+
+Le tout vit dans `src/server/authz`, point d'entrée unique. Les pages n'accèdent jamais à Prisma
+directement.
+
+- **Cloisonnement par parcours** : vérifié dans les Policies, en plus du rôle (cf. `acteurs.md` §1).
+- **IDOR** : les identifiants de dossier sont des ULID, pas des entiers incrémentaux, et chaque
+  consultation repasse par la Policy `peutVoirDossier`. La référence métier (`EI-2026-000042`) est
+  distincte de la clé technique.
+- Un utilisateur n'instruit jamais son propre dossier (DT-06).
+
+⚠️ **Un rôle désactivé ne confère RIEN** — ni permission, ni parcours, ni étape. C'est là que la
+désactivation prend son sens : la masquer dans les écrans n'aurait retiré aucun droit.
+
+⚠️ **Les autorisations sont relues en base à CHAQUE requête**, jamais portées par le jeton de
+session. Une désactivation prend effet immédiatement, sans attendre l'expiration du jeton.
 
 ## 3. Protection des pièces jointes
 
-| Risque | Contrôle |
-|---|---|
-| Upload de fichier malveillant | Validation Laravel (`mimes:`, `max:`), **revalidation du type réel** via `finfo`/`getMimeType()` côté serveur (ne jamais faire confiance au `Content-Type` envoyé par le navigateur) |
-| Exécution de script uploadé | Stockage hors `public/`, noms de fichiers générés (UUID), aucune exécution possible depuis le disque de stockage |
-| Accès non autorisé à une pièce confidentielle | Téléchargement exclusivement via un contrôleur qui vérifie la Policy du dossier parent avant de streamer le fichier (`Storage::response()` derrière `Gate`), jamais d'URL Storage publique directe pour les pièces jointes de dossiers non-anonymes sensibles |
-| Dépassement de quota | Limite 10 fichiers / 50 Mo appliquée côté Form Request **et** côté configuration serveur (`upload_max_filesize`, `post_max_size`) |
+| Risque | Contrôle | Où |
+|---|---|---|
+| Fichier malveillant | Type réel vérifié **aux octets d'en-tête** (`file-type`), jamais d'après le `Content-Type` du navigateur ni l'extension. Liste blanche d'extensions | `declaration/pieces-jointes.ts` |
+| Exécution d'un fichier déposé | Stockage **hors du dossier public**, nom de fichier régénéré (ULID), jamais dérivé du nom fourni — un nom d'origine peut contenir des séparateurs de chemin | `stockage/magasin.ts` |
+| Accès non autorisé | **Aucune pièce n'est jamais servie par une URL de stockage publique.** Le fichier transite par une route qui revérifie la Policy du dossier PARENT, que la pièce soit attachée au dossier, à une investigation ou à une action corrective | `api/pieces-jointes/[id]/route.ts` |
+| Contenu actif dans un aperçu | La réponse pose `nosniff` et une CSP dédiée ; `?apercu=1` ne relâche aucun contrôle, il est lu **après** l'autorisation et ne décide que des en-têtes | `stockage/reponse-piece-jointe.ts` |
+| Dépassement de quota | Plafond par fichier et plafond global du lot, appliqués côté serveur | `lib/limites-pieces-jointes.ts` |
 
-## 4. Durcissement des routes publiques de déclaration
+⚠️ **Écart connu** : le plafond annoncé au déclarant (5 Mo) dépasse ce que la plate-forme accepte
+une fois encodé en multipart (~6,7 Mo pour 6 Mo autorisés). Un lot au plafond exact sera refusé.
 
-Les 4 formulaires publics et la page de suivi sont, par nature, exposés sans authentification — donc
-la surface d'abus la plus large de l'application.
+## 4. Durcissement des routes publiques
 
-- **Rate limiting** (`throttle:`) par IP sur : soumission de déclaration, consultation de suivi,
-  envoi de message via la messagerie sécurisée.
-- Le rate limiting sur `/suivi` est particulièrement important car un code secondaire à 4-6 chiffres
-  a une entropie faible (10 000 à 1 000 000 combinaisons) : throttling agressif + verrouillage
-  temporaire après N tentatives échouées sur une même référence, journalisé pour l'auditeur/DPO.
-- Anti-spam sur formulaires publics : honeypot / délai minimum de remplissage, sans dépendance à un
-  service tiers externe non mentionné dans le CDC (pas de CAPTCHA imposé par le CDC — à confirmer
-  avec le métier si nécessaire, cf. `decisions-techniques.md`).
-- CSRF : protection standard Laravel sur tous les formulaires (Livewire la gère nativement).
+Les 4 formulaires publics et la page de suivi sont exposés sans authentification : c'est la
+surface d'abus la plus large de l'application.
 
-## 5. Autres contrôles standards (OWASP Top 10)
+- **Limitation de débit par IP** sur la soumission de déclaration, la connexion, la consultation
+  de suivi et la messagerie publique. Le compteur vit **en base**, incrémenté par un
+  `ON CONFLICT … DO UPDATE` atomique : il tient donc sur plusieurs instances, là où un compteur en
+  mémoire se contournerait en changeant de serveur. Voir `auth/throttle.ts`.
+- La limitation sur `/suivi` est la plus importante : un code d'accès à 6 chiffres n'a qu'un
+  million de combinaisons.
+- **Anti-robot** sur les formulaires publics, sans service tiers :
+  - un champ piège invisible — un robot qui le remplit reçoit un **faux succès**, car lui
+    signaler la détection lui apprendrait à ne plus le remplir ;
+  - un délai minimal de remplissage, calculé sur un **horodatage signé en HMAC** par le serveur.
+    ⚠️ Non signé, ce contrôle ne valait rien : il suffisait de poster « maintenant moins dix ».
+    Voir `auth/horodatage-signe.ts`.
+- **CSRF** : les Server Actions de Next.js vérifient l'origine de la requête nativement.
 
-| Risque | Contrôle |
-|---|---|
-| Injection SQL | Eloquent / Query Builder exclusivement, aucune requête SQL brute concaténée |
-| XSS | Échappement Blade par défaut (`{{ }}`), pas de `{!! !!}` sur du contenu utilisateur |
-| Mass assignment | `$fillable` explicite sur chaque modèle, jamais `$guarded = []` |
-| Sessions | Configuration Laravel standard (cookies `HttpOnly`, `Secure` en production, régénération de session à la connexion) |
-| Secrets | Toutes les valeurs sensibles en `.env`, jamais committées (cf. `decisions-techniques.md` — `.gitignore`) |
-| CSRF sur API futures | Si une API est ajoutée plus tard (hors périmètre CDC actuel), Sanctum sera utilisé — non implémenté en Phase 0-1 |
+## 5. Autres contrôles standards (OWASP)
 
-## 6. Exports et restriction des données nominatives (RG-14, EX-REP-06)
+| Risque | Contrôle | Où |
+|---|---|---|
+| Injection SQL | Prisma exclusivement. Les rares requêtes brutes sont des *tagged templates* ; tout fragment dynamique passe par `Prisma.sql` / `Prisma.join`. **Aucun `Prisma.raw` nulle part** | tout `src/server/services` |
+| XSS | React échappe par défaut. **Aucun `dangerouslySetInnerHTML`, aucun `eval`** dans la base de code | — |
+| Affectation en masse | Les entrées sont validées par des schémas Zod et recopiées champ par champ ; aucun objet de requête n'est passé tel quel à une écriture | `lib/validations/` |
+| Sessions | Jeton JWT ne portant QUE l'identité, deux heures d'inactivité, cookies `HttpOnly` et `Secure` en production | `auth/config.ts` |
+| En-têtes HTTP | CSP, HSTS, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` | `lib/entetes-securite.ts`, `next.config.ts` |
+| Mots de passe | 12 caractères minimum, plafond à 72 octets — la troncature silencieuse de bcrypt est traitée explicitement. Jamais stockés en clair | `auth/hachage.ts`, `auth/mot-de-passe.ts` |
+| Secrets | Toutes les valeurs sensibles en `.env`, ignoré par git ; `.env.example` ne porte aucune valeur réelle | — |
+| Tâches planifiées | Secret comparé en **temps constant**, POST exigé, refus par défaut si le secret est absent | `api/taches/[tache]/route.ts` |
 
-- Chaque export (Excel/PDF) passe par `ExportPolicy` qui détermine, selon le rôle de l'utilisateur
-  exportant, si les colonnes d'identité (`declaration_identites.*`) sont incluses ou non.
-- Par défaut : **exclusion**. Seuls les rôles explicitement autorisés (`service_mgp` sur ses propres
-  dossiers, `dpo` pour les besoins de conformité) peuvent inclure des données nominatives, et
-  uniquement sur des dossiers non-anonymes.
-- Aucun paramètre d'URL ne doit permettre de forcer l'inclusion de données nominatives
-  (`?include_identity=1` par exemple) sans revérification de la permission côté serveur.
+## 6. Exports et données nominatives (RG-14, EX-REP-06)
+
+- **Par défaut : exclusion.** L'export nominatif porte sa propre permission, distincte de celle de
+  l'export ordinaire.
+- Chaque export nominatif est **journalisé** : il fait sortir des données personnelles du système.
+- Aucun paramètre d'URL ne permet de forcer l'inclusion de données nominatives sans revérification
+  côté serveur.
+- Les dossiers anonymes n'exposent jamais d'identité, quel que soit le rôle.
 
 ## 7. RGPD et conservation (RG-11, RG-15)
 
-- Consentement RGPD explicite obligatoire uniquement pour le parcours Sous-traitant (seul formulaire
-  du CDC à porter ce champ bloquant, §9.3).
-- Politique de conservation (§11.3) implémentée comme job planifié, sous supervision du rôle `dpo`
-  (permission `rgpd.conservation.manage`).
-- Les demandes d'accès/rectification/suppression RGPD ne sont pas détaillées fonctionnellement dans
-  le CDC au-delà du rôle DPO (§3) : seule l'existence du rôle et de son accès en lecture aux données
-  personnelles + journaux d'accès est spécifiée. Un module de traitement de ticket RGPD n'est donc
-  **pas** construit tant que le CDC ne le détaille pas (cf. règle « ne pas inventer »).
+- Consentement RGPD explicite obligatoire sur le parcours Sous-traitant (seul formulaire du CDC à
+  porter ce champ bloquant, §9.3).
+- Politique de conservation (§11.3) appliquée par une tâche planifiée mensuelle, sous la
+  responsabilité du rôle `dpo` (permission `rgpd.conservation.manage`).
+
+⚠️ **ÉCART CONNU, NON RÉSOLU.** `anonymiser()` supprime la ligne `declaration_identites` et marque
+le dossier, mais ne touche **ni les pièces jointes** — une photo d'accident montre des visages,
+un badge, une plaque — **ni les messages** échangés avec le déclarant, **ni les champs libres**
+`description` et `lieu`, où un nom est fréquemment écrit. Le dossier est donc déclaré anonymisé
+alors qu'il reste ré-identifiable, et la trace juridique affirme que l'obligation est tenue.
+C'est le pire des deux mondes ; à corriger avant toute mise en production durable.
+
+- Les demandes d'accès / rectification / suppression ne sont pas détaillées dans le CDC au-delà du
+  rôle DPO (§3). Aucun module de ticket RGPD n'est construit tant que le CDC ne le spécifie pas
+  (règle « ne pas inventer »).

@@ -1,5 +1,14 @@
 # Journal des décisions techniques
 
+> ⚠️ **JOURNAL HISTORIQUE — plusieurs décisions ci-dessous ont été PRISES EN LARAVEL, puis
+> remplacées par le portage en Next.js (2026-09-22).**
+>
+> Elles ne sont pas corrigées : une décision est un fait daté, et réécrire le journal effacerait
+> le raisonnement qu'il sert à conserver. Ce qui a changé depuis est consigné dans le code
+> lui-même, où chaque garde non évidente porte le défaut qu'elle empêche. Lire donc ces entrées
+> comme « ce qui a été décidé, et pourquoi », jamais comme « ce qu'il faut faire aujourd'hui ».
+
+
 Ce journal recense les décisions prises **là où le cahier des charges ne tranche pas** un point
 technique, conformément à la règle : « les choix techniques peuvent être proposés, mais les règles
 métier doivent rester conformes au CDC ». Chaque entrée indique la question, la décision, la

@@ -1,5 +1,13 @@
 # PAGE REDESIGN MAP — EI-MGP SODECI
 
+> ⚠️ **ARCHIVE — décrit l'application AVANT le portage en Next.js.**
+>
+> Ce document est un constat daté, et il le reste : il cite des composants Livewire, des vues
+> Blade et des fichiers PHP qui n'existent plus depuis le retrait du framework (2026-09-22). Il
+> n'est PAS mis à jour, parce qu'un audit réécrit après coup cesse d'être un audit. Pour l'état
+> actuel, lire le code ; pour ce qui a été décidé depuis, `decisions-techniques.md`.
+
+
 Pour chaque écran majeur : état actuel → limites UX → nouvelle structure → vérification fonctionnelle (méthodologie imposée, §41 du prompt d'origine). Les rôles cités sont les 15 rôles réels de `RolePermissionSeeder` — pas les personas génériques ("Gestionnaire", "Enquêteur"...) du prompt d'origine, qui ne correspondent à aucun rôle effectivement modélisé dans l'application.
 
 ## Rôles réels et regroupement en "profils" d'expérience

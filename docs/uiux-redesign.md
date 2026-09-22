@@ -1,5 +1,13 @@
 # UI/UX REDESIGN AUDIT — EI-MGP SODECI
 
+> ⚠️ **ARCHIVE — décrit l'application AVANT le portage en Next.js.**
+>
+> Ce document est un constat daté, et il le reste : il cite des composants Livewire, des vues
+> Blade et des fichiers PHP qui n'existent plus depuis le retrait du framework (2026-09-22). Il
+> n'est PAS mis à jour, parce qu'un audit réécrit après coup cesse d'être un audit. Pour l'état
+> actuel, lire le code ; pour ce qui a été décidé depuis, `decisions-techniques.md`.
+
+
 Statut : **audit seul, aucun code modifié.** Conformément à l'instruction explicite du prompt qui a déclenché ce document, ceci est la Phase REDESIGN 0. Aucune ligne de Blade/CSS/PHP n'a été touchée pour produire ce rapport — tout ce qui suit vient de la lecture directe du code actuel (routes/web.php, les 22 composants Livewire, `RolePermissionSeeder`, `app.css`, les layouts, `DossierDetailPage`, `DashboardConsolide`, `DeclarationFormBase` et ses 4 sous-classes).
 
 **Point de méthode à valider avant toute implémentation** : ce prompt fournit une palette de base (`#1F3864` navy / `#C55A11` orange / `#F4F6FA`), mais le message précédent de cette même conversation avait donné l'instruction explicite et directe *« utilise cette couleur #00A651 et le blanc »* — le vert `#00A651` est la couleur de marque réelle de SODECI. Les deux instructions sont contradictoires et je ne peux pas trancher seul un choix d'identité visuelle aussi structurant. Section 11 et `design-system-v2.md` proposent une résolution (vert SODECI en primaire, navy/orange comme teintes de soutien) mais **ce point reste en attente de confirmation explicite**, au même titre que le reste de ce rapport.

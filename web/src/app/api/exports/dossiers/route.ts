@@ -49,7 +49,7 @@ export async function GET(requete: NextRequest): Promise<Response> {
   const filtre = filtreDepuisParametres(parametres, utilisateur)
   const lignes = await lignesExport(filtre, inclureNominatif)
 
-  // Ajout par rapport à Laravel : un export de données nominatives sort des données personnelles
+  // Un export de données nominatives sort des données personnelles
   // du système sans laisser aucune trace côté baseline. Le DPO doit pouvoir savoir qui a extrait
   // quoi. Seul l'export nominatif est journalisé — un export anonyme ne sort aucune identité.
   if (inclureNominatif) {

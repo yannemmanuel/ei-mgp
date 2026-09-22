@@ -1,5 +1,13 @@
 # Audit frontend — EI-MGP
 
+> ⚠️ **ARCHIVE — décrit l'application AVANT le portage en Next.js.**
+>
+> Ce document est un constat daté, et il le reste : il cite des composants Livewire, des vues
+> Blade et des fichiers PHP qui n'existent plus depuis le retrait du framework (2026-09-22). Il
+> n'est PAS mis à jour, parce qu'un audit réécrit après coup cesse d'être un audit. Pour l'état
+> actuel, lire le code ; pour ce qui a été décidé depuis, `decisions-techniques.md`.
+
+
 État constaté au 2026-08-29, sur le dépôt actuel (22 composants Livewire, back-office + front-office public).
 
 ## 1. Ce qui existe déjà (acquis, à ne pas refaire)

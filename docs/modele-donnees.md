@@ -1,8 +1,13 @@
 # Modèle de données relationnel (PostgreSQL)
 
 Ce modèle traduit les entités identifiées en `cahier-des-charges-analyse.md` §II et les règles de
-`regles-metier.md`. Il sera implémenté en Phase 2 sous forme de migrations Laravel. Ce document est
-la **proposition** soumise à validation avant tout codage.
+`regles-metier.md`.
+
+> ⚠️ **Ce document décrivait une proposition à implémenter ; il décrit désormais ce qui EXISTE.**
+> Le schéma vit en base et se récupère par `prisma db pull` ; il évolue par les fichiers SQL de
+> `prisma/evolutions/`, jamais par `prisma migrate`. En cas de divergence entre ce document et
+> `prisma/schema.prisma`, **c'est le schéma qui fait foi** — ce fichier-ci explique le pourquoi,
+> pas le quoi.
 
 ## 1. Conventions
 
@@ -12,7 +17,7 @@ la **proposition** soumise à validation avant tout codage.
   référence purement internes (catégories, statuts, sites…) et pour `users`/`audit_logs` qui ne sont
   pas exposées comme identifiants publics devinables (accès toujours derrière authentification +
   policy).
-- **Horodatage** : `created_at`/`updated_at` (Laravel timestamps) partout sauf `audit_logs` (`created_at`
+- **Horodatage** : `created_at`/`updated_at` partout sauf `audit_logs` (`created_at`
   seul, table append-only).
 - **Suppression** : pas de `deleted_at` sur `dossiers` (RG-03 interdit la suppression). Les
   référentiels d'administration utilisent un champ `actif boolean` plutôt qu'un soft-delete
@@ -42,7 +47,9 @@ users
 ├── created_at / updated_at
 
 roles, permissions, model_has_roles, model_has_permissions, role_has_permissions
-    -> générées par la migration standard spatie/laravel-permission, non redéfinies ici.
+    -> tables d'autorisation (rôles, permissions et leurs liaisons). `model_has_roles` et
+       `model_has_permissions` sont POLYMORPHES : elles portent un `model_type` (voir
+       `src/server/modeles.ts`) plutôt qu'une clé étrangère vers `users`.
 ```
 
 ## 3. Référentiels (administrables — Module 14)
@@ -328,9 +335,9 @@ investigations 1───n actions_correctives (nullable)
 investigations 1───n pieces_jointes (polymorphe)
 actions_correctives 1───n pieces_jointes (polymorphe)
 
-users n───n roles (spatie)
-roles n───n permissions (spatie)
-users n───n permissions directes (spatie, optionnel)
+users n───n roles              (via model_has_roles, polymorphe)
+roles n───n permissions        (via role_has_permissions)
+users n───n permissions directes (via model_has_permissions, optionnel)
 
 audit_logs n───1 users (nullable)
 audit_logs n───1 * (polymorphe, tout modèle métier)

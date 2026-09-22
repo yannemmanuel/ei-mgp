@@ -46,7 +46,7 @@ async function conversation(dossierId: string): Promise<MessageVue[]> {
   return messages.map((m) => ({
     id: m.id,
     cote: m.expediteur_type === 'agent' ? 'agent' : 'declarant',
-    // Parité avec la vue Livewire : le déclarant voit le nom de l'agent qui lui répond, ce qui
+    // Le déclarant voit le nom de l'agent qui lui répond, ce qui
     // rend l'échange non anonyme DANS CE SENS uniquement. L'inverse reste impossible.
     auteur: m.expediteur_type === 'agent' ? (m.users?.name ?? 'Agent') : 'Vous',
     corps: m.corps,

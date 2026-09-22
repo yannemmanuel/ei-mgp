@@ -682,9 +682,8 @@ function CompteurActionnable({
 /**
  * Répartition en barres proportionnelles.
  *
- * La version Laravel s'appuie sur Chart.js ; ici la barre est du CSS pur — même lecture, sans
- * dépendance de graphique, et le rendu reste entièrement serveur (donc imprimable et lisible
- * sans JavaScript).
+ * La barre est du CSS pur, sans bibliothèque de graphique : le rendu reste entièrement serveur,
+ * donc imprimable et lisible sans JavaScript.
  */
 function Repartition({
   titre,

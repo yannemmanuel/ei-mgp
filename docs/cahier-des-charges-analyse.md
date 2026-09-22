@@ -79,13 +79,13 @@ adoptée pour chaque point :
 
 | # | Point ouvert | Hypothèse du CDC | Position technique adoptée ici |
 |---|---|---|---|
-| 1 | Solution technique cible (MS Forms vs app dédiée) | Le CDC reste agnostique | **Tranché côté prompt utilisateur** : application dédiée Laravel/PostgreSQL. Ce point est donc résolu pour ce projet. |
+| 1 | Solution technique cible (MS Forms vs app dédiée) | Le CDC reste agnostique | **Tranché** : application dédiée sur PostgreSQL. (Bâtie d'abord en Laravel, portée en Next.js depuis.) Ce point est donc résolu pour ce projet. |
 | 2 | Budget / délai projet | Aucune hypothèse | Sans objet pour le développement technique ; aucun arbitrage de périmètre n'est fait sur cette base. |
 | 3 | Faisabilité messagerie sécurisée liée à un dossier anonyme | Incluse au périmètre cible, sous réserve technique | **Confirmée faisable** et implémentée (EX-NOT-07) — voir `workflows.md` §Messagerie. |
 | 4 | Délais chiffrés manquants (analyse préliminaire EI, traitement/enquête EI, mise en œuvre mesures — tous parcours) | Valeurs « à valider » | Modélisées comme données de configuration modifiables sans déploiement (table `sla_delais`), avec un flag `est_valide_metier=false` par défaut sur ces lignes. Le calcul d'alerte reste **désactivé** pour une étape tant que son délai n'est pas validé (pas de fausse alerte sur une valeur provisoire). Voir `decisions-techniques.md` DT-04. |
 | 5 | Nom / rattachement du DPO | Rôle documenté génériquement | Rôle `dpo` créé sans utilisateur nominatif préassigné ; à assigner en Phase 3/10 par l'administrateur. |
 | 6 | Répartition responsable orientation « Autre » par parcours | Service MGP/DADD par défaut pour les 4 parcours | Implémenté tel quel (RG-09) ; le référentiel `categories` prévoit une catégorie « Autre » par parcours, routée par défaut vers le rôle `service_mgp`. |
-| 7 | Multilinguisme | Hors périmètre | Non implémenté. Les libellés restent en base (tables de référence, pas de texte figé dans les vues Blade autant que possible) pour ne pas fermer la porte à une i18n future, sans construire de moteur de traduction. |
+| 7 | Multilinguisme | Hors périmètre | Non implémenté. Les libellés restent en base (tables de référence, pas de texte figé dans les écrans autant que possible) pour ne pas fermer la porte à une i18n future, sans construire de moteur de traduction. |
 
 ## 6. Exigences de sécurité, d'audit et de conformité — synthèse
 

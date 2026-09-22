@@ -6,10 +6,10 @@
  * `model_has_roles.model_type` et `notifications.notifiable_type`. Ce sont des liens
  * POLYMORPHES : la colonne dit à quelle table appartient l'identifiant voisin.
  *
- * ⚠️ ILS PORTAIENT DES NOMS DE CLASSE PHP jusqu'au 2026-09-22 — `App\Models\User`,
- * `Spatie\Permission\Models\Role`. La raison était bonne en son temps : les deux applications
- * lisaient le même journal pendant la migration, et s'en écarter l'aurait rendu illisible d'un
- * côté. L'application PHP est partie ; la raison avec elle.
+ * ⚠️ ILS PORTAIENT DES NOMS DE CLASSE PHP jusqu'au 2026-09-22, de la forme `App\Models\User`.
+ * La raison était bonne en son temps : les deux applications lisaient le même journal pendant la
+ * migration, et s'en écarter l'aurait rendu illisible d'un côté. L'application PHP est partie ;
+ * la raison avec elle.
  *
  * ⚠️ CE NE SONT PAS DES NOMS INVENTÉS. Chaque code reprend le préfixe que la colonne
  * `audit_logs.action` emploie DÉJÀ pour le même objet — `statut_dossier.modifie`,

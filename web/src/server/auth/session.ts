@@ -18,7 +18,7 @@ import { auth } from './config'
  * Les primitives `unauthorized()`/`forbidden()` de Next.js sont volontairement écartées : elles
  * restent expérimentales en 16 (drapeau `experimental.authInterrupts`), et la couche de sécurité
  * ne doit pas dépendre d'une API susceptible de changer. On s'en tient à `redirect()`, stable —
- * ce qui reproduit d'ailleurs exactement le comportement Laravel pour un visiteur non
+ * ce qui est le comportement attendu pour un visiteur non
  * authentifié (cf. `tests/Feature/Auth/LoginTest.php`).
  */
 
@@ -73,7 +73,7 @@ export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
  * distinguer un refus d'autorisation d'une panne technique — elle afficherait « une erreur est
  * survenue » au lieu de « accès refusé », uniquement en production.
  *
- * Divergence assumée avec Laravel : celui-ci répond en HTTP 403, ici l'utilisateur est redirigé
+ * ⚠️ REDIRECTION PLUTÔT QUE 403, et c'est délibéré : l'utilisateur est redirigé
  * vers une page de refus explicite. L'accès est bloqué de la même façon ; seule la présentation
  * diffère.
  */

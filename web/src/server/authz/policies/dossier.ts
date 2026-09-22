@@ -91,7 +91,7 @@ export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAuto
    * La permission était traitée à l'identique de `dossiers.view`, ce qui la vidait de son sens —
    * les rôles de captage (`rgp`, `captage_grief_communaute`, `captage_grief_soustraitant`)
    * voyaient l'intégralité des dossiers de leur parcours quand `docs/acteurs.md` §2 leur accorde
-   * « écriture captage, lecture de ses dossiers ». Le défaut venait de la baseline Laravel
+   * « écriture captage, lecture de ses dossiers ». Le défaut venait du paramétrage d'origine
    * (`DossierPolicy::view`) et avait été porté fidèlement.
    *
    * « Ses dossiers » = ceux qui lui sont affectés — l'affectation automatique (EX-GES-02) leur

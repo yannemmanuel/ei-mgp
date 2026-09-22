@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 /**
  * Session de SUIVI : l'authentification du déclarant, y compris anonyme.
  *
- * Équivalent de `session('suivi_verifie_'.$dossier->id)` côté Laravel, mais sans session
+ * Mémorise qu'un déclarant a franchi la vérification de son code d'accès, sans session
  * serveur : Next.js n'en a pas. Le jeton est donc un cookie signé, portant UNIQUEMENT
  * l'identifiant du dossier prouvé et une date d'expiration.
  *

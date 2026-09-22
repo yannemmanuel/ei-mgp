@@ -24,7 +24,7 @@ export type LibellePermission = {
   /**
    * Aucun code ne consulte cette permission : l'accorder ou la retirer ne change rien.
    *
-   * Elle existe dans le catalogue et dans la base — héritées de la baseline Laravel —, et la
+   * Elle existe dans le catalogue et dans la base — héritées du paramétrage d'origine —, et la
    * retirer casserait la parité. Mais un droit qui ne fait rien tout en ayant l'air d'agir est
    * pire qu'un droit absent : l'écran doit le dire, et un test vérifie que la mention reste vraie.
    */
@@ -195,7 +195,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
       'Consulter l’identité des déclarants. En pratique, tous les rôles la voient sauf le Comité éthique.',
     sensibilite: 'donnees_personnelles',
     /*
-     * Jamais consultée — ni ici, ni dans la baseline Laravel, où le `git grep` ne trouve aucun
+     * Jamais consultée — ni ici, ni dans le dispositif d'origine, où aucune recherche ne trouve
      * appel non plus. Le défaut est donc hérité, pas introduit par le portage.
      *
      * L'accès aux identités passe par `peutVoirIdentite()`, une liste d'exclusion à un seul nom :

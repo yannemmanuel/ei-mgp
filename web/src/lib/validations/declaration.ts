@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
 /**
- * Validation des formulaires de déclaration — port des règles Laravel
- * (`App\Livewire\Declaration\*`) et des règles implicites du CDC recensées dans
+ * Validation des formulaires de déclaration — règles du CDC recensées dans
  * `docs/regles-metier.md` §B.
  *
  * Ces schémas sont exécutés CÔTÉ SERVEUR dans les Server Actions. Une validation côté client

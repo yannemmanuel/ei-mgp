@@ -5,10 +5,10 @@ import { hacher, verifier } from '../hachage'
 /**
  * Compatibilité du hachage entre les deux applications.
  *
- * Ce n'est pas une préférence de style : `Hash::check()` de Laravel lève
+ * Ce n'est pas une préférence de style : les empreintes déjà en base portent toutes `$2y$`, et
  * `RuntimeException: This password does not use the Bcrypt algorithm.` sur un préfixe `$2b$`,
  * celui que `bcryptjs` écrit par défaut. Sans normalisation, tout mot de passe et tout code
- * d'accès produit ici deviendrait définitivement illisible côté Laravel — donc, pour un code
+ * un même champ ne doit pas porter deux formats selon la date de la ligne — donc, pour un code
  * d'accès, un dossier que son déclarant ne pourrait plus consulter.
  *
  * Vérifié en conditions réelles contre le PHP du projet ; ce test est le garde-fou permanent.
@@ -28,7 +28,7 @@ describe('Hachage compatible PHP', () => {
   })
 
   it('relit un hachage au format $2y$, celui des comptes existants', async () => {
-    // Empreinte réelle de « password » générée par Laravel (coût 4, pour la vitesse du test).
+    // Empreinte de « password » au coût 4, pour la vitesse du test.
     const brut = await bcrypt.hash('password', 4)
     const versionPhp = brut.replace(/^\$2[abx]\$/, '$2y$')
 
