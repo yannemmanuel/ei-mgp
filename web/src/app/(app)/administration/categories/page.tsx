@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { listerCategories } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
-import { actionEnregistrerCategorie } from '../actions'
+import { actionDeplacerCategorie, actionEnregistrerCategorie, actionSupprimerCategorie } from '../actions'
 
 export const metadata: Metadata = { title: 'Administration — Catégories' }
 export const dynamic = 'force-dynamic'
@@ -20,14 +20,16 @@ export default async function PageCategories() {
     <EditeurReferentiel
       titre="Catégories"
       description="Catégories de déclaration proposées dans les formulaires, par parcours."
-      colonnes={['Parcours', 'Code', 'Libellé', 'Ordre', 'Autre', 'État']}
+      colonnes={['Parcours', 'Code', 'Libellé', 'Autre', 'État']}
       lignes={categories.map((c) => ({
         id: String(c.id),
+        // Le rang d'une catégorie se compte DANS son parcours : monter la première d'un parcours
+        // ne doit pas la faire passer dans le précédent.
+        groupe: String(c.parcours_id),
         cellules: [
           c.parcours.libelle,
           c.code,
           c.libelle,
-          String(c.ordre),
           c.is_autre ? 'Oui' : '—',
           { badge: c.actif ? 'Actif' : 'Inactif', variant: c.actif ? 'default' : 'secondary' },
         ],
@@ -35,7 +37,6 @@ export default async function PageCategories() {
           parcoursId: String(c.parcours_id),
           code: c.code,
           libelle: c.libelle,
-          ordre: String(c.ordre),
           isAutre: c.is_autre,
           actif: c.actif,
         },
@@ -50,11 +51,12 @@ export default async function PageCategories() {
         },
         { type: 'texte', nom: 'code', libelle: 'Code', requis: true, max: 100 },
         { type: 'texte', nom: 'libelle', libelle: 'Libellé', requis: true, max: 255 },
-        { type: 'nombre', nom: 'ordre', libelle: 'Ordre d’affichage', requis: true, min: 1 },
         { type: 'booleen', nom: 'isAutre', libelle: 'Catégorie « Autre »' },
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={actionEnregistrerCategorie}
+      actionDeplacer={actionDeplacerCategorie}
+      actionSupprimer={actionSupprimerCategorie}
       creationPossible
       libelleCreation="Ajouter une catégorie"
     />

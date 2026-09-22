@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { listerPostes } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
-import { actionEnregistrerPoste } from '../actions'
+import { actionDeplacerPoste, actionEnregistrerPoste, actionSupprimerPoste } from '../actions'
 
 export const metadata: Metadata = { title: 'Administration — Postes' }
 export const dynamic = 'force-dynamic'
@@ -31,19 +31,19 @@ export default async function PagePostes() {
     <EditeurReferentiel
       titre="Postes"
       description="Postes proposés dans le formulaire, selon la direction choisie."
-      colonnes={['Direction', 'Poste', 'Ordre', 'État']}
+      colonnes={['Direction', 'Poste', 'État']}
       lignes={postes.map((p) => ({
         id: String(p.id),
+        // Le rang d'un poste se compte DANS sa direction.
+        groupe: String(p.direction_id),
         cellules: [
           p.directions.libelle,
           p.libelle,
-          String(p.ordre),
           { badge: p.actif ? 'Actif' : 'Inactif', variant: p.actif ? 'default' : 'secondary' },
         ],
         valeurs: {
           directionId: String(p.direction_id),
           libelle: p.libelle,
-          ordre: String(p.ordre),
           actif: p.actif,
         },
       }))}
@@ -56,10 +56,11 @@ export default async function PagePostes() {
           options: directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle })),
         },
         { type: 'texte', nom: 'libelle', libelle: 'Poste', requis: true, max: 255 },
-        { type: 'nombre', nom: 'ordre', libelle: 'Ordre d’affichage', requis: true, min: 1 },
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={actionEnregistrerPoste}
+      actionDeplacer={actionDeplacerPoste}
+      actionSupprimer={actionSupprimerPoste}
       creationPossible
       libelleCreation="Ajouter un poste"
     />

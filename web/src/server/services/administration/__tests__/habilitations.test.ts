@@ -35,8 +35,9 @@ afterAll(async () => {
 describe('Lecture de la matrice', () => {
   it('expose tous les rôles et toutes les permissions', async () => {
     const { lignes, permissions } = await chargerHabilitations()
+    const enBase = await prisma.roles.findMany({ where: { guard_name: 'web' }, select: { name: true } })
 
-    expect(lignes.map((l) => l.role).sort()).toEqual([...ROLE_NAMES].sort())
+    expect(lignes.map((l) => l.role).sort()).toEqual(enBase.map((r) => r.name).sort())
     expect(permissions).toEqual(PERMISSIONS)
   })
 
@@ -88,14 +89,14 @@ describe('Détection d’écart', () => {
     const { ecarts } = await chargerHabilitations()
 
     for (const ecart of ecarts) {
-      const role = await prisma.roles.findFirstOrThrow({
+      const role = await prisma.roles.findFirst({
         where: { name: ecart.role },
         select: {
           role_has_permissions: { select: { permissions: { select: { name: true } } } },
         },
       })
 
-      const enBase = new Set(role.role_has_permissions.map((r) => r.permissions.name))
+      const enBase = new Set(role?.role_has_permissions.map((r) => r.permissions.name) ?? [])
       const reference = new Set<string>(ROLES[ecart.role as RoleLivre] ?? [])
 
       for (const ajoutee of ecart.ajoutees) {

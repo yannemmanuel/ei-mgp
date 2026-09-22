@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { chargerReferentiels } from '@/server/services/declaration/referentiels-formulaire'
 import { exigerPermission } from '@/server/auth'
+import { signerHorodatage } from '@/server/auth/horodatage-signe'
 import { PARCOURS, estParcoursValide } from '@/server/services/declaration/parcours-config'
 import { CANAUX_RELAIS } from '@/server/services/declaration/soumission'
 import { FormulaireDeclaration } from '@/app/(public)/declarer/[parcours]/formulaire'
@@ -71,6 +72,15 @@ export default async function PageRelais({ params }: PageProps<'/relais/[parcour
         categoriesAutre={categories.filter((c) => c.is_autre).map((c) => String(c.id))}
         niveauxGravite={niveaux.map((n) => ({ valeur: String(n.id), libelle: n.libelle }))}
         referentiels={referentiels}
+        /*
+          ⚠️ SIGNÉ ICI AUSSI, bien que la saisie relais soit authentifiée : le formulaire est le
+          même composant, et il poste le champ dans tous les cas. Le laisser vide ferait échouer
+          la vérification de signature sur un canal parfaitement légitime.
+
+          Les contrôles anti-robot n'ont pas de sens sur un agent connecté — c'est la Server
+          Action relais qui décide de les appliquer ou non, pas le formulaire.
+        */
+        horodatageSigne={signerHorodatage()}
         soumettre={soumettreDeclarationRelais}
         canauxRelais={canaux.map((c) => ({ valeur: c.code, libelle: c.libelle }))}
       />

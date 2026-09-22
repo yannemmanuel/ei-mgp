@@ -14,9 +14,13 @@ import {
 /**
  * Référentiels administrables (module 7) — port des composants `App\Livewire\Administration\*`.
  *
- * **Aucune suppression n'est exposée, nulle part.** Un référentiel déjà cité par un dossier ne
- * peut pas disparaître sans casser l'intégrité de l'historique : seule la désactivation (`actif`)
- * est proposée, comme pour les dossiers eux-mêmes (RG-03).
+ * **Une entrée citée par l'historique ne peut pas être supprimée** (RG-03). La suppression
+ * existe depuis le 12/09/2026, mais elle est CONDITIONNELLE : chaque fonction compte d'abord ce
+ * qui référence la ligne, et refuse tant que ce compte n'est pas nul. Une catégorie déjà portée
+ * par un dossier ne part donc jamais — il reste la désactivation (`actif`), qui la retire des
+ * formulaires sans toucher au passé. Postes, lieux, villes et tranches, eux, ne sont cités par
+ * aucune table : leur valeur est recopiée en texte au moment de la déclaration, et les effacer
+ * ne réécrit aucun historique.
  *
  * Chaque mutation est journalisée au format de `AuditObserver` (`modele.cree` / `modele.modifie`,
  * avec le différentiel des seuls champs modifiés), pour que la console d'audit de Laravel
@@ -33,12 +37,27 @@ export type DonneesCategorie = {
   libelle: string
   isAutre: boolean
   actif: boolean
-  ordre: number
 }
 
+/**
+ * Rang manuel d'abord, alphabétique ensuite — groupé par parcours.
+ *
+ * Ces deux critères ne s'opposent pas, ils se complètent, et c'est ce qui permet de tenir les
+ * deux demandes à la fois (arbitrages des 11 et 12/09/2026) :
+ *
+ * - le champ « Ordre d'affichage » a disparu des paramètres : plus de numéro à taper, plus de
+ *   renumérotation à la main à chaque ajout ;
+ * - tant que les lignes d'un groupe partagent le même rang — c'est le cas de la plupart d'entre
+ *   elles — le rang ne départage rien et l'affichage est ALPHABÉTIQUE, par défaut ;
+ * - les boutons « monter / descendre » attribuent des rangs distincts, et l'ordre voulu prend
+ *   alors le pas sur l'alphabet, là où il porte un sens.
+ *
+ * Ce dernier point n'est pas théorique : les tranches d'ancienneté forment une échelle. Classées
+ * alphabétiquement, « Moins d'1 an » tombait en quatrième position, après « 5 à 10 ans ».
+ */
 export async function listerCategories() {
   return prisma.categories.findMany({
-    orderBy: [{ parcours_id: 'asc' }, { ordre: 'asc' }],
+    orderBy: [{ parcours: { libelle: 'asc' } }, { ordre: 'asc' }, { libelle: 'asc' }],
     select: {
       id: true,
       code: true,
@@ -79,7 +98,6 @@ export async function enregistrerCategorie(
     libelle: donnees.libelle,
     is_autre: donnees.isAutre,
     actif: donnees.actif,
-    ordre: donnees.ordre,
   }
 
   if (categorieId === undefined) {
@@ -558,6 +576,251 @@ export async function enregistrerGabarit(
   return gabaritId
 }
 
+// --- Rang et suppression -----------------------------------------------------------------------
+
+export type SensDeplacement = 'monter' | 'descendre'
+
+/** `App\Models\Categorie` → `categorie`, pour composer le code d'action du journal. */
+function codeModele(type: ModeleAudite): string {
+  return (type.split('\\').pop() ?? type).toLowerCase()
+}
+
+/**
+ * Déplace une ligne d'un rang, et RENUMÉROTE tout son groupe.
+ *
+ * Renuméroter plutôt qu'échanger deux valeurs n'est pas un excès de zèle : aujourd'hui, la
+ * plupart des listes ont toutes leurs lignes au même rang — leur affichage n'est qu'alphabétique.
+ * Échanger deux valeurs identiques ne déplacerait rien du tout. La renumérotation fige donc
+ * l'ordre affiché au moment du clic, puis y applique le déplacement demandé.
+ *
+ * Le groupe est reçu DÉJÀ TRIÉ comme il est affiché : « monter » doit signifier « d'une ligne
+ * vers le haut à l'écran », et non « d'une unité de rang ».
+ */
+async function deplacerDansGroupe(
+  acteur: Acteur,
+  type: ModeleAudite,
+  groupe: readonly { id: bigint; ordre: number }[],
+  cibleId: bigint,
+  sens: SensDeplacement,
+  ecrire: (id: bigint, ordre: number) => Prisma.PrismaPromise<unknown>
+): Promise<void> {
+  const depuis = groupe.findIndex((l) => l.id === cibleId)
+
+  if (depuis === -1) throw new ErreurWorkflow('Entrée introuvable.')
+
+  const vers = sens === 'monter' ? depuis - 1 : depuis + 1
+
+  if (vers < 0 || vers >= groupe.length) {
+    throw new ErreurWorkflow(
+      sens === 'monter'
+        ? 'Cette entrée est déjà la première.'
+        : 'Cette entrée est déjà la dernière.'
+    )
+  }
+
+  const ordonne = [...groupe]
+  ;[ordonne[depuis], ordonne[vers]] = [ordonne[vers], ordonne[depuis]]
+
+  // Une seule transaction : un groupe à moitié renuméroté porterait des rangs en double, donc un
+  // classement qui dépendrait de l'ordre de lecture de la base.
+  await prisma.$transaction(ordonne.map((ligne, index) => ecrire(ligne.id, index + 1)))
+
+  // Le journal ne retient que la ligne sur laquelle on a agi. Les autres rangs bougent
+  // mécaniquement ; les tracer une par une noierait le geste réel sous sa comptabilité.
+  await journaliserModification(
+    `${codeModele(type)}.modifie`,
+    type,
+    String(cibleId),
+    acteur,
+    { ordre: groupe[depuis].ordre } as unknown as ValeursAudit,
+    { ordre: vers + 1 }
+  )
+}
+
+export async function deplacerCategorie(
+  acteur: Acteur,
+  categorieId: bigint,
+  sens: SensDeplacement
+): Promise<void> {
+  const cible = await prisma.categories.findUniqueOrThrow({
+    where: { id: categorieId },
+    select: { parcours_id: true },
+  })
+
+  // Le groupe, c'est le PARCOURS : les catégories sont affichées regroupées ainsi, et une
+  // catégorie d'Événement indésirable n'a pas de rang relatif à une catégorie de Grief.
+  const fratrie = await prisma.categories.findMany({
+    where: { parcours_id: cible.parcours_id },
+    orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+    select: { id: true, ordre: true },
+  })
+
+  await deplacerDansGroupe(acteur, MODELES.categorie, fratrie, categorieId, sens, (id, ordre) =>
+    prisma.categories.update({ where: { id }, data: { ordre, updated_at: new Date() } })
+  )
+}
+
+export async function deplacerPoste(
+  acteur: Acteur,
+  posteId: bigint,
+  sens: SensDeplacement
+): Promise<void> {
+  const cible = await prisma.postes.findUniqueOrThrow({
+    where: { id: posteId },
+    select: { direction_id: true },
+  })
+
+  const fratrie = await prisma.postes.findMany({
+    where: { direction_id: cible.direction_id },
+    orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+    select: { id: true, ordre: true },
+  })
+
+  await deplacerDansGroupe(acteur, MODELES.poste, fratrie, posteId, sens, (id, ordre) =>
+    prisma.postes.update({ where: { id }, data: { ordre, updated_at: new Date() } })
+  )
+}
+
+/* Même contrainte qu'à `listerListePlate()` : un `switch` explicite, pas un délégué dynamique. */
+function ecrireRangListePlate(liste: ListePlate, id: bigint, ordre: number) {
+  const data = { ordre, updated_at: new Date() }
+
+  if (liste === 'lieu') return prisma.lieux.update({ where: { id }, data })
+  if (liste === 'ville') return prisma.villes.update({ where: { id }, data })
+  return prisma.tranches_anciennete.update({ where: { id }, data })
+}
+
+export async function deplacerListePlate(
+  acteur: Acteur,
+  liste: ListePlate,
+  ligneId: bigint,
+  sens: SensDeplacement
+): Promise<void> {
+  const lignes = await listerListePlate(liste)
+
+  await deplacerDansGroupe(
+    acteur,
+    MODELE_DE_LISTE[liste],
+    lignes.map((l) => ({ id: l.id, ordre: l.ordre })),
+    ligneId,
+    sens,
+    (id, ordre) => ecrireRangListePlate(liste, id, ordre)
+  )
+}
+
+/**
+ * Supprime une catégorie — À CONDITION que rien ne la cite.
+ *
+ * `dossiers` et `statistiques_mensuelles` portent une clé vers `categories`. Effacer une ligne
+ * citée laisserait des dossiers dont plus personne ne saurait dire de quoi ils traitaient, et des
+ * agrégats dont la colonne de regroupement aurait disparu : c'est exactement ce que RG-03
+ * protège. Le refus est donc une règle, pas une prudence — et la désactivation reste offerte, qui
+ * retire l'entrée des formulaires sans toucher au passé.
+ */
+export async function supprimerCategorie(acteur: Acteur, categorieId: bigint): Promise<void> {
+  const cible = await prisma.categories.findUniqueOrThrow({
+    where: { id: categorieId },
+    select: {
+      code: true,
+      libelle: true,
+      is_autre: true,
+      actif: true,
+      ordre: true,
+      parcours_id: true,
+      _count: { select: { dossiers: true, statistiques_mensuelles: true } },
+    },
+  })
+
+  const { dossiers, statistiques_mensuelles: statistiques } = cible._count
+
+  if (dossiers > 0 || statistiques > 0) {
+    const citations = [
+      dossiers > 0 ? `${dossiers} dossier${dossiers > 1 ? 's' : ''}` : null,
+      statistiques > 0
+        ? `${statistiques} ligne${statistiques > 1 ? 's' : ''} de statistiques`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' et ')
+
+    throw new ErreurWorkflow(
+      `Cette catégorie est citée par ${citations} : la supprimer rendrait cet historique ` +
+        'incohérent. Désactivez-la pour la retirer des formulaires.'
+    )
+  }
+
+  await prisma.categories.delete({ where: { id: categorieId } })
+
+  await journaliser({
+    action: 'categorie.supprimee',
+    acteurId: acteur.id,
+    auditableType: MODELES.categorie,
+    auditableId: String(categorieId),
+    // Les valeurs effacées sont consignées : c'est la seule trace qui restera de la ligne.
+    anciennes: {
+      code: cible.code,
+      libelle: cible.libelle,
+      is_autre: cible.is_autre,
+      actif: cible.actif,
+      ordre: cible.ordre,
+      parcours_id: String(cible.parcours_id),
+    },
+  })
+}
+
+/**
+ * Supprime un poste.
+ *
+ * Aucune table ne porte de clé vers `postes` : le poste choisi est recopié en TEXTE dans la
+ * déclaration. Effacer la ligne ne réécrit donc aucun historique — elle disparaît seulement de la
+ * liste proposée à la saisie suivante.
+ */
+export async function supprimerPoste(acteur: Acteur, posteId: bigint): Promise<void> {
+  const cible = await prisma.postes.findUniqueOrThrow({
+    where: { id: posteId },
+    select: { libelle: true, actif: true, ordre: true, direction_id: true },
+  })
+
+  await prisma.postes.delete({ where: { id: posteId } })
+
+  await journaliser({
+    action: 'poste.supprime',
+    acteurId: acteur.id,
+    auditableType: MODELES.poste,
+    auditableId: String(posteId),
+    anciennes: {
+      libelle: cible.libelle,
+      actif: cible.actif,
+      ordre: cible.ordre,
+      direction_id: String(cible.direction_id),
+    },
+  })
+}
+
+/** Voir `supprimerPoste()` : ces trois listes ne sont citées par aucune clé étrangère. */
+export async function supprimerListePlate(
+  acteur: Acteur,
+  liste: ListePlate,
+  ligneId: bigint
+): Promise<void> {
+  const lignes = await listerListePlate(liste)
+  const cible = lignes.find((l) => l.id === ligneId)
+
+  if (!cible) throw new ErreurWorkflow('Entrée introuvable.')
+
+  if (liste === 'lieu') await prisma.lieux.delete({ where: { id: ligneId } })
+  else if (liste === 'ville') await prisma.villes.delete({ where: { id: ligneId } })
+  else await prisma.tranches_anciennete.delete({ where: { id: ligneId } })
+
+  await journaliser({
+    action: `${codeModele(MODELE_DE_LISTE[liste])}.supprimee`,
+    acteurId: acteur.id,
+    auditableType: MODELE_DE_LISTE[liste],
+    auditableId: String(ligneId),
+    anciennes: { libelle: cible.libelle, actif: cible.actif, ordre: cible.ordre },
+  })
+}
+
 // --- Journalisation commune --------------------------------------------------------------------
 
 async function journaliserModification(
@@ -597,18 +860,18 @@ async function journaliserModification(
 export type DonneesPoste = {
   directionId: bigint
   libelle: string
-  ordre: number
   actif: boolean
 }
 
+/** Rang puis alphabétique, dans chaque direction — voir `listerCategories()` pour le motif. */
 export async function listerPostes() {
   return prisma.postes.findMany({
     orderBy: [{ directions: { libelle: 'asc' } }, { ordre: 'asc' }, { libelle: 'asc' }],
     select: {
       id: true,
       libelle: true,
-      ordre: true,
       actif: true,
+      ordre: true,
       direction_id: true,
       directions: { select: { libelle: true } },
     },
@@ -639,7 +902,6 @@ export async function enregistrerPoste(
   const valeurs = {
     direction_id: donnees.directionId,
     libelle: donnees.libelle,
-    ordre: donnees.ordre,
     actif: donnees.actif,
   }
   const maintenant = new Date()
@@ -676,9 +938,9 @@ export async function enregistrerPoste(
   return posteId
 }
 
-export type DonneesListeSimple = { libelle: string; ordre: number; actif: boolean }
+export type DonneesListeSimple = { libelle: string; actif: boolean }
 
-/** Les trois listes plates partagent la même forme : un libellé, un ordre, un état. */
+/** Les trois listes plates partagent la même forme : un libellé et un état. */
 export type ListePlate = 'lieu' | 'ville' | 'trancheAnciennete'
 
 /*
@@ -690,6 +952,7 @@ export type ListePlate = 'lieu' | 'ville' | 'trancheAnciennete'
   ce qui protège ici — la vérification que les colonnes écrites existent.
 */
 export async function listerListePlate(liste: ListePlate) {
+  // Rang puis alphabétique — voir `listerCategories()` pour le motif.
   const options = { orderBy: [{ ordre: 'asc' as const }, { libelle: 'asc' as const }] }
 
   if (liste === 'lieu') return prisma.lieux.findMany(options)
@@ -716,7 +979,7 @@ export async function enregistrerListePlate(
     throw new ErreurWorkflow('Ce libellé existe déjà.')
   }
 
-  const valeurs = { libelle: donnees.libelle, ordre: donnees.ordre, actif: donnees.actif }
+  const valeurs = { libelle: donnees.libelle, actif: donnees.actif }
   const maintenant = new Date()
 
   if (ligneId === undefined) {

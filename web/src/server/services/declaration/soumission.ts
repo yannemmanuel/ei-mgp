@@ -6,6 +6,7 @@ import { creerDeclaration, type DonneesIdentite } from './creer-declaration'
 import { ErreurPieceJointe, type FichierAValider } from './pieces-jointes'
 import { PARCOURS, champsVisibles, estParcoursValide, type Champ } from './parcours-config'
 import { autoriserTentative, cleThrottle } from '@/server/auth/throttle'
+import { verifierHorodatage } from '@/server/auth/horodatage-signe'
 
 /**
  * Traitement d'une soumission de déclaration, commun aux DEUX voies d'entrée :
@@ -90,7 +91,6 @@ export async function traiterSoumission(
     niveauGraviteId: String(donnees.get('niveauGraviteId') ?? ''),
     description: String(donnees.get('description') ?? ''),
     attentesDeclarant: String(donnees.get('attentesDeclarant') ?? '') || undefined,
-    horodatageAffichage: Number(donnees.get('horodatageAffichage') ?? 0),
   }
 
   for (const champ of visibles) {
@@ -360,9 +360,31 @@ async function controlesAntiRobot(donnees: FormData): Promise<EtatSoumission | n
     return { succes: { reference: 'EI-0000-000000', codeAcces: '000000' } }
   }
 
-  const horodatage = Number(donnees.get('horodatageAffichage') ?? 0)
+  /*
+    ⚠️ L'HORODATAGE EST VÉRIFIÉ AVANT D'ÊTRE LU, et c'est toute la correction (S2, 2026-09-22).
 
-  if (Math.floor(Date.now() / 1000) - horodatage < DELAI_MINIMAL_SECONDES) {
+    Il était posé par le NAVIGATEUR : le délai minimal se contournait en postant
+    « maintenant − 10 ». La valeur est maintenant produite et signée au rendu de la page ; une
+    valeur forgée n'a pas de signature valide, et une valeur récoltée une fois ne se rejoue pas
+    au-delà de sa fenêtre.
+
+    ⚠️ DEUX REFUS DISTINCTS, ET DEUX MESSAGES DISTINCTS. Une signature invalide trahit une
+    manipulation — on ne dit pas laquelle, et surtout on ne conseille pas de « réessayer », ce qui
+    guiderait celui qui cherche. Un envoi trop rapide est le fait d'un humain pressé, et mérite
+    l'invitation à recommencer.
+  */
+  const horodatage = verifierHorodatage(String(donnees.get('horodatageAffichage') ?? ''))
+
+  if (!horodatage.ok) {
+    return {
+      erreurGenerale:
+        horodatage.raison === 'expire'
+          ? 'Ce formulaire est resté ouvert trop longtemps. Rechargez la page pour l’envoyer.'
+          : 'Le formulaire n’a pas pu être vérifié. Rechargez la page et recommencez.',
+    }
+  }
+
+  if (Math.floor(Date.now() / 1000) - horodatage.secondes < DELAI_MINIMAL_SECONDES) {
     return { erreurGenerale: 'Le formulaire a été soumis trop rapidement. Merci de réessayer.' }
   }
 

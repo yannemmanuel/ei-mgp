@@ -18,7 +18,19 @@ export default function LayoutPublic({ children }: LayoutProps<'/'>) {
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside className="bg-gradient-to-b from-white to-secondary-50 px-6 py-8 lg:w-96 lg:shrink-0 lg:px-10 lg:py-12">
-        <Link href="/" className="flex items-center gap-2">
+        {/*
+          `/declarer` et non `/`.
+
+          `/` n'est pas un accueil : c'est un aiguillage personnel — `/dashboard` si l'on est
+          connecté, `/login` sinon. Or personne ne l'est ici : ce gabarit sert le front-office
+          public, dont le déclarant est par construction un visiteur anonyme. Cliquer la marque
+          en cours de déclaration le renvoyait donc à la connexion du PERSONNEL, page qui ne le
+          concerne pas et qui lui fait perdre sa saisie.
+
+          `/declarer` est le point d'entrée unique de la déclaration (EX-DEC-01/02) : c'est
+          l'accueil de qui se trouve ici.
+        */}
+        <Link href="/declarer" className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
             EI
           </span>

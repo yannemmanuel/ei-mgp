@@ -10,6 +10,13 @@ import {
   enregistrerListePlate,
   type ListePlate,
   enregistrerPoste,
+  deplacerCategorie,
+  deplacerListePlate,
+  deplacerPoste,
+  supprimerCategorie,
+  supprimerListePlate,
+  supprimerPoste,
+  type SensDeplacement,
   enregistrerGabarit,
   enregistrerDirection,
   enregistrerSite,
@@ -94,7 +101,6 @@ export async function actionEnregistrerCategorie(
         libelle: texte(donnees, 'libelle'),
         isAutre: coche(donnees, 'isAutre'),
         actif: coche(donnees, 'actif'),
-        ordre: entier(donnees, 'ordre', 1),
       },
       identifiant(donnees)
     )
@@ -424,7 +430,6 @@ export async function actionEnregistrerPoste(
       {
         directionId: BigInt(directionId),
         libelle: texte(donnees, 'libelle'),
-        ordre: entier(donnees, 'ordre', 1),
         actif: coche(donnees, 'actif'),
       },
       identifiant(donnees)
@@ -461,7 +466,6 @@ function actionListePlate(liste: ListePlate, succes: string) {
         liste,
         {
           libelle: texte(donnees, 'libelle'),
-          ordre: entier(donnees, 'ordre', 1),
           actif: coche(donnees, 'actif'),
         },
         identifiant(donnees)
@@ -480,4 +484,160 @@ export const actionEnregistrerVille = actionListePlate('ville', 'Ville enregistr
 export const actionEnregistrerTranche = actionListePlate(
   'trancheAnciennete',
   'Tranche enregistrée.'
+)
+
+/* ==========================================================================
+   Rang et suppression
+   ==========================================================================
+
+   Deux gestes ajoutés le 12/09/2026, sur les seuls référentiels librement composés — catégories,
+   postes, lieux, villes, tranches d'ancienneté. Les statuts et les canaux en restent exclus :
+   leurs lignes sont fixées par le code, et le rang d'un statut décrit un cycle de vie.
+
+   Comme partout ici, la permission est revérifiée dans l'action : les boutons de l'écran ne
+   protègent rien. */
+
+/** « monter » ou « descendre », jamais autre chose — la valeur vient du navigateur. */
+function sens(donnees: FormData): SensDeplacement | null {
+  const brut = texte(donnees, 'sens')
+  return brut === 'monter' || brut === 'descendre' ? brut : null
+}
+
+export async function actionDeplacerCategorie(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.categories.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const id = identifiant(donnees)
+  const direction = sens(donnees)
+  if (id === undefined || direction === null) return { erreur: 'Déplacement impossible.' }
+
+  try {
+    await deplacerCategorie(acteur, id, direction)
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/categories')
+  return { succes: 'Ordre mis à jour.' }
+}
+
+export async function actionSupprimerCategorie(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.categories.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const id = identifiant(donnees)
+  if (id === undefined) return { erreur: 'Catégorie introuvable.' }
+
+  try {
+    await supprimerCategorie(acteur, id)
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/categories')
+  return { succes: 'Catégorie supprimée.' }
+}
+
+export async function actionDeplacerPoste(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.categories.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const id = identifiant(donnees)
+  const direction = sens(donnees)
+  if (id === undefined || direction === null) return { erreur: 'Déplacement impossible.' }
+
+  try {
+    await deplacerPoste(acteur, id, direction)
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/postes')
+  return { succes: 'Ordre mis à jour.' }
+}
+
+export async function actionSupprimerPoste(
+  _precedent: EtatFormulaire,
+  donnees: FormData
+): Promise<EtatFormulaire> {
+  const acteur = await acteurAutorise('referentiels.categories.manage')
+  if (!acteur) return { erreur: REFUS }
+
+  const id = identifiant(donnees)
+  if (id === undefined) return { erreur: 'Poste introuvable.' }
+
+  try {
+    await supprimerPoste(acteur, id)
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revalidatePath('/administration/postes')
+  return { succes: 'Poste supprimé.' }
+}
+
+/** Une action paramétrée par liste, comme pour l'enregistrement — voir `actionListePlate()`. */
+function actionRangListePlate(liste: ListePlate) {
+  return async function deplacer(
+    _precedent: EtatFormulaire,
+    donnees: FormData
+  ): Promise<EtatFormulaire> {
+    const acteur = await acteurAutorise('referentiels.categories.manage')
+    if (!acteur) return { erreur: REFUS }
+
+    const id = identifiant(donnees)
+    const direction = sens(donnees)
+    if (id === undefined || direction === null) return { erreur: 'Déplacement impossible.' }
+
+    try {
+      await deplacerListePlate(acteur, liste, id, direction)
+    } catch (erreur) {
+      return { erreur: messageErreur(erreur) }
+    }
+
+    revalidatePath('/administration/listes-formulaires')
+    return { succes: 'Ordre mis à jour.' }
+  }
+}
+
+function actionSuppressionListePlate(liste: ListePlate, succes: string) {
+  return async function supprimer(
+    _precedent: EtatFormulaire,
+    donnees: FormData
+  ): Promise<EtatFormulaire> {
+    const acteur = await acteurAutorise('referentiels.categories.manage')
+    if (!acteur) return { erreur: REFUS }
+
+    const id = identifiant(donnees)
+    if (id === undefined) return { erreur: 'Entrée introuvable.' }
+
+    try {
+      await supprimerListePlate(acteur, liste, id)
+    } catch (erreur) {
+      return { erreur: messageErreur(erreur) }
+    }
+
+    revalidatePath('/administration/listes-formulaires')
+    return { succes }
+  }
+}
+
+export const actionDeplacerLieu = actionRangListePlate('lieu')
+export const actionDeplacerVille = actionRangListePlate('ville')
+export const actionDeplacerTrancheAnciennete = actionRangListePlate('trancheAnciennete')
+
+export const actionSupprimerLieu = actionSuppressionListePlate('lieu', 'Lieu supprimé.')
+export const actionSupprimerVille = actionSuppressionListePlate('ville', 'Ville supprimée.')
+export const actionSupprimerTrancheAnciennete = actionSuppressionListePlate(
+  'trancheAnciennete',
+  'Tranche supprimée.'
 )

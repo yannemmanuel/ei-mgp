@@ -47,6 +47,7 @@ export async function actionModifierHabilitations(
 
   try {
     await modifierPermissionsRole(acteur, role, permissions)
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
@@ -54,7 +55,6 @@ export async function actionModifierHabilitations(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revaliderHabilitations()
   return { succes: `Habilitations de « ${role} » enregistrées. Effet immédiat.` }
 }
 
@@ -101,14 +101,13 @@ export async function actionChangerComportementsRole(
         cochees.has(comportement)
       )
     }
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
     console.error('Modification des comportements du rôle en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
-
-  revaliderHabilitations()
 
   const actifs = COMPORTEMENTS_NOMS.filter((c) => cochees.has(c))
 
@@ -157,14 +156,13 @@ export async function actionModifierEtapesRole(
 
   try {
     await modifierEtapesRole(acteur, role, cases)
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
     console.error('Modification des étapes du rôle en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
-
-  revaliderHabilitations()
 
   return {
     succes:
@@ -206,14 +204,13 @@ export async function actionModifierParcoursRole(
 
   try {
     await modifierParcoursRole(acteur, role, parcours, circuit)
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
     console.error('Modification des types de déclaration en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
-
-  revaliderHabilitations()
 
   return {
     succes:
@@ -226,7 +223,7 @@ export async function actionModifierParcoursRole(
 /**
  * Modification du nom lisible d'un rôle et de sa description.
  *
- * L'identifiant technique n'est pas exposé ici et ne le sera pas : il est référencé par le
+ * L'identifiant technique n'est pas exposed ici et ne le sera pas : il est référencé par le
  * cloisonnement des parcours, qu'un renommage romprait sans rien signaler.
  */
 export async function actionModifierIdentiteRole(
@@ -247,6 +244,7 @@ export async function actionModifierIdentiteRole(
 
   try {
     await modifierIdentiteRole(acteur, role, { libelle, description })
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
@@ -254,7 +252,6 @@ export async function actionModifierIdentiteRole(
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revaliderHabilitations()
   return { succes: 'Rôle enregistré.' }
 }
 
@@ -282,14 +279,13 @@ export async function actionChangerActivationRole(
 
   try {
     await changerActivationRole(acteur, role, actif)
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
     console.error('Changement d’activation du rôle en échec', erreur)
     return { erreur: "L'enregistrement n'a pas abouti. Vous pouvez réessayer." }
   }
-
-  revaliderHabilitations()
 
   return {
     succes: actif
@@ -320,14 +316,13 @@ export async function actionCreerRole(
 
   try {
     await creerRole(acteur, { libelle, description, permissions })
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
     console.error('Création du rôle en échec', erreur)
     return { erreur: "La création n'a pas abouti. Vous pouvez réessayer." }
   }
-
-  revaliderHabilitations()
 
   return {
     succes: `Rôle « ${libelle.trim()} » créé. Attribuez-le depuis la console des comptes.`,
@@ -355,6 +350,7 @@ export async function actionSupprimerRole(
 
   try {
     await supprimerRole(acteur, role)
+    revaliderHabilitations()
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) return { erreur: erreur.message }
 
@@ -362,6 +358,5 @@ export async function actionSupprimerRole(
     return { erreur: "La suppression n'a pas abouti. Vous pouvez réessayer." }
   }
 
-  revaliderHabilitations()
   return { succes: 'Rôle supprimé. Le journal en garde la trace.' }
 }

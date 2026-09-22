@@ -148,7 +148,18 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     attentesDeclarant: z.string().trim().max(BORNE_TECHNIQUE, MESSAGE_BORNE_TECHNIQUE).optional(),
     // Anti-spam (DT-14).
     piegeAraignee: z.string().max(0, 'Soumission refusée.').optional(),
-    horodatageAffichage: z.coerce.number().int().nonnegative(),
+    /*
+      ⚠️ `horodatageAffichage` N'EST PLUS VALIDÉ ICI, et ce n'est pas un oubli.
+
+      Le champ portait un nombre de secondes posé par le navigateur, que ce schéma coerçait. Il
+      porte désormais une valeur SIGNÉE — « secondes.signature » —, vérifiée par
+      `verifierHorodatage()` avant même que ce schéma ne soit appliqué.
+
+      L'y laisser en `z.coerce.number()` rejetterait TOUTE déclaration légitime : `Number()` d'une
+      chaîne signée vaut `NaN`, et l'échec porterait sur un champ caché que le déclarant ne peut ni
+      voir ni corriger. Le défaut a été pris à la vérification de bout en bout, pas par les cas
+      unitaires — d'où celui qui exerce maintenant la soumission entière.
+    */
     ...specifiques,
   })
 

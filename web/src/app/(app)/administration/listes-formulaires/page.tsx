@@ -4,10 +4,19 @@ import { exigerPermission } from '@/server/auth'
 import { listerListePlate } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
 import {
+  actionDeplacerLieu,
+  actionDeplacerTrancheAnciennete,
+  actionDeplacerVille,
   actionEnregistrerLieu,
   actionEnregistrerTranche,
   actionEnregistrerVille,
+  actionSupprimerLieu,
+  actionSupprimerTrancheAnciennete,
+  actionSupprimerVille,
 } from '../actions'
+
+/** Les trois listes reçoivent les mêmes trois actions, à la liste visée près. */
+type Action = (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
 
 export const metadata: Metadata = { title: 'Administration — Listes des formulaires' }
 export const dynamic = 'force-dynamic'
@@ -17,7 +26,7 @@ type EtatFormulaire = { erreur?: string; succes?: string }
 /**
  * Lieux, villes et tranches d'ancienneté (ADM3, ADM4, ADM5).
  *
- * Trois listes de la même forme — un libellé, un ordre, un état — réunies sur un seul écran.
+ * Trois listes de la même forme — un libellé, un état — réunies sur un seul écran.
  * Trois entrées de plus dans le sommaire de l'administration pour trois tableaux de quelques
  * lignes auraient encombré la navigation sans rien apporter.
  *
@@ -37,7 +46,7 @@ export default async function PageListesFormulaires() {
     <div className="space-y-8">
       <EnTetePage
         titre="Listes des formulaires"
-        lede="Les choix proposés au déclarant. Une valeur retirée se désactive, elle ne se supprime pas."
+        lede="Les choix proposés au déclarant. Classés par ordre alphabétique, sauf si les flèches en décident autrement."
         mailles={[
           { libelle: 'Administration', href: '/administration' },
           { libelle: 'Listes des formulaires' },
@@ -50,6 +59,8 @@ export default async function PageListesFormulaires() {
         singulier="un lieu"
         lignes={lieux}
         action={actionEnregistrerLieu}
+        actionDeplacer={actionDeplacerLieu}
+        actionSupprimer={actionSupprimerLieu}
       />
 
       <Liste
@@ -58,6 +69,8 @@ export default async function PageListesFormulaires() {
         singulier="une ville"
         lignes={villes}
         action={actionEnregistrerVille}
+        actionDeplacer={actionDeplacerVille}
+        actionSupprimer={actionSupprimerVille}
       />
 
       <Liste
@@ -66,6 +79,8 @@ export default async function PageListesFormulaires() {
         singulier="une tranche"
         lignes={tranches}
         action={actionEnregistrerTranche}
+        actionDeplacer={actionDeplacerTrancheAnciennete}
+        actionSupprimer={actionSupprimerTrancheAnciennete}
       />
     </div>
   )
@@ -77,33 +92,37 @@ function Liste({
   singulier,
   lignes,
   action,
+  actionDeplacer,
+  actionSupprimer,
 }: {
   titre: string
   description: string
   singulier: string
   lignes: Awaited<ReturnType<typeof listerListePlate>>
-  action: (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
+  action: Action
+  actionDeplacer: Action
+  actionSupprimer: Action
 }) {
   return (
     <EditeurReferentiel
       titre={titre}
       description={description}
-      colonnes={['Libellé', 'Ordre', 'État']}
+      colonnes={['Libellé', 'État']}
       lignes={lignes.map((l) => ({
         id: String(l.id),
         cellules: [
           l.libelle,
-          String(l.ordre),
           { badge: l.actif ? 'Actif' : 'Inactif', variant: l.actif ? 'default' : 'secondary' },
         ],
-        valeurs: { libelle: l.libelle, ordre: String(l.ordre), actif: l.actif },
+        valeurs: { libelle: l.libelle, actif: l.actif },
       }))}
       champs={[
         { type: 'texte', nom: 'libelle', libelle: 'Libellé', requis: true, max: 255 },
-        { type: 'nombre', nom: 'ordre', libelle: 'Ordre d’affichage', requis: true, min: 1 },
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={action}
+      actionDeplacer={actionDeplacer}
+      actionSupprimer={actionSupprimer}
       creationPossible
       libelleCreation={`Ajouter ${singulier}`}
     />

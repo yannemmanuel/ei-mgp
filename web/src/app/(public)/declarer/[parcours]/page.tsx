@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { PARCOURS, estParcoursValide } from '@/server/services/declaration/parcours-config'
 import { chargerReferentiels } from '@/server/services/declaration/referentiels-formulaire'
+import { signerHorodatage } from '@/server/auth/horodatage-signe'
 import { FormulaireDeclaration } from './formulaire'
 
 /**
@@ -61,6 +62,13 @@ export default async function PageDeclaration({ params }: PageProps<'/declarer/[
       categoriesAutre={categories.filter((c) => c.is_autre).map((c) => String(c.id))}
       niveauxGravite={niveaux.map((n) => ({ valeur: String(n.id), libelle: n.libelle }))}
       referentiels={referentiels}
+      /*
+        ⚠️ SIGNÉ AU RENDU, et c'est ce qui rend le délai minimal vérifiable (DT-14). La valeur
+        était posée par le navigateur au montage : un robot postait « maintenant − 10 » et
+        franchissait les trois secondes sans attendre. Le rendu est déjà dynamique — c'était
+        justement pour que cet horodatage soit frais.
+      */
+      horodatageSigne={signerHorodatage()}
     />
   )
 }

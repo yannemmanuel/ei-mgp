@@ -6,12 +6,14 @@ import {
   enregistrerCategorie,
   enregistrerDirection,
   enregistrerSite,
+  deplacerCategorie,
   listerCategories,
   listerDirections,
   listerSites,
   modifierCanal,
   rattacherDirection,
   modifierStatut,
+  supprimerCategorie,
 } from '../referentiels'
 
 /**
@@ -63,6 +65,41 @@ afterAll(async () => {
 })
 
 describe('Catégories', () => {
+  it('les rend dans l’ordre ALPHABÉTIQUE, sans rang à régler', async () => {
+    /*
+     * Arbitrage du 11/09/2026 : le champ « Ordre d'affichage » a disparu des paramètres. Régler
+     * à la main le rang de chaque ligne coûtait une renumérotation à chaque ajout, pour un
+     * bénéfice que personne ne réclamait — on cherche une catégorie par son nom.
+     *
+     * Les deux libellés sont créés à CONTRE-SENS de l'alphabet : si le classement suivait encore
+     * un rang ou l'identifiant, « Zzz » sortirait avant « Aaa ». Des initiales A et Z plutôt que
+     * des accents, pour que l'assertion ne dépende pas de la collation de la base.
+     */
+    const qui = await acteur()
+    const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
+
+    for (const [code, libelle] of [
+      ['test_tri_z', 'Zzz catégorie de tri'],
+      ['test_tri_a', 'Aaa catégorie de tri'],
+    ]) {
+      categoriesCreees.push(
+        await enregistrerCategorie(qui, {
+          parcoursId: parcours.id,
+          code,
+          libelle,
+          isAutre: false,
+          actif: true,
+        })
+      )
+    }
+
+    const triees = (await listerCategories())
+      .map((c) => c.libelle)
+      .filter((libelle) => libelle.endsWith('catégorie de tri'))
+
+    expect(triees).toEqual(['Aaa catégorie de tri', 'Zzz catégorie de tri'])
+  })
+
   it('crée une catégorie et l’audite au format Laravel', async () => {
     const qui = await acteur()
     const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
@@ -73,7 +110,6 @@ describe('Catégories', () => {
       libelle: 'Catégorie de test',
       isAutre: false,
       actif: true,
-      ordre: 99,
     })
     categoriesCreees.push(id)
 
@@ -96,7 +132,6 @@ describe('Catégories', () => {
       libelle: 'Première',
       isAutre: false,
       actif: true,
-      ordre: 98,
     })
     categoriesCreees.push(id)
 
@@ -107,7 +142,6 @@ describe('Catégories', () => {
         libelle: 'Seconde',
         isAutre: false,
         actif: true,
-        ordre: 97,
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
@@ -123,7 +157,6 @@ describe('Catégories', () => {
         libelle: 'Partagée',
         isAutre: false,
         actif: true,
-        ordre: 96,
       })
       categoriesCreees.push(id)
     }
@@ -143,7 +176,6 @@ describe('Catégories', () => {
       libelle: 'Inchangée',
       isAutre: false,
       actif: true,
-      ordre: 95,
     }
 
     const id = await enregistrerCategorie(qui, donnees)
@@ -166,7 +198,6 @@ describe('Catégories', () => {
       libelle: 'Avant',
       isAutre: false,
       actif: true,
-      ordre: 94,
     }
 
     const id = await enregistrerCategorie(qui, donnees)
@@ -251,14 +282,126 @@ describe('Statuts et canaux — modification seule', () => {
   })
 })
 
-describe('Absence de suppression (RG-03)', () => {
-  it('n’expose aucune fonction de suppression de référentiel', async () => {
-    const exportes = await import('../referentiels')
-    const noms = Object.keys(exportes)
+describe('Rang et suppression (RG-03)', () => {
+  /**
+   * Le garde-fou d'origine interdisait TOUTE fonction de suppression de référentiel, par son seul
+   * nom. Il a été remplacé le 12/09/2026, quand la suppression a été demandée — mais son
+   * intention, elle, ne l'a pas été : une entrée citée par l'historique ne part pas.
+   *
+   * Un test de nom ne pouvait plus l'exprimer, puisque la fonction existe désormais. Ce qui suit
+   * vérifie donc le COMPORTEMENT, ce qui est plus fort : le refus est constaté, pas supposé.
+   */
+  it('REFUSE de supprimer une catégorie citée par un dossier', async () => {
+    const qui = await acteur()
 
-    // Garde-fou structurel : si une suppression apparaît un jour, ce test le signale avant que
-    // l'intégrité d'un historique n'en dépende.
-    expect(noms.filter((n) => /supprimer|delete|retirer/i.test(n))).toEqual([])
+    const citee = await prisma.categories.findFirst({
+      where: { dossiers: { some: {} } },
+      select: { id: true, libelle: true },
+    })
+
+    // La base de développement porte de vraies déclarations ; si elle n'en avait aucune, le test
+    // ne prouverait rien et doit le dire plutôt que de passer à vide.
+    expect(citee, 'aucune catégorie citée par un dossier : cas non couvert').not.toBeNull()
+
+    await expect(supprimerCategorie(qui, citee!.id)).rejects.toBeInstanceOf(ErreurWorkflow)
+
+    // Et elle est toujours là : le refus n'a rien effacé au passage.
+    expect(await prisma.categories.findUnique({ where: { id: citee!.id } })).not.toBeNull()
+  })
+
+  it('supprime une catégorie que rien ne cite, et le journalise', async () => {
+    const qui = await acteur()
+    const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
+
+    const id = await enregistrerCategorie(qui, {
+      parcoursId: parcours.id,
+      code: 'test_suppression_categorie',
+      libelle: 'Catégorie jamais utilisée',
+      isAutre: false,
+      actif: true,
+    })
+
+    await supprimerCategorie(qui, id)
+
+    expect(await prisma.categories.findUnique({ where: { id } })).toBeNull()
+
+    const [trace] = await lignesAudit('categorie.supprimee', String(id))
+    expect(trace.auditable_type).toBe('App\\Models\\Categorie')
+    // Les valeurs effacées sont consignées : c'est tout ce qui restera de la ligne.
+    expect((trace.old_values as Record<string, unknown>).libelle).toBe('Catégorie jamais utilisée')
+
+    await prisma.audit_logs.deleteMany({
+      where: { action: 'categorie.supprimee', auditable_id: String(id) },
+    })
+  })
+
+  it('monte une catégorie d’un rang, et renumérote son parcours', async () => {
+    const qui = await acteur()
+    const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
+
+    // Trois libellés à contre-sens de l'alphabet, pour que le déplacement soit visible : à
+    // rangs égaux l'affichage est alphabétique, donc Aaa, Mmm, Zzz.
+    const ids: bigint[] = []
+    for (const [code, libelle] of [
+      ['test_rang_m', 'Mmm rang de test'],
+      ['test_rang_a', 'Aaa rang de test'],
+      ['test_rang_z', 'Zzz rang de test'],
+    ]) {
+      const id = await enregistrerCategorie(qui, {
+        parcoursId: parcours.id,
+        code,
+        libelle,
+        isAutre: false,
+        actif: true,
+      })
+      ids.push(id)
+      categoriesCreees.push(id)
+    }
+
+    const nosLignes = async () =>
+      (await listerCategories())
+        .filter((c) => c.libelle.endsWith('rang de test'))
+        .map((c) => c.libelle)
+
+    expect(await nosLignes()).toEqual([
+      'Aaa rang de test',
+      'Mmm rang de test',
+      'Zzz rang de test',
+    ])
+
+    // « Zzz » remonte d'un cran : il doit passer DEVANT « Mmm », et l'alphabet ne commande plus.
+    const zzz = ids[2]
+    await deplacerCategorie(qui, zzz, 'monter')
+
+    expect(await nosLignes()).toEqual([
+      'Aaa rang de test',
+      'Zzz rang de test',
+      'Mmm rang de test',
+    ])
+
+    await prisma.audit_logs.deleteMany({
+      where: { action: 'categorie.modifie', auditable_id: String(zzz) },
+    })
+  })
+
+  it('refuse de monter la première ligne d’un groupe', async () => {
+    const qui = await acteur()
+    const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
+
+    const premiere = (
+      await prisma.categories.findMany({
+        where: { parcours_id: parcours.id },
+        orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+        select: { id: true },
+        take: 1,
+      })
+    )[0]
+
+    // Le refus vaut mieux qu'un silence : sans lui, le clic renumérote pour rien et l'écran ne
+    // bouge pas, ce qui se lit comme une panne.
+    await expect(deplacerCategorie(qui, premiere.id, 'monter')).rejects.toBeInstanceOf(
+      ErreurWorkflow
+    )
   })
 })
 

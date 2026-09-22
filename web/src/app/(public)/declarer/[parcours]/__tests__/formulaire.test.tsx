@@ -29,6 +29,8 @@ const REFERENTIELS = {
   categories: [{ valeur: '1', libelle: 'Condition dangereuse' }],
   categoriesAutre: [],
   niveauxGravite: [{ valeur: '1', libelle: 'Faible' }],
+  // ⚠️ Signé côté serveur depuis le 2026-09-22 : le formulaire le renvoie verbatim.
+  horodatageSigne: '1700000000.signature-de-test',
   referentiels: {
     directions: [
       { valeur: '1', libelle: 'Direction Exploitation' },

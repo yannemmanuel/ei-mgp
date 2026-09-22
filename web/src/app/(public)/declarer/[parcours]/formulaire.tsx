@@ -45,6 +45,14 @@ type Props = {
   niveauxGravite: Option[]
   referentiels: Referentiels
   /**
+   * Horodatage d'affichage SIGNÉ par le serveur (DT-14) — voir `auth/horodatage-signe.ts`.
+   *
+   * ⚠️ Le formulaire ne le lit pas, ne le recalcule pas et ne le comprend pas : il le renvoie tel
+   * quel. C'est ce qui rend le délai minimal de remplissage vérifiable — la valeur était
+   * auparavant posée par le navigateur, donc forgeable.
+   */
+  horodatageSigne: string
+  /**
    * Action de soumission. Injectée plutôt qu'importée en dur : la saisie relais (EX-DEC-10)
    * réutilise ce formulaire avec sa propre action, authentifiée.
    */
@@ -81,6 +89,7 @@ export function FormulaireDeclaration({
   categoriesAutre,
   niveauxGravite,
   referentiels,
+  horodatageSigne,
   soumettre = soumettreDeclaration,
   canauxRelais = [],
 }: Props) {
@@ -102,18 +111,21 @@ export function FormulaireDeclaration({
     setEnvoiArme(false)
     setPosition((p) => ({ etape: numero, deplacements: p.deplacements + 1 }))
   }
-  /**
-   * Anti-robot par delai minimal de remplissage (DT-14) : pose au MONTAGE, cote client.
-   *
-   * Laravel l'etablit cote serveur (Livewire monte sur le serveur), ce qui n'est pas
-   * transposable ici : la page etant un composant serveur, calculer l'heure pendant son rendu
-   * rendrait celui-ci impur. Poser l'horodatage au montage mesure d'ailleurs plus fidelement le
-   * temps pendant lequel le formulaire est reste ouvert dans le navigateur.
-   *
-   * Contrepartie assumee : un robot peut forger cette valeur. Elle n'est pas le seul rempart —
-   * le champ piege et la limitation de debit par IP restent tous deux verifies cote serveur.
-   */
-  const [horodatageAffichage] = useState(() => Math.floor(Date.now() / 1000))
+  /*
+    ⚠️ L'HORODATAGE ANTI-ROBOT VIENT DU SERVEUR, ET IL EST SIGNÉ (DT-14).
+
+    Il était posé ICI, au montage, côté client — et le commentaire d'alors l'assumait : « un robot
+    peut forger cette valeur ». C'était vrai, et cela rendait le délai minimal de trois secondes
+    inopérant : il suffisait de poster « maintenant − 10 ».
+
+    La raison invoquée à l'époque — calculer l'heure pendant le rendu rendrait le composant
+    serveur impur — ne tient plus : la page est en `force-dynamic`, précisément pour que cet
+    horodatage soit frais. Il est donc produit et signé au rendu, et le formulaire le renvoie tel
+    quel sans le comprendre.
+
+    Voir `server/auth/horodatage-signe.ts` pour ce que la signature ferme, et ce qu'elle ne ferme
+    pas.
+  */
   const [anonymat, setAnonymat] = useState(false)
   const [categorieId, setCategorieId] = useState('')
   /**
@@ -412,12 +424,12 @@ export function FormulaireDeclaration({
         (elle mesure le temps pendant lequel le formulaire est resté ouvert), et React la
         conserve ; sans ce marqueur il signalerait un écart à chaque affichage.
       */}
-      <input
-        type="hidden"
-        name="horodatageAffichage"
-        value={horodatageAffichage}
-        suppressHydrationWarning
-      />
+      {/*
+        Renvoyé VERBATIM : le client ne le lit ni ne le recalcule. Plus d'écart d'hydratation à
+        taire — la valeur est la même au rendu serveur et à l'hydratation, puisqu'elle vient du
+        serveur.
+      */}
+      <input type="hidden" name="horodatageAffichage" value={horodatageSigne} />
       {/* Champ piège (DT-14) : invisible pour un humain, rempli par un robot. */}
       <div aria-hidden className="absolute left-[-9999px]">
         <label htmlFor="piegeAraignee">Ne pas remplir</label>
