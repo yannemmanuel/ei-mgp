@@ -13,9 +13,10 @@ import { EnTetePage } from '@/components/layout/en-tete-page'
  * Éditeur commun aux référentiels d'administration.
  *
  * Cinq écrans (catégories, statuts, sites, canaux, gabarits) ont exactement la même forme :
- * une table, un formulaire, aucune suppression. Les écrire cinq fois multiplierait les endroits
- * où une règle peut diverger — notamment l'absence de suppression, qui n'est pas une commodité
- * mais une contrainte d'intégrité (RG-03).
+ * une table et un formulaire. Les écrire cinq fois multiplierait les endroits où une règle peut
+ * diverger — notamment la protection de l'historique, qui n'est pas une commodité mais une
+ * contrainte d'intégrité (RG-03) : le rang et la suppression ne sont rendus que si l'écran les
+ * fournit, et la suppression reste refusée par le SERVICE dès qu'une ligne est citée.
  *
  * ⚠️ Ce composant ne décide RIEN : il rend ce qu'on lui donne et poste à l'action serveur, qui
  * revérifie la permission. `creationPossible` ne masque qu'un bouton.
@@ -40,9 +41,18 @@ export type LigneReferentiel = {
   id: string
   cellules: (string | { badge: string; variant?: 'default' | 'secondary' | 'destructive' })[]
   valeurs: ValeursLigne
+  /**
+   * Groupe auquel la ligne appartient — le parcours d'une catégorie, la direction d'un poste.
+   *
+   * Sert au seul calcul des extrémités : monter la première ligne d'un parcours ne doit pas la
+   * faire passer dans le parcours précédent. Absent, tout le tableau ne forme qu'un groupe.
+   */
+  groupe?: string
 }
 
 export type EtatFormulaire = { erreur?: string; succes?: string }
+
+type ActionReferentiel = (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
 
 type Props = {
   titre: string
@@ -50,15 +60,34 @@ type Props = {
   colonnes: string[]
   lignes: LigneReferentiel[]
   champs: ChampReferentiel[]
-  action: (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
+  action: ActionReferentiel
   /** Faux pour un référentiel dont les lignes sont fixées (statuts, canaux). */
   creationPossible: boolean
   libelleCreation?: string
   messageVide?: string
+  /**
+   * Déplacement d'une ligne d'un rang. Absente, aucun bouton de rang n'est rendu.
+   *
+   * Le rang ne s'écrit plus à la main depuis le 11/09/2026 : tant que les lignes d'un groupe le
+   * partagent, l'affichage est alphabétique. Ces boutons servent aux listes où l'ordre porte un
+   * sens que l'alphabet ignore — une échelle d'ancienneté, par exemple.
+   */
+  actionDeplacer?: ActionReferentiel
+  /**
+   * Suppression d'une ligne. Absente, aucun bouton de suppression n'est rendu.
+   *
+   * ⚠️ Ce n'est pas parce que le bouton est là que la ligne partira : le service compte d'abord
+   * ce qui la cite et refuse tant que ce compte n'est pas nul (RG-03). Le refus revient dans
+   * `erreur`, avec son motif.
+   */
+  actionSupprimer?: ActionReferentiel
 }
 
 const ETAT: EtatFormulaire = {}
 const champCss = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
+
+/** Action neutre : `useActionState` ne peut pas être appelé conditionnellement. */
+const INERTE: ActionReferentiel = async (etat) => etat
 
 export function EditeurReferentiel({
   titre,
@@ -70,13 +99,26 @@ export function EditeurReferentiel({
   creationPossible,
   libelleCreation = 'Ajouter',
   messageVide = 'Aucune entrée.',
+  actionDeplacer,
+  actionSupprimer,
 }: Props) {
   const [etat, envoyer, enCours] = useActionState(action, ETAT)
+  const [etatRang, envoyerRang, rangEnCours] = useActionState(actionDeplacer ?? INERTE, ETAT)
+  const [etatSuppression, envoyerSuppression, suppressionEnCours] = useActionState(
+    actionSupprimer ?? INERTE,
+    ETAT
+  )
   const [edition, setEdition] = useState<{ id: string; valeurs: ValeursLigne } | null>(null)
+  /** Ligne dont la suppression attend confirmation — un clic ne suffit pas à effacer. */
+  const [aConfirmer, setAConfirmer] = useState<string | null>(null)
 
   const valeursVides: ValeursLigne = Object.fromEntries(
     champs.map((c) => [c.nom, c.type === 'booleen' ? true : ''])
   )
+
+  const succes = etat.succes ?? etatRang.succes ?? etatSuppression.succes
+  // L'erreur d'enregistrement s'affiche dans le formulaire ; celles-ci n'ont pas d'autre place.
+  const erreurHorsFormulaire = etatRang.erreur ?? etatSuppression.erreur
 
   return (
     <div className="space-y-6">
@@ -93,9 +135,15 @@ export function EditeurReferentiel({
         }
       />
 
-      {etat.succes && (
+      {succes && (
         <Alert>
-          <AlertDescription>{etat.succes}</AlertDescription>
+          <AlertDescription>{succes}</AlertDescription>
+        </Alert>
+      )}
+
+      {erreurHorsFormulaire && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{erreurHorsFormulaire}</AlertDescription>
         </Alert>
       )}
 
@@ -110,9 +158,32 @@ export function EditeurReferentiel({
             <form action={envoyer} className="space-y-4">
               <input type="hidden" name="id" value={edition.id} />
 
+              {/*
+                ⚠️ LA CLÉ PORTE L'IDENTIFIANT DE LA LIGNE, et ce n'était pas le cas.
+
+                Les champs sont NON CONTRÔLÉS, amorcés par `defaultValue`. React ignore un
+                `defaultValue` qui change sur un champ déjà monté : le DOM garde l'ancienne
+                valeur. Or « Modifier » est offert sur chaque ligne, y compris pendant qu'on en
+                édite une autre.
+
+                Avec `key={champ.nom}` seul, l'enchaînement « Modifier A » puis « Modifier B »
+                laissait les champs sur les valeurs de A tandis que l'identifiant caché — lui,
+                contrôlé — passait à B. Enregistrer écrasait alors la ligne B avec le libellé de
+                la ligne A. Aucune erreur, aucun refus : le mauvais enregistrement aboutissait.
+                Base UI le signalait en console (« changing the default value state of an
+                uncontrolled FieldControl »), mais le symptôme réel était une perte de données.
+
+                ⚠️ L'IDENTIFIANT SEULEMENT, jamais les valeurs : la clé ne doit changer QUE
+                lorsqu'on change de ligne. L'y faire entrer les valeurs remonterait les champs à
+                chaque frappe, et la saisie disparaîtrait lettre à lettre.
+              */}
               <div className="grid gap-4 sm:grid-cols-2">
                 {champs.map((champ) => (
-                  <Champ key={champ.nom} champ={champ} valeur={edition.valeurs[champ.nom]} />
+                  <Champ
+                    key={`${edition.id}-${champ.nom}`}
+                    champ={champ}
+                    valeur={edition.valeurs[champ.nom]}
+                  />
                 ))}
               </div>
 
@@ -153,28 +224,93 @@ export function EditeurReferentiel({
                   </tr>
                 </thead>
                 <tbody>
-                  {lignes.map((ligne) => (
-                    <tr key={ligne.id} className="border-b border-border/50">
-                      {ligne.cellules.map((cellule, index) => (
-                        <td key={colonnes[index] ?? index} className="px-4 py-2 text-secondary-800">
-                          {typeof cellule === 'string' ? (
-                            cellule
-                          ) : (
-                            <Badge variant={cellule.variant ?? 'secondary'}>{cellule.badge}</Badge>
-                          )}
+                  {lignes.map((ligne, index) => {
+                    const groupe = ligne.groupe ?? ''
+                    const memeGroupe = lignes.filter((l) => (l.groupe ?? '') === groupe)
+                    const rang = memeGroupe.indexOf(ligne)
+                    const nom = ligne.cellules.find((c) => typeof c === 'string') ?? `ligne ${index + 1}`
+
+                    return (
+                      <tr key={ligne.id} className="border-b border-border/50">
+                        {ligne.cellules.map((cellule, colonne) => (
+                          <td
+                            key={colonnes[colonne] ?? colonne}
+                            className="px-4 py-2 text-secondary-800"
+                          >
+                            {typeof cellule === 'string' ? (
+                              cellule
+                            ) : (
+                              <Badge variant={cellule.variant ?? 'secondary'}>{cellule.badge}</Badge>
+                            )}
+                          </td>
+                        ))}
+                        <td className="px-4 py-2">
+                          <div className="flex items-center justify-end gap-1">
+                            {actionDeplacer && (
+                              <>
+                                <BoutonRang
+                                  envoyer={envoyerRang}
+                                  id={ligne.id}
+                                  sens="monter"
+                                  nom={String(nom)}
+                                  inactif={rang === 0 || rangEnCours}
+                                />
+                                <BoutonRang
+                                  envoyer={envoyerRang}
+                                  id={ligne.id}
+                                  sens="descendre"
+                                  nom={String(nom)}
+                                  inactif={rang === memeGroupe.length - 1 || rangEnCours}
+                                />
+                              </>
+                            )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setEdition({ id: ligne.id, valeurs: ligne.valeurs })}
+                            >
+                              Modifier
+                            </Button>
+
+                            {actionSupprimer &&
+                              (aConfirmer === ligne.id ? (
+                                /* Deux temps : effacer est irréversible, un clic isolé ne suffit pas. */
+                                <form action={envoyerSuppression} className="flex items-center gap-1">
+                                  <input type="hidden" name="id" value={ligne.id} />
+                                  <span className="text-caption text-muted-foreground">Confirmer ?</span>
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={suppressionEnCours}
+                                  >
+                                    {suppressionEnCours ? 'Suppression…' : 'Oui, supprimer'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setAConfirmer(null)}
+                                  >
+                                    Annuler
+                                  </Button>
+                                </form>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive hover:bg-destructive/10"
+                                  onClick={() => setAConfirmer(ligne.id)}
+                                >
+                                  Supprimer
+                                </Button>
+                              ))}
+                          </div>
                         </td>
-                      ))}
-                      <td className="px-4 py-2 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEdition({ id: ligne.id, valeurs: ligne.valeurs })}
-                        >
-                          Modifier
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -183,10 +319,51 @@ export function EditeurReferentiel({
       </Card>
 
       <p className="text-caption text-muted-foreground">
-        Aucune suppression n’est proposée : une entrée déjà citée par un dossier ne peut pas
-        disparaître sans rendre l’historique incohérent. Utilisez la désactivation.
+        {actionSupprimer
+          ? 'Une entrée déjà citée par un dossier ne peut pas être supprimée : l’historique deviendrait incohérent. La suppression est alors refusée avec son motif — désactivez l’entrée pour la retirer des formulaires sans toucher au passé.'
+          : 'Aucune suppression n’est proposée : une entrée déjà citée par un dossier ne peut pas disparaître sans rendre l’historique incohérent. Utilisez la désactivation.'}
+        {actionDeplacer &&
+          ' L’ordre est alphabétique tant que les flèches ne sont pas utilisées ; elles ne servent qu’aux listes dont l’ordre porte un sens.'}
       </p>
     </div>
+  )
+}
+
+/**
+ * Un bouton de rang est un FORMULAIRE, pas un `onClick`.
+ *
+ * Le déplacement est une écriture : il doit partir par une Server Action, qui revérifie la
+ * permission. Le passer par un gestionnaire de clic obligerait à l'appeler à la main et priverait
+ * la page du repli sans JavaScript.
+ */
+function BoutonRang({
+  envoyer,
+  id,
+  sens,
+  nom,
+  inactif,
+}: {
+  envoyer: (donnees: FormData) => void
+  id: string
+  sens: 'monter' | 'descendre'
+  nom: string
+  inactif: boolean
+}) {
+  return (
+    <form action={envoyer} className="contents">
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="sens" value={sens} />
+      <Button
+        type="submit"
+        size="sm"
+        variant="ghost"
+        disabled={inactif}
+        aria-label={`${sens === 'monter' ? 'Monter' : 'Descendre'} ${nom}`}
+        title={sens === 'monter' ? 'Monter' : 'Descendre'}
+      >
+        {sens === 'monter' ? '↑' : '↓'}
+      </Button>
+    </form>
   )
 }
 

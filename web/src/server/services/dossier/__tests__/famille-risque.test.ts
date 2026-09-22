@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import {
   famillesRisqueActives,
@@ -30,15 +30,90 @@ import {
  */
 const dossiers: string[] = []
 
-afterAll(async () => {
-  await nettoyerDossiers(dossiers)
-})
-
 /** Le type sur lequel se jouent les cas de qualification : il doit en relever. */
 const TYPE_QUALIFIANT = 'grief_employe'
 
-/** Et celui qui n'en relève pas, pour exercer le refus. */
+/** Et celui qui n'en relève PAS, pour exercer le refus. */
 const TYPE_SANS_FAMILLE = 'ei_employe'
+
+/*
+  ⚠️ LA CONFIGURATION EST POSÉE, PAS PRÉSUMÉE — et c'est une correction, pas une précaution.
+
+  Ces cas lisaient l'état du jour : « l'évènement indésirable ne qualifie pas », « le grief employé
+  qualifie ». C'était vrai le jour où ils ont été écrits. Le paramétrage se coche depuis l'écran :
+  un administrateur a recoché l'évènement indésirable et décoché les griefs pour y bâtir ses
+  familles de risque — un usage parfaitement normal —, et onze cas sont passés au rouge sans
+  qu'aucun défaut n'existe.
+
+  Un cas qui dépend de l'ambiance ne prouve rien de stable. Chacun d'eux pose donc l'état dont il a
+  besoin, et le fichier rend l'état d'origine à la fin. Ce que la base porte réellement appartient
+  à l'administrateur, pas à la suite de tests.
+*/
+const ETAT_TYPES = new Map<string, boolean>()
+
+/** Familles créées ici pour garantir qu'il y en ait à proposer — supprimées à la fin. */
+const famillesJetables: bigint[] = []
+
+beforeAll(async () => {
+  for (const p of await prisma.parcours.findMany({
+    select: { code: true, familles_risque_actives: true },
+  })) {
+    ETAT_TYPES.set(p.code, p.familles_risque_actives)
+  }
+
+  await prisma.parcours.updateMany({
+    where: { code: TYPE_QUALIFIANT },
+    data: { familles_risque_actives: true },
+  })
+  await prisma.parcours.updateMany({
+    where: { code: TYPE_SANS_FAMILLE },
+    data: { familles_risque_actives: false },
+  })
+
+  /*
+    ⚠️ ET AU MOINS DEUX FAMILLES PROPOSABLES sur ce type. Les familles se créent, se renomment et
+    se rattachent depuis l'écran : rien ne garantit qu'il en reste de communes. Plusieurs cas ont
+    besoin d'en poser une puis de la remplacer — sans ces deux-là, ils ne prouveraient rien.
+  */
+  for (const suffixe of ['a', 'b']) {
+    const libelle = `ZZ famille de reference ${suffixe} ${process.pid} ${Date.now()}`
+
+    const creee = await prisma.familles_risque.create({
+      data: {
+        code: `zz_ref_${suffixe}_${process.pid}_${Date.now()}`.slice(0, 64),
+        libelle,
+        actif: true,
+        parcours_id: null,
+        ordre: 900,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    })
+
+    famillesJetables.push(creee.id)
+  }
+})
+
+afterAll(async () => {
+  await nettoyerDossiers(dossiers)
+
+  // Les familles jetables d'abord — et seulement celles-ci, par identifiant.
+  if (famillesJetables.length > 0) {
+    await prisma.dossiers.updateMany({
+      where: { famille_risque_id: { in: famillesJetables } },
+      data: { famille_risque_id: null },
+    })
+    await prisma.familles_risque.deleteMany({ where: { id: { in: famillesJetables } } })
+  }
+
+  for (const [code, valeur] of ETAT_TYPES) {
+    await prisma.parcours.updateMany({
+      where: { code },
+      data: { familles_risque_actives: valeur },
+    })
+  }
+})
 
 async function dossierDeType(parcours: 'grief_employe' | 'ei_employe'): Promise<string> {
   const categorie = await categoriePour(parcours)
@@ -70,9 +145,11 @@ const nouveauDossier = () => dossierDeType(TYPE_QUALIFIANT)
 
 describe('Qualification d’un dossier', () => {
   it('pose une famille, puis la remplace', async () => {
-    const familles = await famillesRisqueActives()
+    // ⚠️ Les PROPOSÉES sur ce type, et non toutes les actives : depuis le rattachement, une
+    // famille active peut être réservée à un autre type — le service la refuserait.
+    const familles = await famillesRisqueProposees(TYPE_QUALIFIANT)
 
-    expect(familles.length, 'aucune famille active : le cas ne prouverait rien').toBeGreaterThan(1)
+    expect(familles.length, 'moins de deux familles proposées : le cas ne prouverait rien').toBeGreaterThan(1)
 
     const dossierId = await nouveauDossier()
 
@@ -90,7 +167,7 @@ describe('Qualification d’un dossier', () => {
   it('⚠️ permet de RETIRER une famille posée par erreur', async () => {
     // Sans cela, la seule issue serait d'en choisir une autre, également fausse — et la
     // répartition du tableau de bord compterait une qualification qui n'en est pas une.
-    const familles = await famillesRisqueActives()
+    const familles = await famillesRisqueProposees(TYPE_QUALIFIANT)
     const dossierId = await nouveauDossier()
 
     await qualifierFamilleRisque({ dossierId, familleId: familles[0].id })
@@ -115,7 +192,7 @@ describe('Qualification d’un dossier', () => {
       Le cas rétablit l'état d'origine quoi qu'il arrive — une famille laissée désactivée
       fausserait tous les cas suivants.
     */
-    const familles = await famillesRisqueActives()
+    const familles = await famillesRisqueProposees(TYPE_QUALIFIANT)
     const cible = familles[familles.length - 1]
 
     const dossierId = await nouveauDossier()
@@ -160,7 +237,23 @@ describe('⚠️ La famille ne se demande que sur les types qui en relèvent', (
     expect(proposees.length, 'aucune famille proposée : le cas ne prouverait rien').toBeGreaterThan(
       0
     )
-    expect(proposees.map((f) => f.id)).toEqual((await famillesRisqueActives()).map((f) => f.id))
+
+    /*
+      ⚠️ UN SOUS-ENSEMBLE DES ACTIVES, et plus leur égalité.
+
+      Ce cas exigeait que le type propose TOUTES les familles actives. C'était vrai avant le
+      rattachement (2026-09-22) : une famille réservée à un autre type est active et n'est pourtant
+      pas proposée ici — c'est tout l'objet du rattachement. L'égalité rougissait donc dès qu'un
+      administrateur rattachait sa première famille.
+    */
+    const actives = new Set((await famillesRisqueActives()).map((f) => String(f.id)))
+
+    for (const famille of proposees) {
+      expect(
+        actives.has(String(famille.id)),
+        `« ${famille.libelle} » est proposée alors qu’elle est désactivée`
+      ).toBe(true)
+    }
   })
 
   it('⚠️ REFUSE de poser une famille sur un type qui n’en relève pas', async () => {
@@ -171,7 +264,7 @@ describe('⚠️ La famille ne se demande que sur les types qui en relèvent', (
       requête forgée poserait sinon une famille sur un évènement indésirable : une donnée que rien
       n'afficherait plus et que l'écran ne permettrait plus de défaire.
     */
-    const familles = await famillesRisqueActives()
+    const familles = await famillesRisqueProposees(TYPE_QUALIFIANT)
     const dossierId = await dossierDeType(TYPE_SANS_FAMILLE)
 
     await expect(
@@ -193,7 +286,7 @@ describe('⚠️ La famille ne se demande que sur les types qui en relèvent', (
       On pose la famille pendant que le type qualifie encore, puis on le décoche — exactement la
       situation qu'un administrateur crée en décochant une case.
     */
-    const familles = await famillesRisqueActives()
+    const familles = await famillesRisqueProposees(TYPE_QUALIFIANT)
     const dossierId = await dossierDeType(TYPE_QUALIFIANT)
 
     await qualifierFamilleRisque({ dossierId, familleId: familles[0].id })

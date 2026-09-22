@@ -299,9 +299,19 @@ describe('⚠️ CRUD des familles de risque', () => {
     expect(ligne.code, 'le code n’est pas un identifiant technique').toMatch(/^[a-z0-9_]+$/)
     expect(ligne.code.length, 'le code déborde la colonne (64)').toBeLessThanOrEqual(64)
 
-    // En DERNIER : une famille nouvelle n'a aucune raison de passer devant celles que les
-    // traitants ont l'habitude de voir en tête.
-    const rangs = await prisma.familles_risque.findMany({ select: { ordre: true } })
+    /*
+      En DERNIER DE SON GROUPE : une famille nouvelle n'a aucune raison de passer devant celles que
+      les traitants ont l'habitude de voir en tête.
+
+      ⚠️ DANS SON GROUPE, et non dans toute la table. Le rang se compte par type depuis le
+      rattachement (2026-09-22) : comparer au maximum global faisait échouer ce cas dès qu'un
+      administrateur rattachait ses familles à un type, la famille jetable étant créée sur
+      « tous les types » — un groupe alors vide, où le rang 1 est bien le dernier.
+    */
+    const rangs = await prisma.familles_risque.findMany({
+      where: { parcours_id: ligne.parcours_id },
+      select: { ordre: true },
+    })
     expect(ligne.ordre).toBe(Math.max(...rangs.map((r) => r.ordre)))
   })
 
@@ -464,24 +474,32 @@ describe('⚠️ CRUD des familles de risque', () => {
   })
 
   it('DÉPLACE une famille dans la liste, et renumérote tout', async () => {
-    const creee = await familleJetable()
+    // Deux familles jetables : le déplacement demande au moins un voisin dans le même groupe.
+    //
+    // ⚠️ DANS SON GROUPE : le rang se compte par type. Prendre toute la table ferait dépendre le
+    // cas du rattachement choisi par l'administrateur du jour.
+    await familleJetable()
+    const seconde = await familleJetable()
 
-    const avant = await prisma.familles_risque.findMany({
-      orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
-      select: { id: true },
-    })
+    const groupe = () =>
+      prisma.familles_risque.findMany({
+        where: { parcours_id: null },
+        orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+        select: { id: true, ordre: true },
+      })
+
+    const avant = await groupe()
 
     expect(avant.length, 'une seule famille : le déplacement ne prouverait rien').toBeGreaterThan(1)
-    expect(avant[avant.length - 1].id, 'la famille créée n’est pas en dernier').toBe(creee.id)
+    expect(avant[avant.length - 1].id, 'la dernière créée n’est pas en fin de groupe').toBe(
+      seconde.id
+    )
 
-    await deplacerFamilleRisque(await acteur(), creee.id, 'monter')
+    await deplacerFamilleRisque(await acteur(), seconde.id, 'monter')
 
-    const apres = await prisma.familles_risque.findMany({
-      orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
-      select: { id: true, ordre: true },
-    })
+    const apres = await groupe()
 
-    expect(apres[apres.length - 2].id, 'la famille n’a pas monté d’un rang').toBe(creee.id)
+    expect(apres[apres.length - 2].id, 'la famille n’a pas monté d’un rang').toBe(seconde.id)
 
     // ⚠️ RENUMÉROTÉE EN ENTIER : des rangs en double donneraient un classement qui dépend de
     // l'ordre de lecture de la base, donc qui change d'un écran à l'autre sans que rien ne bouge.
@@ -492,7 +510,11 @@ describe('⚠️ CRUD des familles de risque', () => {
     // Un déplacement impossible doit le dire. L'ignorer en silence donnerait un écran où le bouton
     // répond « enregistré » sans rien changer.
     const qui = await acteur()
+    await familleJetable()
+
+    // Dans le groupe « tous les types » : les extrémités se jugent par groupe, pas sur la table.
     const toutes = await prisma.familles_risque.findMany({
+      where: { parcours_id: null },
       orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
       select: { id: true },
     })
