@@ -18,7 +18,7 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-describe('Vérification des identifiants Laravel', () => {
+describe('Vérification des identifiants', () => {
   it('accepte un compte de démonstration existant avec son hachage $2y$12$ d\'origine', async () => {
     const resultat = await verifierIdentifiants(COMPTE, MOT_DE_PASSE)
 

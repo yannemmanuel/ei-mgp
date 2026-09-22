@@ -2,9 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { ROLE_NAMES, etapesSansActeur, matriceDesEtapes } from '@/server/authz'
 import { configurationSmtp } from '../notification/transport'
 import { STATUTS } from '../dossier/statuts'
+import { MODELES } from '@/server/modeles'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 /**
  * Ce qui appelle une décision d'administrateur, par opposition à ce qui se compte.
@@ -77,7 +78,7 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     prisma.villes.count({ where: { actif: true } }),
 
     prisma.roles.findMany({
-      where: { guard_name: 'web', actif: true },
+      where: { actif: true },
       select: { id: true, name: true, libelle: true },
     }),
     prisma.model_has_roles.findMany({

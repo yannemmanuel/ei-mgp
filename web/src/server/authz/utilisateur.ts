@@ -3,25 +3,41 @@ import type { ParcoursCode } from './parcours'
 import { cloisonnePourSesRoles, donneAccesAuxDossiers } from './site'
 import type { Permission } from './permissions'
 import type { Role } from './roles'
+import { MODELES } from '@/server/modeles'
 
 /**
- * `model_type` utilisé par spatie/laravel-permission pour les comptes utilisateurs.
+ * Le `model_type` des comptes, dans la table d'attribution des rôles.
  *
- * `String.raw` est délibéré : en littéral classique, `'App\Models\User'` vaudrait
- * « AppModelsUser », car `\M` et `\U` ne sont pas des séquences d'échappement valides et
- * JavaScript supprime alors silencieusement les antislashs. Aucune erreur n'est levée — la
- * comparaison échoue simplement toujours, et l'utilisateur se retrouve sans aucun rôle.
+ * ⚠️ CE FUT UN LITTÉRAL PIÉGEUX jusqu'au 2026-09-22 : la valeur s'écrivait `App\Models\User`, et
+ * en guillemets ordinaires `'App\Models\User'` vaut « AppModelsUser » — `\M` et `\U` ne sont pas
+ * des séquences d'échappement valides, et JavaScript supprime silencieusement les antislashs.
+ * Aucune erreur n'était levée : la comparaison échouait toujours, et le compte se retrouvait
+ * sans aucun rôle. Il fallait donc `String.raw`, dans chacun des huit fichiers qui recopiaient
+ * cette constante.
+ *
+ * Le code ne contient plus d'antislash : le piège a disparu avec lui, et la valeur vient
+ * désormais d'un seul endroit.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
-const GUARD = 'web'
+/*
+  ⚠️ `const GUARD = 'web'` A ÉTÉ RETIRÉ le 2026-09-22, avec la colonne `guard_name`.
+
+  La « garde » séparait plusieurs systèmes d'authentification coexistants — sessions et jetons
+  d'API, chacun avec son jeu de rôles. Cette application n'en a qu'un : les 18 rôles portaient
+  tous `web`, et le code filtrait sur une valeur qu'il venait lui-même d'écrire.
+
+  Un filtre qui n'exclut jamais rien n'est pas neutre : il se lit comme une protection. Un
+  relecteur cherchant « les rôles sont-ils cloisonnés ? » trouvait une condition à chaque requête
+  et concluait que oui.
+*/
 
 /**
  * Photographie des autorisations d'un utilisateur à un instant donné.
  *
- * Volontairement dérivée de la BASE à chaque vérification, jamais d'un jeton de session : c'est
- * exactement la sémantique de spatie/laravel-permission côté Laravel. Un changement de rôle ou
- * une désactivation prend ainsi effet immédiatement, sans attendre l'expiration d'un JWT.
+ * Volontairement dérivée de la BASE à chaque vérification, jamais d'un jeton de session. Un
+ * changement de rôle ou une désactivation prend ainsi effet immédiatement, sans attendre
+ * l'expiration d'un JWT.
  */
 export type UtilisateurAutorise = {
   readonly id: bigint
@@ -127,10 +143,10 @@ export function aUnePermissionParmi(
 /**
  * Charge rôles et permissions effectives d'un utilisateur.
  *
- * Reproduit la résolution de spatie : permissions héritées des rôles UNION permissions
- * accordées directement à l'utilisateur (`model_has_permissions`). Cette seconde table est
- * vide aujourd'hui, mais le schéma l'autorise — l'ignorer ferait diverger silencieusement les
- * deux applications le jour où une permission directe serait accordée.
+ * Deux sources s'additionnent : les permissions héritées des rôles, UNION celles accordées
+ * directement au compte (`model_has_permissions`). Cette seconde table est vide aujourd'hui, mais
+ * le schéma l'autorise — l'ignorer produirait un compte privé d'un droit qu'on lui a bel et bien
+ * accordé, le jour où quelqu'un s'en servira.
  *
  * ⚠️ Une permission accordée DIRECTEMENT à un compte ne transite par aucun rôle : désactiver un
  * rôle ne la retire donc pas. C'est cohérent — elle n'a jamais été conférée par lui — mais il
@@ -163,7 +179,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
         roles: {
           select: {
             name: true,
-            guard_name: true,
             actif: true,
             // Ce rôle a-t-il la CHARGE des dossiers ? Paramétré dans les habilitations, jamais
             // déduit d'une permission — voir `traiteLesDossiers`.
@@ -172,7 +187,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
             cloisonne_par_rattachement: true,
             voit_seulement_ses_declarations: true,
             voit_identite_declarant: true,
-            role_has_permissions: { select: { permissions: { select: { name: true, guard_name: true } } } },
+            role_has_permissions: { select: { permissions: { select: { name: true } } } },
             role_etapes: {
               select: {
                 parcours: { select: { code: true } },
@@ -185,7 +200,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     }),
     prisma.model_has_permissions.findMany({
       where: { model_type: MODEL_TYPE_USER, model_id: userId },
-      select: { permissions: { select: { name: true, guard_name: true } } },
+      select: { permissions: { select: { name: true } } },
     }),
     /*
       Les parcours ouverts par ses RÔLES. Relus ici à chaque requête, comme les rôles et les
@@ -198,7 +213,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
           que soient les cases cochées.
         - `roles.actif` : un rôle éteint ne confère rien — même règle que pour ses permissions, et
           la contourner ici rendrait la désactivation d'un rôle à moitié effective.
-        - `guard_name` : la garde de spatie, comme partout ailleurs.
 
       ⚠️ `utilisateur_parcours` N'EST PLUS LUE. L'attribution par personne ne décide plus rien
       (décision métier du 2026-09-20) ; la table subsiste, elle porte l'ancien paramétrage.
@@ -208,7 +222,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
         parcours: { actif: true },
         roles: {
           actif: true,
-          guard_name: GUARD,
           model_has_roles: { some: { model_type: MODEL_TYPE_USER, model_id: userId } },
         },
       },
@@ -234,8 +247,6 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
   const etapes: { parcours: string; statut: string }[] = []
 
   for (const lien of liensRoles) {
-    if (lien.roles.guard_name !== GUARD) continue
-
     // Un rôle désactivé ne confère RIEN — ni permission, ni parcours.
     //
     // C'est ici que la désactivation prend son sens, et nulle part ailleurs : masquer le rôle
@@ -256,9 +267,7 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     cloisonnementParRole.push({
       cloisonne: lien.roles.cloisonne_par_rattachement,
       donneAcces: donneAccesAuxDossiers(
-        lien.roles.role_has_permissions
-          .filter((rhp) => rhp.permissions.guard_name === GUARD)
-          .map((rhp) => rhp.permissions.name)
+        lien.roles.role_has_permissions.map((rhp) => rhp.permissions.name)
       ),
     })
 
@@ -272,16 +281,12 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     }
 
     for (const rhp of lien.roles.role_has_permissions) {
-      if (rhp.permissions.guard_name === GUARD) {
-        permissions.add(rhp.permissions.name as Permission)
-      }
+      permissions.add(rhp.permissions.name as Permission)
     }
   }
 
   for (const directe of permissionsDirectes) {
-    if (directe.permissions.guard_name === GUARD) {
-      permissions.add(directe.permissions.name as Permission)
-    }
+    permissions.add(directe.permissions.name as Permission)
   }
 
   return {

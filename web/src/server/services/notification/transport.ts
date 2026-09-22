@@ -5,7 +5,7 @@ import { createTransport, type Transporter } from 'nodemailer'
  *
  * Le transport réel est choisi par la CONFIGURATION, jamais par le code : si les variables SMTP
  * sont renseignées, les messages partent ; sinon ils sont journalisés, comme le fait la baseline
- * Laravel en `MAIL_MAILER=log`.
+ * la console, comme un mode « journal ».
  *
  * Ce choix évite le piège symétrique des deux extrêmes : imposer un fournisseur dans le code, ou
  * laisser un environnement de production croire qu'il envoie alors qu'il journalise. Le démarrage

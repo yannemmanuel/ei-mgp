@@ -27,10 +27,10 @@ describe('Hachage compatible PHP', () => {
     expect(await verifier('mauvais', hache)).toBe(false)
   })
 
-  it('relit un hachage produit par Laravel', async () => {
+  it('relit un hachage au format $2y$, celui des comptes existants', async () => {
     // Empreinte réelle de « password » générée par Laravel (coût 4, pour la vitesse du test).
-    const laravel = await bcrypt.hash('password', 4)
-    const versionPhp = laravel.replace(/^\$2[abx]\$/, '$2y$')
+    const brut = await bcrypt.hash('password', 4)
+    const versionPhp = brut.replace(/^\$2[abx]\$/, '$2y$')
 
     expect(await verifier('password', versionPhp)).toBe(true)
   })

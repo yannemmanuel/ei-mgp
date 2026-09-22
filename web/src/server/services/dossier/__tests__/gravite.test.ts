@@ -9,6 +9,7 @@ import {
 } from '../../declaration/__tests__/aide-base'
 import { qualifierGravite } from '../workflow'
 import { ErreurWorkflow } from '../workflow'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Qualification de la gravité au traitement, et déplacement du circuit accéléré (RG-08).
@@ -21,7 +22,7 @@ import { ErreurWorkflow } from '../workflow'
  * Ces cas tiennent les deux moitiés de la bascule : plus d'alerte à la création faute de gravité,
  * et une alerte à la qualification.
  */
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 
 const crees: string[] = []
 

@@ -2,10 +2,10 @@ import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-p
 import { cellules, colonnes, type LigneExport } from './export'
 
 /**
- * EX-REP-04 : génération du rapport PDF — remplace `barryvdh/laravel-dompdf`.
+ * EX-REP-04 : génération du rapport PDF — le document est composé en React.
  *
- * dompdf part d'un gabarit Blade ; `@react-pdf/renderer` compose le document en React. La mise
- * en page est donc réécrite, pas traduite : elle reprend la structure du rapport Laravel
+ * `@react-pdf/renderer` compose le document en React. La mise
+ * en page reprend la structure du rapport attendu
  * (titre, ligne de contexte, tableau) sans chercher à en reproduire le pixel.
  */
 

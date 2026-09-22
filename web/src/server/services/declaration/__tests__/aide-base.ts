@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Utilitaires des tests de création de déclaration.
@@ -11,7 +12,7 @@ import { prisma } from '@/lib/prisma'
  * aucune voie de suppression d'un dossier (RG-03).
  */
 
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 
 export async function categoriePour(parcoursCode: string, options: { autre?: boolean } = {}) {
   const parcours = await prisma.parcours.findFirstOrThrow({ where: { code: parcoursCode } })

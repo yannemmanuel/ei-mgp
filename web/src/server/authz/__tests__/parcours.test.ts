@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { PARCOURS_CODES, parcoursAutorises, peutVoirParcours } from '../parcours'
 import { chargerUtilisateurAutorise } from '../utilisateur'
 import { utilisateurAvecRoles } from './aide'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Le périmètre par type de déclaration, depuis qu'il se coche dans les habilitations.
@@ -80,9 +81,8 @@ describe('⚠️ Le périmètre vient de la base', () => {
           parcours: { actif: true },
           roles: {
             actif: true,
-            guard_name: 'web',
             model_has_roles: {
-              some: { model_type: String.raw`App\Models\User`, model_id: compte.id },
+              some: { model_type: MODELES.utilisateur, model_id: compte.id },
             },
           },
         },
@@ -111,7 +111,7 @@ describe('⚠️ Le périmètre vient de la base', () => {
       perdrait ses droits mais garderait sa vue.
     */
     const surRoleEteint = await prisma.role_parcours.findFirst({
-      where: { roles: { actif: false, guard_name: 'web' } },
+      where: { roles: { actif: false } },
       select: { roles: { select: { name: true } }, parcours: { select: { code: true } } },
     })
 
@@ -123,7 +123,7 @@ describe('⚠️ Le périmètre vient de la base', () => {
 
     const porteurs = await prisma.model_has_roles.findMany({
       where: {
-        model_type: String.raw`App\Models\User`,
+        model_type: MODELES.utilisateur,
         roles: { name: surRoleEteint.roles.name },
       },
       select: { model_id: true },
@@ -140,9 +140,8 @@ describe('⚠️ Le périmètre vient de la base', () => {
           parcours: { code: surRoleEteint.parcours.code, actif: true },
           roles: {
             actif: true,
-            guard_name: 'web',
             model_has_roles: {
-              some: { model_type: String.raw`App\Models\User`, model_id: porteur.model_id },
+              some: { model_type: MODELES.utilisateur, model_id: porteur.model_id },
             },
           },
         },

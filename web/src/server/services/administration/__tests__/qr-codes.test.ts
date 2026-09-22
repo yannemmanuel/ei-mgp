@@ -9,8 +9,9 @@ import {
   modifierUrlCible,
   qrCodeDataUri,
 } from '../qr-codes'
+import { MODELES } from '@/server/modeles'
 
-/** Console des QR codes (EX-DEC-01) — port de `App\Livewire\Administration\QrCodesAdmin`. */
+/** Console des QR codes (EX-DEC-01) */
 const codesCrees: string[] = []
 
 async function acteur() {
@@ -31,7 +32,7 @@ async function nouveauCode(): Promise<string> {
 afterEach(async () => {
   if (codesCrees.length === 0) return
 
-  await nettoyerAudit(String.raw`App\Models\QrCode`, codesCrees)
+  await nettoyerAudit(MODELES.qrCode, codesCrees)
   await prisma.qr_codes.deleteMany({ where: { id: { in: codesCrees } } })
   codesCrees.length = 0
 })
@@ -68,7 +69,7 @@ describe('Génération', () => {
       select: { auditable_type: true, new_values: true },
     })
 
-    expect(trace.auditable_type).toBe('App\\Models\\QrCode')
+    expect(trace.auditable_type).toBe(MODELES.qrCode)
     // Le jeton figure dans la trace : c'est ce qui permet de relier un support physique retrouvé
     // sur le terrain à la personne qui l'a émis.
     expect((trace.new_values as Record<string, unknown>).token).toBeTruthy()

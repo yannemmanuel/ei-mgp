@@ -34,18 +34,14 @@ import { ROLE_NAMES } from '../roles'
  *
  * Lecture seule — aucune écriture n'est effectuée.
  */
-const GUARD = 'web'
 
 afterAll(async () => {
   await prisma.$disconnect()
 })
 
-describe('Parité avec la base Laravel', () => {
+describe('Intégrité du catalogue d’autorisation', () => {
   it('déclare exactement les mêmes permissions que la table `permissions`', async () => {
-    const enBase = await prisma.permissions.findMany({
-      where: { guard_name: GUARD },
-      select: { name: true },
-    })
+    const enBase = await prisma.permissions.findMany({ select: { name: true } })
 
     expect([...PERMISSIONS].sort()).toEqual(enBase.map((p) => p.name).sort())
   })
@@ -61,10 +57,7 @@ describe('Parité avec la base Laravel', () => {
       Un nom vide ou avec des espaces casserait les comparaisons partout où le code résout un rôle
       par son nom (`model_has_roles`, le journal d'audit, les écrans d'administration).
     */
-    const enBase = await prisma.roles.findMany({
-      where: { guard_name: GUARD },
-      select: { name: true },
-    })
+    const enBase = await prisma.roles.findMany({ select: { name: true } })
 
     expect(enBase.length, 'aucun rôle en base : le cas ne prouverait rien').toBeGreaterThan(0)
 
@@ -88,16 +81,14 @@ describe('Parité avec la base Laravel', () => {
   it('n\'associe que des rôles et des permissions du catalogue', async () => {
     const associations = await prisma.role_has_permissions.findMany({
       select: {
-        roles: { select: { name: true, guard_name: true } },
-        permissions: { select: { name: true, guard_name: true } },
+        roles: { select: { name: true } },
+        permissions: { select: { name: true } },
       },
     })
 
     // Une association vers un nom inconnu signifierait qu'une écriture a contourné le service,
     // qui n'accepte que des valeurs du catalogue.
     for (const a of associations) {
-      if (a.roles.guard_name !== GUARD || a.permissions.guard_name !== GUARD) continue
-
       expect(ROLE_NAMES, `rôle « ${a.roles.name} »`).toContain(a.roles.name)
       expect(PERMISSIONS, `permission « ${a.permissions.name} »`).toContain(a.permissions.name)
     }
@@ -118,10 +109,7 @@ describe('Parité avec la base Laravel', () => {
       m.chargerHabilitations()
     )
 
-    const enBase = await prisma.roles.findMany({
-      where: { guard_name: GUARD },
-      select: { name: true },
-    })
+    const enBase = await prisma.roles.findMany({ select: { name: true } })
 
     const noms = new Set(enBase.map((r) => r.name))
     const manquants = ROLE_NAMES.filter((role) => !noms.has(role))
@@ -140,12 +128,11 @@ describe('Parité avec la base Laravel', () => {
   it('conserve au moins un compte actif habilité à gérer les habilitations', async () => {
     const porteurs = await prisma.roles.findMany({
       where: {
-        guard_name: GUARD,
-        // `actif` compte autant que la permission : depuis que les rôles se désactivent, un rôle
+                // `actif` compte autant que la permission : depuis que les rôles se désactivent, un rôle
         // éteint ne confère plus rien (`chargerUtilisateurAutorise`). L'omettre ici ferait passer
         // l'invariant au vert alors que plus personne ne peut ouvrir l'écran.
         actif: true,
-        role_has_permissions: { some: { permissions: { name: 'roles.manage', guard_name: GUARD } } },
+        role_has_permissions: { some: { permissions: { name: 'roles.manage' } } },
       },
       select: { name: true },
     })
@@ -160,7 +147,7 @@ describe('Parité avec la base Laravel', () => {
     })
 
     // Invariant de survie : sans lui, plus aucune interface ne permet de rétablir des droits —
-    // il n'y a plus d'application Laravel ni de commande pour le faire.
+    // aucune commande en ligne ne permet de le faire.
     expect(actifs, 'comptes actifs pouvant gérer les habilitations').toBeGreaterThan(0)
   })
 })

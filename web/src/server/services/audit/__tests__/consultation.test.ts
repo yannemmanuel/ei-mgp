@@ -4,6 +4,7 @@ import { peutConsulterJournalAudit, peutVoirAdresseIpAudit } from '@/server/auth
 import type { UtilisateurAutorise } from '@/server/authz'
 import { consulterJournal } from '../consultation'
 import { journaliser } from '../journal'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Consultation du journal (docs/exigences-audit.md §4 et §5).
@@ -12,7 +13,7 @@ import { journaliser } from '../journal'
  * de soumission peuvent réidentifier un déclarant anonyme. `service_mgp` a accès au journal sans
  * y avoir droit.
  */
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 const ID_TEST = 'test-consultation-audit'
 
 function utilisateur(roles: string[], permissions: string[]): UtilisateurAutorise {
@@ -131,7 +132,7 @@ describe('Ajout seul', () => {
     expect(noms.filter((n) => /supprimer|delete|modifier|update|purger/i.test(n))).toEqual([])
   })
 
-  it('écrit une ligne exploitable par la console Laravel', async () => {
+  it('écrit une ligne exploitable hors requête HTTP', async () => {
     await journaliser({
       action: 'test.consultation',
       auditableType: MODEL_TYPE_DOSSIER,
@@ -143,7 +144,7 @@ describe('Ajout seul', () => {
 
     expect(page.lignes[0].auditableType).toBe(MODEL_TYPE_DOSSIER)
     expect(page.lignes[0].nouvelles).toEqual({ champ: 'valeur' })
-    // Hors requête HTTP : pas d'acteur, comme Laravel en console.
+    // Hors requête HTTP : pas d'acteur — une tâche planifiée ou un script n'en a pas.
     expect(page.lignes[0].acteur).toBeNull()
   })
 })

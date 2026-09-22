@@ -60,7 +60,7 @@ export const FILTRE_VIDE: FiltreReporting = {}
 /**
  * Traduit le filtre en clause Prisma.
  *
- * `whereDate(created_at, '<=', fin)` côté Laravel compare des DATES : la borne de fin y inclut
+ * La borne de fin compare des DATES, donc elle inclut
  * toute la journée. Un `lte` sur un timestamp exclurait au contraire tout ce qui a été soumis
  * après minuit. La borne haute est donc portée à la fin de journée pour conserver ce sens.
  */

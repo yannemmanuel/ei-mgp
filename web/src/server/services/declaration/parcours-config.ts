@@ -5,7 +5,7 @@ import type { ParcoursCode } from '@/server/authz'
  *
  * Une SEULE source pour le rendu du formulaire et pour la validation serveur : décrire les
  * champs deux fois — une fois en React, une fois en Zod — reviendrait à garantir qu'ils
- * divergeront. Le portage direct des 4 composants Livewire aurait dupliqué quatre fois la même
+ * divergeront. Décrire les 4 formulaires un par un aurait dupliqué quatre fois la même
  * mécanique de wizard, d'anti-spam et de téléversement.
  */
 

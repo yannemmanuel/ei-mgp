@@ -7,7 +7,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { mettreAJourInvestigation, ouvrirInvestigation } from '../investigation'
 
-/** Port de `tests/Feature/Services/InvestigationServiceTest.php` (Laravel). */
 const dossiersCrees: string[] = []
 const investigationsCreees: string[] = []
 

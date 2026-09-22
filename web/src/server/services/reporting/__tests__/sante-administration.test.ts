@@ -1,6 +1,7 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { santeAdministration } from '../sante-administration'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Ce que l'administrateur doit voir — et ce qu'il ne doit pas voir.
@@ -17,7 +18,7 @@ afterAll(async () => {
   await prisma.$disconnect()
 })
 
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 describe('Ce qui remonte correspond à la base', () => {
   it('ne rapporte jamais une alerte à zéro', async () => {
@@ -119,7 +120,7 @@ describe('Ce qui remonte correspond à la base', () => {
     if (!alerte) return
 
     const roles = await prisma.roles.findMany({
-      where: { guard_name: 'web', actif: true },
+      where: { actif: true },
       select: { id: true, name: true },
     })
     const liens = await prisma.model_has_roles.findMany({

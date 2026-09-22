@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { transportEmail } from './transport'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Envoi de notifications piloté par gabarit (Module 5, EX-NOT-01 à 05) — port de
@@ -13,9 +14,18 @@ import { transportEmail } from './transport'
  * de ce service : elle dépend de règles métier propres à chaque évènement.
  */
 
-/** Nom de classe attendu par Laravel dans `notifications.type` — compatibilité pendant la migration. */
-const TYPE_NOTIFICATION = String.raw`App\Notifications\DossierEvenementNotification`
-const NOTIFIABLE_USER = String.raw`App\Models\User`
+/**
+ * Ce que porte `notifications.type`.
+ *
+ * ⚠️ C'ÉTAIT UN NOM DE CLASSE PHP — `App\Notifications\DossierEvenementNotification` — que le
+ * dispositif précédent instanciait à la lecture. Plus personne ne l'instancie : la colonne ne
+ * sert qu'à distinguer les familles de notifications le jour où il y en aura plusieurs.
+ *
+ * Le remplacer était sans risque : la table est VIDE. Vérifié avant de le faire, parce qu'une
+ * valeur écrite dans des lignes existantes se serait coupée en deux populations silencieuses.
+ */
+const TYPE_NOTIFICATION = 'dossier_evenement'
+const NOTIFIABLE_USER = MODELES.utilisateur
 
 export type Destinataire =
   | { readonly type: 'utilisateur'; readonly id: bigint; readonly email: string }
@@ -68,8 +78,8 @@ function substituer(texte: string, jetons: Record<string, string>): string {
 /**
  * Envoie une notification à un ensemble de destinataires.
  *
- * RG-08 : l'envoi est SYNCHRONE. Laravel met en file par défaut et contourne explicitement la
- * file pour le circuit accéléré ; ici tout est immédiat, ce qui satisfait RG-08 a fortiori.
+ * RG-08 : l'envoi est SYNCHRONE. Aucune file d'attente ne s'interpose, ce qui satisfait RG-08 a
+ * fortiori — un dossier critique ne peut pas attendre un ouvrier.
  * Une file resterait souhaitable à fort volume pour les notifications non critiques — consigné
  * comme risque ouvert, mais ne peut pas être un raccourci pour le circuit critique.
  */
@@ -180,7 +190,7 @@ function adressesSupplementaires(gabarit: Gabarit): string[] {
   return []
 }
 
-/** Ligne compatible avec le canal `database` de Laravel, pour rester lisible par les deux applications. */
+/** Une notification « outil », lue par la boîte de réception (`boite.ts`). */
 async function creerNotificationOutil(
   utilisateurId: bigint,
   evenementCode: string,
@@ -218,7 +228,7 @@ async function auditerEnvoi(
     data: {
       user_id: null,
       action: 'notification.envoyee',
-      auditable_type: String.raw`App\Models\Dossier`,
+      auditable_type: MODELES.dossier,
       auditable_id: dossier.id,
       new_values: {
         evenement_code: evenementCode,

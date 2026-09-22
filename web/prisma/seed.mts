@@ -1,7 +1,7 @@
 /**
  * Rejoue les données de référence depuis `referentiels.json`.
  *
- * Remplace les seeders Laravel, devenus inexécutables après le retrait du framework. Sans ce
+ * Recrée le paramétrage livré dans une base vierge. Sans ce
  * script, plus rien ne permettrait de recréer un environnement : ni les parcours, ni les
  * catégories, ni les délais, ni les permissions — et un déploiement sur une base neuve
  * démarrerait sur une application vide dont aucun formulaire ne fonctionnerait.
@@ -43,7 +43,7 @@ const TABLES = [
   'role_has_permissions',
 ] as const
 
-/** Tables dont la clé primaire est composite (table pivot de Spatie). */
+/** Tables dont la clé primaire est composite (tables de liaison). */
 const CLES_COMPOSEES: Partial<Record<(typeof TABLES)[number], string[]>> = {
   role_has_permissions: ['permission_id', 'role_id'],
 }

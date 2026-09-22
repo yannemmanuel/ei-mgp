@@ -10,7 +10,7 @@ import {
 } from '../throttle'
 
 /**
- * Limitation de débit — équivalent de `RateLimiter::for('login')` (Laravel) : 5 tentatives par
+ * Limitation de débit — équivalent de `RateLimiter::for('login')` : 5 tentatives par
  * minute et par couple e-mail + IP.
  *
  * Les compteurs vivent en base : ces tests s'exécutent donc contre le magasin réel, seul moyen de

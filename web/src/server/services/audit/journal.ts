@@ -3,56 +3,37 @@ import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Point d'entrée UNIQUE de toute écriture dans `audit_logs` — port de
- * `App\Services\Audit\AuditLogger` et de `App\Observers\AuditObserver`.
+ * Point d'entrée UNIQUE de toute écriture dans `audit_logs`.
  *
  * `audit_logs` est en AJOUT SEUL (CDC §15) : ce module n'expose ni modification, ni suppression,
  * et il ne doit jamais en exposer. Aucune route, aucune action serveur ne permet d'altérer une
  * ligne existante.
  *
- * Le format des lignes reproduit exactement celui de Laravel — `auditable_type` porte le nom de
- * classe PHP, l'action suit la convention `modele.verbe`. Les deux applications lisent donc le
- * même journal pendant la migration ; s'en écarter rendrait l'historique illisible d'un côté ou
- * de l'autre.
+ * Une ligne porte une ACTION — `modele.verbe`, par exemple `statut_dossier.modifie` — et le TYPE
+ * de l'objet visé. Les deux se lisent ensemble : l'action dit ce qui s'est passé, le type et
+ * l'identifiant disent sur quoi.
+ *
+ * ⚠️ LES DEUX SE CONTREDISAIENT JUSQU'AU 2026-09-22. L'action disait `statut_dossier.modifie`
+ * quand le type disait `App\Models\StatutDossier` : deux vocabulaires pour la même chose, dans
+ * la même ligne, qu'une seconde table de correspondance devait réconcilier à l'affichage. Le
+ * format de classe PHP se justifiait tant que l'application PHP lisait le même journal ; elle est partie, et
+ * les types sont désormais ceux de `@/server/modeles`, alignés sur les préfixes d'action.
  */
 
-/** Noms de classe Eloquent attendus dans `auditable_type`. */
-export const MODELES = {
-  categorie: String.raw`App\Models\Categorie`,
-  statutDossier: String.raw`App\Models\StatutDossier`,
-  site: String.raw`App\Models\Site`,
-  direction: String.raw`App\Models\Direction`,
-  canalCaptage: String.raw`App\Models\CanalCaptage`,
-  notificationTemplate: String.raw`App\Models\NotificationTemplate`,
-  qrCode: String.raw`App\Models\QrCode`,
-  slaDelai: String.raw`App\Models\SlaDelai`,
-  niveauGravite: String.raw`App\Models\NiveauGravite`,
-  utilisateur: String.raw`App\Models\User`,
-  role: String.raw`Spatie\Permission\Models\Role`,
-  dossier: String.raw`App\Models\Dossier`,
-  // Référentiels ajoutés le 11/09/2026. Ils n'ont pas d'équivalent Laravel — le nom suit
-  // néanmoins la même convention, qui est la clé de rapprochement du journal.
-  poste: String.raw`App\Models\Poste`,
-  lieu: String.raw`App\Models\Lieu`,
-  ville: String.raw`App\Models\Ville`,
-  /*
-    ⚠️ CETTE TABLE N'EXISTE PLUS (2026-09-22) — l'entrée, elle, RESTE.
+/*
+  Les codes de type vivent dans `@/server/modeles`, module feuille sans dépendance.
 
-    Deux lignes d'`audit_logs` citent `App\Models\TrancheAnciennete` : elles consignent des
-    modifications réellement faites, par quelqu'un, à une date. Retirer la correspondance
-    n'effacerait pas ces lignes, elle les rendrait illisibles — le journal afficherait un nom de
-    classe brut là où il doit nommer ce qui a été fait.
+  ⚠️ ILS Y SONT ALLÉS le 2026-09-22, en même temps qu'ils cessaient d'être des noms de classe
+  PHP. Ils sont écrits par quatre modules qui n'ont rien à voir avec le journal — l'autorisation,
+  le stockage des pièces jointes, la boîte de notifications — et chacun en portait sa propre
+  copie littérale. Les héberger ici obligeait ces modules à importer le journal pour une
+  constante, ou à la recopier ; ils la recopiaient.
 
-    Le journal décrit le PASSÉ : sa table de noms ne se purge pas quand le présent change.
-  */
-  trancheAnciennete: String.raw`App\Models\TrancheAnciennete`,
-  // Le TYPE de déclaration lui-même, depuis que ses réglages se paramètrent (familles de risque,
-  // 2026-09-21).
-  parcours: String.raw`App\Models\Parcours`,
-  familleRisque: String.raw`App\Models\FamilleRisque`,
-} as const
+  La ré-exportation garde valides les importations déjà écrites depuis ce module.
+*/
+import type { ModeleAudite } from '@/server/modeles'
 
-export type ModeleAudite = (typeof MODELES)[keyof typeof MODELES]
+export { MODELES, type ModeleAudite } from '@/server/modeles'
 
 /** Valeurs jamais consignées, même hachées — équivalent de `$model->getHidden()`. */
 const CHAMPS_EXCLUS = new Set(['password', 'remember_token', 'access_code_hash', 'updated_at'])
@@ -71,7 +52,7 @@ async function contexteRequete(): Promise<{ ip: string | null; agent: string | n
       url: entetes.get('referer'),
     }
   } catch {
-    // Hors requête (tâche planifiée, script) : Laravel écrit également null dans ce cas.
+    // Hors requête (tâche planifiée, script) : il n'y a ni IP, ni agent, ni URL à consigner.
     return { ip: null, agent: null, url: null }
   }
 }
@@ -107,7 +88,7 @@ function vide(valeurs: ValeursAudit | null | undefined): boolean {
 }
 
 /**
- * Les BigInt et les dates ne sont pas sérialisables en JSON : converties comme le fait Laravel.
+ * Les BigInt et les dates ne sont pas sérialisables en JSON : converties en chaînes.
  *
  * Le type de retour est celui qu'attend Prisma pour une colonne JSON — `Record<string, unknown>`
  * y serait refusé, `unknown` pouvant contenir des valeurs non sérialisables.

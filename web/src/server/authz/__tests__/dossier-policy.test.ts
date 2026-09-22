@@ -8,7 +8,7 @@ import {
 import { utilisateurAvecRoles } from './aide'
 
 /**
- * Port de `tests/Feature/Policies/DossierPolicyTest.php` (Laravel). Chaque cas reproduit une
+ * Chaque cas reproduit une
  * assertion existante, afin que toute divergence de comportement soit détectée ici.
  */
 const dossier = (

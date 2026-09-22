@@ -8,6 +8,7 @@ import {
 } from '@/server/services/administration/utilisateurs'
 import { verifier } from '../hachage'
 import { changerMotDePasse, LONGUEUR_MINIMALE, OCTETS_MAXIMUM } from '../mot-de-passe'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Changement de mot de passe par son porteur.
@@ -16,7 +17,7 @@ import { changerMotDePasse, LONGUEUR_MINIMALE, OCTETS_MAXIMUM } from '../mot-de-
  * connu, et l'est peut-être resté du canal par lequel il a été transmis. Tant qu'il n'a pas été
  * remplacé, une action faite sous ce compte n'est imputable à personne avec certitude.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 const comptesCrees: bigint[] = []
 
 const VALIDE = 'phrase de passe assez longue'

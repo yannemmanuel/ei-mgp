@@ -9,6 +9,7 @@ import {
   nomTechnique,
   supprimerRole,
 } from '../habilitations'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Matrice des habilitations.
@@ -17,7 +18,7 @@ import {
  * été décidé (le code) et ce qui s'applique (la base). Une dérive silencieuse signifie que
  * quelqu'un dispose d'un droit qui ne lui a pas été accordé, ou se voit refuser un accès prévu.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 const associationsRetirees: { role_id: bigint; permission_id: bigint }[] = []
 
 afterEach(async () => {
@@ -35,7 +36,7 @@ afterAll(async () => {
 describe('Lecture de la matrice', () => {
   it('expose tous les rôles et toutes les permissions', async () => {
     const { lignes, permissions } = await chargerHabilitations()
-    const enBase = await prisma.roles.findMany({ where: { guard_name: 'web' }, select: { name: true } })
+    const enBase = await prisma.roles.findMany({ select: { name: true } })
 
     expect(lignes.map((l) => l.role).sort()).toEqual(enBase.map((r) => r.name).sort())
     expect(permissions).toEqual(PERMISSIONS)
@@ -46,7 +47,7 @@ describe('Lecture de la matrice', () => {
 
     for (const ligne of lignes) {
       const enBase = await prisma.roles.findFirst({
-        where: { name: ligne.role, guard_name: 'web' },
+        where: { name: ligne.role },
         select: { role_has_permissions: { select: { permissions: { select: { name: true } } } } },
       })
 
@@ -150,8 +151,7 @@ describe('Détection d’écart', () => {
 })
 
 describe('Modification des habilitations', () => {
-  const GUARD = 'web'
-
+  
   async function acteur() {
     const u = await prisma.users.findFirstOrThrow({ orderBy: { id: 'asc' }, select: { id: true } })
     return { id: u.id }
@@ -159,7 +159,7 @@ describe('Modification des habilitations', () => {
 
   async function permissionsDe(role: string): Promise<string[]> {
     const ligne = await prisma.roles.findFirstOrThrow({
-      where: { name: role, guard_name: GUARD },
+      where: { name: role },
       select: { role_has_permissions: { select: { permissions: { select: { name: true } } } } },
     })
 
@@ -273,7 +273,7 @@ describe('Modification des habilitations', () => {
 
     // `administrateur_digital` est le seul rôle porteur de `roles.manage` : le lui retirer
     // rendrait l'écran inaccessible à tous, sans aucun moyen de revenir en arrière — il n'y a
-    // plus d'application Laravel ni de commande pour le faire.
+    // aucune commande en ligne pour le faire.
     await expect(
       modifierPermissionsRole(
         qui,
@@ -440,7 +440,7 @@ describe('Création et suppression de rôles', () => {
 
     for (const role of ['service_mgp', 'secretaire_csst', 'administrateur_digital']) {
       const porteurs = await prisma.model_has_roles.count({
-        where: { model_type: MODEL_TYPE_USER, roles: { name: role, guard_name: 'web' } },
+        where: { model_type: MODEL_TYPE_USER, roles: { name: role } },
       })
 
       if (porteurs === 0) continue // non porté : il est désormais supprimable, rien à vérifier

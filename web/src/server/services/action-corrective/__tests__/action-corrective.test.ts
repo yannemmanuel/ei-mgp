@@ -11,7 +11,6 @@ import {
   verifierEfficacite,
 } from '../action-corrective'
 
-/** Port de `tests/Feature/Services/ActionCorrectiveServiceTest.php` (Laravel). */
 const dossiersCrees: string[] = []
 const actionsCreees: string[] = []
 const investigationsCreees: string[] = []

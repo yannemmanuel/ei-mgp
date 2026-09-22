@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { creerDeclaration } from '../creer-declaration'
 import { personnesEnCharge } from '../../dossier/suivi-ei'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from './aide-base'
+import { MODELES } from '@/server/modeles'
 
 /**
  * ⚠️ PLUS AUCUNE DÉCLARATION N'EST AFFECTÉE À LA CRÉATION.
@@ -17,7 +18,7 @@ import { categoriePour, graviteParNiveau, nettoyerDossiers } from './aide-base'
  * site, puis sur la direction. Ce qu'il tient désormais, c'est qu'elle ne route plus rien — et
  * que ce qui la remplace désigne bien quelqu'un, sans quoi chaque grief serait orphelin.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 const dossiers: string[] = []
 const comptes: bigint[] = []
@@ -38,7 +39,7 @@ async function compteAvecRole(
   rattachement: { siteId?: bigint | null; directionId?: bigint | null } = {}
 ): Promise<bigint> {
   const ligneRole = await prisma.roles.findFirstOrThrow({
-    where: { name: role, guard_name: 'web' },
+    where: { name: role },
     select: { id: true },
   })
 

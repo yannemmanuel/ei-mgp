@@ -7,11 +7,11 @@ import {
 import { envoyerNotification } from './notification'
 
 /**
- * Réactions aux évènements métier — port des Listeners Laravel.
+ * Réactions aux évènements métier
  *
  * Appelées depuis les SERVICES, pas depuis les Server Actions : une notification oubliée dans
  * une action passerait inaperçue, alors que RG-08 (circuit accéléré) exige une garantie de
- * déclenchement. C'est l'équivalent des évènements Eloquent émis dans les services Laravel.
+ * déclenchement. Les services appellent ces réactions explicitement, au point de bascule.
  *
  * Toutes les fonctions ci-dessous sont « best effort » : un échec d'envoi ne doit JAMAIS annuler
  * l'opération métier qui l'a déclenché. Perdre une notification est regrettable ; perdre une

@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { MODELES } from '@/server/modeles'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
 import { envoyerNotification, type Destinataire } from '../notification'
@@ -7,7 +8,7 @@ import { definirTransportEmail, TransportJournal, type MessageEmail } from '../t
 
 /**
  * Port de `tests/Feature/Services/NotificationServiceTest.php` et
- * `NotificationServiceAuditTest.php` (Laravel).
+ * `NotificationServiceAuditTest.php`.
  *
  * Les gabarits sont créés par le test lui-même : la base de développement n'en contient aucun,
  * et dépendre d'un jeu de données préexistant rendrait ces tests muets sans le signaler.
@@ -132,7 +133,7 @@ describe('Envoi piloté par gabarit', () => {
     expect(emailsCaptures[0].corps).not.toContain('{parcours}')
   })
 
-  it('crée une ligne « outil » lisible par Laravel', async () => {
+  it('crée une ligne « outil » lisible par la boîte de réception', async () => {
     const dossierId = await nouveauDossier()
     const destinataire = await unUtilisateur()
 
@@ -163,8 +164,13 @@ describe('Envoi piloté par gabarit', () => {
       orderBy: { created_at: 'desc' },
     })
 
-    expect(notification.type).toContain('DossierEvenementNotification')
-    expect(notification.notifiable_type).toBe('App\\Models\\User')
+    /*
+      ⚠️ Les deux colonnes portaient des noms de classe PHP jusqu'au 2026-09-22. Ce cas les
+      vérifie à leur NOUVELLE valeur, et l'assertion est exacte plutôt que partielle : un
+      `toContain` sur un code court accepterait n'importe quelle chaîne qui l'englobe.
+    */
+    expect(notification.type).toBe('dossier_evenement')
+    expect(notification.notifiable_type).toBe(MODELES.utilisateur)
     expect(JSON.parse(notification.data)).toMatchObject({
       evenement_code: 'test_outil',
       objet: 'Objet outil',

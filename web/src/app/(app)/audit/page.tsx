@@ -15,8 +15,7 @@ export const metadata: Metadata = { title: 'Journal d’audit' }
 export const dynamic = 'force-dynamic'
 
 /**
- * Consultation du journal d'audit (docs/exigences-audit.md §4) — port de
- * `App\Livewire\Audit\AuditLogViewer`.
+ * Consultation du journal d'audit (docs/exigences-audit.md §4)
  *
  * **Lecture seule, sans exception.** Aucune action d'écriture n'est exposée ici, et aucune ne
  * doit l'être : le journal est en ajout seul, y compris pour un administrateur (§3).

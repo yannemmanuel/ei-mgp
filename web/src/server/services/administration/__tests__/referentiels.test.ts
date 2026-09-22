@@ -15,9 +15,10 @@ import {
   modifierStatut,
   supprimerCategorie,
 } from '../referentiels'
+import { MODELES } from '@/server/modeles'
 
 /**
- * Référentiels d'administration — port des composants `App\Livewire\Administration\*`.
+ * Référentiels d'administration
  *
  * Deux propriétés sont vérifiées à chaque fois : la mutation aboutit, ET elle laisse une trace
  * d'audit au format attendu. Une modification de référentiel non tracée est une modification
@@ -42,14 +43,14 @@ async function lignesAudit(action: string, auditableId: string) {
 
 afterEach(async () => {
   // Le type est indispensable : « 34 » désigne aussi bien une catégorie qu'un autre modèle.
-  await nettoyerAudit('App\Models\Categorie', categoriesCreees)
-  await nettoyerAudit('App\Models\Site', sitesCrees)
+  await nettoyerAudit(MODELES.categorie, categoriesCreees)
+  await nettoyerAudit(MODELES.site, sitesCrees)
   if (categoriesCreees.length > 0) {
     await prisma.categories.deleteMany({ where: { id: { in: categoriesCreees } } })
     categoriesCreees.length = 0
   }
   // Les directions partent AVANT les sites : la clé étrangère l'exige.
-  await nettoyerAudit(String.raw`App\Models\Direction`, directionsCreees)
+  await nettoyerAudit(MODELES.direction, directionsCreees)
   if (directionsCreees.length > 0) {
     await prisma.directions.deleteMany({ where: { id: { in: directionsCreees } } })
     directionsCreees.length = 0
@@ -100,7 +101,7 @@ describe('Catégories', () => {
     expect(triees).toEqual(['Aaa catégorie de tri', 'Zzz catégorie de tri'])
   })
 
-  it('crée une catégorie et l’audite au format Laravel', async () => {
+  it('crée une catégorie et l’audite', async () => {
     const qui = await acteur()
     const parcours = await prisma.parcours.findFirstOrThrow({ select: { id: true } })
 
@@ -116,8 +117,8 @@ describe('Catégories', () => {
     const [trace] = await lignesAudit('categorie.cree', String(id))
 
     expect(trace).toBeDefined()
-    // Le nom de classe PHP doit être exact : la console d'audit de Laravel filtre dessus.
-    expect(trace.auditable_type).toBe('App\\Models\\Categorie')
+    // Le type doit être exact : l'écran du journal filtre dessus, et `libelleObjet()` le traduit.
+    expect(trace.auditable_type).toBe(MODELES.categorie)
     expect(trace.user_id).toBe(qui.id)
     expect((trace.new_values as Record<string, unknown>).code).toBe('test_migration_categorie')
   })
@@ -248,7 +249,7 @@ describe('Statuts et canaux — modification seule', () => {
       expect(apres.libelle_affiche).toBe('Libellé de test')
 
       const [trace] = await lignesAudit('statut_dossier.modifie', String(statut.id))
-      expect(trace.auditable_type).toBe('App\\Models\\StatutDossier')
+      expect(trace.auditable_type).toBe(MODELES.statutDossier)
     } finally {
       // Ce référentiel est une donnée réelle : remise en l'état quoi qu'il arrive.
       await prisma.statuts_dossier.update({
@@ -326,7 +327,7 @@ describe('Rang et suppression (RG-03)', () => {
     expect(await prisma.categories.findUnique({ where: { id } })).toBeNull()
 
     const [trace] = await lignesAudit('categorie.supprimee', String(id))
-    expect(trace.auditable_type).toBe('App\\Models\\Categorie')
+    expect(trace.auditable_type).toBe(MODELES.categorie)
     // Les valeurs effacées sont consignées : c'est tout ce qui restera de la ligne.
     expect((trace.old_values as Record<string, unknown>).libelle).toBe('Catégorie jamais utilisée')
 
@@ -432,7 +433,7 @@ describe('Organisation — sites et directions', () => {
 
     const trace = await lignesAudit('direction.creee', String(directionId))
     expect(trace).toHaveLength(1)
-    expect(trace[0].auditable_type).toBe(String.raw`App\Models\Direction`)
+    expect(trace[0].auditable_type).toBe(MODELES.direction)
   })
 
   it('refuse un site inconnu au rattachement', async () => {
@@ -544,7 +545,7 @@ describe('Rattachement d’une direction', () => {
     // la même façon dans un journal.
     const actions = (
       await prisma.audit_logs.findMany({
-        where: { auditable_type: String.raw`App\Models\Direction`, auditable_id: String(directionId) },
+        where: { auditable_type: MODELES.direction, auditable_id: String(directionId) },
         orderBy: { id: 'asc' },
         select: { action: true },
       })
@@ -592,7 +593,7 @@ describe('Rattachement d’une direction', () => {
 
     const traces = await prisma.audit_logs.count({
       where: {
-        auditable_type: String.raw`App\Models\Direction`,
+        auditable_type: MODELES.direction,
         auditable_id: String(directionId),
         action: { in: ['direction.rattachee', 'direction.detachee'] },
       },

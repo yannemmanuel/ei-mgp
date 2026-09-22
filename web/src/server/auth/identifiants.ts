@@ -3,10 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { hacher } from './hachage'
 
 /**
- * Vérification des identifiants contre les comptes Laravel existants.
+ * Vérification des identifiants.
  *
- * Les mots de passe sont des hachages bcrypt `$2y$12$` produits par Laravel : `bcryptjs` les
- * accepte tels quels, aucune réinitialisation n'est nécessaire lors de la bascule.
+ * ⚠️ LES MOTS DE PASSE EXISTANTS SONT DES `$2y$12$`, produits par le dispositif précédent en PHP.
+ * `bcryptjs` les accepte tels quels : personne n'a eu à réinitialiser son mot de passe à la
+ * bascule, et personne ne devrait avoir à le faire. Voir `auth/hachage.ts` pour le préfixe.
  */
 export type ResultatVerification =
   | { statut: 'ok'; userId: bigint }
@@ -14,9 +15,10 @@ export type ResultatVerification =
   | { statut: 'compte_desactive' }
 
 /**
- * Divergence délibérée avec la baseline Laravel (cf. MIGRATION_PLAN.md, étape 2) : Laravel
- * n'applique AUCUN contrôle sur `users.actif` à la connexion — un compte désactivé peut s'y
- * connecter et conserve tous ses droits. Le portage refuse ce compte.
+ * ⚠️ UN COMPTE DÉSACTIVÉ NE SE CONNECTE PAS, et c'est un durcissement délibéré : le dispositif
+ * précédent n'appliquait aucun contrôle sur `users.actif` à la connexion — un compte désactivé
+ * pouvait s'y connecter et conservait tous ses droits. Ce contrôle a été ajouté à la bascule, et
+ * ne doit pas être relâché en le prenant pour une divergence accidentelle.
  */
 export async function verifierIdentifiants(
   email: string,

@@ -6,8 +6,7 @@ import { verifierCodeAcces } from '../code-acces'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from './aide-base'
 
 /**
- * Port de `tests/Feature/Services/DeclarationServiceTest.php` (Laravel).
- *
+ * *
  * Chaque cas reproduit une assertion existante, afin que toute divergence de comportement entre
  * les deux applications soit détectée ici plutôt qu'en production.
  */
@@ -73,7 +72,7 @@ describe('Création de déclaration', () => {
 
     const dossier = await prisma.dossiers.findUniqueOrThrow({ where: { id: dossierId } })
     expect(dossier.reference).toBe(reference)
-    // ULID minuscule sur 26 caractères, comme Laravel (HasUlids).
+    // ULID minuscule sur 26 caractères.
     expect(dossier.id).toMatch(/^[0-9a-z]{26}$/)
   })
 

@@ -5,8 +5,7 @@ import { perimetreDossiers } from '../dossier/liste'
 import { STATUTS_ACTION, type StatutAction } from './action-corrective'
 
 /**
- * Vue transverse des actions correctives, tous dossiers confondus — port de
- * `App\Livewire\ActionsCorrectives\ActionCorrectiveListPage`.
+ * Vue transverse des actions correctives, tous dossiers confondus
  *
  * Même règle que pour les investigations : le cloisonnement par parcours est poussé en SQL avant
  * pagination, jamais appliqué après lecture.

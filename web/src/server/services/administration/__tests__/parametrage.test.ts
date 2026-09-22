@@ -5,6 +5,7 @@ import { ErreurWorkflow } from '../../dossier/workflow'
 import { dateLimite, viderCacheDelais } from '../../dossier/delais'
 import { ETAPES_DELAI, UNITES_DELAI, listerDelais, modifierDelai } from '../delais'
 import { EFFETS_CIRCUIT, listerGravites, modifierGravite } from '../gravites'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Délais et niveaux de gravité paramétrables.
@@ -14,8 +15,8 @@ import { EFFETS_CIRCUIT, listerGravites, modifierGravite } from '../gravites'
  * l'alerte immédiate de la Direction (RG-08). Les rendre modifiables sans les protéger
  * reviendrait à exposer un interrupteur sans étiquette.
  */
-const MODELE_DELAI = String.raw`App\Models\SlaDelai`
-const MODELE_GRAVITE = String.raw`App\Models\NiveauGravite`
+const MODELE_DELAI = MODELES.slaDelai
+const MODELE_GRAVITE = MODELES.niveauGravite
 
 const delaisTouches: bigint[] = []
 const gravitesTouchees: bigint[] = []

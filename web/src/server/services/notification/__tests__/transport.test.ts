@@ -16,6 +16,7 @@ import {
   transportEmail,
   type MessageEmail,
 } from '../transport'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Transport e-mail.
@@ -23,7 +24,7 @@ import {
  * Le choix du transport appartient à la CONFIGURATION : un environnement qui croit expédier alors
  * qu'il journalise est aussi dangereux qu'un fournisseur imposé dans le code.
  */
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 const dossiersCrees: string[] = []
 const gabaritsCrees: bigint[] = []
 

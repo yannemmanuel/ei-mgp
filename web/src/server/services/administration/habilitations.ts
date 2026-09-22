@@ -14,9 +14,6 @@ import { STATUTS, transitionsDepuis, type StatutCode } from '../dossier/statuts'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser } from '../audit/journal'
 
-/** Garde Spatie : les lignes d'un autre garde ne concernent pas cette application. */
-const GUARD = 'web'
-
 /**
  * Quels types de déclaration chaque rôle ouvre — lu dans `role_parcours`.
  *
@@ -31,7 +28,6 @@ export async function parcoursParRole(): Promise<
   Map<string, { code: ParcoursCode; libelle: string; alerteCircuitCritique: boolean }[]>
 > {
   const lignes = await prisma.role_parcours.findMany({
-    where: { roles: { guard_name: GUARD } },
     select: {
       alerte_circuit_critique: true,
       roles: { select: { name: true } },
@@ -83,7 +79,6 @@ export async function cloisonnementParRole(): Promise<
   Map<string, { cloisonne: boolean; donneAcces: boolean }>
 > {
   const lignes = await prisma.roles.findMany({
-    where: { guard_name: GUARD },
     select: {
       name: true,
       cloisonne_par_rattachement: true,
@@ -284,7 +279,7 @@ export type Habilitations = {
   readonly ecarts: EcartHabilitation[]
 }
 
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 export async function chargerHabilitations(): Promise<Habilitations> {
   const [
@@ -296,9 +291,6 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     toutesLesEtapes,
   ] = await Promise.all([
     prisma.roles.findMany({
-      // Les rôles d'un autre garde ne concernent pas cette application : les lister ici les
-      // aurait présentés comme administrables, et comparés à une référence qui ne les vise pas.
-      where: { guard_name: GUARD },
       select: {
         name: true,
         libelle: true,
@@ -329,7 +321,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     etapesACocher(),
   ])
 
-  // `model_has_roles` est la table polymorphe de Spatie : elle n'a pas de relation vers `users`,
+  // `model_has_roles` est POLYMORPHE : elle n'a pas de relation vers `users`,
   // seulement un `model_type` et un `model_id`. L'intersection se fait donc ici.
   const actifs = new Set(comptesActifs.map((u) => u.id))
   const effectifs = new Map<string, number>()
@@ -454,7 +446,7 @@ function comparer(
  *    la base décide seulement qui obtient quoi. Un nom forgé ne peut pas créer d'association.
  * 2. **Personne ne peut se verrouiller dehors.** Au moins un compte actif doit conserver
  *    `roles.manage` après la modification — sinon plus aucune interface ne permettrait de
- *    revenir en arrière, et il n'y a plus d'application Laravel ni de commande pour le faire.
+ *    revenir en arrière, et aucune commande en ligne ne permet de le faire.
  * 3. **Tout changement est tracé.** L'audit remplace la comparaison automatique code/base qui
  *    protégeait ces associations tant qu'elles étaient figées : un droit accordé ou retiré doit
  *    rester explicable, avec son auteur et sa date.
@@ -471,7 +463,7 @@ export async function modifierPermissionsRole(
   }
 
   const ligneRole = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: { id: true, role_has_permissions: { select: { permissions: { select: { id: true, name: true } } } } },
   })
 
@@ -497,7 +489,7 @@ export async function modifierPermissionsRole(
 
   if (aAjouter.length > 0) {
     const lignes = await prisma.permissions.findMany({
-      where: { name: { in: aAjouter }, guard_name: GUARD },
+      where: { name: { in: aAjouter } },
       select: { id: true },
     })
 
@@ -550,7 +542,7 @@ export async function modifierParcoursRole(
   }
 
   const ligneRole = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: {
       id: true,
       role_parcours: {
@@ -669,7 +661,7 @@ export async function modifierIdentiteRole(
   }
 
   const ligne = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: { id: true, libelle: true, description: true },
   })
 
@@ -735,7 +727,7 @@ export async function changerComportementRole(
   }
 
   const ligne = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: {
       id: true,
       traite_dossiers: true,
@@ -794,7 +786,7 @@ export async function modifierEtapesRole(
   casesVoulues: readonly { readonly parcours: string; readonly statut: string }[]
 ): Promise<void> {
   const ligneRole = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: {
       id: true,
       role_etapes: {
@@ -889,7 +881,7 @@ export async function changerActivationRole(
   actif: boolean
 ): Promise<void> {
   const ligne = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: { id: true, actif: true },
   })
 
@@ -984,7 +976,7 @@ export async function creerRole(
   }
 
   const existant = await prisma.roles.findFirst({
-    where: { name, guard_name: GUARD },
+    where: { name },
     select: { libelle: true },
   })
 
@@ -997,7 +989,6 @@ export async function creerRole(
   const cree = await prisma.roles.create({
     data: {
       name,
-      guard_name: GUARD,
       libelle,
       description,
       actif: true,
@@ -1009,7 +1000,7 @@ export async function creerRole(
 
   if (role.permissions.length > 0) {
     const lignes = await prisma.permissions.findMany({
-      where: { name: { in: [...role.permissions] }, guard_name: GUARD },
+      where: { name: { in: [...role.permissions] } },
       select: { id: true },
     })
 
@@ -1060,7 +1051,7 @@ export async function supprimerRole(acteur: { id: bigint }, role: string): Promi
   */
 
   const ligne = await prisma.roles.findFirst({
-    where: { name: role, guard_name: GUARD },
+    where: { name: role },
     select: {
       id: true,
       libelle: true,
@@ -1100,7 +1091,7 @@ const CLE_ADMINISTRATION = 'roles.manage'
 /**
  * Refuse une modification qui priverait le dispositif de tout administrateur.
  *
- * Sans application Laravel ni commande en ligne, plus personne ne pourrait rétablir la situation :
+ * Sans aucune commande en ligne, plus personne ne pourrait rétablir la situation :
  * l'écran des habilitations deviendrait inaccessible à tous, définitivement.
  *
  * Deux chemins y mènent, et il faut les couvrir tous les deux — c'est pourquoi le contrôle
@@ -1117,11 +1108,10 @@ async function verifierQuUnAdministrateurSubsiste(hypothese: {
   actif?: boolean
 }): Promise<void> {
   const roles = await prisma.roles.findMany({
-    where: { guard_name: GUARD },
     select: {
       name: true,
       actif: true,
-      role_has_permissions: { select: { permissions: { select: { name: true, guard_name: true } } } },
+      role_has_permissions: { select: { permissions: { select: { name: true } } } },
     },
   })
 
@@ -1136,7 +1126,7 @@ async function verifierQuUnAdministrateurSubsiste(hypothese: {
           ? hypothese.permissions.has(CLE_ADMINISTRATION)
           : r.role_has_permissions.some(
               (rhp) =>
-                rhp.permissions.name === CLE_ADMINISTRATION && rhp.permissions.guard_name === GUARD
+                rhp.permissions.name === CLE_ADMINISTRATION
             )
 
       return { name: r.name, conserve: actif && detient }

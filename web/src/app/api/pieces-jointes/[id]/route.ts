@@ -5,6 +5,7 @@ import { peutVoirDossier, type ParcoursCode } from '@/server/authz'
 import type { StatutCode } from '@/server/services/dossier/statuts'
 import { magasinNomme } from '@/server/services/stockage/magasin'
 import { reponsePieceJointe } from '@/server/services/stockage/reponse-piece-jointe'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Téléchargement — et aperçu — d'une pièce jointe. Port de `PieceJointeDownloadController`.
@@ -23,9 +24,9 @@ import { reponsePieceJointe } from '@/server/services/stockage/reponse-piece-joi
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MODELE_DOSSIER = String.raw`App\Models\Dossier`
-const MODELE_INVESTIGATION = String.raw`App\Models\Investigation`
-const MODELE_ACTION = String.raw`App\Models\ActionCorrective`
+const MODELE_DOSSIER = MODELES.dossier
+const MODELE_INVESTIGATION = MODELES.investigation
+const MODELE_ACTION = MODELES.actionCorrective
 
 /**
  * Remonte au dossier parent.

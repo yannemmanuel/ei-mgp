@@ -4,6 +4,7 @@ import { chargerUtilisateurAutorise } from '@/server/authz'
 import { utilisateurAvecRoles } from '@/server/authz/__tests__/aide'
 import { clauseDontJeReponds } from '../liste'
 import { comptesQuiTraitent } from '../suivi-ei'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Qui TRAITE les dossiers — un paramètre du rôle, pas une déduction.
@@ -22,7 +23,7 @@ describe('⚠️ Le Service MGP ne traite pas les dossiers', () => {
     const traitants = await comptesQuiTraitent()
 
     const roles = await prisma.roles.findMany({
-      where: { guard_name: 'web', traite_dossiers: true },
+      where: { traite_dossiers: true },
       select: { name: true },
     })
 
@@ -110,11 +111,10 @@ describe('⚠️ La charge se paramètre, elle ne se déduit pas', () => {
 
       const traitants = await prisma.roles.count({
         where: {
-          guard_name: 'web',
-          actif: true,
+                    actif: true,
           traite_dossiers: true,
           model_has_roles: {
-            some: { model_type: String.raw`App\Models\User`, model_id: compte.id },
+            some: { model_type: MODELES.utilisateur, model_id: compte.id },
           },
         },
       })
@@ -129,7 +129,7 @@ describe('⚠️ La charge se paramètre, elle ne se déduit pas', () => {
     // Même règle que pour les permissions et les types : un rôle éteint ne confère rien. La
     // contourner rendrait la désactivation à moitié effective.
     const eteintTraitant = await prisma.roles.findFirst({
-      where: { guard_name: 'web', actif: false, traite_dossiers: true },
+      where: { actif: false, traite_dossiers: true },
       select: { name: true },
     })
 
@@ -141,7 +141,7 @@ describe('⚠️ La charge se paramètre, elle ne se déduit pas', () => {
 
     const porteurs = await prisma.model_has_roles.findMany({
       where: {
-        model_type: String.raw`App\Models\User`,
+        model_type: MODELES.utilisateur,
         roles: { name: eteintTraitant.name },
       },
       select: { model_id: true },
@@ -153,11 +153,10 @@ describe('⚠️ La charge se paramètre, elle ne se déduit pas', () => {
 
       const autreTraitantActif = await prisma.roles.count({
         where: {
-          guard_name: 'web',
-          actif: true,
+                    actif: true,
           traite_dossiers: true,
           model_has_roles: {
-            some: { model_type: String.raw`App\Models\User`, model_id: porteur.model_id },
+            some: { model_type: MODELES.utilisateur, model_id: porteur.model_id },
           },
         },
       })

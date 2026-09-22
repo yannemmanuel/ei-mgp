@@ -53,7 +53,7 @@ export async function archiver(maintenant: Date = new Date()): Promise<number> {
   })
 
   // L'archivage est une décision de conservation : elle doit être explicable à un auditeur, et
-  // ce n'est pas une action d'utilisateur — `user_id` reste nul, comme le fait Laravel hors
+  // ce n'est pas une action d'utilisateur — `user_id` reste nul, comme pour toute écriture hors
   // requête HTTP.
   for (const dossier of eligibles) {
     await journaliser({
@@ -152,7 +152,7 @@ export async function appliquerPolitiqueConservation(
  * (`rgpd.conservation.manage`) : l'autorisation est vérifiée par l'appelant, ce module ne fait
  * que l'appliquer.
  *
- * Journalisé sous `dossier.modifie`, comme le ferait l'observer générique de Laravel pour
+ * Journalisé sous `dossier.modifie`, au même titre que toute autre modification de
  * n'importe quelle colonne de `dossiers` : ce blocage suspend une obligation d'effacement, il
  * doit rester explicable à un auditeur.
  */

@@ -437,12 +437,12 @@ export async function supprimerCompte(acteur: Acteur, id: bigint): Promise<void>
     Ce qui appartient au compte part avec lui.
 
     `utilisateur_parcours` et `invitations_connexion` sont déjà en `ON DELETE CASCADE` ;
-    `model_has_roles` ne l'est pas — c'est une table de spatie, polymorphe, sans clé étrangère
+    `model_has_roles` ne l'est pas — c'est une table POLYMORPHE, sans clé étrangère
     vers `users`. Sans ce nettoyage, l'association survivrait au compte et serait réattribuée au
     prochain identifiant réutilisant ce numéro.
   */
   await prisma.model_has_roles.deleteMany({
-    where: { model_type: String.raw`App\Models\User`, model_id: id },
+    where: { model_type: MODELES.utilisateur, model_id: id },
   })
 
   await prisma.users.delete({ where: { id } })

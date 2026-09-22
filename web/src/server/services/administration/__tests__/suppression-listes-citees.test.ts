@@ -8,6 +8,7 @@ import {
   nettoyerAudit,
   nettoyerDossiers,
 } from '@/server/services/declaration/__tests__/aide-base'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Un lieu ou une ville RETENU par un dossier ne se supprime plus.
@@ -39,7 +40,7 @@ vi.mock('next/headers', () => ({
 const { traiterSoumission } = await import('@/server/services/declaration/soumission')
 
 const ACTEUR = { id: 1n }
-const MODELE_LIEU = String.raw`App\Models\Lieu`
+const MODELE_LIEU = MODELES.lieu
 
 const dossiers: string[] = []
 const lieux: bigint[] = []

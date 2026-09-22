@@ -12,7 +12,7 @@ import {
 } from '../audit/journal'
 
 /**
- * Référentiels administrables (module 7) — port des composants `App\Livewire\Administration\*`.
+ * Référentiels administrables (module 7)
  *
  * **Une entrée citée par l'historique ne peut pas être supprimée** (RG-03). La suppression
  * existe depuis le 12/09/2026, mais elle est CONDITIONNELLE : chaque fonction compte d'abord ce
@@ -22,9 +22,9 @@ import {
  * aucune table : leur valeur est recopiée en texte au moment de la déclaration, et les effacer
  * ne réécrit aucun historique.
  *
- * Chaque mutation est journalisée au format de `AuditObserver` (`modele.cree` / `modele.modifie`,
- * avec le différentiel des seuls champs modifiés), pour que la console d'audit de Laravel
- * continue de lire ces lignes à l'identique pendant la migration.
+ * Chaque mutation est journalisée sous `modele.cree` / `modele.modifie`, avec le différentiel des
+ * SEULS champs modifiés : consigner l'objet entier à chaque enregistrement noierait le changement
+ * significatif dans le bruit.
  */
 
 type Acteur = { id: bigint }
@@ -580,9 +580,20 @@ export async function enregistrerGabarit(
 
 export type SensDeplacement = 'monter' | 'descendre'
 
-/** `App\Models\Categorie` → `categorie`, pour composer le code d'action du journal. */
+/**
+ * Le préfixe d'action du journal, pour ce type d'objet.
+ *
+ * ⚠️ C'EST DEVENU L'IDENTITÉ le 2026-09-22, et la fonction reste pour le dire. Elle extrayait
+ * auparavant `categorie` de `App\Models\Categorie` en découpant sur l'antislash puis en
+ * abaissant la casse — ce qui marchait pour les noms d'un seul mot et aplatissait les autres :
+ * `App\Models\StatutDossier` donnait `statutdossier`, là où le reste du journal écrit
+ * `statut_dossier`. Deux orthographes pour le même objet, dont une que `libelles.ts` devait
+ * connaître en plus de l'autre.
+ *
+ * Les codes de `@/server/modeles` SONT les préfixes d'action. Il n'y a plus rien à dériver.
+ */
 function codeModele(type: ModeleAudite): string {
-  return (type.split('\\').pop() ?? type).toLowerCase()
+  return type
 }
 
 /**

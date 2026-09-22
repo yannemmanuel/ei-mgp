@@ -6,7 +6,7 @@ import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, attributsCrees, difference, journaliser, sansChangement } from '../audit/journal'
 
 /**
- * Console des QR codes (EX-DEC-01) — port de `App\Livewire\Administration\QrCodesAdmin`.
+ * Console des QR codes (EX-DEC-01)
  *
  * Le QR encode `/q/{token}`, jamais l'URL du formulaire : c'est cette indirection qui permet de
  * désactiver un support déjà imprimé sans le remplacer.

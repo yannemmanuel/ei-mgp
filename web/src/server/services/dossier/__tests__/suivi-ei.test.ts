@@ -4,6 +4,7 @@ import { ROLES, chargerUtilisateurAutorise, peutVoirParcours, parcoursAutorises 
 import { perimetreDossiers } from '../liste'
 import { dateLimite } from '../delais'
 import { estEvenementIndesirable, personnesEnCharge, suiviEi } from '../suivi-ei'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Le nouveau circuit de l'évènement indésirable.
@@ -20,7 +21,7 @@ async function compteCharge(
   directionId: bigint | null = null
 ): Promise<bigint> {
   const role = await prisma.roles.findFirstOrThrow({
-    where: { name: 'charge_securite', guard_name: 'web' },
+    where: { name: 'charge_securite' },
   })
 
   const compte = await prisma.users.create({
@@ -41,7 +42,7 @@ async function compteCharge(
   comptesCrees.push(compte.id)
 
   await prisma.model_has_roles.create({
-    data: { role_id: role.id, model_type: String.raw`App\Models\User`, model_id: compte.id },
+    data: { role_id: role.id, model_type: MODELES.utilisateur, model_id: compte.id },
   })
   await prisma.utilisateur_parcours.create({
     data: {

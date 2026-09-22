@@ -220,7 +220,7 @@ describe('⚠️ Le reflet du paramétrage livré reste exploitable', () => {
 
     for (const type of types) {
       const ouvreurs = await prisma.role_parcours.count({
-        where: { parcours: { code: type.code }, roles: { guard_name: 'web', actif: true } },
+        where: { parcours: { code: type.code }, roles: { actif: true } },
       })
 
       expect(

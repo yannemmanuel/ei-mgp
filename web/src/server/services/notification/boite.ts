@@ -1,14 +1,15 @@
 import { prisma } from '@/lib/prisma'
+import { MODELES } from '@/server/modeles'
 
 /**
- * Boîte de réception « outil » — port de `App\Livewire\Notifications\NotificationCenter`.
+ * Boîte de réception « outil »
  *
  * Ne produit aucune donnée : `envoyerNotification()` écrit déjà dans la table `notifications`
- * au format du canal `database` de Laravel. Ce module en est le seul lecteur, et conserve ce
+ * dans une colonne `data` en JSON. Ce module en est le seul lecteur, et conserve ce
  * format pour que les deux applications restent interopérables pendant la migration.
  */
 
-const NOTIFIABLE_USER = String.raw`App\Models\User`
+const NOTIFIABLE_USER = MODELES.utilisateur
 const LIMITE_APERCU = 8
 
 export type NotificationVue = {

@@ -8,6 +8,7 @@ import { clauseFiltre, filtreDepuisParametres } from '../filtre'
 import { historiqueMensuel } from '../statistiques-mensuelles'
 import { creerDeclaration } from '../../declaration/creer-declaration'
 import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declaration/__tests__/aide-base'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Ce que les tableaux de bord doivent dire depuis que la charge ne vient plus seulement d'une
@@ -33,7 +34,7 @@ const dossiers: string[] = []
  */
 const comptes: bigint[] = []
 
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 afterAll(async () => {
   await nettoyerDossiers(dossiers)
@@ -58,7 +59,7 @@ async function compteChargeSurUneDirection(): Promise<bigint> {
   })
 
   const role = await prisma.roles.findFirstOrThrow({
-    where: { name: 'charge_securite', guard_name: 'web' },
+    where: { name: 'charge_securite' },
     select: { id: true },
   })
 

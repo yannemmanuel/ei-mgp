@@ -14,6 +14,7 @@ import { genererCodeAcces, hacherCodeAcces } from './code-acces'
 import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
 import { referenceSuivante } from './reference'
 import { surAffectation, surDeclarationCritique } from '../notification/evenements'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Orchestration de la création d'un dossier de bout en bout — port de
@@ -57,8 +58,8 @@ const ROLES_AFFECTATION_AUTOMATIQUE: Record<ParcoursCode, readonly string[]> = {
 }
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_USER = MODELES.utilisateur
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 
 export type DonneesDossier = {
   categorieId: bigint
@@ -169,7 +170,7 @@ export async function creerDeclaration(params: {
   const fichiers = params.fichiers ?? []
 
   // Validé AVANT la transaction : un lot rejeté ne doit jamais laisser un dossier créé sans ses
-  // pièces jointes (même ordre que le service Laravel).
+  // pièces jointes (l'ordre compte : voir `stockerFichiers`).
   await verifierLot(fichiers)
 
   const codeAccesClair = genererCodeAcces()
@@ -424,7 +425,7 @@ async function affecterAutomatiquement(
   const liens = await tx.model_has_roles.findMany({
     where: {
       model_type: MODEL_TYPE_USER,
-      roles: { name: { in: [...roles] }, guard_name: 'web' },
+      roles: { name: { in: [...roles] } },
     },
     select: { model_id: true },
   })
@@ -449,7 +450,7 @@ async function affecterAutomatiquement(
   /*
     TOUS les rôles de chaque candidat, pas seulement celui du captage.
 
-    `model_has_roles` est la table polymorphe de spatie : reliée par `model_id` + `model_type`,
+    `model_has_roles` est POLYMORPHE : reliée par `model_id` + `model_type`,
     elle n'est pas une relation Prisma et se lit à part. Elle est nécessaire ici parce qu'un rôle
     transverse dispense d'attribution — le lire depuis `liens`, filtré sur les rôles de captage,
     ne le montrerait jamais.
@@ -462,12 +463,11 @@ async function affecterAutomatiquement(
         select: {
           name: true,
           actif: true,
-          guard_name: true,
           // ⚠️ Les PERMISSIONS aussi : `directionCloisonnante()` et `siteCloisonnant()` laissent
           // passer `dossiers.view.all`. Sans elles, un rôle transverse serait borné ici alors
           // qu'il ne l'est pas en lecture — et l'affectation cesserait de suivre l'accès.
           role_has_permissions: {
-            select: { permissions: { select: { name: true, guard_name: true } } },
+            select: { permissions: { select: { name: true } } },
           },
           /*
             ⚠️ LES TYPES DE DÉCLARATION VIENNENT DU RÔLE, plus de l'attribution par personne.
@@ -499,7 +499,7 @@ async function affecterAutomatiquement(
 
   for (const lien of tousLesLiens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
-    if (!lien.roles.actif || lien.roles.guard_name !== 'web') continue
+    if (!lien.roles.actif) continue
 
     rolesParCompte.set(lien.model_id, [
       ...(rolesParCompte.get(lien.model_id) ?? []),
@@ -508,7 +508,7 @@ async function affecterAutomatiquement(
 
     const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
     for (const rhp of lien.roles.role_has_permissions) {
-      if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
+      permissions.add(rhp.permissions.name as Permission)
     }
     permissionsParCompte.set(lien.model_id, permissions)
 
@@ -523,7 +523,6 @@ async function affecterAutomatiquement(
         cloisonne: lien.roles.cloisonne_par_rattachement,
         donneAcces: donneAccesAuxDossiers(
           lien.roles.role_has_permissions
-            .filter((rhp) => rhp.permissions.guard_name === 'web')
             .map((rhp) => rhp.permissions.name)
         ),
       },

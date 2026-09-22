@@ -53,7 +53,7 @@ export async function utilisateurCourant(): Promise<UtilisateurAutorise | null> 
   return utilisateur
 }
 
-/** Redirige vers /login si aucun utilisateur actif n'est authentifié (comportement Laravel). */
+/** Redirige vers /login si aucun utilisateur actif n'est authentifié. */
 export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
   const utilisateur = await utilisateurCourant()
 

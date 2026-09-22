@@ -9,6 +9,7 @@ import {
   modifierIdentiteRole,
 } from '../habilitations'
 import { enregistrerUtilisateur } from '../utilisateurs'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Rôles administrables : identité modifiable, activation réversible.
@@ -17,9 +18,8 @@ import { enregistrerUtilisateur } from '../utilisateurs'
  * désactivé cesse RÉELLEMENT de conférer ses droits, à la requête suivante. Ces cas l'exercent
  * de bout en bout, sur un vrai compte, en relisant les autorisations comme le fait chaque page.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
-const MODEL_TYPE_ROLE = String.raw`Spatie\Permission\Models\Role`
-const GUARD = 'web'
+const MODEL_TYPE_USER = MODELES.utilisateur
+const MODEL_TYPE_ROLE = MODELES.role
 
 const comptesCrees: bigint[] = []
 const rolesTouches = new Set<string>()
@@ -38,7 +38,6 @@ async function acteur() {
 async function roleSansEnjeu(): Promise<string> {
   const candidats = await prisma.roles.findMany({
     where: {
-      guard_name: GUARD,
       actif: true,
       model_has_roles: { none: {} },
       role_has_permissions: { none: { permissions: { name: 'roles.manage' } } },
@@ -73,11 +72,11 @@ afterEach(async () => {
   // Remise en état AVANT toute autre chose : un rôle laissé désactivé priverait de leurs droits
   // des comptes réels, bien après la fin de la suite.
   for (const nom of rolesTouches) {
-    await prisma.roles.updateMany({ where: { name: nom, guard_name: GUARD }, data: { actif: true } })
+    await prisma.roles.updateMany({ where: { name: nom }, data: { actif: true } })
   }
 
   const idsRoles = await prisma.roles.findMany({
-    where: { name: { in: [...rolesTouches] }, guard_name: GUARD },
+    where: { name: { in: [...rolesTouches] } },
     select: { id: true },
   })
 
@@ -152,7 +151,7 @@ describe('Désactivation', () => {
     await changerActivationRole(await acteur(), nom, false)
 
     const ligne = await prisma.roles.findFirstOrThrow({
-      where: { name: nom, guard_name: GUARD },
+      where: { name: nom },
       select: { id: true },
     })
 
@@ -166,14 +165,13 @@ describe('Désactivation', () => {
   })
 
   it('refuse de couper le dernier accès administrateur', async () => {
-    // Sans application Laravel ni commande en ligne, personne ne pourrait plus rétablir la
+    // Sans aucune commande en ligne, personne ne pourrait plus rétablir la
     // situation. Le contrôle raisonne sur l'état résultant : désactiver le rôle produit le même
     // effet que lui retirer la permission, et les deux chemins doivent être fermés.
     const porteurs = await prisma.roles.findMany({
       where: {
-        guard_name: GUARD,
         actif: true,
-        role_has_permissions: { some: { permissions: { name: 'roles.manage', guard_name: GUARD } } },
+        role_has_permissions: { some: { permissions: { name: 'roles.manage' } } },
       },
       select: { name: true },
     })
@@ -190,7 +188,7 @@ describe('Désactivation', () => {
     )
 
     const inchange = await prisma.roles.findFirstOrThrow({
-      where: { name: porteurs[0].name, guard_name: GUARD },
+      where: { name: porteurs[0].name },
       select: { actif: true },
     })
     expect(inchange.actif).toBe(true)
@@ -203,7 +201,7 @@ describe('Identité du rôle', () => {
     rolesTouches.add(nom)
 
     const avant = await prisma.roles.findFirstOrThrow({
-      where: { name: nom, guard_name: GUARD },
+      where: { name: nom },
       select: { id: true, libelle: true, description: true },
     })
 

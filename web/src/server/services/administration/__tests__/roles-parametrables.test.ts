@@ -10,6 +10,7 @@ import {
   modifierEtapesRole,
   modifierParcoursRole,
 } from '../habilitations'
+import { MODELES } from '@/server/modeles'
 
 /**
  * ⚠️ UN RÔLE CRÉÉ DEPUIS L'INTERFACE DOIT POUVOIR TOUT FAIRE, sans déploiement.
@@ -33,7 +34,7 @@ import {
  * prenaient pour cible le paramétrage du jour. Celui-ci porte un nom unique, n'est attribué à
  * personne, et est supprimé à la fin.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 const NOM = `zz_role_jetable_${process.pid}_${Date.now()}`
 
@@ -44,7 +45,7 @@ const acteur = async () => {
 
 async function roleJetable(): Promise<bigint> {
   const deja = await prisma.roles.findFirst({
-    where: { name: NOM, guard_name: 'web' },
+    where: { name: NOM },
     select: { id: true },
   })
 
@@ -53,7 +54,6 @@ async function roleJetable(): Promise<bigint> {
   const cree = await prisma.roles.create({
     data: {
       name: NOM,
-      guard_name: 'web',
       libelle: 'Rôle jetable de vérification',
       actif: true,
       created_at: new Date(),
@@ -106,7 +106,7 @@ afterAll(async () => {
     lui ressemble.
   */
   const jetable = await prisma.roles.findFirst({
-    where: { name: NOM, guard_name: 'web' },
+    where: { name: NOM },
     select: { id: true },
   })
 

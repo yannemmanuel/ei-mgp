@@ -36,7 +36,7 @@ describe('Registre', () => {
       'relancer-echeances',
       'detecter-retards',
       'calculer-statistiques-mensuelles',
-      // Sans équivalent Laravel : là-bas le cache applicatif est purgé par le framework.
+      // Aucun framework ne purge cette table : c'est cette tâche qui s'en charge.
       'purger-compteurs-debit',
       'appliquer-politique-conservation',
     ])

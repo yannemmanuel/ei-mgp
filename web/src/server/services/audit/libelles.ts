@@ -103,43 +103,28 @@ export function libelleAction(code: string): string {
   return `${objet} ${verbe}`
 }
 
-const TYPES: Record<string, string> = {
-  ActionCorrective: 'Action corrective',
-  CanalCaptage: 'Canal de réception',
-  Categorie: 'Catégorie',
-  Direction: 'Direction',
-  Dossier: 'Dossier',
-  DossierAffectation: 'Affectation',
-  Investigation: 'Investigation',
-  Message: 'Message',
-  NiveauGravite: 'Niveau de gravité',
-  NotificationTemplate: 'Modèle de message',
-  PieceJointe: 'Pièce jointe',
-  QrCode: 'QR code',
-  Role: 'Rôle',
-  Site: 'Site',
-  SlaDelai: 'Délai',
-  StatutDossier: 'Statut',
-  Poste: 'Poste',
-  Lieu: 'Lieu',
-  Ville: 'Ville',
-  TrancheAnciennete: 'Tranche d’ancienneté',
-  User: 'Compte',
-  Parcours: 'Type de déclaration',
-  FamilleRisque: 'Famille de risque',
-}
-
 /**
  * Le type d'objet visé, en français.
  *
- * La colonne porte le nom de classe PHP hérité de Laravel — « App\Models\User » — et c'est la clé
- * de rapprochement avec les lignes déjà écrites : elle ne bouge pas. Seul son affichage change.
- * Comme pour `libelleAction`, un type inconnu ressort tel quel plutôt que masqué.
+ * ⚠️ UNE SEULE TABLE DÉSORMAIS, ET C'EST TOUT L'INTÉRÊT. Ce module en portait DEUX, disant la
+ * même chose dans deux alphabets : `OBJETS` traduisait le préfixe d'action (`statut_dossier`),
+ * une table `TYPES` traduisait le nom de classe PHP (`StatutDossier`) que portait la colonne de
+ * type. Il fallait les tenir alignées à la main, et rien ne le vérifiait — une entrée ajoutée à
+ * l'une et oubliée dans l'autre donnait un journal qui nomme l'action mais pas son objet, sur la
+ * même ligne.
+ *
+ * Depuis que `auditable_type` porte les codes de `@/server/modeles`, les deux colonnes parlent la
+ * même langue et `OBJETS` suffit aux deux.
+ *
+ * ⚠️ LE DÉCOUPAGE SUR `\` A DISPARU AVEC ELLE. Il servait à extraire `User` de
+ * `App\Models\User` ; appliqué à un code qui n'en contient pas, il est sans effet — mais le
+ * garder aurait laissé croire que la colonne peut encore contenir un nom de classe.
+ *
+ * Comme pour `libelleAction`, un type inconnu ressort tel quel plutôt que masqué : une ligne
+ * d'audit qu'on ne sait pas nommer doit rester visible.
  */
 export function libelleObjet(type: string): string {
-  const court = type.split('\\').pop() ?? type
-
-  return TYPES[court] ?? court
+  return OBJETS[type] ?? type
 }
 
 const CHAMPS: Record<string, string> = {

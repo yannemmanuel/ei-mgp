@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Accès refusé' }
 export const dynamic = 'force-dynamic'
 
 /**
- * Équivalent du 403 Laravel.
+ * L'écran du refus d'accès — l'équivalent lisible d'un 403.
  *
  * Le message nomme la capacité requise et les rôles qui la portent, ce que la version précédente
  * taisait — on repartait sans savoir ni ce qui manquait, ni à qui le demander.
@@ -96,9 +96,8 @@ export default async function PageAccesRefuse({ searchParams }: PageProps<'/acce
 async function rolesPortant(droit: Permission): Promise<string[]> {
   const roles = await prisma.roles.findMany({
     where: {
-      guard_name: 'web',
       actif: true,
-      role_has_permissions: { some: { permissions: { name: droit, guard_name: 'web' } } },
+      role_has_permissions: { some: { permissions: { name: droit } } },
     },
     select: { name: true, libelle: true },
     orderBy: { libelle: 'asc' },

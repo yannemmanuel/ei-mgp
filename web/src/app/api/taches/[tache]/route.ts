@@ -4,7 +4,7 @@ import { journaliser } from '@/server/services/audit/journal'
 import { TACHES, estTacheConnue } from '@/server/services/taches/registre'
 
 /**
- * Déclencheur des tâches planifiées — remplace `php artisan schedule:run`.
+ * Déclencheur des tâches planifiées
  *
  * Next.js n'a pas d'ordonnanceur : ces traitements sont appelés par un cron EXTERNE.
  *

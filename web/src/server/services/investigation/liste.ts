@@ -4,8 +4,7 @@ import type { UtilisateurAutorise } from '@/server/authz'
 import { perimetreDossiers } from '../dossier/liste'
 
 /**
- * Vue transverse des investigations, tous dossiers confondus — port de
- * `App\Livewire\Investigations\InvestigationListPage`.
+ * Vue transverse des investigations, tous dossiers confondus
  *
  * ⚠️ Le cloisonnement par parcours est poussé DANS la requête SQL, avant pagination. Filtrer en
  * mémoire après lecture donnerait des pages incomplètes — et, plus grave, ferait transiter par le

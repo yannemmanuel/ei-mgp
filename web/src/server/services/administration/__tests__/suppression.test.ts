@@ -8,6 +8,7 @@ import {
   supprimerNiveauGravite,
   supprimerSite,
 } from '../suppression'
+import { MODELES } from '@/server/modeles'
 
 /**
  * La suppression protégée du back-office.
@@ -16,7 +17,7 @@ import {
  * place. ⚠️ Ce qui compte ici est le REFUS — un fichier qui ne vérifierait que les suppressions
  * réussies laisserait passer exactement le défaut qu'on cherche à empêcher.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 const crees = {
   canaux: [] as bigint[],

@@ -7,9 +7,10 @@ import {
   notificationsRecentes,
   toutMarquerLu,
 } from '../boite'
+import { MODELES } from '@/server/modeles'
 
 /** Port de `App\Livewire\Notifications\NotificationCenter`. */
-const NOTIFIABLE_USER = String.raw`App\Models\User`
+const NOTIFIABLE_USER = MODELES.utilisateur
 const creees: string[] = []
 
 async function deuxUtilisateurs(): Promise<[bigint, bigint]> {

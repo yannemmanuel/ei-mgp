@@ -23,7 +23,7 @@ import {
 export { MAX_FICHIERS, MAX_OCTETS_TOTAL }
 
 /**
- * Extension attendue → type MIME réel accepté. Repris à l'identique du service Laravel.
+ * Extension attendue → type MIME réel accepté. Liste blanche : ce qui n'y figure pas est refusé.
  *
  * Exporté pour que l'aperçu du tableau de bord puisse être confronté à cette liste : tout type
  * accepté ici doit être affichable, sans quoi une pièce déposée deviendrait consultable seulement
@@ -69,7 +69,7 @@ function extensionDe(nom: string): string {
 
 /**
  * Valide le lot AVANT toute écriture : un lot rejeté ne doit jamais laisser un dossier créé
- * sans ses pièces jointes (même ordre que le service Laravel).
+ * sans ses pièces jointes (l'ordre compte : voir `stockerFichiers`).
  */
 export async function verifierLot(fichiers: readonly FichierAValider[]): Promise<void> {
   if (fichiers.length > MAX_FICHIERS) {

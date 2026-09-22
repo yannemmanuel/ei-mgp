@@ -12,9 +12,10 @@ import {
   type Role,
 } from '@/server/authz'
 import type { StatutAction } from '../action-corrective/action-corrective'
+import { MODELES } from '@/server/modeles'
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 /**
  * Ce qu'il faut savoir d'un dossier pour dire qui en répond.
@@ -125,9 +126,8 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
         select: {
           name: true,
           actif: true,
-          guard_name: true,
           role_has_permissions: {
-            select: { permissions: { select: { name: true, guard_name: true } } },
+            select: { permissions: { select: { name: true } } },
           },
           traite_dossiers: true,
           // Borné à son site ou à sa direction ? Paramètre du rôle, comme la charge.
@@ -155,7 +155,7 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
 
   for (const lien of liens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
-    if (!lien.roles.actif || lien.roles.guard_name !== 'web') continue
+    if (!lien.roles.actif) continue
 
     rolesParCompte.set(lien.model_id, [
       ...(rolesParCompte.get(lien.model_id) ?? []),
@@ -172,7 +172,6 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
         cloisonne: lien.roles.cloisonne_par_rattachement,
         donneAcces: donneAccesAuxDossiers(
           lien.roles.role_has_permissions
-            .filter((rhp) => rhp.permissions.guard_name === 'web')
             .map((rhp) => rhp.permissions.name)
         ),
       },
@@ -180,7 +179,7 @@ export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
 
     const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
     for (const rhp of lien.roles.role_has_permissions) {
-      if (rhp.permissions.guard_name === 'web') permissions.add(rhp.permissions.name as Permission)
+      permissions.add(rhp.permissions.name as Permission)
     }
     permissionsParCompte.set(lien.model_id, permissions)
 

@@ -1,12 +1,15 @@
 /**
- * Catalogue des permissions applicatives — port fidèle de
- * `database/seeders/RolePermissionSeeder.php::PERMISSIONS` (Laravel).
+ * Catalogue des permissions applicatives.
  *
  * Convention : `ressource.action[.portée]`.
  *
- * Ce fichier ne doit JAMAIS diverger du seeder Laravel tant que celui-ci fait autorité :
- * `src/server/authz/__tests__/parite-laravel.test.ts` compare cette liste au contenu réel de
- * la table `permissions` et échoue à la moindre divergence.
+ * ⚠️ CATALOGUE FERMÉ, contrairement aux rôles — qui, eux, se créent depuis l'écran des
+ * habilitations. Chaque permission correspond à un endroit du code qui la LIT : en ajouter une
+ * suppose donc d'écrire ce code. Une permission accordée en base sans lecteur ne confère rien,
+ * tout en ayant l'air d'accorder quelque chose.
+ *
+ * `__tests__/catalogue-autorisation.test.ts` compare cette liste au contenu réel de la table
+ * `permissions` et échoue à la moindre divergence.
  */
 export const PERMISSIONS = [
   // Dossiers

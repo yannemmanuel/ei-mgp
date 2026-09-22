@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { MODELES } from '@/server/modeles'
 import { libelleAction, libelleObjet } from '../libelles'
 
 /**
@@ -93,14 +94,31 @@ describe('Libellés du journal d’audit', () => {
     expect(libelleAction('sans_point')).toBe('sans_point')
     expect(libelleAction('')).toBe('')
 
-    expect(libelleObjet(String.raw`App\Models\Marmotte`)).toBe('Marmotte')
-    expect(libelleObjet('Marmotte')).toBe('Marmotte')
+    expect(libelleObjet('marmotte')).toBe('marmotte')
+
+    /*
+      ⚠️ Un ANCIEN nom de classe ressort tel quel, et c'est le comportement voulu.
+
+      Les types ont été réécrits en base le 2026-09-22, mais le journal est en ajout seul et une
+      ligne oubliée par la migration ne doit pas devenir invisible pour autant. Elle s'affiche
+      brute, donc repérable — ce qui vaut mieux qu'un tiret qui ne dit rien.
+    */
+    expect(libelleObjet(String.raw`App\Models\Marmotte`)).toBe(String.raw`App\Models\Marmotte`)
   })
 
   it('traduit sans perdre l’objet visé ni l’acte commis', () => {
     expect(libelleAction('role.permissions_modifiees')).toBe('Rôle — droits modifiés')
     expect(libelleAction('user.mot_de_passe_regenere')).toBe('Compte — mot de passe réattribué')
     expect(libelleAction('dossier.anonymise')).toBe('Dossier anonymisé')
-    expect(libelleObjet(String.raw`App\Models\User`)).toBe('Compte')
+    expect(libelleObjet(MODELES.utilisateur)).toBe('Compte')
+
+    /*
+      ⚠️ LE TYPE ET L'ACTION SE TRADUISENT PAR LA MÊME TABLE depuis que la colonne de type a cessé
+      de porter un nom de classe PHP. C'est ce que ces deux lignes vérifient ensemble : le même
+      code `user` donne « Compte » qu'il vienne du préfixe d'action ou de `auditable_type`. Tant
+      qu'il y avait deux tables, elles pouvaient diverger sans que rien ne le dise.
+    */
+    expect(libelleObjet(MODELES.statutDossier)).toBe('Statut')
+    expect(libelleAction(`${MODELES.statutDossier}.modifie`)).toBe('Statut modifié')
   })
 })

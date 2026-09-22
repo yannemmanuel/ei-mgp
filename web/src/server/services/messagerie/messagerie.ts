@@ -3,8 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { ErreurWorkflow } from '../dossier/workflow'
 
 /**
- * Messagerie sécurisée liée à un dossier (EX-NOT-07) — port de
- * `App\Livewire\Messagerie\MessagerieDossier`.
+ * Messagerie sécurisée liée à un dossier (EX-NOT-07)
  *
  * Deux voies d'accès, jamais confondues :
  * - l'ACTEUR authentifié, autorisé par `MessagePolicy` (permission + cloisonnement parcours) ;

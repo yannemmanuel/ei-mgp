@@ -4,7 +4,7 @@ import path from 'node:path'
 /**
  * Stockage des pièces jointes.
  *
- * La baseline Laravel écrit sur un disque local (`Storage::disk('local')`). Ce portage est
+ * Le dispositif précédent écrivait sur un disque local. Celui-ci est
  * destiné à un hébergement serverless, où **le système de fichiers est en lecture seule** hors
  * `/tmp`, lui-même éphémère : une écriture y échouerait, et un fichier écrit disparaîtrait à
  * l'invocation suivante.
@@ -31,9 +31,16 @@ const RACINE_LOCALE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 's
 /**
  * Normalise un chemin enregistré en base.
  *
- * Les pièces écrites par Laravel portent des ANTISLASHS — leur dossier dérive du nom de classe
- * PHP (`App\Models\Dossier`). Windows les interprète comme des séparateurs, Linux non : sans
- * cette conversion, toute pièce d'avant la bascule deviendrait introuvable en production.
+ * ⚠️ CETTE CONVERSION DOIT SURVIVRE AU NETTOYAGE, et c'est pour cela qu'elle est commentée ici.
+ * Le dossier de rangement d'une pièce dérive du type de son parent ; celui-ci était un nom de
+ * classe PHP porteur d'ANTISLASHS, et les vingt pièces déjà écrites portent donc un `chemin` de
+ * la forme `pieces-jointes/App\Models\Dossier/<id>/<fichier>`. Windows lit ces antislashs comme
+ * des séparateurs, Linux non.
+ *
+ * Le type s'écrit `dossier` depuis le 2026-09-22 : les pièces NOUVELLES n'en contiennent plus.
+ * Mais `chemin` est stocké ligne par ligne et n'a pas été réécrit — déplacer des fichiers pour
+ * une question de vocabulaire aurait mis en jeu les pièces elles-mêmes. Supprimer cette fonction
+ * rendrait donc introuvable tout ce qui a été déposé avant cette date.
  */
 function normaliser(chemin: string): string {
   return chemin.split('\\').join('/')

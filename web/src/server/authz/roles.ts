@@ -2,7 +2,7 @@ import type { Permission } from './permissions'
 
 /**
  * Rôles applicatifs et leurs permissions — port fidèle de
- * `database/seeders/RolePermissionSeeder.php::ROLES` (Laravel), docs/acteurs.md §2.
+ * `database/seeders/RolePermissionSeeder.php::ROLES`, docs/acteurs.md §2.
  *
  * Le cloisonnement par PARCOURS (RQSE ne voit que l'EI, etc.) n'est PAS exprimé ici : il vit
  * dans `./parcours.ts`, appliqué par les policies. Ne jamais le réintroduire sous forme de

@@ -5,10 +5,9 @@ import { hacher, verifier } from '@/server/auth/hachage'
  * référence, c'est la SEULE clé de consultation du dossier (RGI-12) — jamais l'e-mail ni le
  * téléphone, qui peuvent être absents.
  *
- * Port de `App\Services\Declaration\AccessCodeService`. Le code n'est jamais stocké en clair :
- * seul son haché bcrypt est persisté dans `dossiers.access_code_hash`, au même format que les
- * mots de passe Laravel — un code émis par l'une des deux applications reste donc vérifiable
- * par l'autre pendant toute la migration.
+ * Le code n'est jamais stocké en clair : seul son haché bcrypt est persisté dans
+ * `dossiers.access_code_hash`, au même format que les mots de passe — donc au même coût, et relu
+ * par le même module.
  */
 const LONGUEUR = 6
 

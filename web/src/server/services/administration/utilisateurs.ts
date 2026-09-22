@@ -5,7 +5,7 @@ import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, attributsCrees, difference, journaliser, sansChangement } from '../audit/journal'
 
 /**
- * Console des comptes — port de `App\Livewire\Administration\UtilisateursAdmin`.
+ * Console des comptes
  *
  * Aucune suppression de compte : un compte cité dans l'historique, l'audit ou une affectation ne
  * peut pas disparaître sans rendre ces traces illisibles. La désactivation (`actif`) coupe l'accès
@@ -13,7 +13,7 @@ import { MODELES, attributsCrees, difference, journaliser, sansChangement } from
  * prochain appel, sans attendre l'expiration du jeton.
  */
 
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 type Acteur = { id: bigint }
 
@@ -305,7 +305,7 @@ export async function enregistrerUtilisateur(
   await synchroniserRoles(cible, rolesDemandes)
 
   // La table pivot `model_has_roles` échappe au différentiel des colonnes : elle est auditée à
-  // part, comme le fait Laravel (docs/exigences-audit.md §2 — « modification des permissions et
+  // part (docs/exigences-audit.md §2 — « modification des permissions et
   // des rôles utilisateurs »).
   if (JSON.stringify(rolesAvant) !== JSON.stringify(rolesDemandes)) {
     await journaliser({

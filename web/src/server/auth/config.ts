@@ -8,17 +8,23 @@ import { autoriserTentative, cleThrottle, reinitialiserTentatives } from './thro
  *
  * Choix structurant : le jeton ne porte QUE l'identité (l'identifiant utilisateur). Ni rôle ni
  * permission n'y est stocké — ils sont relus depuis la base à chaque vérification par
- * `src/server/authz`. C'est la sémantique de spatie/laravel-permission : une désactivation ou un
- * changement de rôle prend effet immédiatement, sans attendre l'expiration du jeton.
+ * `src/server/authz`. Une désactivation ou un changement de rôle prend ainsi effet
+ * immédiatement, sans attendre l'expiration du jeton.
  *
- * La stratégie JWT (plutôt qu'un adaptateur base de données) est imposée par une contrainte du
- * projet : la base est partagée avec Laravel encore en service et ne doit recevoir aucune table
- * nouvelle — or les adaptateurs Auth.js exigent `Session`/`Account`/`VerificationToken`.
+ * ⚠️ LA RAISON D'ORIGINE DE LA STRATÉGIE JWT A DISPARU, PAS LA STRATÉGIE. Elle avait été imposée
+ * par une contrainte : la base était partagée avec une application encore en service et ne devait
+ * recevoir aucune table nouvelle, alors que les adaptateurs Auth.js exigent
+ * `Session`/`Account`/`VerificationToken`. Cette contrainte est levée.
+ *
+ * Le choix se tient désormais par lui-même : un jeton sans état évite une lecture de session à
+ * chaque requête, là où les droits sont de toute façon relus en base. En changer demanderait
+ * trois tables et une migration, pour un gain qui reste à démontrer.
  */
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: 'jwt',
-    // Aligné sur SESSION_LIFETIME de Laravel (120 minutes).
+    // Deux heures d'inactivité — durée reprise du dispositif précédent, et jamais remise en
+    // cause depuis. Un poste partagé ne doit pas rester ouvert sur des déclarations nominatives.
     maxAge: 120 * 60,
   },
   pages: {

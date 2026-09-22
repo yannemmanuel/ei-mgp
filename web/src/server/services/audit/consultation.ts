@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
 /**
- * Lecture du journal d'audit — port de `App\Livewire\Audit\AuditLogViewer`.
+ * Lecture du journal d'audit
  *
  * Ce module n'expose QUE de la lecture, et ne doit jamais exposer autre chose : `audit_logs` est
  * en ajout seul (docs/exigences-audit.md §3), sans exception, y compris pour un administrateur.
@@ -46,7 +46,7 @@ function clause(filtre: FiltreAudit) {
     }
 
     if (filtre.dateFin) {
-      // Borne de fin inclusive, comme le `whereDate` de Laravel : sinon la journée entière
+      // Borne de fin INCLUSIVE : sinon la journée entière
       // sélectionnée serait exclue.
       const fin = new Date(filtre.dateFin)
       fin.setHours(23, 59, 59, 999)

@@ -37,9 +37,6 @@ import { PARCOURS_CODES, type ParcoursCode } from './parcours'
  * le dit pas, et l'inventer figerait un choix qui n'est pas le nôtre.
  */
 
-/** Garde Spatie : les lignes d'un autre garde ne concernent pas cette application. */
-const GUARD = 'web'
-
 /** Une case cochée : ce rôle fait avancer ce type de déclaration depuis cette étape. */
 export type CaseEtape = {
   readonly role: string
@@ -87,7 +84,7 @@ export function peutFaireAvancerDepuis(
  */
 export async function matriceDesEtapes(): Promise<CaseEtape[]> {
   const lignes = await prisma.role_etapes.findMany({
-    where: { roles: { guard_name: GUARD, actif: true } },
+    where: { roles: { actif: true } },
     select: {
       roles: { select: { name: true, libelle: true } },
       parcours: { select: { code: true } },
@@ -118,7 +115,7 @@ export async function acteursDeLEtape(
 ): Promise<string[]> {
   const lignes = await prisma.role_etapes.findMany({
     where: {
-      roles: { guard_name: GUARD, actif: true },
+      roles: { actif: true },
       parcours: { code: parcours },
       statuts_dossier: { code: statutActuel },
     },

@@ -2,22 +2,23 @@ import { prisma } from '@/lib/prisma'
 import type { ParcoursCode } from '@/server/authz'
 import type { Destinataire } from './notification'
 import { personnesEnCharge } from '../dossier/suivi-ei'
+import { MODELES } from '@/server/modeles'
 
 /**
- * Résolution des destinataires par évènement — port des Listeners Laravel.
+ * Résolution des destinataires par évènement
  *
  * Séparé du service d'envoi à dessein : « qui reçoit quoi » relève de règles métier propres à
  * chaque évènement, « comment on envoie » est générique.
  */
 
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 /** Utilisateurs ACTIFS portant l'un des rôles donnés. */
 export async function utilisateursAvecRoles(roles: readonly string[]): Promise<Destinataire[]> {
   if (roles.length === 0) return []
 
   const liens = await prisma.model_has_roles.findMany({
-    where: { model_type: MODEL_TYPE_USER, roles: { name: { in: [...roles] }, guard_name: 'web' } },
+    where: { model_type: MODEL_TYPE_USER, roles: { name: { in: [...roles] } } },
     select: { model_id: true },
   })
 
@@ -67,7 +68,6 @@ export async function rolesDuCircuitCritique(parcours: ParcoursCode): Promise<st
     where: {
       alerte_circuit_critique: true,
       parcours: { code: parcours },
-      roles: { guard_name: 'web' },
     },
     select: { roles: { select: { name: true } } },
   })

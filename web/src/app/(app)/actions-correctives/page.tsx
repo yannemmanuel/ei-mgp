@@ -39,8 +39,7 @@ const TONS: Record<StatutAction, TonStatut> = {
 }
 
 /**
- * Vue transverse des actions correctives — port de
- * `App\Livewire\ActionsCorrectives\ActionCorrectiveListPage`.
+ * Vue transverse des actions correctives
  *
  * L'écheance est la colonne qui commande : c'est un écran de travail, trié du plus urgent au plus
  * lointain. Le décompte de jours est calculé au rendu et non lu depuis `statut`, qui ne bascule

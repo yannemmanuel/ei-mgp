@@ -14,6 +14,7 @@ import {
   basculerContentieux,
   compterExclusPourContentieux,
 } from '../conservation'
+import { MODELES } from '@/server/modeles'
 
 /**
  * RG-11 — politique de conservation.
@@ -22,7 +23,7 @@ import {
  * Les cas ci-dessous vérifient qu'ils n'effacent que ce qu'ils doivent, quand ils le doivent, et
  * qu'ils ne suppriment jamais le dossier lui-même (RG-03, RG-12).
  */
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 const dossiersCrees: string[] = []
 
 const ilYaAnnees = (n: number) => {

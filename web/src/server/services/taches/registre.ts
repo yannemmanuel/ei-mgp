@@ -7,8 +7,8 @@ import { appliquerPolitiqueConservation } from '../rgpd/conservation'
 /**
  * Les 5 tâches planifiées — port de `routes/console.php`.
  *
- * ⚠️ **Next.js n'a pas d'ordonnanceur.** Là où Laravel déclare `Schedule::command(...)->daily()`
- * et s'appuie sur un `php artisan schedule:run` lancé par le cron système, il faut ici un
+ * ⚠️ **Next.js n'a pas d'ordonnanceur.** Là où un framework PHP déclare ses tâches et s'appuie
+ * sur un ordonnanceur système, il faut ici un
  * déclencheur EXTERNE (cron système, Vercel Cron, ordonnanceur d'entreprise) qui appelle
  * `POST /api/taches/{nom}`.
  *
@@ -81,8 +81,7 @@ export const TACHES = {
   },
   'purger-compteurs-debit': {
     libelle: 'Purge des compteurs de limitation de débit expirés',
-    // Tâche d'entretien, sans équivalent Laravel : le `RateLimiter` s'appuie là-bas sur le cache
-    // applicatif, purgé par Laravel lui-même. Ici les compteurs vivent dans la table `cache`
+    // Tâche d'entretien propre à ce dispositif : les compteurs de débit vivent dans la table `cache`
     // sous un préfixe propre, que rien d'autre ne nettoie.
     cadence: 'quotidienne',
     executer: async () => {

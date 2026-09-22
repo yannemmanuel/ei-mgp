@@ -5,10 +5,11 @@ import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declara
 import { changerStatut, cloturer, rejeter, reouvrir, ErreurWorkflow } from '../workflow'
 import { personnesEnCharge } from '../suivi-ei'
 import type { StatutCode } from '../statuts'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Port de `tests/Feature/Services/DossierWorkflowServiceTest.php` et
- * `AffectationServiceTest.php` (Laravel).
+ * `AffectationServiceTest.php`.
  */
 const crees: string[] = []
 
@@ -241,7 +242,7 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
     désormais : `personnesEnCharge()` et le périmètre « mes dossiers ».
   */
   const comptesCrees: bigint[] = []
-  const MODEL_TYPE_USER = String.raw`App\Models\User`
+  const MODEL_TYPE_USER = MODELES.utilisateur
 
   afterAll(async () => {
     if (comptesCrees.length === 0) return
@@ -260,7 +261,7 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
    */
   async function candidatNaturel(): Promise<bigint> {
     const role = await prisma.roles.findFirstOrThrow({
-      where: { name: 'correspondant_drh', guard_name: 'web' },
+      where: { name: 'correspondant_drh' },
       select: { id: true },
     })
 

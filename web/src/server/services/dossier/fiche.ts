@@ -2,9 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { peutVoirDossier, type UtilisateurAutorise } from '@/server/authz'
 import type { ParcoursCode } from '@/server/authz'
 import type { StatutCode } from './statuts'
+import { MODELES } from '@/server/modeles'
 
 /**
- * Chargement d'une fiche dossier — port de `App\Livewire\Dossiers\DossierDetailPage`.
+ * Chargement d'une fiche dossier
  *
  * L'autorisation est vérifiée ICI, à la source : une page qui chargerait le dossier avant de
  * vérifier l'accès aurait déjà lu la donnée. Retourne `null` si l'utilisateur n'y a pas droit,
@@ -150,7 +151,7 @@ export async function affectationsActives(dossierId: string) {
 
 export async function piecesJointesDossier(dossierId: string) {
   return prisma.pieces_jointes.findMany({
-    where: { attachable_type: String.raw`App\Models\Dossier`, attachable_id: dossierId },
+    where: { attachable_type: MODELES.dossier, attachable_id: dossierId },
     orderBy: { created_at: 'asc' },
     select: { id: true, nom_original: true, taille_octets: true, mime_type: true },
   })

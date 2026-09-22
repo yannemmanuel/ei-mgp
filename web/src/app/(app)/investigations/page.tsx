@@ -50,7 +50,7 @@ const TONS_DOSSIER: Record<string, TonStatut> = {
 }
 
 /**
- * Vue transverse des investigations — port de `App\Livewire\Investigations\InvestigationListPage`.
+ * Vue transverse des investigations.
  *
  * Chaque ligne mène au dossier, à sa section « Investigations » : c'est là que la fiche se
  * consulte et se modifie. Rouvrir une seconde surface d'édition à cette adresse ferait exister

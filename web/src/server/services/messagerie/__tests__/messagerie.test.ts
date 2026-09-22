@@ -5,7 +5,6 @@ import { categoriePour, graviteParNiveau, nettoyerDossiers } from '../../declara
 import { ErreurWorkflow } from '../../dossier/workflow'
 import { envoyerMessage, marquerMessagesLus, messagesDuDossier } from '../messagerie'
 
-/** Port de `tests/Feature/Livewire/Messagerie/MessagerieDossierTest.php` (Laravel). */
 const dossiersCrees: string[] = []
 
 async function nouveauDossierAnonyme(): Promise<string> {

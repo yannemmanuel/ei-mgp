@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
 /**
- * Limitation de débit — équivalent de `RateLimiter` (Laravel).
+ * Limitation de débit — équivalent de `RateLimiter`.
  *
  * **Le compteur vit en base**, dans la table `cache`, et non en mémoire de processus. C'est ce
  * qui rend la limite effective sur un déploiement multi-instances : un compteur local se
@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma'
  * ne peuvent pas lire la même valeur et écrire le même compte. Un `SELECT` suivi d'un `UPDATE`
  * laisserait précisément la fenêtre qu'un attaquant cherche.
  *
- * ⚠️ Le format n'est PAS celui du `RateLimiter` de Laravel (qui sérialise en PHP et préfixe ses
+ * ⚠️ Le format n'est PAS celui qu'employait le dispositif précédent (qui sérialisait en PHP et préfixait ses
  * clés) : les deux applications tiennent donc des compteurs distincts pendant la cohabitation.
  * L'objectif ici est le partage entre instances Next, pas l'interopérabilité.
  */
@@ -29,7 +29,7 @@ const LIMITE_CONNEXION: LimiteDebit = { fenetreMs: 60_000, maxTentatives: 5 }
  */
 export const LIMITE_MESSAGERIE: LimiteDebit = { fenetreMs: 600_000, maxTentatives: 10 }
 
-/** Préfixe distinctif : la table `cache` est partagée avec Laravel. */
+/** Préfixe distinctif : `cache` est une table à tout faire, et d'autres usages peuvent s'y ajouter. */
 const PREFIXE = 'next:debit:'
 
 /**
@@ -77,7 +77,7 @@ export async function autoriserTentative(
   return (lignes[0]?.tentatives ?? 1) <= limite.maxTentatives
 }
 
-/** Remet le compteur à zéro après une opération réussie (comportement de Laravel). */
+/** Remet le compteur à zéro après une opération réussie : seuls les ÉCHECS s'accumulent. */
 export async function reinitialiserTentatives(cle: string): Promise<void> {
   await prisma.cache.deleteMany({ where: { key: cle } })
 }

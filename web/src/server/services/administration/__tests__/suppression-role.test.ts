@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { supprimerRole } from '../habilitations'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import { readFileSync } from 'node:fs'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Un rôle se supprime quand PERSONNE ne le porte — et seulement là.
@@ -15,7 +16,7 @@ import { readFileSync } from 'node:fs'
  * supprimé cesse simplement d'être désigné par ces règles. La condition d'attribution, elle, ne
  * bouge pas — supprimer un rôle porté retirerait ses accès à quelqu'un sans qu'il l'ait décidé.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 const rolesCrees: bigint[] = []
 const liensCrees: bigint[] = []
@@ -38,7 +39,6 @@ async function roleJetable(): Promise<{ id: bigint; name: string }> {
   const role = await prisma.roles.create({
     data: {
       name,
-      guard_name: 'web',
       libelle: 'Rôle de test',
       actif: true,
       created_at: new Date(),

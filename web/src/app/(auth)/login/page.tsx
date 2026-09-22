@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export default async function PageConnexion() {
-  // Comportement Laravel : un utilisateur déjà authentifié est renvoyé au tableau de bord.
+  // Un utilisateur déjà authentifié est renvoyé au tableau de bord plutôt qu'au formulaire.
   if (await utilisateurCourant()) {
     redirect('/dashboard')
   }

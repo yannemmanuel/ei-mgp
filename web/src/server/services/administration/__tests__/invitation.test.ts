@@ -10,6 +10,7 @@ import {
   creerInvitation,
   verifierInvitation,
 } from '../invitation'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Le lien de première connexion.
@@ -45,7 +46,7 @@ afterAll(async () => {
   await prisma.invitations_connexion.deleteMany({ where: { user_id: { in: comptesCrees } } })
   await prisma.audit_logs.deleteMany({
     where: {
-      auditable_type: String.raw`App\Models\User`,
+      auditable_type: MODELES.utilisateur,
       auditable_id: { in: comptesCrees.map(String) },
     },
   })

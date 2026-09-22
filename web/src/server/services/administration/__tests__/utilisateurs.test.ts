@@ -9,15 +9,16 @@ import {
   regenererMotDePasse,
   rolesDisponibles,
 } from '../utilisateurs'
+import { MODELES } from '@/server/modeles'
 
 /**
- * Console des comptes — port de `App\Livewire\Administration\UtilisateursAdmin`.
+ * Console des comptes
  *
  * Trois propriétés de sûreté sont vérifiées ici : le mot de passe n'apparaît jamais en clair ni
  * en empreinte dans l'audit, l'attribution de rôles est tracée séparément (elle échappe au
  * différentiel de colonnes), et un administrateur ne peut pas se verrouiller hors de la console.
  */
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 const comptesCrees: bigint[] = []
 
 async function acteur() {
@@ -81,7 +82,7 @@ describe('Création de compte', () => {
       select: { password: true },
     })
 
-    // Le préfixe est décisif : `Hash::check()` de Laravel rejette un `$2b$`.
+    // Le préfixe est décisif : les empreintes déjà en base portent toutes `$2y$`.
     expect(compte.password?.startsWith('$2y$')).toBe(true)
     expect(await verifier(resultat.motDePasseInitial as string, compte.password as string)).toBe(true)
   })

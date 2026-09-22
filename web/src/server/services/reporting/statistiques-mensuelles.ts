@@ -132,7 +132,7 @@ export type LigneHistoriqueMensuel = {
  *
  * Agrège les lignes d'une même période (une par combinaison parcours × catégorie × gravité) en
  * une seule ligne mensuelle. `SUM` pour les volumes, `AVG` pour les taux et délais — moyenne non
- * pondérée, comme la version Laravel, dont le tableau de bord reste l'unique consommateur.
+ * pondérée ; le tableau de bord en reste l'unique consommateur.
  */
 export async function historiqueMensuel(
   /**

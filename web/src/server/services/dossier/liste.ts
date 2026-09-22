@@ -140,7 +140,7 @@ export function clauseNonAffectes(
 }
 
 /**
- * EX-GES-01 : liste des dossiers, filtrable — port de `App\Livewire\Dossiers\DossierListPage`.
+ * EX-GES-01 : liste des dossiers, filtrable
  *
  * ⚠️ Le périmètre ci-dessous DOIT refléter exactement `peutVoirDossier()` : ne jamais faire
  * apparaître dans une liste un dossier que la policy refuserait à l'unité. Un test croise les

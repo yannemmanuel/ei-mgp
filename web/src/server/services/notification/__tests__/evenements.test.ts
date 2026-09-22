@@ -11,6 +11,7 @@ import { confierPourTest } from '../../declaration/__tests__/aide-base'
 import { changerStatut } from '../../dossier/workflow'
 import { definirTransportEmail, TransportJournal, type MessageEmail } from '../transport'
 import { titulairesDuDossier } from '../destinataires'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Évènements métier déclencheurs de notification (EX-NOT-01, EX-NOT-02, EX-NOT-05).
@@ -20,7 +21,7 @@ import { titulairesDuDossier } from '../destinataires'
  * déclenchent effectivement un envoi. Un moteur correct branché sur rien n'envoie rien — et c'est
  * exactement l'état dans lequel se trouvait la baseline, faute de gabarits.
  */
-const MODEL_TYPE_DOSSIER = String.raw`App\Models\Dossier`
+const MODEL_TYPE_DOSSIER = MODELES.dossier
 const dossiersCrees: string[] = []
 let emails: MessageEmail[] = []
 
@@ -89,7 +90,7 @@ afterEach(async () => {
 
 // ⚠️ Borné aux comptes fabriqués ici : jamais de suppression large sur `users`.
 const comptesCrees: bigint[] = []
-const MODEL_TYPE_USER = String.raw`App\Models\User`
+const MODEL_TYPE_USER = MODELES.utilisateur
 
 afterAll(async () => {
   if (comptesCrees.length > 0) {
@@ -117,7 +118,7 @@ describe('EX-NOT-01 — notification à l’affectation', () => {
     // `correspondant_drh` ouvre les griefs employés ET porte le droit de faire avancer un
     // dossier : les deux conditions pour en répondre depuis que rien n'est affecté.
     const role = await prisma.roles.findFirstOrThrow({
-      where: { name: 'correspondant_drh', guard_name: 'web' },
+      where: { name: 'correspondant_drh' },
       select: { id: true },
     })
 
