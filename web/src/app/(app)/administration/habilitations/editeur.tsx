@@ -574,10 +574,11 @@ function PanneauRole({
 /**
  * Création d'un rôle.
  *
- * ⚠️ L'avertissement sur les parcours n'est pas décoratif. Les permissions cochées plus tard
- * s'appliqueront bel et bien, mais le cloisonnement par parcours est décrit par le code et ne
- * nomme que les rôles livrés : un rôle créé ici ne donne accès à AUCUN dossier. Le dire avant la
- * création évite de découvrir après coup un rôle qui semble tout permettre et ne montre rien.
+ * ⚠️ L'avertissement n'est pas décoratif, et il a CHANGÉ DE SENS le 2026-09-21. Il disait qu'un
+ * rôle créé ici ne donnait accès à aucun dossier, parce que le cloisonnement par type vivait dans
+ * le code et ne nommait que les rôles livrés. Tout se coche maintenant : ce qu'il faut dire avant
+ * la création, ce n'est plus « ce rôle ne pourra rien », c'est « il ne pourra rien TANT QUE rien
+ * n'est coché » — et où aller le cocher.
  */
 function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
   const [etat, envoyer, enCours] = useActionState(actionCreerRole, ETAT)
@@ -617,11 +618,22 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
             </div>
           </div>
 
+          {/*
+            ⚠️ CE TEXTE DISAIT L'INVERSE DE LA VÉRITÉ jusqu'au 2026-09-21.
+
+            Il annonçait qu'un rôle créé ici ne donne accès à AUCUN dossier, « cette répartition
+            étant fixée dans l'application ». C'était exact tant que les types, les étapes et le
+            cloisonnement vivaient dans le code. Ils se cochent désormais — un rôle créé ici peut
+            tout faire. Le laisser aurait découragé la création de rôles métier au nom d'une limite
+            qui n'existe plus.
+          */}
           <Alert>
             <AlertDescription className="text-caption">
-              Un rôle créé ici sert à répartir des tâches d’administration — QR codes, gabarits,
-              journal. Il ne donne accès à <strong>aucun dossier</strong> : les dossiers sont
-              répartis par type de déclaration, et cette répartition est fixée dans l’application.
+              Un rôle créé ici se paramètre entièrement : ses droits, les types de déclaration
+              qu’il ouvre, les étapes qu’il peut franchir et son comportement. Il n’ouvre{' '}
+              <strong>aucun dossier tant que rien n’est coché</strong> — c’est l’onglet
+              « Déclarations » qui lui donne un périmètre, et « Étapes » qui lui permet de faire
+              avancer un dossier.
             </AlertDescription>
           </Alert>
 
@@ -1447,15 +1459,17 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
 }
 
 /**
- * Suppression définitive — réservée aux rôles créés depuis cette interface.
+ * Suppression définitive.
  *
- * Les rôles livrés sont nommés par le code : le cloisonnement par parcours, la table des acteurs
- * d'étape et l'habilitation par site s'y réfèrent. Pour eux, la désactivation est la bonne
- * opération, et elle est juste au-dessus.
+ * ⚠️ OFFERTE POUR TOUS LES RÔLES, y compris les rôles livrés. Ce commentaire réservait le geste
+ * aux rôles créés ici, « le cloisonnement par parcours, la table des acteurs d'étape et
+ * l'habilitation par site nommant les rôles livrés ». Aucune de ces trois tables n'existe plus
+ * dans le code depuis le 2026-09-21 : supprimer un rôle livré ne casse plus rien, et le métier l'a
+ * demandé.
  *
- * Le service refuse en outre un rôle encore rattaché à un compte : le supprimer retirerait un
- * accès sans que rien ne le dise, et l'association partirait avec lui. Le bouton n'est donc même
- * pas proposé dans ce cas — l'écran dit quoi faire d'abord.
+ * Ce qui reste vrai — et c'est la seule garde : le service refuse un rôle encore rattaché à un
+ * compte. Le supprimer retirerait un accès sans que rien ne le dise, et l'association partirait
+ * avec lui. Le bouton n'est donc même pas proposé dans ce cas — l'écran dit quoi faire d'abord.
  */
 function FormulaireSuppression({ role }: { role: RoleVue }) {
   const [etat, envoyer, enCours] = useActionState(actionSupprimerRole, ETAT)

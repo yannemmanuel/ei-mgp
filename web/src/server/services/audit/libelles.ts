@@ -56,6 +56,7 @@ const OBJETS: Record<string, string> = {
   // 2026-09-21). « Parcours » est le nom technique ; « Type de déclaration » est celui que les
   // écrans emploient, et c'est celui qu'on lit dans le journal.
   parcours: 'Type de déclaration',
+  famille_risque: 'Famille de risque',
 }
 
 const VERBES: Record<string, string> = {
@@ -124,6 +125,8 @@ const TYPES: Record<string, string> = {
   Ville: 'Ville',
   TrancheAnciennete: 'Tranche d’ancienneté',
   User: 'Compte',
+  Parcours: 'Type de déclaration',
+  FamilleRisque: 'Famille de risque',
 }
 
 /**

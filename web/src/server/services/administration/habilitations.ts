@@ -336,7 +336,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
     en base, s'appliquait bien aux comptes qui le portaient — et n'apparaissait nulle part. On
     l'aurait cherché longtemps.
   */
-  const noms = [...new Set<string>([...ROLE_NAMES, ...rolesEnBase.map((r) => r.name)])]
+  const noms = rolesEnBase.map((r) => r.name)
 
   const lignes = noms.map((role) => {
     const enBase = enBaseParRole.get(role)
@@ -920,17 +920,19 @@ export function nomTechnique(libelle: string): string {
 /**
  * Crée un rôle.
  *
- * ⚠️ Ce que ce rôle pourra faire, et ce qu'il ne pourra pas.
+ * ⚠️ CE COMMENTAIRE DISAIT L'INVERSE DE LA VÉRITÉ jusqu'au 2026-09-21, et le corriger n'est pas
+ * cosmétique : il décourageait de créer des rôles métier.
  *
- * Ses permissions s'appliquent immédiatement, comme pour tout autre rôle : la base fait foi. Mais
- * le CLOISONNEMENT PAR PARCOURS, lui, vit dans le code (`authz/parcours.ts`) et se réfère aux
- * rôles livrés par leur nom. Un rôle créé ici n'y figure pas : il ne donne accès à aucun dossier,
- * quelles que soient les permissions cochées. Il est donc utile pour séparer des responsabilités
- * d'administration — tenir les QR codes, les gabarits, l'audit — et non pour traiter des
- * déclarations. L'écran le dit avant la création, pas après.
+ * Il annonçait qu'un rôle créé ici « ne donne accès à aucun dossier, quelles que soient les
+ * permissions cochées », parce que le cloisonnement par type (`authz/parcours.ts`), la table des
+ * acteurs d'étape (`authz/etapes.ts`) et l'habilitation par site (`authz/site.ts`) nommaient les
+ * rôles livrés. Aucune de ces trois tables n'existe plus : tout se lit en base et se coche dans
+ * l'écran des habilitations.
  *
- * Même remarque pour la table des acteurs d'étape (`authz/etapes.ts`) et l'habilitation par site
- * (`authz/site.ts`) : elles nomment des rôles livrés.
+ * Un rôle créé ici peut donc TOUT faire — voir des dossiers, les faire avancer, être borné à un
+ * site, être alerté en circuit accéléré. Ce qu'il faut savoir avant de le créer, c'est qu'il ne
+ * fait RIEN tant que rien n'est coché : ses permissions seules ne lui ouvrent aucun type de
+ * déclaration. L'écran le dit avant la création, et nomme les onglets où aller.
  */
 export async function creerRole(
   acteur: { id: bigint },

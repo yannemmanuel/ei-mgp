@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser } from '../audit/journal'
+import { nomTechnique } from './habilitations'
 
 /**
  * Quels TYPES de déclaration demandent une famille de risque à leurs traitants.
@@ -152,5 +153,269 @@ export async function modifierTypesQualifiants(
         .sort(),
     },
     nouvelles: { famillesRisqueActives: [...voulus].sort() },
+  })
+}
+/* ------------------------------------------------------------------------------------------- */
+/* Le référentiel lui-même : créer, renommer, réordonner, supprimer.                            */
+/* ------------------------------------------------------------------------------------------- */
+
+type Acteur = { id: bigint }
+
+export type SensDeplacement = 'monter' | 'descendre'
+
+export type DonneesFamille = {
+  readonly libelle: string
+  readonly actif: boolean
+}
+
+/**
+ * Le code technique d'une famille, dérivé de son libellé.
+ *
+ * ⚠️ IL N'EST PAS SAISI, et c'est délibéré. Aucun code applicatif ne cite un code de famille —
+ * vérifié : les neuf livrées ne sont nommées nulle part dans `src`. Le demander à l'administrateur
+ * n'aurait servi qu'à lui faire inventer une valeur technique dont rien ne dépend, avec le risque
+ * de collisions qu'il n'aurait aucun moyen d'anticiper.
+ *
+ * ⚠️ Il reste UNIQUE et IMMUABLE : c'est la clé de rapprochement du journal d'audit, qui est en
+ * ajout seul. Renommer une famille change son libellé, jamais son code — sans quoi les lignes
+ * déjà écrites désigneraient une entrée qu'on ne retrouverait plus.
+ */
+function codeDepuisLibelle(libelle: string): string {
+  return nomTechnique(libelle).slice(0, 64)
+}
+
+/**
+ * ⚠️ AU MOINS UNE FAMILLE ACTIVE TANT QU'UN TYPE EN DEMANDE UNE.
+ *
+ * Le trou que cette garde ferme est silencieux : un type coché dont plus aucune famille n'est
+ * active affiche une carte de qualification VIDE — ou, selon le chemin, ne l'affiche plus du tout.
+ * Le traitant voit alors disparaître une étape de son travail sans qu'aucun message ne l'explique,
+ * et l'administrateur, lui, voit toujours la case cochée.
+ *
+ * Deux issues sont laissées ouvertes, et c'est ce qui rend la garde acceptable : décocher les
+ * types d'abord, ou activer une autre famille. Le message le dit.
+ */
+async function refuserSiPlusAucuneFamilleProposable(exclureId: bigint): Promise<void> {
+  const typesQualifiants = await prisma.parcours.count({ where: { familles_risque_actives: true } })
+
+  if (typesQualifiants === 0) return
+
+  const autresActives = await prisma.familles_risque.count({
+    where: { actif: true, NOT: { id: exclureId } },
+  })
+
+  if (autresActives > 0) return
+
+  throw new ErreurWorkflow(
+    'C’est la dernière famille proposée, et ' +
+      `${typesQualifiants} type${typesQualifiants > 1 ? 's' : ''} de déclaration en demande${typesQualifiants > 1 ? 'nt' : ''} une. ` +
+      'Activez-en une autre, ou décochez ces types, avant de retirer celle-ci.'
+  )
+}
+
+/** Crée une famille de risque. Le code est dérivé du libellé, le rang la place en dernier. */
+export async function creerFamilleRisque(
+  acteur: Acteur,
+  donnees: DonneesFamille
+): Promise<void> {
+  const libelle = donnees.libelle.trim()
+
+  if (libelle === '') {
+    throw new ErreurWorkflow('Le libellé est obligatoire.')
+  }
+
+  const code = codeDepuisLibelle(libelle)
+
+  if (code === '') {
+    throw new ErreurWorkflow(
+      'Ce libellé ne produit aucun code technique : utilisez au moins une lettre ou un chiffre.'
+    )
+  }
+
+  const deja = await prisma.familles_risque.findFirst({ where: { code }, select: { libelle: true } })
+
+  if (deja) {
+    throw new ErreurWorkflow(`« ${deja.libelle} » porte déjà ce code technique (${code}).`)
+  }
+
+  // Le rang la place en DERNIER : une famille nouvelle n'a aucune raison de passer devant celles
+  // que les traitants ont l'habitude de voir en tête.
+  const dernier = await prisma.familles_risque.aggregate({ _max: { ordre: true } })
+
+  const creee = await prisma.familles_risque.create({
+    data: {
+      code,
+      libelle,
+      actif: donnees.actif,
+      ordre: (dernier._max.ordre ?? 0) + 1,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    select: { id: true, code: true, libelle: true, actif: true, ordre: true },
+  })
+
+  await journaliser({
+    action: 'famille_risque.creee',
+    acteurId: acteur.id,
+    auditableType: MODELES.familleRisque,
+    auditableId: String(creee.id),
+    anciennes: null,
+    nouvelles: { code: creee.code, libelle: creee.libelle, actif: creee.actif, ordre: creee.ordre },
+  })
+}
+
+/**
+ * Renomme une famille, ou la retire du choix.
+ *
+ * ⚠️ LE CODE NE CHANGE PAS — voir `codeDepuisLibelle()`. Et désactiver retire du CHOIX, jamais du
+ * passé : les dossiers qui portent cette famille la gardent et continuent de l'afficher.
+ */
+export async function modifierFamilleRisque(
+  acteur: Acteur,
+  familleId: bigint,
+  donnees: DonneesFamille
+): Promise<void> {
+  const libelle = donnees.libelle.trim()
+
+  if (libelle === '') {
+    throw new ErreurWorkflow('Le libellé est obligatoire.')
+  }
+
+  const avant = await prisma.familles_risque.findUnique({
+    where: { id: familleId },
+    select: { code: true, libelle: true, actif: true },
+  })
+
+  if (!avant) throw new ErreurWorkflow('Famille de risque inconnue.')
+
+  if (avant.actif && !donnees.actif) {
+    await refuserSiPlusAucuneFamilleProposable(familleId)
+  }
+
+  if (avant.libelle === libelle && avant.actif === donnees.actif) return
+
+  await prisma.familles_risque.update({
+    where: { id: familleId },
+    data: { libelle, actif: donnees.actif, updated_at: new Date() },
+  })
+
+  await journaliser({
+    action: 'famille_risque.modifiee',
+    acteurId: acteur.id,
+    auditableType: MODELES.familleRisque,
+    auditableId: String(familleId),
+    anciennes: { libelle: avant.libelle, actif: avant.actif },
+    nouvelles: { libelle, actif: donnees.actif },
+  })
+}
+
+/**
+ * Supprime une famille — À CONDITION QUE RIEN NE LA CITE.
+ *
+ * `dossiers.famille_risque_id` porte une clé vers cette table. Effacer une ligne citée laisserait
+ * des dossiers dont plus personne ne saurait dire à quoi ils se rattachaient : c'est exactement ce
+ * que RG-03 protège. Le refus est donc une règle, pas une prudence — et la DÉSACTIVATION reste
+ * offerte, qui retire l'entrée du choix sans toucher au passé.
+ */
+export async function supprimerFamilleRisque(acteur: Acteur, familleId: bigint): Promise<void> {
+  const cible = await prisma.familles_risque.findUnique({
+    where: { id: familleId },
+    select: {
+      code: true,
+      libelle: true,
+      actif: true,
+      ordre: true,
+      _count: { select: { dossiers: true } },
+    },
+  })
+
+  if (!cible) throw new ErreurWorkflow('Famille de risque inconnue.')
+
+  if (cible._count.dossiers > 0) {
+    const n = cible._count.dossiers
+
+    throw new ErreurWorkflow(
+      `« ${cible.libelle} » est citée par ${n} dossier${n > 1 ? 's' : ''} : la supprimer rendrait ces données incohérentes. ` +
+        'Désactivez-la plutôt : elle cessera d’être proposée, et les dossiers qui la portent la garderont.'
+    )
+  }
+
+  if (cible.actif) {
+    await refuserSiPlusAucuneFamilleProposable(familleId)
+  }
+
+  await prisma.familles_risque.delete({ where: { id: familleId } })
+
+  /*
+    ⚠️ LES VALEURS EFFACÉES SONT CONSIGNÉES. C'est la seule trace qui restera de cette ligne :
+    se contenter d'enregistrer « supprimée » rendrait l'audit incapable de répondre à « qu'y
+    avait-il exactement ? », qui est la question qu'on se pose précisément quand une suppression
+    pose problème.
+  */
+  await journaliser({
+    action: 'famille_risque.supprimee',
+    acteurId: acteur.id,
+    auditableType: MODELES.familleRisque,
+    auditableId: String(familleId),
+    anciennes: {
+      code: cible.code,
+      libelle: cible.libelle,
+      actif: cible.actif,
+      ordre: cible.ordre,
+    },
+    nouvelles: null,
+  })
+}
+
+/**
+ * Change le rang d'une famille dans la liste proposée aux traitants.
+ *
+ * ⚠️ TOUTE LA LISTE EST RENUMÉROTÉE, en une transaction. Une liste à moitié renumérotée porterait
+ * des rangs en double, donc un classement qui dépendrait de l'ordre de lecture de la base — et qui
+ * changerait d'un écran à l'autre sans que rien ne bouge.
+ */
+export async function deplacerFamilleRisque(
+  acteur: Acteur,
+  familleId: bigint,
+  sens: SensDeplacement
+): Promise<void> {
+  const lignes = await prisma.familles_risque.findMany({
+    orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+    select: { id: true, ordre: true },
+  })
+
+  const depuis = lignes.findIndex((l) => l.id === familleId)
+
+  if (depuis === -1) throw new ErreurWorkflow('Famille de risque inconnue.')
+
+  const vers = sens === 'monter' ? depuis - 1 : depuis + 1
+
+  if (vers < 0 || vers >= lignes.length) {
+    throw new ErreurWorkflow(
+      sens === 'monter' ? 'Cette famille est déjà la première.' : 'Cette famille est déjà la dernière.'
+    )
+  }
+
+  const ordonne = [...lignes]
+  ;[ordonne[depuis], ordonne[vers]] = [ordonne[vers], ordonne[depuis]]
+
+  await prisma.$transaction(
+    ordonne.map((ligne, index) =>
+      prisma.familles_risque.update({
+        where: { id: ligne.id },
+        data: { ordre: index + 1, updated_at: new Date() },
+      })
+    )
+  )
+
+  // Le journal ne retient que la ligne sur laquelle on a agi : les autres rangs bougent
+  // mécaniquement, et les tracer une par une noierait le geste réel sous sa comptabilité.
+  await journaliser({
+    action: 'famille_risque.modifiee',
+    acteurId: acteur.id,
+    auditableType: MODELES.familleRisque,
+    auditableId: String(familleId),
+    anciennes: { ordre: lignes[depuis].ordre },
+    nouvelles: { ordre: vers + 1 },
   })
 }
