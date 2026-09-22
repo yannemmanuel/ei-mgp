@@ -1,7 +1,27 @@
 import path from 'node:path'
 import type { NextConfig } from 'next'
+import { entetesSecurite } from './src/lib/entetes-securite'
 
 const nextConfig: NextConfig = {
+  /**
+   * En-têtes de sécurité, sur TOUTES les réponses.
+   *
+   * ⚠️ L'application n'en renvoyait AUCUN avant le 2026-09-22 : elle était encadrable en iframe,
+   * donc exposée au détournement de clic, et sans aucune défense en profondeur contre
+   * l'injection. La politique et son raisonnement vivent dans `src/lib/entetes-securite.ts` —
+   * ici, seul le branchement.
+   *
+   * ⚠️ `source: '/:chemin*'` couvre aussi `/`. Le motif `/:chemin+` l'aurait laissée nue, ce qui
+   * est précisément la page qu'on encadrerait.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:chemin*',
+        headers: [...entetesSecurite(process.env.NODE_ENV === 'production')],
+      },
+    ]
+  },
   // Répertoire de build, surchargeable par `NEXT_DIST_DIR`.
   //
   // Sert à lancer une seconde instance sans toucher au `.next` de celle qui tourne déjà. Le cas
