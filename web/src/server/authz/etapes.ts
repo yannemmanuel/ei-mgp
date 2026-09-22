@@ -153,13 +153,29 @@ export async function acteursDeLEtape(
  */
 export function etapesSansActeur(
   matrice: readonly CaseEtape[],
-  rolesPortes: ReadonlySet<string>
+  rolesPortes: ReadonlySet<string>,
+  /*
+    ⚠️ LES STATUTS RÉELLEMENT ATTEIGNABLES — ajouté le 2026-09-22 (constat D2).
+
+    Un statut DÉSACTIVÉ en base n'est proposé comme destination par aucune transition
+    (`transitionsManuelles()` filtre sur `actif`) : aucun dossier ne peut donc l'atteindre. Le
+    signaler comme « étape que personne ne peut franchir » annoncerait un blocage là où il n'y a
+    rien à franchir — et une alerte fausse est ce qui finit par faire ignorer les vraies.
+
+    ⚠️ FOURNI PAR L'APPELANT, jamais lu ici : cette fonction reste PURE, ce qui permet de
+    l'exercer sur des cas construits. Un test qui lirait l'activation du jour passerait ou
+    échouerait selon ce qu'un administrateur vient de décocher.
+
+    Omis, tous les statuts du graphe sont considérés atteignables — le comportement d'avant.
+  */
+  statutsAtteignables?: ReadonlySet<string>
 ): string[] {
   const orphelines: string[] = []
 
   for (const parcours of PARCOURS_CODES) {
     for (const statut of STATUTS) {
       if (transitionsDepuis(statut).length === 0) continue
+      if (statutsAtteignables && !statutsAtteignables.has(statut)) continue
 
       const acteurs = matrice.filter(
         (cas) => cas.parcours === parcours && cas.statut === statut

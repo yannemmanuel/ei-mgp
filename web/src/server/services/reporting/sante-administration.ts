@@ -124,7 +124,16 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
   const rolesPortes = new Set<string>(
     associations.filter((l) => actifs.has(l.model_id) && l.roles.actif).map((l) => l.roles.name)
   )
-  const orphelines = etapesSansActeur(matrice, rolesPortes)
+  /*
+    ⚠️ SEULS LES STATUTS ACTIFS sont examinés (D2, 2026-09-22).
+
+    Un statut désactivé n'est proposé comme destination par aucune transition : aucun dossier ne
+    peut l'atteindre, et le compter parmi les « étapes que personne ne peut franchir » annoncerait
+    un blocage inexistant. `en_attente_information` est dans ce cas aujourd'hui.
+  */
+  const atteignables = new Set(statutsEnBase.filter((s) => s.actif).map((s) => s.code))
+
+  const orphelines = etapesSansActeur(matrice, rolesPortes, atteignables)
 
   /*
     Un rôle actif que personne ne porte n'est pas qu'une curiosité de configuration.

@@ -238,14 +238,30 @@ export type EtapeACocher = {
 export async function etapesACocher(): Promise<EtapeACocher[]> {
   const lignes = await prisma.statuts_dossier.findMany({
     orderBy: { ordre: 'asc' },
-    select: { code: true, libelle_interne: true },
+    select: { code: true, libelle_interne: true, actif: true },
   })
 
   return lignes
     .filter(
       (l) =>
         (STATUTS as readonly string[]).includes(l.code) &&
-        transitionsDepuis(l.code as StatutCode).length > 0
+        transitionsDepuis(l.code as StatutCode).length > 0 &&
+        /*
+          ⚠️ ET LE STATUT DOIT ÊTRE ACTIF — constat D2 de l'audit du 2026-09-22.
+
+          Ce filtre manquait, et la grille proposait donc `en_attente_information`, désactivé en
+          base. Vingt-six lignes de `role_etapes` y désignaient des rôles qui ne commandaient
+          rien : aucune transition ne mène à un statut inactif (`transitionsManuelles()` les
+          écarte), donc aucun dossier ne pouvait atteindre cette étape.
+
+          L'administrateur cochait des cases sans effet, et le contrôle « étape sans acteur » du
+          tableau de bord raisonnait sur une colonne morte — il aurait signalé un trou là où il
+          n'y avait rien à franchir, ou tu, faute d'acteur, un vrai trou ailleurs.
+
+          ⚠️ RÉACTIVER LE STATUT SUFFIT à faire revenir la colonne, avec les lignes déjà cochées :
+          `role_etapes` n'est pas touchée. Désactiver retire du choix, jamais du passé.
+        */
+        l.actif
     )
     .map((l) => ({ code: l.code as StatutCode, libelle: l.libelle_interne }))
 }
