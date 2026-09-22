@@ -49,8 +49,15 @@ export type Champ = {
    * resserre trop pour être demandé sous couvert d'anonymat.
    */
   readonly masqueSiAnonyme?: boolean
-  /** Référentiel à charger côté serveur pour alimenter les options. */
-  readonly referentiel?: 'directions' | 'postes' | 'lieux' | 'villes' | 'tranchesAnciennete'
+  /**
+   * Référentiel à charger côté serveur pour alimenter les options.
+   *
+   * ⚠️ `tranchesAnciennete` A QUITTÉ CETTE LISTE le 2026-09-22 : les paliers sont désormais figés
+   * dans `TRANCHES_ANCIENNETE` et passent par `options`. Retirer la valeur de l'union est ce qui
+   * rend le nettoyage sûr — tout code qui la citait encore ne compile plus, plutôt que d'aller
+   * chercher une table qui n'existe pas.
+   */
+  readonly referentiel?: 'directions' | 'postes' | 'lieux' | 'villes'
   /**
    * Ce champ ne se remplit qu'une fois `dependDe` renseigné, et ses options en dépendent.
    *
@@ -308,6 +315,32 @@ const POSTE_DECLARANT = {
   aide: 'Facultatif. « Autre » s’il n’y figure pas.',
 } as const satisfies Champ
 
+/**
+ * Les paliers d'ancienneté — FIGÉS ICI, et plus dans un référentiel administrable.
+ *
+ * ⚠️ RETIRÉ DE LA BASE le 2026-09-22, à la demande du métier. La table `tranches_anciennete`
+ * offrait un écran d'administration pour cinq valeurs qui n'ont aucune raison de bouger : des
+ * paliers d'années ne dépendent ni du site, ni de la direction, ni de l'organisation. Ce qui ne
+ * varie pas ne gagne rien à être paramétrable, et l'écran coûtait une table, trois actions, un
+ * tiers de page d'administration et un aller-retour en base à chaque affichage du formulaire.
+ *
+ * ⚠️ CE CHOIX RESSERRE LA VALIDATION, et c'est le vrai gain. Une liste administrable se vérifie
+ * APRÈS coup, par `verifierReferentiels()`, qui confronte la chaîne reçue à la base ; une liste
+ * figée devient une énumération Zod, refusée à la porte. Le contrôle passe d'une requête à un
+ * type.
+ *
+ * ⚠️ LES LIBELLÉS SONT REPRIS À L'IDENTIQUE de ce que la base portait, dans son ordre
+ * d'affichage. Les griefs déjà déposés stockent le libellé en clair dans
+ * `declaration_identites.anciennete_tranche` : en changer un seul rendrait illisible ce qu'un
+ * déclarant a répondu.
+ */
+const TRANCHES_ANCIENNETE = [
+  { valeur: "Moins d'1 an", libelle: "Moins d'1 an" },
+  { valeur: '1 à 3 ans', libelle: '1 à 3 ans' },
+  { valeur: '3 à 5 ans', libelle: '3 à 5 ans' },
+  { valeur: '5 à 10 ans', libelle: '5 à 10 ans' },
+  { valeur: 'Plus de 10 ans', libelle: 'Plus de 10 ans' },
+] as const satisfies readonly { valeur: string; libelle: string }[]
 
 export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
   ei_employe: {
@@ -400,7 +433,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         libelle: 'Ancienneté',
         type: 'select',
         etape: 1,
-        referentiel: 'tranchesAnciennete',
+        options: TRANCHES_ANCIENNETE,
         identite: true,
         colonne: 'ancienneteTranche',
       },

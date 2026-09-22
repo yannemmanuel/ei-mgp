@@ -43,7 +43,6 @@ const REFERENTIELS = {
     ],
     lieux: [{ valeur: 'Station de Yopougon', libelle: 'Station de Yopougon' }],
     villes: [{ valeur: 'Abidjan', libelle: 'Abidjan' }],
-    tranchesAnciennete: [{ valeur: '1 à 3 ans', libelle: '1 à 3 ans' }],
   },
 }
 

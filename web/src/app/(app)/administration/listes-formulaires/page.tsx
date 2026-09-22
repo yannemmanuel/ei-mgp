@@ -5,17 +5,14 @@ import { listerListePlate } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
 import {
   actionDeplacerLieu,
-  actionDeplacerTrancheAnciennete,
   actionDeplacerVille,
   actionEnregistrerLieu,
-  actionEnregistrerTranche,
   actionEnregistrerVille,
   actionSupprimerLieu,
-  actionSupprimerTrancheAnciennete,
   actionSupprimerVille,
 } from '../actions'
 
-/** Les trois listes reçoivent les mêmes trois actions, à la liste visée près. */
+/** Les deux listes reçoivent les mêmes trois actions, à la liste visée près. */
 type Action = (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
 
 export const metadata: Metadata = { title: 'Administration — Listes des formulaires' }
@@ -24,23 +21,27 @@ export const dynamic = 'force-dynamic'
 type EtatFormulaire = { erreur?: string; succes?: string }
 
 /**
- * Lieux, villes et tranches d'ancienneté (ADM3, ADM4, ADM5).
+ * Lieux et villes (ADM3, ADM4).
  *
- * Trois listes de la même forme — un libellé, un état — réunies sur un seul écran.
- * Trois entrées de plus dans le sommaire de l'administration pour trois tableaux de quelques
+ * Deux listes de la même forme — un libellé, un état — réunies sur un seul écran.
+ * Deux entrées de plus dans le sommaire de l'administration pour deux tableaux de quelques
  * lignes auraient encombré la navigation sans rien apporter.
  *
- * Aucune valeur ne se supprime : elle se désactive, et les déclarations qui l'ont retenue
- * gardent leur sens.
+ * ⚠️ LES TRANCHES D'ANCIENNETÉ ONT QUITTÉ CET ÉCRAN le 2026-09-22 (ADM5). Cinq paliers d'années
+ * ne dépendent ni du site, ni de la direction, ni de l'organisation : ce qui ne varie pas ne
+ * gagne rien à être paramétrable. Ils sont figés dans `TRANCHES_ANCIENNETE`, où ils deviennent
+ * une énumération que la validation refuse à la porte.
+ *
+ * ⚠️ LA VILLE, ELLE, RESTE ICI et c'est délibéré : la liste des localités riveraines n'est pas
+ * connue d'avance, et doit pouvoir s'allonger sans déploiement.
+ *
+ * Une valeur CITÉE par un dossier ne se supprime pas : elle se désactive, et les déclarations
+ * qui l'ont retenue gardent leur sens.
  */
 export default async function PageListesFormulaires() {
   await exigerPermission('referentiels.categories.manage')
 
-  const [lieux, villes, tranches] = await Promise.all([
-    listerListePlate('lieu'),
-    listerListePlate('ville'),
-    listerListePlate('trancheAnciennete'),
-  ])
+  const [lieux, villes] = await Promise.all([listerListePlate('lieu'), listerListePlate('ville')])
 
   return (
     <div className="space-y-8">
@@ -71,16 +72,6 @@ export default async function PageListesFormulaires() {
         action={actionEnregistrerVille}
         actionDeplacer={actionDeplacerVille}
         actionSupprimer={actionSupprimerVille}
-      />
-
-      <Liste
-        titre="Tranches d’ancienneté"
-        description="Tranches proposées dans le formulaire de grief des employés."
-        singulier="une tranche"
-        lignes={tranches}
-        action={actionEnregistrerTranche}
-        actionDeplacer={actionDeplacerTrancheAnciennete}
-        actionSupprimer={actionSupprimerTrancheAnciennete}
       />
     </div>
   )

@@ -686,8 +686,7 @@ function ecrireRangListePlate(liste: ListePlate, id: bigint, ordre: number) {
   const data = { ordre, updated_at: new Date() }
 
   if (liste === 'lieu') return prisma.lieux.update({ where: { id }, data })
-  if (liste === 'ville') return prisma.villes.update({ where: { id }, data })
-  return prisma.tranches_anciennete.update({ where: { id }, data })
+  return prisma.villes.update({ where: { id }, data })
 }
 
 export async function deplacerListePlate(
@@ -797,7 +796,23 @@ export async function supprimerPoste(acteur: Acteur, posteId: bigint): Promise<v
   })
 }
 
-/** Voir `supprimerPoste()` : ces trois listes ne sont citées par aucune clé étrangère. */
+/**
+ * Supprime un lieu ou une ville — À CONDITION qu'aucun dossier ne l'ait retenu.
+ *
+ * ⚠️ CE CONTRÔLE MANQUAIT, et le commentaire qui l'en dispensait disait : « ces trois listes ne
+ * sont citées par aucune clé étrangère ». C'était exact et trompeur. Elles SONT citées —
+ * `dossiers.lieu` et `dossiers.ville` portent le LIBELLÉ en clair, délibérément, pour que
+ * renommer un référentiel ne réécrive pas ce qu'un déclarant a répondu. Simplement, le lien ne
+ * passe pas par une clé, donc PostgreSQL ne pouvait pas s'y opposer, donc personne ne s'y
+ * opposait.
+ *
+ * Le défaut n'était pas théorique : `users.poste` porte aujourd'hui « CS Achat », un libellé
+ * absent de `postes`. Un dossier dont le lieu a été effacé du référentiel affiche une valeur que
+ * plus aucune liste ne propose, et que plus rien n'explique.
+ *
+ * ⚠️ LE LIBELLÉ EST LA CLÉ ICI, faute de mieux : c'est lui qui est stocké sur le dossier. Le
+ * décompte porte donc sur `cible.libelle`, et non sur l'identifiant de la ligne.
+ */
 export async function supprimerListePlate(
   acteur: Acteur,
   liste: ListePlate,
@@ -808,9 +823,20 @@ export async function supprimerListePlate(
 
   if (!cible) throw new ErreurWorkflow('Entrée introuvable.')
 
+  const citations = await prisma.dossiers.count({
+    where: liste === 'lieu' ? { lieu: cible.libelle } : { ville: cible.libelle },
+  })
+
+  if (citations > 0) {
+    throw new ErreurWorkflow(
+      `« ${cible.libelle} » est cité par ${citations} dossier${citations > 1 ? 's' : ''} : ` +
+        'le supprimer rendrait ces déclarations incompréhensibles. ' +
+        'Désactivez cette entrée pour la retirer des formulaires sans toucher à l’historique.'
+    )
+  }
+
   if (liste === 'lieu') await prisma.lieux.delete({ where: { id: ligneId } })
-  else if (liste === 'ville') await prisma.villes.delete({ where: { id: ligneId } })
-  else await prisma.tranches_anciennete.delete({ where: { id: ligneId } })
+  else await prisma.villes.delete({ where: { id: ligneId } })
 
   await journaliser({
     action: `${codeModele(MODELE_DE_LISTE[liste])}.supprimee`,
@@ -940,30 +966,35 @@ export async function enregistrerPoste(
 
 export type DonneesListeSimple = { libelle: string; actif: boolean }
 
-/** Les trois listes plates partagent la même forme : un libellé et un état. */
-export type ListePlate = 'lieu' | 'ville' | 'trancheAnciennete'
+/**
+ * Les deux listes plates partagent la même forme : un libellé et un état.
+ *
+ * ⚠️ ELLES ÉTAIENT TROIS. Les tranches d'ancienneté ont quitté la base le 2026-09-22 : cinq
+ * paliers d'années qui ne dépendent ni du site ni de l'organisation n'avaient rien à gagner à
+ * être administrables. Ils sont figés dans `TRANCHES_ANCIENNETE`, où ils deviennent une
+ * énumération refusée à la porte plutôt qu'une chaîne confrontée à une table après coup.
+ */
+export type ListePlate = 'lieu' | 'ville'
 
 /*
   ⚠️ Un `switch` explicite, et non un délégué Prisma choisi dynamiquement.
 
-  Regrouper `prisma.lieux`, `prisma.villes` et `prisma.tranches_anciennete` dans une table de
-  correspondance produit une UNION de signatures que TypeScript déclare non appelable : chaque
-  modèle a ses propres types d'entrée. Le contourner par un `any` aurait fait perdre exactement
-  ce qui protège ici — la vérification que les colonnes écrites existent.
+  Regrouper `prisma.lieux` et `prisma.villes` dans une table de correspondance produit une UNION
+  de signatures que TypeScript déclare non appelable : chaque modèle a ses propres types d'entrée.
+  Le contourner par un `any` aurait fait perdre exactement ce qui protège ici — la vérification
+  que les colonnes écrites existent.
 */
 export async function listerListePlate(liste: ListePlate) {
   // Rang puis alphabétique — voir `listerCategories()` pour le motif.
   const options = { orderBy: [{ ordre: 'asc' as const }, { libelle: 'asc' as const }] }
 
   if (liste === 'lieu') return prisma.lieux.findMany(options)
-  if (liste === 'ville') return prisma.villes.findMany(options)
-  return prisma.tranches_anciennete.findMany(options)
+  return prisma.villes.findMany(options)
 }
 
 const MODELE_DE_LISTE: Record<ListePlate, ModeleAudite> = {
   lieu: MODELES.lieu,
   ville: MODELES.ville,
-  trancheAnciennete: MODELES.trancheAnciennete,
 }
 
 export async function enregistrerListePlate(
@@ -988,9 +1019,7 @@ export async function enregistrerListePlate(
     const creee =
       liste === 'lieu'
         ? await prisma.lieux.create({ data, select: { id: true } })
-        : liste === 'ville'
-          ? await prisma.villes.create({ data, select: { id: true } })
-          : await prisma.tranches_anciennete.create({ data, select: { id: true } })
+        : await prisma.villes.create({ data, select: { id: true } })
 
     await journaliser({
       action: `${liste}.cree`,
@@ -1009,8 +1038,7 @@ export async function enregistrerListePlate(
   const data = { ...valeurs, updated_at: maintenant }
 
   if (liste === 'lieu') await prisma.lieux.update({ where: { id: ligneId }, data })
-  else if (liste === 'ville') await prisma.villes.update({ where: { id: ligneId }, data })
-  else await prisma.tranches_anciennete.update({ where: { id: ligneId }, data })
+  else await prisma.villes.update({ where: { id: ligneId }, data })
 
   await journaliserModification(
     `${liste}.modifie`,

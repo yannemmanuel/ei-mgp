@@ -6,8 +6,8 @@ import { verifierReferentiels } from '../verifier-referentiels'
 /**
  * Les listes administrables sont transmises EN CLAIR — et doivent donc être vérifiées.
  *
- * Poste, lieu, ville et tranche d'ancienneté voyagent sous forme de libellé, pour que renommer un
- * référentiel ne réécrive pas rétroactivement ce qu'un déclarant a choisi. Le revers est direct :
+ * Poste, lieu et ville voyagent sous forme de libellé, pour que renommer un référentiel ne
+ * réécrive pas rétroactivement ce qu'un déclarant a choisi. Le revers est direct :
  * le schéma ne peut plus rien prouver de leur existence, il ne voit qu'une chaîne. Sans ce
  * contrôle, une requête forgée écrirait n'importe quoi dans ces colonnes — et le formulaire
  * public est la surface d'abus la plus large de l'application.

@@ -28,16 +28,21 @@ export type OptionLieeFormulaire = OptionFormulaire & { parent: string }
  */
 export const POSTE_AUTRE = 'Autre'
 
+/**
+ * ⚠️ `tranchesAnciennete` A QUITTÉ CE TYPE le 2026-09-22. Les paliers sont figés dans
+ * `TRANCHES_ANCIENNETE` (`parcours-config.ts`) et voyagent désormais avec la configuration du
+ * parcours, comme n'importe quelle liste d'`options` : le formulaire n'a plus de requête à faire
+ * pour les afficher, ni la soumission de table à interroger pour les accepter.
+ */
 export type ReferentielsFormulaire = {
   directions: OptionFormulaire[]
   postes: OptionLieeFormulaire[]
   lieux: OptionFormulaire[]
   villes: OptionFormulaire[]
-  tranchesAnciennete: OptionFormulaire[]
 }
 
 export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
-  const [directions, postes, lieux, villes, tranches] = await Promise.all([
+  const [directions, postes, lieux, villes] = await Promise.all([
     prisma.directions.findMany({
       where: { actif: true },
       orderBy: { libelle: 'asc' },
@@ -60,20 +65,15 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
       orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
       select: { id: true, libelle: true },
     }),
-    prisma.tranches_anciennete.findMany({
-      where: { actif: true },
-      orderBy: { ordre: 'asc' },
-      select: { id: true, libelle: true },
-    }),
   ])
 
   /*
     Les listes dont la valeur est CONSERVÉE EN CLAIR renvoient le libellé comme valeur.
 
-    Lieu, ville et tranche d'ancienneté sont stockés tels quels sur le dossier : un référentiel
-    renommé plus tard ne doit pas réécrire rétroactivement ce que le déclarant a choisi ce
-    jour-là. La direction, elle, garde son identifiant — elle est une vraie clé étrangère, et
-    c'est par elle que le dossier trouve son site.
+    Lieu et ville sont stockés tels quels sur le dossier : un référentiel renommé plus tard ne
+    doit pas réécrire rétroactivement ce que le déclarant a choisi ce jour-là. La direction, elle,
+    garde son identifiant — elle est une vraie clé étrangère, et c'est par elle que le dossier
+    trouve son site.
   */
   const parLibelle = (l: { libelle: string }) => ({ valeur: l.libelle, libelle: l.libelle })
 
@@ -106,6 +106,5 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
     postes: postesParDirection,
     lieux: lieux.map(parLibelle),
     villes: villes.map(parLibelle),
-    tranchesAnciennete: tranches.map(parLibelle),
   }
 }

@@ -481,10 +481,6 @@ function actionListePlate(liste: ListePlate, succes: string) {
 
 export const actionEnregistrerLieu = actionListePlate('lieu', 'Lieu enregistré.')
 export const actionEnregistrerVille = actionListePlate('ville', 'Ville enregistrée.')
-export const actionEnregistrerTranche = actionListePlate(
-  'trancheAnciennete',
-  'Tranche enregistrée.'
-)
 
 /* ==========================================================================
    Rang et suppression
@@ -633,11 +629,6 @@ function actionSuppressionListePlate(liste: ListePlate, succes: string) {
 
 export const actionDeplacerLieu = actionRangListePlate('lieu')
 export const actionDeplacerVille = actionRangListePlate('ville')
-export const actionDeplacerTrancheAnciennete = actionRangListePlate('trancheAnciennete')
 
 export const actionSupprimerLieu = actionSuppressionListePlate('lieu', 'Lieu supprimé.')
 export const actionSupprimerVille = actionSuppressionListePlate('ville', 'Ville supprimée.')
-export const actionSupprimerTrancheAnciennete = actionSuppressionListePlate(
-  'trancheAnciennete',
-  'Tranche supprimée.'
-)

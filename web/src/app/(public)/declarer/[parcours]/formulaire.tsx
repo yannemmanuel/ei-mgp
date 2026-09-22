@@ -35,7 +35,6 @@ export type Referentiels = {
   postes: OptionLiee[]
   lieux: Option[]
   villes: Option[]
-  tranchesAnciennete: Option[]
 }
 
 type Props = {

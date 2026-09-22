@@ -132,11 +132,10 @@ const GROUPES: Groupe[] = [
         libelle: 'Listes des formulaires',
         href: '/administration/listes-formulaires',
         permission: 'referentiels.categories.manage',
-        description: 'Lieux, villes et tranches d’ancienneté.',
+        description: 'Lieux et villes proposés dans les formulaires.',
         compter: async () =>
           (await prisma.lieux.count({ where: { actif: true } })) +
-          (await prisma.villes.count({ where: { actif: true } })) +
-          (await prisma.tranches_anciennete.count({ where: { actif: true } })),
+          (await prisma.villes.count({ where: { actif: true } })),
         unite: ['valeur active', 'valeurs actives'],
       },
       {

@@ -27,6 +27,8 @@ model actions_correctives {
 
   @@index([dossier_id], map: "actions_correctives_dossier_id_index")
   @@index([echeance, statut], map: "actions_correctives_echeance_statut_index")
+  @@index([investigation_id], map: "actions_correctives_investigation_id_index")
+  @@index([responsable_id], map: "actions_correctives_responsable_id_index")
 }
 
 model audit_logs {
@@ -45,6 +47,7 @@ model audit_logs {
 
   @@index([auditable_type, auditable_id], map: "audit_logs_auditable_type_auditable_id_index")
   @@index([created_at], map: "audit_logs_created_at_index")
+  @@index([user_id], map: "audit_logs_user_id_index")
 }
 
 model cache {
@@ -53,14 +56,6 @@ model cache {
   expiration Int
 
   @@index([expiration], map: "cache_expiration_index")
-}
-
-model cache_locks {
-  key        String @id @db.VarChar(255)
-  owner      String @db.VarChar(255)
-  expiration Int
-
-  @@index([expiration], map: "cache_locks_expiration_index")
 }
 
 model canaux_captage {
@@ -148,6 +143,7 @@ model dossier_affectations {
 
   @@index([dossier_id, actif], map: "dossier_affectations_dossier_id_actif_index")
   @@index([user_id, actif], map: "dossier_affectations_user_id_actif_index")
+  @@index([affecte_par], map: "dossier_affectations_affecte_par_index")
 }
 
 model dossiers {
@@ -213,16 +209,12 @@ model dossiers {
   @@index([parcours_id, statut_id], map: "dossiers_parcours_id_statut_id_index")
   @@index([direction_declarant_id], map: "dossiers_direction_declarant_id_index")
   @@index([famille_risque_id], map: "dossiers_famille_risque_id_index")
-}
-
-model failed_jobs {
-  id         BigInt   @id @default(autoincrement())
-  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
-  connection String
-  queue      String
-  payload    String
-  exception  String
-  failed_at  DateTime @default(now()) @db.Timestamp(0)
+  @@index([canal_captage_id], map: "dossiers_canal_captage_id_index")
+  @@index([categorie_id], map: "dossiers_categorie_id_index")
+  @@index([declarant_user_id], map: "dossiers_declarant_user_id_index")
+  @@index([direction_id], map: "dossiers_direction_id_index")
+  @@index([site_id], map: "dossiers_site_id_index")
+  @@index([statut_id], map: "dossiers_statut_id_index")
 }
 
 model historique_statuts {
@@ -239,6 +231,9 @@ model historique_statuts {
   statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier   statuts_dossier  @relation("historique_statuts_statut_suivant_idTostatuts_dossier", fields: [statut_suivant_id], references: [id], onUpdate: NoAction, map: "historique_statuts_statut_suivant_id_foreign")
 
   @@index([dossier_id, created_at], map: "historique_statuts_dossier_id_created_at_index")
+  @@index([effectue_par], map: "historique_statuts_effectue_par_index")
+  @@index([statut_precedent_id], map: "historique_statuts_statut_precedent_id_index")
+  @@index([statut_suivant_id], map: "historique_statuts_statut_suivant_id_index")
 }
 
 model investigations {
@@ -262,31 +257,8 @@ model investigations {
   users_investigations_valide_parTousers   users?                @relation("investigations_valide_parTousers", fields: [valide_par], references: [id], onUpdate: NoAction, map: "investigations_valide_par_foreign")
 
   @@index([dossier_id], map: "investigations_dossier_id_index")
-}
-
-model job_batches {
-  id             String  @id @db.VarChar(255)
-  name           String  @db.VarChar(255)
-  total_jobs     Int
-  pending_jobs   Int
-  failed_jobs    Int
-  failed_job_ids String
-  options        String?
-  cancelled_at   Int?
-  created_at     Int
-  finished_at    Int?
-}
-
-model jobs {
-  id           BigInt @id @default(autoincrement())
-  queue        String @db.VarChar(255)
-  payload      String
-  attempts     Int    @db.SmallInt
-  reserved_at  Int?
-  available_at Int
-  created_at   Int
-
-  @@index([queue], map: "jobs_queue_index")
+  @@index([enqueteur_id], map: "investigations_enqueteur_id_index")
+  @@index([valide_par], map: "investigations_valide_par_index")
 }
 
 model messages {
@@ -301,12 +273,7 @@ model messages {
   users              users?    @relation(fields: [expediteur_user_id], references: [id], onUpdate: NoAction, map: "messages_expediteur_user_id_foreign")
 
   @@index([dossier_id, created_at], map: "messages_dossier_id_created_at_index")
-}
-
-model migrations {
-  id        Int    @id @default(autoincrement())
-  migration String @db.VarChar(255)
-  batch     Int
+  @@index([expediteur_user_id], map: "messages_expediteur_user_id_index")
 }
 
 model model_has_permissions {
@@ -356,6 +323,8 @@ model notification_templates {
   updated_at                          DateTime? @db.Timestamp(0)
   destinataires_email_supplementaires Json?     @db.Json
   parcours                            parcours? @relation(fields: [parcours_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "notification_templates_parcours_id_foreign")
+
+  @@index([parcours_id], map: "notification_templates_parcours_id_index")
 }
 
 model notifications {
@@ -392,12 +361,6 @@ model parcours {
   utilisateur_parcours    utilisateur_parcours[]
 }
 
-model password_reset_tokens {
-  email      String    @id @db.VarChar(255)
-  token      String    @db.VarChar(255)
-  created_at DateTime? @db.Timestamp(0)
-}
-
 model permissions {
   id                    BigInt                  @id @default(autoincrement())
   name                  String                  @db.VarChar(255)
@@ -425,6 +388,7 @@ model pieces_jointes {
   users           users?   @relation(fields: [televerse_par], references: [id], onUpdate: NoAction, map: "pieces_jointes_televerse_par_foreign")
 
   @@index([attachable_type, attachable_id], map: "pieces_jointes_attachable_type_attachable_id_index")
+  @@index([televerse_par], map: "pieces_jointes_televerse_par_index")
 }
 
 model qr_codes {
@@ -440,6 +404,9 @@ model qr_codes {
   updated_at   DateTime? @db.Timestamp(0)
   users        users?    @relation(fields: [genere_par], references: [id], onUpdate: NoAction, map: "qr_codes_genere_par_foreign")
   parcours     parcours  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "qr_codes_parcours_id_foreign")
+
+  @@index([genere_par], map: "qr_codes_genere_par_index")
+  @@index([parcours_id], map: "qr_codes_parcours_id_index")
 }
 
 model role_has_permissions {
@@ -449,6 +416,7 @@ model role_has_permissions {
   roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_has_permissions_role_id_foreign")
 
   @@id([permission_id, role_id])
+  @@index([role_id], map: "role_has_permissions_role_id_index")
 }
 
 model roles {
@@ -470,18 +438,6 @@ model roles {
   role_parcours                   role_parcours[]
 
   @@unique([name, guard_name], map: "roles_name_guard_name_unique")
-}
-
-model sessions {
-  id            String  @id @db.VarChar(255)
-  user_id       BigInt?
-  ip_address    String? @db.VarChar(45)
-  user_agent    String?
-  payload       String
-  last_activity Int
-
-  @@index([last_activity], map: "sessions_last_activity_index")
-  @@index([user_id], map: "sessions_user_id_index")
 }
 
 model sites {
@@ -527,6 +483,10 @@ model statistiques_mensuelles {
   categories        categories?      @relation(fields: [categorie_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_categorie_id_foreign")
   niveaux_gravite   niveaux_gravite? @relation(fields: [niveau_gravite_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_niveau_gravite_id_foreign")
   parcours          parcours?        @relation(fields: [parcours_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "statistiques_mensuelles_parcours_id_foreign")
+
+  @@index([categorie_id], map: "statistiques_mensuelles_categorie_id_index")
+  @@index([niveau_gravite_id], map: "statistiques_mensuelles_niveau_gravite_id_index")
+  @@index([parcours_id], map: "statistiques_mensuelles_parcours_id_index")
 }
 
 model statuts_dossier {
@@ -579,6 +539,10 @@ model users {
   other_users                                                  users[]                 @relation("usersTousers")
   sites                                                        sites?                  @relation(fields: [site_id], references: [id], onUpdate: NoAction, map: "users_site_id_foreign")
   utilisateur_parcours                                         utilisateur_parcours[]
+
+  @@index([direction_id], map: "users_direction_id_index")
+  @@index([responsable_hierarchique_id], map: "users_responsable_hierarchique_id_index")
+  @@index([site_id], map: "users_site_id_index")
 }
 
 model lieux {
@@ -604,15 +568,6 @@ model postes {
   @@index([direction_id], map: "postes_direction_id_index")
 }
 
-model tranches_anciennete {
-  id         BigInt    @id @default(autoincrement())
-  libelle    String    @unique(map: "tranches_anciennete_libelle_unique") @db.VarChar(255)
-  ordre      Int       @default(1)
-  actif      Boolean   @default(true)
-  created_at DateTime? @db.Timestamp(0)
-  updated_at DateTime? @db.Timestamp(0)
-}
-
 model villes {
   id         BigInt    @id @default(autoincrement())
   libelle    String    @unique(map: "villes_libelle_unique") @db.VarChar(255)
@@ -634,6 +589,7 @@ model utilisateur_parcours {
 
   @@unique([user_id, parcours_id], map: "utilisateur_parcours_unique")
   @@index([user_id], map: "utilisateur_parcours_user_id_index")
+  @@index([parcours_id], map: "utilisateur_parcours_parcours_id_index")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -663,6 +619,7 @@ model role_parcours {
 
   @@unique([role_id, parcours_id], map: "role_parcours_unique")
   @@index([role_id], map: "role_parcours_role_id_index")
+  @@index([parcours_id], map: "role_parcours_parcours_id_index")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -695,4 +652,6 @@ model role_etapes {
 
   @@unique([role_id, parcours_id, statut_id], map: "role_etapes_unique")
   @@index([role_id], map: "role_etapes_role_id_index")
+  @@index([parcours_id], map: "role_etapes_parcours_id_index")
+  @@index([statut_id], map: "role_etapes_statut_id_index")
 }

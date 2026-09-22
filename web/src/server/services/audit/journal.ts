@@ -35,6 +35,16 @@ export const MODELES = {
   poste: String.raw`App\Models\Poste`,
   lieu: String.raw`App\Models\Lieu`,
   ville: String.raw`App\Models\Ville`,
+  /*
+    ⚠️ CETTE TABLE N'EXISTE PLUS (2026-09-22) — l'entrée, elle, RESTE.
+
+    Deux lignes d'`audit_logs` citent `App\Models\TrancheAnciennete` : elles consignent des
+    modifications réellement faites, par quelqu'un, à une date. Retirer la correspondance
+    n'effacerait pas ces lignes, elle les rendrait illisibles — le journal afficherait un nom de
+    classe brut là où il doit nommer ce qui a été fait.
+
+    Le journal décrit le PASSÉ : sa table de noms ne se purge pas quand le présent change.
+  */
   trancheAnciennete: String.raw`App\Models\TrancheAnciennete`,
   // Le TYPE de déclaration lui-même, depuis que ses réglages se paramètrent (familles de risque,
   // 2026-09-21).
