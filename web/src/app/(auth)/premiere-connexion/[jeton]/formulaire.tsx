@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useActionState, useMemo, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { actionDefinirMotDePasse, type EtatPremiereConnexion } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 const ETAT: EtatPremiereConnexion = {}
 
@@ -29,6 +30,18 @@ export function FormulairePremiereConnexion({
   octetsMaximum: number
 }) {
   const [etat, envoyer, enCours] = useActionState(actionDefinirMotDePasse, ETAT)
+
+  /*
+   * Seul l'ÉCHEC part en notification.
+   *
+   * Ici `succes` n'est pas un message mais un booléen : la réussite remplace tout l'écran par ce
+   * qui suit — le mot de passe est en place, voici comment se connecter. Une notification par
+   * dessus répéterait à côté ce que la page dit déjà en grand.
+   *
+   * `useMemo` indexé sur `etat` : un objet reconstruit à chaque rendu ferait revenir la
+   * notification sans qu'aucun envoi n'ait eu lieu.
+   */
+  useRetourEnToast(useMemo(() => ({ erreur: etat.erreur }), [etat]))
   const [nouveau, setNouveau] = useState('')
   const [confirmation, setConfirmation] = useState('')
 
@@ -121,11 +134,6 @@ export function FormulairePremiereConnexion({
         )}
       </div>
 
-      {etat.erreur && (
-        <Alert variant="destructive">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" disabled={enCours || tropCourt || tropLong || divergent} className="w-full">
         {enCours ? 'Enregistrement…' : 'Enregistrer et continuer'}

@@ -33,15 +33,10 @@ export type EtapeDelai =
  */
 const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
   /*
-    « Reçu » compte désormais pour l'analyse préliminaire.
-
-    L'évènement indésirable n'est plus affecté à personne : il reste à « reçu » jusqu'à ce que le
-    chargé de sécurité le traite. Sans cette ligne, il n'entrait dans AUCUNE étape suivie — donc
-    aucune échéance, aucune relance, aucune escalade, et rien à afficher là où le métier demande
-    précisément de voir le délai. Le dossier serait resté indéfiniment à l'heure.
-
-    C'est aussi la lecture la plus juste du délai : il court depuis le dépôt, qui est le moment
-    que le déclarant connaît, et non depuis une affectation interne dont il n'a jamais rien su.
+    « Reçu » compte pour l'analyse préliminaire : l'évènement indésirable n'étant plus affecté, il
+    n'entrerait sinon dans aucune étape suivie — donc aucune échéance, aucune relance, et un
+    dossier indéfiniment « à l'heure ». C'est aussi la lecture la plus juste : le délai court
+    depuis le dépôt, seul moment que le déclarant connaisse.
   */
   recu: 'analyse_preliminaire',
   en_analyse: 'analyse_preliminaire',
@@ -54,18 +49,8 @@ const STATUT_VERS_ETAPE: Partial<Record<StatutCode, EtapeDelai>> = {
 /**
  * Statuts dont l'ENTRÉE démarre le chronomètre de chaque étape suivie, par ordre de préférence.
  *
- * ⚠️ Une LISTE, et l'ordre y est la règle : on retient le premier statut dont l'historique porte
- * une entrée.
- *
- * ⚠️ « AFFECTÉ » EN EST SORTI avec le reste du circuit, le 2026-09-21. L'analyse préliminaire
- * démarrait à l'affectation quand il y en avait une ; plus aucune n'est faite, et l'étape part
- * donc de la RÉCEPTION — ce qui est aussi la lecture la plus juste du délai : il court depuis le
- * dépôt, le seul moment que le déclarant connaisse.
- *
- * Effet sur les quatre dossiers déjà passés par « Affecté » : leur chronomètre repart de « Reçu »
- * au lieu de « Affecté ». Les deux entrées d'historique ayant été écrites dans la MÊME
- * transaction — l'affectation était automatique et immédiate —, l'échéance calculée ne bouge que
- * de quelques millisecondes.
+ * ⚠️ Une liste, et l'ordre est la règle : on retient le premier statut dont l'historique porte une
+ * entrée.
  */
 const ETAPE_VERS_STATUTS_DE_DEPART: Partial<Record<EtapeDelai, readonly StatutCode[]>> = {
   analyse_preliminaire: ['recu'],
@@ -127,11 +112,8 @@ export function etapesSuivies(): ReadonlySet<EtapeDelai> {
 /**
  * Statuts dont un dossier peut porter une échéance courante.
  *
- * ⚠️ DÉRIVÉ de `STATUT_VERS_ETAPE`, jamais écrit à la main. La liste l'était, dans `aTraiter()`,
- * et elle a cessé d'être vraie à la première étape ajoutée : « reçu » est entré dans l'analyse
- * préliminaire sans y entrer, si bien que le calcul unitaire trouvait des dossiers en retard que
- * le décompte du tableau de bord ne voyait pas. Un écart de ce genre ne se lit jamais comme une
- * erreur : il se lit comme un dossier à l'heure.
+ * ⚠️ DÉRIVÉ de `STATUT_VERS_ETAPE`, jamais écrit à la main : une liste recopiée a déjà cessé
+ * d'être vraie à la première étape ajoutée, et l'écart se lit comme un dossier à l'heure.
  */
 export function statutsAvecEcheance(): StatutCode[] {
   return Object.keys(STATUT_VERS_ETAPE) as StatutCode[]

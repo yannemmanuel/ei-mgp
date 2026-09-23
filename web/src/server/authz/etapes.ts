@@ -3,38 +3,19 @@ import { STATUTS, transitionsDepuis, type StatutCode } from '@/server/services/d
 import { PARCOURS_CODES, type ParcoursCode } from './parcours'
 
 /**
- * Qui peut faire AVANCER un dossier, selon son type et l'étape où il se trouve.
+ * Qui peut faire AVANCER un dossier, selon son type et l'étape où il se trouve
+ * (`docs/workflows.md` §3 : un ensemble de rôles autorisés, pas un `assignee_id` unique).
  *
- * `docs/workflows.md` §3 le demande explicitement :
+ * Sans ce contrôle, tout porteur de `dossiers.status.update` pousserait seul un dossier de bout
+ * en bout, y compris aux étapes confiées à d'autres.
  *
- * > les « acteurs responsables » par étape [...] sont modélisés comme un **ensemble de rôles
- * > autorisés à faire progresser le dossier à cette étape**, vérifié par Policy, pas comme un
- * > unique `assignee_id`.
+ * La matrice vit dans `role_etapes` et se coche dans `/administration/habilitations`.
  *
- * Sans ce contrôle, n'importe quel porteur de `dossiers.status.update` pousserait seul un dossier
- * de bout en bout, y compris à des étapes confiées à d'autres acteurs.
+ * ⚠️ Une ligne absente INTERDIT. Le code, lui, lisait l'absence comme « ouverte à tous » : la
+ * bascule a donc écrit explicitement les lignes des étapes alors ouvertes, à comportement égal.
  *
- * ⚠️ CETTE TABLE A QUITTÉ LE CODE le 2026-09-21. Elle y était écrite rôle par rôle : un rôle créé
- * depuis l'interface n'y figurait pas, ne pouvait faire avancer AUCUN dossier, et rien ne le
- * disait — ni à l'administrateur qui venait de le créer, ni à son porteur, qui voyait seulement
- * un bouton absent. Elle vit désormais dans `role_etapes` et se coche dans une grille
- * type × étape, rôle par rôle, dans `/administration/habilitations`.
- *
- * ⚠️ UN CHANGEMENT DE DÉFAUT, ET IL EST VOLONTAIRE. Ici, une étape absente de la table signifiait
- * « ouverte à tous ceux qui en ont le droit » — quatre acteurs du CDC n'ont pas de rôle
- * applicatif, et leur inventer une correspondance aurait bloqué du travail légitime. Cette nuance
- * ne survit pas en base : l'absence de ligne s'y lit comme une interdiction, et distinguer les
- * deux demanderait une table de plus dont personne ne comprendrait l'objet.
- *
- * La reprise a donc rendu EXPLICITE ce qui était implicite — pour chaque étape que le code
- * laissait ouverte, tous les rôles porteurs de `dossiers.status.update` ont reçu leur ligne. Le
- * comportement est identique au jour de la bascule ; ce qui change, c'est qu'on le voit, et qu'on
- * peut le corriger sans déploiement.
- *
- * L'étape de DÉPART reste la clé : le graphe des transitions contraint déjà les arrivées. Les
- * distinguer plus finement supposerait de trancher, par exemple, qui de « Retour d'information »
- * ou de « Mise en œuvre des mesures » commande le passage depuis « En investigation » — le CDC ne
- * le dit pas, et l'inventer figerait un choix qui n'est pas le nôtre.
+ * Seule l'étape de DÉPART est la clé — le graphe des transitions contraint déjà les arrivées, et
+ * le CDC ne dit pas qui, de deux acteurs, commande un passage donné.
  */
 
 /** Une case cochée : ce rôle fait avancer ce type de déclaration depuis cette étape. */
@@ -58,13 +39,8 @@ export type PorteurDEtapes = {
 /**
  * Ce compte a-t-il la charge de cette étape, sur ce type de déclaration ?
  *
- * ⚠️ FAUX PAR DÉFAUT désormais — voir l'avertissement en tête de fichier. Les étapes que le code
- * laissait ouvertes ont reçu leurs lignes à la bascule : décocher ce qui l'était est un geste
- * d'administration, jamais un effet de bord de la migration.
- *
- * ⚠️ LIT LE COMPTE, PAS SES RÔLES. `chargerUtilisateurAutorise()` a déjà résolu ses étapes depuis
- * `role_etapes`, en écartant les rôles désactivés. Repartir des noms de rôles ici rouvrirait une
- * seconde lecture de la même donnée — et deux lectures finissent par diverger.
+ * ⚠️ Lit le COMPTE, pas ses rôles : `chargerUtilisateurAutorise()` a déjà résolu ses étapes en
+ * écartant les rôles désactivés, et deux lectures de la même donnée finissent par diverger.
  */
 export function peutFaireAvancerDepuis(
   u: PorteurDEtapes,
@@ -101,13 +77,10 @@ export async function matriceDesEtapes(): Promise<CaseEtape[]> {
 }
 
 /**
- * Rôles désignés pour cette étape, par leur LIBELLÉ — pour l'expliquer à qui se voit refuser le
- * geste.
+ * Rôles désignés pour cette étape, par leur libellé — pour l'expliquer à qui se voit refuser.
  *
- * ⚠️ LE LIBELLÉ DE LA BASE, plus une constante du code. Un rôle créé depuis l'interface n'a
- * aucune entrée dans `LIBELLES_ROLE` : la fiche aurait affiché son nom technique,
- * « responsable_hse_nord », à l'utilisateur qui cherche à comprendre pourquoi il ne peut rien
- * faire.
+ * ⚠️ Le libellé de la BASE : un rôle créé depuis l'interface n'a pas d'entrée dans le code, et la
+ * fiche afficherait son nom technique à qui cherche à comprendre.
  */
 export async function acteursDeLEtape(
   parcours: ParcoursCode,
@@ -129,41 +102,24 @@ export async function acteursDeLEtape(
 /**
  * Étapes que PLUS PERSONNE ne peut franchir, faute de compte actif portant un rôle désigné.
  *
- * Le revers d'une restriction : une étape sans acteur bloque le dossier pour toujours, sans
- * message et sans recours — un défaut pire que la permissivité qu'on a voulu corriger. Le cas
- * n'a rien de théorique : il se produit chaque fois que les rôles sont réorganisés avant que les
- * comptes ne soient réattribués, et il est devenu plus facile à ouvrir depuis que la matrice se
- * décoche depuis l'interface.
+ * Le revers de la restriction : une étape sans acteur bloque le dossier pour toujours, sans
+ * message ni recours. Le cas se produit dès qu'on réorganise les rôles avant de réattribuer les
+ * comptes — d'où cette remontée au tableau de bord d'administration.
  *
- * ⚠️ UNE CASE VIDE COMPTE MAINTENANT. Tant que la table vivait dans le code, une étape absente
- * était « ouverte à tous » et n'avait donc pas à être signalée. Elle est désormais interdite à
- * tous : une ligne décochée par mégarde bloque le circuit, et c'est précisément ce que cette
- * fonction doit faire remonter au tableau de bord d'administration.
+ * ⚠️ Seules les étapes d'où l'on peut PARTIR : un statut terminal n'a aucune transition sortante,
+ * et le signaler noierait les vraies alertes.
  *
- * ⚠️ SEULES LES ÉTAPES D'OÙ L'ON PEUT PARTIR. Un statut terminal — « Résolu », « Clos » — n'a
- * aucune transition sortante : n'y désigner personne n'y bloque rien, et le signaler noierait les
- * vraies alertes sous huit lignes permanentes.
- *
- * ⚠️ Fonction PURE : elle reçoit la matrice et les rôles réellement portés, et ne lit aucune base.
- * C'est ce qui permet de l'exercer sur des cas construits — un test qui lirait la configuration
- * du jour passerait ou échouerait selon qui a été recruté, sans qu'aucun code ait changé.
+ * ⚠️ Fonction PURE, pour être exerçable sur des cas construits : un test qui lirait la
+ * configuration du jour dépendrait de qui a été recruté.
  */
 export function etapesSansActeur(
   matrice: readonly CaseEtape[],
   rolesPortes: ReadonlySet<string>,
   /*
-    ⚠️ LES STATUTS RÉELLEMENT ATTEIGNABLES — ajouté le 2026-09-22 (constat D2).
+    ⚠️ Les statuts réellement ATTEIGNABLES : un statut désactivé n'est destination d'aucune
+    transition, et le signaler annoncerait un blocage là où il n'y a rien à franchir.
 
-    Un statut DÉSACTIVÉ en base n'est proposé comme destination par aucune transition
-    (`transitionsManuelles()` filtre sur `actif`) : aucun dossier ne peut donc l'atteindre. Le
-    signaler comme « étape que personne ne peut franchir » annoncerait un blocage là où il n'y a
-    rien à franchir — et une alerte fausse est ce qui finit par faire ignorer les vraies.
-
-    ⚠️ FOURNI PAR L'APPELANT, jamais lu ici : cette fonction reste PURE, ce qui permet de
-    l'exercer sur des cas construits. Un test qui lirait l'activation du jour passerait ou
-    échouerait selon ce qu'un administrateur vient de décocher.
-
-    Omis, tous les statuts du graphe sont considérés atteignables — le comportement d'avant.
+    Fourni par l'appelant pour que la fonction reste pure. Omis, tous sont considérés atteignables.
   */
   statutsAtteignables?: ReadonlySet<string>
 ): string[] {

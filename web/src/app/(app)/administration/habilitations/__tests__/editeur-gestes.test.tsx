@@ -113,8 +113,6 @@ const ROLE: RoleVue = {
   actif: true,
   permissions: ['dossiers.view'],
   comptes: 2,
-  retirees: [],
-  ajoutees: [],
   livre: true,
   rattachements: 2,
   parcours: [
@@ -142,8 +140,6 @@ const ROLE_CREE: RoleVue = {
   actif: true,
   permissions: ['users.manage'],
   comptes: 0,
-  retirees: [],
-  ajoutees: [],
   livre: false,
   rattachements: 0,
   parcours: [],
@@ -460,7 +456,7 @@ describe('⚠️ La grille « qui fait avancer quoi »', () => {
     await ouvrir(clavier, 'Gestionnaire des supports')
     await clavier.click(screen.getByRole('tab', { name: /Étapes/ }))
 
-    expect(screen.getByText(/ne pourront faire avancer aucun dossier/)).toBeDefined()
+    expect(screen.getByText(/ne pourra faire avancer aucun dossier/)).toBeDefined()
   })
 
   it('signale une colonne dont le TYPE n’est pas ouvert', async () => {
@@ -518,11 +514,11 @@ describe('⚠️ Les quatre comportements du rôle', () => {
     await ouvrir(clavier)
     await clavier.click(screen.getByRole('tab', { name: 'Comportement' }))
 
-    expect(screen.queryByText(/sans jamais voir qui a déclaré/)).toBeNull()
+    expect(screen.queryByText(/ne verront jamais qui a déclaré/)).toBeNull()
 
     await clavier.click(screen.getByLabelText(/Voit l'identité du déclarant/))
 
-    expect(screen.getByText(/sans jamais voir qui a déclaré/)).toBeDefined()
+    expect(screen.getByText(/ne verront jamais qui a déclaré/)).toBeDefined()
   })
 
   it('soumet les clés du catalogue, pas les libellés', async () => {
@@ -639,12 +635,53 @@ describe('Créer et supprimer un rôle', () => {
   })
 
   it('signale un rôle qui n’ouvre aucun dossier', async () => {
-    // Le détail vit à droite : il faut avoir choisi le rôle pour le lire.
+    /*
+      Le détail vit à droite : il faut avoir choisi le rôle pour le lire.
+
+      Le résumé est une liste de définitions — on vérifie donc le couple intitulé/valeur, et pas
+      seulement la présence d'une phrase quelque part dans la carte.
+    */
     const clavier = afficher([ROLE_CREE])
     await ouvrir(clavier, 'Gestionnaire des supports')
 
-    expect(screen.getByText('Créé ici')).toBeDefined()
-    expect(screen.getByText(/N’ouvre aucun type de déclaration/)).toBeDefined()
+    expect(screen.getByText('Déclarations')).toBeDefined()
+    expect(screen.getByText(/Aucun type — ses porteurs ne voient aucun dossier/)).toBeDefined()
+  })
+})
+
+describe('Accessibilité des onglets', () => {
+  it('relie chaque onglet à son panneau', async () => {
+    /*
+      Le contrat ARIA des onglets, et il se perd sans bruit : `aria-controls` doit désigner un
+      `id` qui existe. Sans lui, un lecteur d'écran annonce l'onglet sans jamais dire ce qu'il
+      commande, et rien à l'écran ne le montre.
+    */
+    const clavier = afficher()
+    await ouvrir(clavier)
+
+    const onglets = screen.getAllByRole('tab')
+    expect(onglets.length).toBeGreaterThan(1)
+
+    for (const onglet of onglets) {
+      const cible = onglet.getAttribute('aria-controls')
+
+      expect(cible, `« ${onglet.textContent} » ne désigne aucun panneau`).not.toBeNull()
+      expect(
+        document.getElementById(cible!),
+        `« ${onglet.textContent} » désigne « ${cible} », qui n’existe pas`
+      ).not.toBeNull()
+    }
+  })
+
+  it('rend le panneau ouvert atteignable au clavier', async () => {
+    // Un panneau sans élément focalisable serait hors d'atteinte après la sélection de l'onglet :
+    // on lirait l'intitulé sans jamais pouvoir entrer dans ce qu'il annonce.
+    const clavier = afficher()
+    await ouvrir(clavier)
+
+    const ouvert = screen.getByRole('tabpanel')
+
+    expect(ouvert.getAttribute('tabindex')).toBe('0')
   })
 })
 

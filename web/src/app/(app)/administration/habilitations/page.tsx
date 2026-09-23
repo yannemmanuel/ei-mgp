@@ -26,10 +26,8 @@ export default async function PageHabilitations() {
 
   // Les types de déclaration arrivent désormais avec leur libellé, résolus par le service : ils
   // ne sont plus décrits par le code, ils se lisent en base comme les permissions.
-  const { lignes, permissions, parcoursDisponibles, etapesDisponibles, ecarts } =
+  const { lignes, permissions, parcoursDisponibles, etapesDisponibles } =
     await chargerHabilitations()
-
-  const ecartParRole = new Map(ecarts.map((e) => [e.role, e]))
 
   // Les libellés sont résolus ici, côté serveur : le composant d'édition reçoit du texte prêt à
   // lire, jamais des identifiants qu'il devrait traduire lui-même.
@@ -52,10 +50,6 @@ export default async function PageHabilitations() {
         compteur={`${lignes.filter((l) => l.actif).length} rôles actifs sur ${lignes.length} · ${permissions.length} droits`}
       />
 
-      {/*
-        Trois puces sur trois lignes, relues à chaque visite par quelqu'un qui vient changer un
-        droit : la mise en garde tient sur une ligne, et le renvoi au journal reste cliquable.
-      */}
       <Alert>
         <AlertDescription className="text-caption">
           Un compte au moins doit garder la gestion des habilitations. Chaque changement est
@@ -66,7 +60,7 @@ export default async function PageHabilitations() {
           >
             journal
           </Link>
-          {ecarts.length > 0 && <> — {ecarts.length} rôle(s) y ont déjà été ajustés</>}.
+          .
         </AlertDescription>
       </Alert>
 
@@ -78,8 +72,6 @@ export default async function PageHabilitations() {
           actif: ligne.actif,
           permissions: [...ligne.permissions],
           comptes: ligne.comptes,
-          retirees: ecartParRole.get(ligne.role)?.retirees ?? [],
-          ajoutees: ecartParRole.get(ligne.role)?.ajoutees ?? [],
           livre: ligne.livre,
           rattachements: ligne.rattachements,
           parcours: ligne.parcours.map((p) => ({

@@ -32,20 +32,33 @@ export async function calculerPour(mois: Date): Promise<ResultatCalcul> {
     where: { created_at: { gte: debut, lt: finExclue } },
   })
 
+  /*
+    Les lignes DÉJÀ calculées pour ce mois, en une requête.
+
+    Le contrôle d'idempotence se faisait combinaison par combinaison, à l'intérieur de la boucle :
+    autant d'allers-retours que de couples (parcours, catégorie, gravité) rencontrés dans le mois.
+    La table est indexée sur la période, et le lot tient en mémoire.
+  */
+  const cleDe = (l: {
+    parcours_id: bigint | null
+    categorie_id: bigint | null
+    niveau_gravite_id: bigint | null
+  }) => `${l.parcours_id ?? ''}/${l.categorie_id ?? ''}/${l.niveau_gravite_id ?? ''}`
+
+  const dejaCalculees = new Set(
+    (
+      await prisma.statistiques_mensuelles.findMany({
+        where: { periode: debut },
+        select: { parcours_id: true, categorie_id: true, niveau_gravite_id: true },
+      })
+    ).map(cleDe)
+  )
+
   let creees = 0
   let ignorees = 0
 
   for (const combinaison of combinaisons) {
-    const cle = {
-      periode: debut,
-      parcours_id: combinaison.parcours_id,
-      categorie_id: combinaison.categorie_id,
-      niveau_gravite_id: combinaison.niveau_gravite_id,
-    }
-
-    const existe = await prisma.statistiques_mensuelles.findFirst({ where: cle, select: { id: true } })
-
-    if (existe) {
+    if (dejaCalculees.has(cleDe(combinaison))) {
       ignorees += 1
       continue
     }
@@ -68,7 +81,10 @@ export async function calculerPour(mois: Date): Promise<ResultatCalcul> {
 
     await prisma.statistiques_mensuelles.create({
       data: {
-        ...cle,
+        periode: debut,
+        parcours_id: combinaison.parcours_id,
+        categorie_id: combinaison.categorie_id,
+        niveau_gravite_id: combinaison.niveau_gravite_id,
         nb_declarations: total,
         nb_resolues: resolues,
         nb_cloturees: cloturees,

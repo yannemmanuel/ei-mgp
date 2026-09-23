@@ -1,11 +1,11 @@
 'use client'
 
 import { useActionState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { EtatAction } from './actions'
 import { actionEnvoyerMessageAgent } from './messagerie-actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 export type MessageVue = {
   id: string
@@ -28,6 +28,7 @@ const heureFr = (iso: string) =>
 
 export function PanneauMessagerie({ dossierId, messages, peutEnvoyer }: Props) {
   const [etat, envoyer, enCours] = useActionState(actionEnvoyerMessageAgent, ETAT)
+  useRetourEnToast(etat)
 
   return (
     <Card>
@@ -64,11 +65,6 @@ export function PanneauMessagerie({ dossierId, messages, peutEnvoyer }: Props) {
               className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
 
-            {etat.erreur && (
-              <Alert variant="destructive" role="alert">
-                <AlertDescription>{etat.erreur}</AlertDescription>
-              </Alert>
-            )}
 
             <Button type="submit" size="sm" disabled={enCours}>
               {enCours ? 'Envoi…' : 'Envoyer'}

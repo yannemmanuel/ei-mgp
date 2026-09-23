@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState, type KeyboardEvent } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useRetourEnToast } from '@/lib/retour-operation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -59,9 +60,7 @@ export type RoleVue = {
   actif: boolean
   permissions: string[]
   comptes: number
-  retirees: string[]
-  ajoutees: string[]
-  /** Rôle du CDC, nommé par le code : modifiable et désactivable, jamais supprimable. */
+  /** Rôle du CDC, nommé par le code. Supprimable comme les autres, si personne ne le porte. */
   livre: boolean
   /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
   rattachements: number
@@ -114,15 +113,11 @@ function cleEtape(parcours: string, statut: string): string {
 /**
  * Édition des rôles : leur nom lisible, leurs habilitations, leur activation.
  *
- * Trois formulaires distincts par rôle, et non un seul. Ce n'est pas un détail de mise en page :
- * le journal d'audit doit pouvoir dire quel changement a été voulu. Renommer un rôle et lui
- * retirer un droit dans la même soumission produirait une seule ligne où l'on ne saurait plus
- * lequel des deux gestes était l'intention et lequel a suivi par inadvertance.
+ * Un formulaire par geste, pour que le journal d'audit puisse dire lequel a été voulu : renommer
+ * un rôle et lui retirer un droit d'un seul envoi produirait une ligne indéchiffrable.
  *
- * ⚠️ Les trois formulaires restent MONTÉS quand on passe de l'un à l'autre — masqués par
- * `hidden`, jamais démontés. Les démonter viderait les cases cochées de l'onglet des droits dès
- * qu'on va vérifier le nom du rôle, sans rien dire. Le formulaire public de déclaration a déjà
- * perdu des saisies exactement de cette façon.
+ * ⚠️ Les formulaires restent MONTÉS d'un onglet à l'autre, masqués par `hidden` : les démonter
+ * viderait les cases cochées dès qu'on va vérifier le nom du rôle, sans rien dire.
  */
 export function EditeurHabilitations({
   roles,
@@ -260,10 +255,9 @@ function ListeRoles({
 }) {
   return (
     <Card className="overflow-hidden">
-      <ul className="divide-y divide-border">
+      <ul aria-label="Rôles" className="divide-y divide-border">
         {roles.map((role) => {
           const estChoisi = role.role === selection
-          const modifie = role.retirees.length > 0 || role.ajoutees.length > 0
 
           return (
             <li key={role.role}>
@@ -286,24 +280,6 @@ function ListeRoles({
                     {role.libelle}
                   </span>
                   {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
-                  {/* Le détail de l'ajustement tient dans l'infobulle : énumérer les droits
-                      ajoutés et retirés sur chaque ligne délignerait la liste. */}
-                  {modifie && (
-                    <span
-                      title={[
-                        role.ajoutees.length > 0
-                          ? `${role.ajoutees.length} droit(s) ajouté(s)`
-                          : null,
-                        role.retirees.length > 0
-                          ? `${role.retirees.length} droit(s) retiré(s)`
-                          : null,
-                      ]
-                        .filter(Boolean)
-                        .join(', ')}
-                    >
-                      <EtiquetteStatut ton="attention">Ajusté</EtiquetteStatut>
-                    </span>
-                  )}
                 </span>
 
                 <span className="text-caption text-muted-foreground">
@@ -325,10 +301,8 @@ function ListeRoles({
 /**
  * Le rôle choisi : ce qu'il ouvre, ce qu'il permet, et comment l'éteindre.
  *
- * ⚠️ La DÉSACTIVATION est ici, en évidence, plutôt que dans un onglet. C'est le geste qu'on vient
- * faire quand un rôle pose problème, et le chercher derrière un onglet nommé « Activation »
- * supposait de deviner où il se trouvait. Sa confirmation, elle, reste : elle énonce combien de
- * personnes perdent leurs droits d'un coup.
+ * La désactivation est en évidence plutôt que dans un onglet — c'est le geste qu'on vient faire
+ * quand un rôle pose problème. Sa confirmation dit combien de personnes perdent leurs droits.
  */
 function PanneauRole({
   role,
@@ -356,6 +330,12 @@ function PanneauRole({
     }))
     .filter((d) => d.nombre > 0)
 
+  // Seuls les comportements qui S'ÉCARTENT du défaut : les répéter tous sur chaque rôle ne
+  // distinguerait rien.
+  const ecartsDeComportement = comportementsDisponibles
+    .filter((c) => role.comportements[c.cle] !== VALEUR_PAR_DEFAUT[c.cle])
+    .map((c) => (role.comportements[c.cle] ? c.libelle : `Pas de « ${c.libelle.toLowerCase()} »`))
+
   return (
     <Card className={role.actif ? undefined : 'border-dashed bg-muted/30'}>
       <CardContent className="p-4">
@@ -366,9 +346,7 @@ function PanneauRole({
                 {role.libelle}
               </p>
               {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
-              {!role.livre && <EtiquetteStatut ton="attention">Créé ici</EtiquetteStatut>}
             </div>
-            <p className="mt-0.5 font-mono text-caption text-muted-foreground">{role.role}</p>
             {role.description && (
               <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
             )}
@@ -388,62 +366,61 @@ function PanneauRole({
           déclaration : la permission est cochée, le cloisonnement par parcours la restreint, et
           rien à l'écran ne le disait.
         */}
-        <div className="mt-3 space-y-1">
-          {!role.actif ? (
-            <p className="text-sm text-secondary-600">
-              Ce rôle ne donne plus aucun droit.
-              {role.comptes > 0 && (
-                <>
-                  {' '}
-                  {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
-                </>
-              )}
-            </p>
-          ) : (
-            <>
-              {resume.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Ce rôle ne permet rien pour l’instant.
-                </p>
-              ) : (
-                <p className="text-sm text-secondary-700">
-                  {resume.map((d, index) => (
-                    <span key={d.titre}>
-                      {index > 0 && ' · '}
-                      {d.titre} <span className="text-muted-foreground">({d.nombre})</span>
-                    </span>
-                  ))}
-                </p>
-              )}
+        {!role.actif ? (
+          <p className="mt-3 text-sm text-secondary-600">
+            Ce rôle ne donne plus aucun droit.
+            {role.comptes > 0 && (
+              <>
+                {' '}
+                {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
+              </>
+            )}
+          </p>
+        ) : (
+          /*
+            Une liste de DÉFINITIONS, et non quatre paragraphes empilés.
 
-              <p className="text-caption text-muted-foreground">
-                {role.parcours.length === 0
-                  ? 'N’ouvre aucun type de déclaration — ses porteurs ne voient aucun dossier.'
-                  : role.tousLesParcours
-                    ? 'Ouvre tous les types de déclaration.'
-                    : `Ouvre : ${role.parcours.map((p) => p.libelle).join(' · ')}.`}
-              </p>
+            Chaque ligne répond à une question différente, et le `<dl>` la nomme : un lecteur
+            d'écran annonce « Droits : Dossiers (5) » au lieu d'une suite de phrases dont rien ne
+            dit ce qu'elles décrivent. À l'œil, les intitulés alignés donnent le même repère.
+          */
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <dt className="text-caption text-muted-foreground">Droits</dt>
+            <dd className="text-secondary-800">
+              {resume.length === 0
+                ? 'Aucun pour l’instant'
+                : resume.map((d) => `${d.titre} (${d.nombre})`).join(' · ')}
+            </dd>
 
-              {/*
-                CE QU'IL FAIT AVANCER, et ce qu'il voit — résumé en une ligne.
+            <dt className="text-caption text-muted-foreground">Déclarations</dt>
+            <dd className={role.parcours.length === 0 ? 'text-destructive' : 'text-secondary-800'}>
+              {role.parcours.length === 0
+                ? 'Aucun type — ses porteurs ne voient aucun dossier'
+                : role.tousLesParcours
+                  ? 'Tous les types'
+                  : role.parcours.map((p) => p.libelle).join(' · ')}
+            </dd>
 
-                ⚠️ « Ne fait avancer aucun dossier » est la situation par défaut d'un rôle créé
-                ici, et elle est invisible autrement : les droits sont cochés, le type est ouvert,
-                le bouton de changement de statut reste absent et rien ne dit pourquoi. C'est
-                exactement ce que ce résumé doit attraper.
-              */}
-              <p className="text-caption text-muted-foreground">
-                {role.etapes.length === 0
-                  ? 'Ne fait avancer aucun dossier — aucune étape cochée.'
-                  : `Fait avancer ${role.etapes.length} étape(s).`}
-                {comportementsDisponibles
-                  .filter((c) => role.comportements[c.cle] !== VALEUR_PAR_DEFAUT[c.cle])
-                  .map((c) => ` · ${role.comportements[c.cle] ? c.libelle : `Pas de « ${c.libelle.toLowerCase()} »`}`)
-                  .join('')}
-              </p>
-            </>
-          )}
-        </div>
+            {/*
+              ⚠️ « Aucune étape » est la situation par défaut d'un rôle nouvellement créé, et elle
+              est invisible autrement : les droits sont cochés, le type ouvert, et le bouton de
+              changement de statut reste absent sans que rien ne l'explique.
+            */}
+            <dt className="text-caption text-muted-foreground">Étapes</dt>
+            <dd className={role.etapes.length === 0 ? 'text-destructive' : 'text-secondary-800'}>
+              {role.etapes.length === 0
+                ? 'Aucune — ne fait avancer aucun dossier'
+                : `${role.etapes.length} cochée${role.etapes.length > 1 ? 's' : ''}`}
+            </dd>
+
+            {ecartsDeComportement.length > 0 && (
+              <>
+                <dt className="text-caption text-muted-foreground">Comportement</dt>
+                <dd className="text-secondary-800">{ecartsDeComportement.join(' · ')}</dd>
+              </>
+            )}
+          </dl>
+        )}
 
         {/* Le geste d'extinction, à portée immédiate — il garde sa confirmation. */}
         <div className="mt-4 border-t border-border pt-4">
@@ -461,14 +438,8 @@ function PanneauRole({
               { cle: 'etapes' as const, libelle: `Étapes (${role.etapes.length})` },
               { cle: 'comportements' as const, libelle: 'Comportement' },
               { cle: 'nom', libelle: 'Nom' },
-              /*
-                ⚠️ L'ONGLET EST OFFERT POUR TOUS LES RÔLES depuis le 2026-09-20.
-
-                Il était masqué pour les rôles livrés, que le service refusait alors d'emblée. Le
-                service ne regarde plus que l'attribution — c'est la règle demandée —, mais
-                l'écran, lui, continuait de cacher le geste : la règle avait changé côté serveur
-                sans que rien ne soit atteignable côté écran.
-              */
+              // ⚠️ Offert pour TOUS les rôles : le service ne regarde plus que l'attribution, et
+              // l'écran doit suivre — sinon la règle change côté serveur sans être atteignable.
               { cle: 'activation' as const, libelle: 'Supprimer' },
             ]}
           />
@@ -476,8 +447,10 @@ function PanneauRole({
           <div className="mt-4">
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-droits`}
               aria-labelledby={`onglet-${role.role}-droits`}
               hidden={onglet !== 'droits'}
+              tabIndex={0}
             >
               {/*
                 `key` : remonté quand les permissions ENREGISTRÉES changent. Les cases sont
@@ -496,8 +469,10 @@ function PanneauRole({
 
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-declarations`}
               aria-labelledby={`onglet-${role.role}-declarations`}
               hidden={onglet !== 'declarations'}
+              tabIndex={0}
             >
               {/*
                 `key` : même raison que pour les droits — les cases sont amorcées au montage, et
@@ -515,8 +490,10 @@ function PanneauRole({
 
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-etapes`}
               aria-labelledby={`onglet-${role.role}-etapes`}
               hidden={onglet !== 'etapes'}
+              tabIndex={0}
             >
               {/*
                 `key` : même raison que pour les droits — la grille est amorcée au montage, et un
@@ -532,8 +509,10 @@ function PanneauRole({
 
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-comportements`}
               aria-labelledby={`onglet-${role.role}-comportements`}
               hidden={onglet !== 'comportements'}
+              tabIndex={0}
             >
               <FormulaireComportements
                 key={comportementsDisponibles
@@ -546,8 +525,10 @@ function PanneauRole({
 
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-nom`}
               aria-labelledby={`onglet-${role.role}-nom`}
               hidden={onglet !== 'nom'}
+              tabIndex={0}
             >
               {/*
                 `key` : remonté quand les valeurs ENREGISTRÉES changent. Le serveur élague les
@@ -559,8 +540,10 @@ function PanneauRole({
 
             <div
               role="tabpanel"
+              id={`panneau-${role.role}-activation`}
               aria-labelledby={`onglet-${role.role}-activation`}
               hidden={onglet !== 'activation'}
+              tabIndex={0}
             >
               <FormulaireSuppression role={role} />
             </div>
@@ -574,11 +557,8 @@ function PanneauRole({
 /**
  * Création d'un rôle.
  *
- * ⚠️ L'avertissement n'est pas décoratif, et il a CHANGÉ DE SENS le 2026-09-21. Il disait qu'un
- * rôle créé ici ne donnait accès à aucun dossier, parce que le cloisonnement par type vivait dans
- * le code et ne nommait que les rôles livrés. Tout se coche maintenant : ce qu'il faut dire avant
- * la création, ce n'est plus « ce rôle ne pourra rien », c'est « il ne pourra rien TANT QUE rien
- * n'est coché » — et où aller le cocher.
+ * ⚠️ L'avertissement n'est pas décoratif : un rôle créé ici peut tout faire, mais ne fait rien
+ * TANT QUE rien n'est coché. L'écran doit dire où aller le cocher.
  */
 function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
   const [etat, envoyer, enCours] = useActionState(actionCreerRole, ETAT)
@@ -629,15 +609,13 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
           */}
           <Alert>
             <AlertDescription className="text-caption">
-              Un rôle créé ici se paramètre entièrement : ses droits, les types de déclaration
-              qu’il ouvre, les étapes qu’il peut franchir et son comportement. Il n’ouvre{' '}
-              <strong>aucun dossier tant que rien n’est coché</strong> — c’est l’onglet
-              « Déclarations » qui lui donne un périmètre, et « Étapes » qui lui permet de faire
+              Un rôle créé ici n’ouvre <strong>aucun dossier tant que rien n’est coché</strong> :
+              l’onglet « Déclarations » lui donne son périmètre, « Étapes » le droit de faire
               avancer un dossier.
             </AlertDescription>
           </Alert>
 
-          <Retour etat={etat} />
+          <AnnonceRetour etat={etat} />
 
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" size="sm" disabled={enCours}>
@@ -657,14 +635,10 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
 }
 
 /**
- * Bascule entre les trois formulaires d'un rôle.
+ * Bascule entre les formulaires d'un rôle : un seul visible, les autres montés derrière `hidden`.
  *
- * Ils faisaient trois fois la hauteur de l'écran, empilés, alors qu'on n'en remplit qu'un à la
- * fois. Un seul est visible ; les autres restent montés derrière `hidden`.
- *
- * `role="tablist"` promet une navigation aux flèches, et un lecteur d'écran l'annonce comme telle :
- * elle est donc implémentée, avec le tabindex mobile qui va avec. Porter le rôle sans le
- * comportement laisserait l'utilisateur appuyer sur une flèche pour rien.
+ * `role="tablist"` promet une navigation aux flèches, et un lecteur d'écran l'annonce : elle est
+ * donc implémentée, tabindex mobile compris.
  */
 function Onglets({
   actif,
@@ -697,6 +671,7 @@ function Onglets({
   return (
     <div
       role="tablist"
+      aria-label="Réglages du rôle"
       onKeyDown={surTouche}
       className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1"
     >
@@ -706,6 +681,7 @@ function Onglets({
           type="button"
           role="tab"
           id={`onglet-${role}-${onglet.cle}`}
+          aria-controls={`panneau-${role}-${onglet.cle}`}
           aria-selected={actif === onglet.cle}
           tabIndex={actif === onglet.cle ? 0 : -1}
           onClick={() => onChange(onglet.cle)}
@@ -766,7 +742,7 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
         Nom interne : <code className="font-mono">{role.role}</code>. Il n’est pas modifiable.
       </p>
 
-      <Retour etat={etat} />
+      <AnnonceRetour etat={etat} />
 
       <Button type="submit" size="sm" variant="outline" disabled={enCours}>
         {enCours ? 'Enregistrement…' : 'Enregistrer le nom'}
@@ -778,26 +754,18 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
 /**
  * Sur quels types de déclaration ce rôle est habilité.
  *
- * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, tout de suite et pour tous les porteurs du rôle : le
- * périmètre est relu en base à chaque requête. Décocher « Grief employé » retire ces dossiers de
- * la vue de chacun d'eux sans attendre une reconnexion.
- *
- * L'écran le dit AVANT le geste, et l'énonce encore quand il ne reste rien de coché : un rôle
- * sans aucun type ne montre aucun dossier, ce qui ressemble à une panne quand on l'a fait sans
- * le savoir.
+ * ⚠️ Effet immédiat pour tous les porteurs du rôle, sans reconnexion. L'écran le dit avant le
+ * geste, et rappelle qu'un rôle sans aucun type ne montre aucun dossier — ce qui ressemble à une
+ * panne quand on l'a fait sans le savoir.
  */
 /**
- * Les quatre comportements du rôle — ce qui ne se dit ni par un droit, ni par un type, ni par une
- * étape.
+ * Les quatre comportements du rôle — ni un droit, ni un type, ni une étape.
  *
- * ⚠️ TOUS LES QUATRE ÉTAIENT ÉCRITS DANS LE CODE, sous forme de listes de noms de rôles. Un rôle
- * créé depuis l'interface ne figurait dans aucune : il n'était borné par aucun rattachement,
- * voyait l'identité de tous les déclarants, et rien ne le disait à qui venait de le créer.
+ * ⚠️ « A la charge » n'est pas « peut faire avancer un dossier », qui est un droit : celui-ci dit
+ * qui en RÉPOND. Le Service MGP porte le droit sans la charge, et les confondre le faisait
+ * apparaître titulaire de tous les dossiers.
  *
- * ⚠️ « A LA CHARGE » N'EST PAS « peut faire avancer un dossier », qui est un droit. Celui-ci dit
- * qui en RÉPOND. Le Service MGP arbitre et relance sans instruire : il porte le droit, pas la
- * charge. La distinction avait été manquée, et il apparaissait comme titulaire de tous les
- * dossiers. Les libellés viennent du serveur pour que l'écran et le code disent la même chose.
+ * Les libellés viennent du serveur, pour que l'écran et le code disent la même chose.
  */
 function FormulaireComportements({
   role,
@@ -822,9 +790,7 @@ function FormulaireComportements({
       <input type="hidden" name="role" value={role.role} />
 
       <p className="text-sm text-muted-foreground">
-        Ce que ce rôle fait de particulier, au-delà de ses droits. Ces quatre réglages étaient
-        écrits dans le code, rôle par rôle : un rôle créé ici n’en portait aucun, et rien ne le
-        disait.
+        Ce que ce rôle fait de particulier, au-delà de ses droits.
       </p>
 
       <div className="space-y-2">
@@ -868,8 +834,7 @@ function FormulaireComportements({
       {!cochees.includes('voit_identite_declarant') && (
         <Alert role="status">
           <AlertDescription>
-            Ses porteurs liront les dossiers sans jamais voir qui a déclaré, ni le poste du
-            déclarant — y compris sur les déclarations identifiées.
+            Ses porteurs ne verront jamais qui a déclaré, même sur une déclaration identifiée.
           </AlertDescription>
         </Alert>
       )}
@@ -896,13 +861,9 @@ function FormulaireComportements({
 /**
  * La grille « qui fait avancer quoi » : une case par type de déclaration et par étape.
  *
- * ⚠️ CETTE GRILLE ÉTAIT UNE TABLE DU CODE. Un rôle créé depuis l’interface n’y figurait pas : ses
- * porteurs voyaient le dossier, portaient le droit de le faire avancer, et le bouton restait
- * absent sans qu’aucun message ne l’explique. C’est le réglage le plus silencieux du dispositif,
- * et c’est pourquoi il a sa propre grille plutôt qu’une ligne de plus ailleurs.
- *
- * ⚠️ UNE CASE VIDE INTERDIT. Il n’y a plus d’étape « ouverte à tous » : ce qui n’est pas coché
- * n’est pas permis.
+ * ⚠️ Une case vide INTERDIT : il n'y a plus d'étape « ouverte à tous ». C'est le réglage le plus
+ * silencieux du dispositif — sans acteur, le bouton reste absent sans qu'aucun message ne
+ * l'explique —, d'où sa propre grille plutôt qu'une ligne de plus ailleurs.
  */
 function FormulaireEtapes({
   role,
@@ -943,7 +904,7 @@ function FormulaireEtapes({
 
       <p className="text-sm text-muted-foreground">
         À quelles étapes ce rôle peut faire avancer un dossier, et sur quels types. Une case
-        décochée interdit : le bouton de changement d’étape n’apparaît pas à ses porteurs.
+        décochée interdit.
       </p>
 
       {/*
@@ -1040,8 +1001,8 @@ function FormulaireEtapes({
       {cochees.length === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Aucune étape cochée : les porteurs de ce rôle ne pourront faire avancer aucun dossier,
-            même s’ils en ont le droit et qu’ils le voient.
+            Aucune étape cochée : ce rôle ne pourra faire avancer aucun dossier, même avec le
+            droit de le faire.
           </AlertDescription>
         </Alert>
       )}
@@ -1102,8 +1063,8 @@ function FormulaireParcours({
       <input type="hidden" name="role" value={role.role} />
 
       <p className="text-sm text-muted-foreground">
-        Les types de déclaration que ce rôle ouvre. Ses porteurs ne verront que ceux-ci —
-        le rattachement au site ou à la direction restreint ensuite à l’intérieur.
+        Les types de déclaration que ce rôle ouvre. Le rattachement restreint ensuite à
+        l’intérieur.
       </p>
 
       <div className="space-y-2">
@@ -1172,9 +1133,8 @@ function FormulaireParcours({
       {cochees.length === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Aucun type coché : les porteurs de ce rôle ne verront aucun dossier. C’est le
-            paramétrage attendu pour un rôle d’administration ou de saisie, et une panne pour tout
-            autre.
+            Aucun type coché : ce rôle ne verra aucun dossier. Attendu pour un rôle
+            d’administration ou de saisie, une panne pour tout autre.
           </AlertDescription>
         </Alert>
       )}
@@ -1211,16 +1171,9 @@ function FormulairePermissions({
   const [cochees, setCochees] = useState<string[]>(role.permissions)
 
   /*
-    Tout est déplié d'emblée, et c'est un retour en arrière assumé.
-
-    Replier les domaines que le rôle ne touche pas encore réduisait bien le défilement — mais on
-    venait ici pour ACCORDER un droit, c'est-à-dire précisément un droit que le rôle n'a pas :
-    celui qu'on cherche était donc systématiquement caché. On se perdait à ouvrir les domaines un
-    par un pour retrouver « valider une investigation ».
-
-    Ce qui règle vraiment le problème n'est pas le repliement, c'est la recherche : on tape trois
-    lettres, on voit les droits qui correspondent, tous domaines confondus. Le repliement reste
-    disponible pour qui veut réduire la page, il n'est simplement plus le comportement par défaut.
+    Tout est déplié d'emblée : on vient ici pour accorder un droit que le rôle n'a pas, et replier
+    les domaines qu'il ne touche pas cachait précisément celui qu'on cherche. C'est la recherche
+    qui réduit la page, pas le repliement — qui reste disponible.
   */
   const [deplies, setDeplies] = useState<string[]>(() => domaines.map((d) => d.cle))
   const [recherche, setRecherche] = useState('')
@@ -1371,7 +1324,7 @@ function FormulairePermissions({
         })}
       </div>
 
-      <Retour etat={etat} />
+      <AnnonceRetour etat={etat} />
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={enCours}>
@@ -1409,8 +1362,7 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
       <p className="text-caption text-muted-foreground">
         {role.actif ? (
           <>
-            Un rôle désactivé ne donne plus aucun droit. Rien n’est perdu : le réactiver rend
-            leurs droits aux personnes concernées.
+            Un rôle désactivé ne donne plus aucun droit. Le réactiver les rend.
           </>
         ) : (
           <>
@@ -1420,7 +1372,7 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
         )}
       </p>
 
-      <Retour etat={etat} />
+      <AnnonceRetour etat={etat} />
 
       {role.actif && !confirme ? (
         <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(true)}>
@@ -1459,17 +1411,11 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
 }
 
 /**
- * Suppression définitive.
+ * Suppression définitive, offerte pour tous les rôles y compris livrés.
  *
- * ⚠️ OFFERTE POUR TOUS LES RÔLES, y compris les rôles livrés. Ce commentaire réservait le geste
- * aux rôles créés ici, « le cloisonnement par parcours, la table des acteurs d'étape et
- * l'habilitation par site nommant les rôles livrés ». Aucune de ces trois tables n'existe plus
- * dans le code depuis le 2026-09-21 : supprimer un rôle livré ne casse plus rien, et le métier l'a
- * demandé.
- *
- * Ce qui reste vrai — et c'est la seule garde : le service refuse un rôle encore rattaché à un
- * compte. Le supprimer retirerait un accès sans que rien ne le dise, et l'association partirait
- * avec lui. Le bouton n'est donc même pas proposé dans ce cas — l'écran dit quoi faire d'abord.
+ * ⚠️ Seule garde : le service refuse un rôle encore rattaché à un compte, dont la suppression
+ * retirerait un accès sans rien dire. Le bouton n'est alors pas proposé, et l'écran dit quoi
+ * faire d'abord.
  */
 function FormulaireSuppression({ role }: { role: RoleVue }) {
   const [etat, envoyer, enCours] = useActionState(actionSupprimerRole, ETAT)
@@ -1504,14 +1450,13 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
       {role.livre && role.rattachements === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Ce rôle est nommé par le code : les règles d’étape et de cloisonnement s’y réfèrent.
-            Le supprimer ne provoquera aucune erreur — elles cesseront simplement de le désigner.
-            Si vous voulez seulement lui retirer ses droits, désactivez-le plutôt.
+            Ce rôle est nommé par le code : le supprimer laissera les règles qui s’y réfèrent
+            sans effet, et sans erreur. Pour seulement lui retirer ses droits, désactivez-le.
           </AlertDescription>
         </Alert>
       )}
 
-      <Retour etat={etat} />
+      <AnnonceRetour etat={etat} />
 
       {role.rattachements === 0 &&
         (confirme ? (
@@ -1537,23 +1482,15 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
   )
 }
 
-function Retour({ etat }: { etat: EtatHabilitation }) {
-  if (etat.erreur) {
-    return (
-      <Alert variant="destructive" role="alert">
-        <AlertDescription>{etat.erreur}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (etat.succes) {
-    return (
-      <Alert role="status">
-        <AlertDescription>{etat.succes}</AlertDescription>
-      </Alert>
-    )
-  }
-
+/**
+ * Annonce le retour de l'opération en surimpression. NE REND RIEN.
+ *
+ * Le nom dit « annonce » et non « retour » : ce composant n'occupe aucune place dans la page. Il
+ * existe parce que le retour doit être annoncé depuis plusieurs formulaires de ce fichier, et
+ * qu'un composant se place là où l'ancien encart se trouvait — le point d'appel reste lisible.
+ */
+function AnnonceRetour({ etat }: { etat: EtatHabilitation }) {
+  useRetourEnToast(etat)
   return null
 }
 

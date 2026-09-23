@@ -126,7 +126,7 @@ export default async function PageInvestigations({
     <div className="space-y-5">
       <EnTetePage
         titre="Investigations"
-        lede="Toutes les fiches ouvertes à ce jour, y compris sur des dossiers qui ont depuis avancé. Filtrez sur « Où en est le dossier » pour ne voir que ceux encore en investigation."
+        lede="Toutes les fiches ouvertes à ce jour, y compris sur des dossiers qui ont depuis avancé."
         compteur={`${resultat.total} ${resultat.total > 1 ? 'fiches' : 'fiche'}`}
       />
 

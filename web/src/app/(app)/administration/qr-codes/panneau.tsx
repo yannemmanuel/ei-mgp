@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useRetourEnToast } from '@/lib/retour-operation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EnTetePage } from '@/components/layout/en-tete-page'
@@ -42,6 +42,7 @@ export function PanneauQrCodes({
   parcours: { id: string; libelle: string }[]
 }) {
   const [etatGeneration, generer, generationEnCours] = useActionState(actionGenererQrCode, ETAT)
+  useRetourEnToast(etatGeneration)
 
   return (
     <div className="space-y-6">
@@ -89,16 +90,6 @@ export function PanneauQrCodes({
             </Button>
           </form>
 
-          {etatGeneration.erreur && (
-            <Alert variant="destructive" role="alert" className="mt-3">
-              <AlertDescription>{etatGeneration.erreur}</AlertDescription>
-            </Alert>
-          )}
-          {etatGeneration.succes && (
-            <Alert className="mt-3">
-              <AlertDescription>{etatGeneration.succes}</AlertDescription>
-            </Alert>
-          )}
         </CardContent>
       </Card>
 
@@ -121,6 +112,9 @@ function FicheQrCode({ code }: { code: QrCodeVue }) {
   const [ouvert, setOuvert] = useState(false)
   const [etatUrl, enregistrerUrl, urlEnCours] = useActionState(actionModifierUrlCible, ETAT)
   const [etatBascule, basculer, basculeEnCours] = useActionState(actionBasculerQrCode, ETAT)
+
+  useRetourEnToast(etatUrl)
+  useRetourEnToast(etatBascule)
 
   return (
     <Card className="p-4">
@@ -169,12 +163,6 @@ function FicheQrCode({ code }: { code: QrCodeVue }) {
         <BoutonSupprimer id={code.id} nom={code.token} action={actionSupprimerQrCode} />
       </div>
 
-      {(etatBascule.erreur || etatUrl.erreur) && (
-        <Alert variant="destructive" role="alert" className="mt-3">
-          <AlertDescription>{etatBascule.erreur ?? etatUrl.erreur}</AlertDescription>
-        </Alert>
-      )}
-
       {ouvert && (
         <form action={enregistrerUrl} className="mt-3 space-y-2 border-t border-border pt-3">
           <input type="hidden" name="qrCodeId" value={code.id} />
@@ -187,8 +175,7 @@ function FicheQrCode({ code }: { code: QrCodeVue }) {
           {/* Voir MIGRATION_PLAN.md : la baisse de confiance vient de la baseline, où cet écran
               laisse croire à une réorientation qui n'a jamais lieu. */}
           <p className="text-caption text-muted-foreground">
-            Valeur documentaire : la redirection mène toujours à l’écran de choix, cette adresse
-            n’est lue par aucun traitement.
+            Valeur documentaire : la redirection mène toujours à l’écran de choix.
           </p>
 
           <Button type="submit" size="sm" disabled={urlEnCours}>

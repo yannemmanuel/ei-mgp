@@ -14,16 +14,7 @@ import { STATUTS, transitionsDepuis, type StatutCode } from '../dossier/statuts'
 import { ErreurWorkflow } from '../dossier/workflow'
 import { MODELES, journaliser } from '../audit/journal'
 
-/**
- * Quels types de déclaration chaque rôle ouvre — lu dans `role_parcours`.
- *
- * ⚠️ REMPLACE `parcoursDuRole()`, qui lisait une table écrite dans le code. Cette table est
- * désormais cochée dans l'écran des habilitations : la fonction qui la décrivait ne pouvait plus
- * rester synchrone, puisqu'il faut interroger la base.
- *
- * Le libellé accompagne le code : un écran qui affiche « grief_sous_traitant » n'apprend rien à
- * qui n'a pas écrit l'application.
- */
+/** Quels types de déclaration chaque rôle ouvre — lu dans `role_parcours`, libellé compris. */
 export async function parcoursParRole(): Promise<
   Map<string, { code: ParcoursCode; libelle: string; alerteCircuitCritique: boolean }[]>
 > {
@@ -70,10 +61,8 @@ export async function parcoursParRole(): Promise<
 /**
  * Les rôles dont les porteurs sont bornés à leur site ou à leur direction.
  *
- * ⚠️ LA LISTE A QUITTÉ LE CODE le 2026-09-21 : elle y était écrite nom par nom, si bien qu'un rôle
- * créé depuis l'interface n'y figurait jamais et voyait tous les sites sans que rien ne le dise.
- * La console des comptes s'appuyait dessus pour signaler « rattachement manquant » ; elle lit
- * désormais la même colonne que l'autorisation elle-même.
+ * Lu dans la même colonne que l'autorisation elle-même : une liste écrite en dur ignorait les
+ * rôles créés depuis l'interface, qui voyaient alors tous les sites.
  */
 export async function cloisonnementParRole(): Promise<
   Map<string, { cloisonne: boolean; donneAcces: boolean }>
@@ -113,14 +102,10 @@ export async function parcoursACocher(): Promise<{ code: ParcoursCode; libelle: 
 /**
  * Matrice des habilitations : quel rôle détient quelle permission.
  *
- * **La base fait foi.** `chargerUtilisateurAutorise()` lit `role_has_permissions` à chaque
- * requête : ce que montre cet écran est donc ce qui s'applique réellement, et une modification
- * prend effet immédiatement.
- *
- * `server/authz/roles.ts` reste la configuration de RÉFÉRENCE — celle livrée au déploiement. Le
- * code garde la main sur ce qui EXISTE (le catalogue fermé des permissions et des rôles), la base
- * sur qui obtient quoi. L'écart entre les deux est affiché : il ne signale plus une anomalie mais
- * l'historique des ajustements, et permet de revenir à la référence en connaissance de cause.
+ * La base fait foi — `chargerUtilisateurAutorise()` la relit à chaque requête, donc toute
+ * modification prend effet immédiatement. Le code garde la main sur ce qui EXISTE (catalogue
+ * fermé des permissions et des rôles), la base sur qui obtient quoi. L'écart avec
+ * `authz/roles.ts`, la configuration livrée, est affiché sans être traité comme une anomalie.
  */
 
 export type LigneHabilitation = {
@@ -136,13 +121,7 @@ export type LigneHabilitation = {
   readonly reference: readonly Permission[]
   /** Comptes actifs portant ce rôle — un rôle que personne ne porte mérite d'être questionné. */
   readonly comptes: number
-  /**
-   * Rôle du CDC, décrit par le code — par opposition à un rôle créé depuis l'interface.
-   *
-   * Les policies s'y réfèrent par leur nom : le cloisonnement par parcours, la table des acteurs
-   * d'étape, l'habilitation par site. Un rôle livré ne peut donc pas être supprimé, seulement
-   * désactivé. Un rôle créé ici, que le code ne connaît pas, le peut.
-   */
+  /** Rôle du CDC, décrit par le code — voir `supprimerRole()` pour ce que cela change. */
   readonly livre: boolean
   /**
    * Nombre de comptes RATTACHÉS, actifs ou non.
@@ -151,27 +130,14 @@ export type LigneHabilitation = {
    * son accès à quelqu'un, et un compte désactivé aujourd'hui peut être réactivé demain.
    */
   readonly rattachements: number
-  /**
-   * Types de déclaration que ce rôle ouvre. Vide = ce rôle ne donne accès à AUCUN dossier.
-   *
-   * ⚠️ ADMINISTRABLE depuis le 2026-09-20 : ces cases se cochent dans cet écran même, et la règle
-   * n'est plus écrite dans le code. Un rôle créé depuis l'interface peut donc recevoir un
-   * périmètre sans déploiement — ce qui n'était pas possible avant, ses permissions s'appliquant
-   * alors sans porter sur aucun dossier.
-   */
+  /** Types de déclaration ouverts. ⚠️ Vide = ce rôle ne donne accès à AUCUN dossier. */
   readonly parcours: readonly {
     readonly code: ParcoursCode
     readonly libelle: string
     /** RG-08 : alerté immédiatement quand une déclaration de CE type est qualifiée critique. */
     readonly alerteCircuitCritique: boolean
   }[]
-  /**
-   * Les quatre comportements du rôle, tels qu'ils se cochent.
-   *
-   * ⚠️ TOUS LES QUATRE SE LISAIENT DANS DES NOMS DE RÔLES jusqu'au 2026-09-21. Un rôle créé depuis
-   * l'interface ne figurait dans aucune de ces listes : il n'était borné par aucun rattachement,
-   * voyait l'identité des déclarants, et rien ne le disait à qui venait de le créer.
-   */
+  /** Les quatre comportements du rôle, tels qu'ils se cochent — voir `COMPORTEMENTS_ROLE`. */
   readonly comportements: Readonly<Record<ComportementRole, boolean>>
   /**
    * La grille « qui fait avancer quoi » : une case par type de déclaration et par étape.
@@ -184,12 +150,9 @@ export type LigneHabilitation = {
 /**
  * Les quatre comportements d'un rôle qui ne sont ni une permission, ni un type, ni une étape.
  *
- * ⚠️ CE CATALOGUE EST FERMÉ, ET C'EST LA DIFFÉRENCE AVEC LES RÔLES. Un comportement est un endroit
- * du code qui LIT la colonne : en ajouter un demande d'écrire ce code, donc un déploiement. Ce qui
- * est libre, c'est de décider quel rôle le porte — et c'est précisément ce qui manquait.
- *
- * Le libellé et l'aide vivent ici plutôt que dans l'écran : trois écrans les affichent déjà, et
- * une formulation recopiée finit par décrire autre chose que ce que le code applique.
+ * ⚠️ Catalogue FERMÉ, à la différence des rôles : chaque comportement est un endroit du code qui
+ * lit la colonne, donc en ajouter un demande un déploiement. Ce qui est libre, c'est de décider
+ * quel rôle le porte. Libellé et aide vivent ici, que trois écrans affichent sans les reformuler.
  */
 export const COMPORTEMENTS_ROLE = {
   traite_dossiers: {
@@ -223,12 +186,8 @@ export type EtapeACocher = {
 /**
  * Les étapes proposées à la grille.
  *
- * ⚠️ SEULEMENT CELLES D'OÙ L'ON PEUT PARTIR. « Résolu » et « Clos » n'ont aucune transition
- * sortante : y désigner un acteur ne débloquerait rien, et les afficher donnerait à croire que
- * huit cases sont restées vides par oubli.
- *
- * Le libellé vient de la base — c'est celui que porte le dossier à l'écran. Un code technique dans
- * une grille de seize cases se lit mal, et se coche mal.
+ * ⚠️ Seulement celles d'où l'on peut PARTIR : « Résolu » et « Clos » n'ont aucune transition
+ * sortante, et les afficher ferait croire à des cases oubliées.
  */
 export async function etapesACocher(): Promise<EtapeACocher[]> {
   const lignes = await prisma.statuts_dossier.findMany({
@@ -242,19 +201,10 @@ export async function etapesACocher(): Promise<EtapeACocher[]> {
         (STATUTS as readonly string[]).includes(l.code) &&
         transitionsDepuis(l.code as StatutCode).length > 0 &&
         /*
-          ⚠️ ET LE STATUT DOIT ÊTRE ACTIF — constat D2 de l'audit du 2026-09-22.
-
-          Ce filtre manquait, et la grille proposait donc `en_attente_information`, désactivé en
-          base. Vingt-six lignes de `role_etapes` y désignaient des rôles qui ne commandaient
-          rien : aucune transition ne mène à un statut inactif (`transitionsManuelles()` les
-          écarte), donc aucun dossier ne pouvait atteindre cette étape.
-
-          L'administrateur cochait des cases sans effet, et le contrôle « étape sans acteur » du
-          tableau de bord raisonnait sur une colonne morte — il aurait signalé un trou là où il
-          n'y avait rien à franchir, ou tu, faute d'acteur, un vrai trou ailleurs.
-
-          ⚠️ RÉACTIVER LE STATUT SUFFIT à faire revenir la colonne, avec les lignes déjà cochées :
-          `role_etapes` n'est pas touchée. Désactiver retire du choix, jamais du passé.
+          ⚠️ Et le statut doit être ACTIF : aucun dossier n'atteint un statut inactif, donc les
+          cases cochées sur sa colonne ne commandaient rien et faussaient le contrôle « étape sans
+          acteur ». Réactiver le statut fait revenir la colonne avec ses lignes — `role_etapes`
+          n'est pas touchée.
         */
         l.actif
     )
@@ -337,13 +287,8 @@ export async function chargerHabilitations(): Promise<Habilitations> {
 
   const enBaseParRole = new Map(rolesEnBase.map((r) => [r.name, r]))
 
-  /*
-    La liste part de l'UNION du code et de la base, et non plus du seul code.
-
-    Elle était construite à partir de `ROLE_NAMES` : un rôle créé depuis l'interface existait bien
-    en base, s'appliquait bien aux comptes qui le portaient — et n'apparaissait nulle part. On
-    l'aurait cherché longtemps.
-  */
+  // Union du code ET de la base : partir du seul catalogue rendait invisible un rôle créé depuis
+  // l'interface, qui s'appliquait pourtant aux comptes le portant.
   const noms = rolesEnBase.map((r) => r.name)
 
   const lignes = noms.map((role) => {
@@ -365,12 +310,10 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       rattachements: rattachements.get(role) ?? 0,
       parcours: parcoursDesRoles.get(role) ?? [],
       /*
-        Faux pour un rôle décrit par le code mais absent de la base : il ne confère rien, donc il
-        ne traite rien non plus.
+        Faux pour un rôle décrit par le code mais absent de la base : il ne confère rien.
 
-        ⚠️ `voit_identite_declarant` EST VRAI PAR DÉFAUT, contrairement aux trois autres. C'est un
-        RETRAIT qui se coche — un accès « sans données nominatives » —, et un rôle qu'on oublie de
-        paramétrer doit voir ce que voient les autres, pas moins.
+        ⚠️ `voit_identite_declarant` est vrai par défaut, à l'inverse des trois autres : c'est un
+        RETRAIT qui se coche, et un rôle non paramétré doit voir ce que voient les autres.
       */
       comportements: {
         traite_dossiers: enBase?.traite_dossiers ?? false,
@@ -397,9 +340,8 @@ export async function chargerHabilitations(): Promise<Habilitations> {
 /**
  * Compare la configuration de référence (le code) à ce qui s'applique (la base).
  *
- * Le sens de l'écart compte : une permission retirée prive d'un accès prévu à la livraison, une
- * permission ajoutée en accorde un qui ne l'était pas. Aucun des deux n'est fautif en soi — mais
- * les deux méritent d'être vus, et le journal d'audit dit qui les a décidés.
+ * Le sens de l'écart compte, et aucun n'est fautif en soi : une permission retirée prive d'un
+ * accès prévu, une permission ajoutée en accorde un qui ne l'était pas.
  */
 function comparer(
   rolesEnBase: readonly {
@@ -438,18 +380,12 @@ function comparer(
 /**
  * Modifie les permissions d'un rôle.
  *
- * **La base fait foi à l'exécution** : `chargerUtilisateurAutorise()` lit `role_has_permissions`
- * à chaque requête. Une modification prend donc effet immédiatement, pour tout le monde, sans
- * redéploiement — c'est puissant, et c'est pourquoi trois garde-fous encadrent l'opération.
+ * L'effet est immédiat pour tout le monde, sans redéploiement. D'où trois garde-fous :
  *
- * 1. **Le catalogue reste fermé.** Le code décide quelles permissions et quels rôles EXISTENT ;
- *    la base décide seulement qui obtient quoi. Un nom forgé ne peut pas créer d'association.
- * 2. **Personne ne peut se verrouiller dehors.** Au moins un compte actif doit conserver
- *    `roles.manage` après la modification — sinon plus aucune interface ne permettrait de
- *    revenir en arrière, et aucune commande en ligne ne permet de le faire.
- * 3. **Tout changement est tracé.** L'audit remplace la comparaison automatique code/base qui
- *    protégeait ces associations tant qu'elles étaient figées : un droit accordé ou retiré doit
- *    rester explicable, avec son auteur et sa date.
+ * 1. Le catalogue reste fermé — un nom forgé ne peut pas créer d'association.
+ * 2. Au moins un compte actif doit conserver `roles.manage` : aucune commande en ligne ne
+ *    permettrait de revenir en arrière.
+ * 3. Tout changement est journalisé, avec son auteur et sa date.
  */
 export async function modifierPermissionsRole(
   acteur: { id: bigint },
@@ -511,10 +447,7 @@ export async function modifierPermissionsRole(
 /**
  * Quels types de déclaration ce rôle ouvre.
  *
- * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle :
- * `chargerUtilisateurAutorise()` relit `role_parcours` à chaque requête. Décocher un type le
- * retire de la vue de chacun d'eux sans attendre une reconnexion — c'est l'effet voulu, et c'est
- * pourquoi le geste est journalisé comme les permissions.
+ * ⚠️ Effet immédiat pour tous les porteurs du rôle, sans reconnexion — d'où la journalisation.
  *
  * L'absence vaut retrait : la liste reçue décrit l'état complet du rôle, pas un ajout.
  */
@@ -523,13 +456,9 @@ export async function modifierParcoursRole(
   role: string,
   parcoursVoulus: readonly string[],
   /*
-    ⚠️ LES TYPES ALERTÉS EN CIRCUIT ACCÉLÉRÉ, cochés dans la MÊME grille et enregistrés dans le
-    même geste — parce qu'ils vivent sur la même ligne (`role_parcours.alerte_circuit_critique`).
-
-    Deux formulaires séparés auraient laissé une fenêtre où le type est décoché mais son alerte
-    encore cochée : la ligne disparaît, l'alerte avec elle, sans que l'écran l'ait annoncé. Ici,
-    l'alerte d'un type non coché est simplement ignorée — cocher l'un sans l'autre n'a pas de
-    sens, et refuser l'enregistrement pour cela ne rendrait service à personne.
+    ⚠️ Les alertes de circuit accéléré vivent sur la même ligne que le type
+    (`role_parcours.alerte_circuit_critique`) et s'enregistrent donc dans le même geste. L'alerte
+    d'un type non coché est ignorée : décocher le type emporte son alerte, sans surprise.
   */
   circuitVoulu: readonly string[] = []
 ): Promise<void> {
@@ -634,11 +563,8 @@ export async function modifierParcoursRole(
 /**
  * Modifie l'identité lisible d'un rôle : son libellé et sa description.
  *
- * ⚠️ `name` — l'identifiant technique — n'est PAS modifiable, et cette fonction ne l'expose pas.
- * Il est référencé par `model_has_roles`, par le catalogue `authz/roles.ts`, par la table des
- * acteurs d'étape et par `role_parcours` : le renommer romprait le périmètre **sans aucune
- * erreur**, un rôle dont plus aucune ligne ne porte le nom n'ouvrant simplement plus rien. Ce
- * qu'on renomme ici, c'est ce que les gens lisent ; ce que le code utilise ne bouge pas.
+ * ⚠️ `name`, l'identifiant technique, n'est pas exposé. Référencé par `model_has_roles`,
+ * `authz/roles.ts` et `role_parcours`, le renommer romprait le périmètre sans lever d'erreur.
  */
 export async function modifierIdentiteRole(
   acteur: { id: bigint },
@@ -687,27 +613,18 @@ export async function modifierIdentiteRole(
 /**
  * Active ou désactive un rôle.
  *
- * La désactivation est la seule forme de retrait prévue : un rôle ne se supprime pas (RG-03), car
- * il reste cité dans le journal d'audit et dans l'historique des comptes. Ce qu'elle fait vraiment
- * se joue dans `chargerUtilisateurAutorise()` — un rôle inactif ne confère plus ni permission ni
- * parcours, dès la requête suivante et pour tous ceux qui le portent.
- *
- * Les associations `model_has_roles` sont CONSERVÉES : la réactivation rend leurs droits aux
- * comptes concernés sans qu'il faille les réattribuer un par un. C'est la différence entre
- * suspendre un rôle et le vider.
+ * Un rôle inactif ne confère plus ni permission ni parcours, dès la requête suivante. Les
+ * associations `model_has_roles` sont conservées : la réactivation rend leurs droits aux comptes
+ * sans réattribution — c'est la différence entre suspendre un rôle et le vider.
  */
 /**
  * Un des quatre comportements du rôle — voir `COMPORTEMENTS_ROLE`.
  *
- * ⚠️ CE GESTE CHANGE CE QUE DES GENS VOIENT, immédiatement et pour tous les porteurs du rôle :
- * `chargerUtilisateurAutorise()` relit ces colonnes à chaque requête. Cocher « borné à son site »
- * retire de leur vue tous les dossiers des autres sites sans attendre une reconnexion — c'est
- * l'effet voulu, et c'est pourquoi le geste est journalisé comme les permissions.
+ * ⚠️ Effet immédiat pour tous les porteurs du rôle, sans reconnexion — d'où la journalisation.
  *
- * ⚠️ « A LA CHARGE » EST DISTINCT DE `dossiers.status.update`. Ce droit dit qu'on peut faire
- * AVANCER un dossier ; ce paramètre dit qu'on en RÉPOND. Le Service MGP arbitre et relance sans
- * instruire : il porte le droit, pas la charge. Avoir déduit l'un de l'autre l'a fait apparaître
- * comme titulaire de tous les dossiers — c'est le défaut que ce paramètre corrige.
+ * ⚠️ « A la charge » est distinct de `dossiers.status.update` : ce droit dit qu'on peut faire
+ * AVANCER un dossier, ce paramètre qu'on en RÉPOND. Le Service MGP porte le droit sans la charge ;
+ * déduire l'un de l'autre le faisait apparaître titulaire de tous les dossiers.
  */
 export async function changerComportementRole(
   acteur: { id: bigint },
@@ -715,13 +632,8 @@ export async function changerComportementRole(
   comportement: ComportementRole,
   valeur: boolean
 ): Promise<void> {
-  /*
-    ⚠️ LE NOM DE COLONNE EST VALIDÉ CONTRE LE CATALOGUE, jamais repris tel quel.
-
-    Il arrive d'un formulaire, et il sert de clé dans un `data:` Prisma. Sans cette garde, un
-    champ forgé désignerait n'importe quelle colonne de `roles` — `actif`, par exemple, dont la
-    modification a son propre contrôle et son propre journal.
-  */
+  // ⚠️ Nom de colonne validé contre le catalogue : il vient d'un formulaire et sert de clé dans
+  // un `data:` Prisma. Sans cette garde, un champ forgé atteindrait `actif`, par exemple.
   if (!(COMPORTEMENTS_NOMS as readonly string[]).includes(comportement)) {
     throw new ErreurWorkflow('Comportement inconnu.')
   }
@@ -749,17 +661,8 @@ export async function changerComportementRole(
   })
 
   await journaliser({
-    /*
-      ⚠️ CODE GÉNÉRIQUE À DESSEIN, pour l'instant.
-
-      `role.comportement_modifie` serait plus parlant, mais le journal traduit les codes depuis
-      une table qui vit dans `audit/libelles.ts` — un fichier en cours de modification ailleurs,
-      que je ne dois pas toucher sous peine d'écraser du travail. Un code sans libellé
-      s'afficherait en clair technique dans le journal.
-
-      `role.modifie` est déjà traduit, et les valeurs ci-dessous disent exactement ce qui a
-      changé. À renommer quand le fichier des libellés sera libre.
-    */
+    // TODO renommer en `role.comportement_modifie`, une fois le libellé ajouté à
+    // `audit/libelles.ts` — sans quoi le journal afficherait un code brut.
     action: 'role.modifie',
     acteurId: acteur.id,
     auditableType: MODELES.role,
@@ -772,11 +675,9 @@ export async function changerComportementRole(
 /**
  * La grille « qui fait avancer quoi » : quelles étapes ce rôle peut franchir, et sur quels types.
  *
- * ⚠️ CE GESTE PEUT BLOQUER UN CIRCUIT, et c'est le plus silencieux des réglages. Décocher la
- * dernière case d'une colonne n'affiche aucune erreur : le dossier arrive à cette étape et n'en
- * repart jamais, sans message, sans trace, sans que personne sache à qui s'adresser.
- * `santeAdministration()` remonte ces colonnes vides au tableau de bord d'administration — c'est
- * le seul endroit où on les verra.
+ * ⚠️ Décocher la dernière case d'une colonne BLOQUE le circuit sans aucune erreur : le dossier
+ * arrive à cette étape et n'en repart jamais. `santeAdministration()` est le seul endroit qui
+ * remonte ces colonnes vides.
  *
  * L'absence vaut retrait : la liste reçue décrit l'état complet du rôle, pas un ajout.
  */
@@ -809,13 +710,8 @@ export async function modifierEtapesRole(
   const idParcours = new Map(parcoursEnBase.map((p) => [p.code, p.id]))
   const idStatut = new Map(statutsEnBase.map((s) => [s.code, s.id]))
 
-  /*
-    ⚠️ VALIDÉ CASE PAR CASE, contre la base ET contre le graphe des transitions.
-
-    Un couple inconnu passerait sinon en base sans rien faire — la fonction qui le lit ne le
-    trouverait jamais —, et un couple portant une étape terminale y resterait visible sans
-    autoriser quoi que ce soit : le graphe n'en laisse partir aucun dossier.
-  */
+  // ⚠️ Validé case par case contre la base ET le graphe des transitions : un couple inconnu, ou
+  // portant une étape terminale, entrerait en base sans jamais rien autoriser.
   const cle = (c: { parcours: string; statut: string }) => `${c.parcours}/${c.statut}`
   const voulues = new Map<string, { parcours: string; statut: string }>()
 
@@ -911,9 +807,8 @@ export async function changerActivationRole(
 /**
  * Identifiant technique dérivé du libellé.
  *
- * Le nom sert de clé dans `model_has_roles` et dans le journal d'audit : il ne changera plus. On
- * le fabrique donc lisible et stable — accents retirés, minuscules, séparateurs unifiés — plutôt
- * que de demander à l'administrateur d'inventer un identifiant.
+ * Clé dans `model_has_roles` et dans le journal : il ne changera plus. Fabriqué lisible et stable
+ * plutôt que demandé à l'administrateur.
  */
 export function nomTechnique(libelle: string): string {
   return libelle
@@ -928,19 +823,9 @@ export function nomTechnique(libelle: string): string {
 /**
  * Crée un rôle.
  *
- * ⚠️ CE COMMENTAIRE DISAIT L'INVERSE DE LA VÉRITÉ jusqu'au 2026-09-21, et le corriger n'est pas
- * cosmétique : il décourageait de créer des rôles métier.
- *
- * Il annonçait qu'un rôle créé ici « ne donne accès à aucun dossier, quelles que soient les
- * permissions cochées », parce que le cloisonnement par type (`authz/parcours.ts`), la table des
- * acteurs d'étape (`authz/etapes.ts`) et l'habilitation par site (`authz/site.ts`) nommaient les
- * rôles livrés. Aucune de ces trois tables n'existe plus : tout se lit en base et se coche dans
- * l'écran des habilitations.
- *
- * Un rôle créé ici peut donc TOUT faire — voir des dossiers, les faire avancer, être borné à un
- * site, être alerté en circuit accéléré. Ce qu'il faut savoir avant de le créer, c'est qu'il ne
- * fait RIEN tant que rien n'est coché : ses permissions seules ne lui ouvrent aucun type de
- * déclaration. L'écran le dit avant la création, et nomme les onglets où aller.
+ * Un rôle créé ici peut tout faire : voir des dossiers, les faire avancer, être borné à un site,
+ * être alerté en circuit accéléré. ⚠️ Mais il ne fait RIEN tant que rien n'est coché — ses
+ * permissions seules ne lui ouvrent aucun type de déclaration. L'écran le dit avant la création.
  */
 export async function creerRole(
   acteur: { id: bigint },
@@ -1022,32 +907,18 @@ export async function creerRole(
 }
 
 /**
- * Supprime un rôle — définitivement, et sous deux conditions strictes.
+ * Supprime un rôle, définitivement.
  *
- * 1. **Seul un rôle créé ici peut l'être.** Les rôles livrés sont nommés par le code : le
- *    cloisonnement par parcours, la table des acteurs d'étape et l'habilitation par site s'y
- *    réfèrent, et `chargerHabilitations()` les reconstituerait de toute façon à la lecture
- *    suivante. Pour eux, la désactivation reste la bonne opération — elle retire tous les droits
- *    sans effacer la trace.
- * 2. **Aucun compte ne doit le porter.** Supprimer un rôle rattaché retirerait son accès à
- *    quelqu'un sans que rien ne le dise, et l'association disparaîtrait avec lui : on ne saurait
- *    plus à qui rendre quoi. Détacher d'abord, supprimer ensuite — l'ordre est explicite.
+ * ⚠️ Aucun compte ne doit le porter : supprimer un rôle rattaché retirerait un accès sans rien
+ * dire, et l'association disparaîtrait avec lui. Détacher d'abord, supprimer ensuite.
  *
- * Le journal d'audit, lui, garde la ligne : le nom et les permissions du rôle supprimé y restent
- * lisibles, alors même que la table `roles` ne le contient plus.
+ * Le journal garde la ligne : nom et permissions du rôle supprimé y restent lisibles.
  */
 export async function supprimerRole(acteur: { id: bigint }, role: string): Promise<void> {
   /*
-    ⚠️ UN RÔLE LIVRÉ PEUT DÉSORMAIS ÊTRE SUPPRIMÉ, à la seule condition que PERSONNE ne le porte
-    (décision métier du 2026-09-20). La règle précédente l'interdisait absolument.
-
-    Le risque est réel et assumé : le code se réfère à certains noms de rôle — la table des
-    acteurs d'étape, le cloisonnement par rattachement. Un rôle supprimé n'y correspond plus à
-    rien, et ces règles cessent simplement de le désigner. Rien ne casse, mais rien ne le signale
-    non plus.
-
-    C'est pourquoi la condition d'attribution, elle, ne bouge pas : tant qu'un compte le porte,
-    supprimer le rôle lui retirerait ses accès sans que personne ne l'ait décidé pour lui.
+    ⚠️ Un rôle LIVRÉ peut aussi être supprimé (décision du 2026-09-20), à la seule condition que
+    personne ne le porte. Risque assumé : le code se réfère à certains noms de rôle, qui cessent
+    alors de désigner quoi que ce soit — rien ne casse, mais rien ne le signale non plus.
   */
 
   const ligne = await prisma.roles.findFirst({
@@ -1089,18 +960,11 @@ export async function supprimerRole(acteur: { id: bigint }, role: string): Promi
 const CLE_ADMINISTRATION = 'roles.manage'
 
 /**
- * Refuse une modification qui priverait le dispositif de tout administrateur.
+ * Refuse une modification qui priverait le dispositif de tout administrateur — définitivement,
+ * aucune commande en ligne ne permettant de rétablir la situation.
  *
- * Sans aucune commande en ligne, plus personne ne pourrait rétablir la situation :
- * l'écran des habilitations deviendrait inaccessible à tous, définitivement.
- *
- * Deux chemins y mènent, et il faut les couvrir tous les deux — c'est pourquoi le contrôle
- * raisonne sur l'ÉTAT RÉSULTANT plutôt que sur l'opération demandée :
- *
- * - retirer `roles.manage` au dernier rôle qui le porte ;
- * - désactiver ce rôle, ce qui produit exactement le même effet sans toucher à ses permissions.
- *
- * Un contrôle écrit par opération aurait attrapé le premier cas et laissé passer le second.
+ * ⚠️ Raisonne sur l'ÉTAT RÉSULTANT et non sur l'opération : retirer `roles.manage` au dernier
+ * rôle qui le porte et désactiver ce rôle produisent le même effet.
  */
 async function verifierQuUnAdministrateurSubsiste(hypothese: {
   role: string

@@ -8,6 +8,7 @@ import {
 } from '../suppressions-actions'
 import { Building2, MapPin } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useRetourEnToast } from '@/lib/retour-operation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -81,7 +82,7 @@ export function PanneauOrganisation({
     <div className="space-y-6">
       <EnTetePage
         titre="Sites et directions"
-        lede="Un site regroupe plusieurs directions. C’est la direction qui donne son site à un dossier, et donc la personne qui le recevra."
+        lede="C’est la direction d’un dossier qui détermine son site, donc qui le recevra."
         mailles={[
           { libelle: 'Administration', href: '/administration' },
           { libelle: 'Sites et directions' },
@@ -132,8 +133,7 @@ export function PanneauOrganisation({
                 : '1 direction ne relève d’aucun site.'}
             </p>
             <p className="mt-1 text-caption">
-              Une déclaration qui les vise produit un dossier sans site : aucun secrétaire habilité
-              par site ne le verra, seuls les rôles transverses y auront accès.
+              Les déclarations qui les visent ne seront vues que des rôles transverses.
             </p>
           </AlertDescription>
         </Alert>
@@ -370,7 +370,7 @@ function FormulaireSite({ site, onFermer }: { site?: SiteVue; onFermer: () => vo
             Actif
           </label>
 
-          <Retour etat={etat} />
+          <AnnonceRetour etat={etat} />
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" disabled={enCours}>
@@ -445,7 +445,7 @@ function FormulaireDirection({
             Active
           </label>
 
-          <Retour etat={etat} />
+          <AnnonceRetour etat={etat} />
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" disabled={enCours}>
@@ -461,22 +461,14 @@ function FormulaireDirection({
   )
 }
 
-function Retour({ etat }: { etat: EtatFormulaire }) {
-  if (etat.erreur) {
-    return (
-      <Alert variant="destructive" role="alert">
-        <AlertDescription>{etat.erreur}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (etat.succes) {
-    return (
-      <Alert role="status">
-        <AlertDescription>{etat.succes}</AlertDescription>
-      </Alert>
-    )
-  }
-
+/**
+ * Annonce le retour de l'opération en surimpression. NE REND RIEN.
+ *
+ * Le nom dit « annonce » et non « retour » : ce composant n'occupe aucune place dans la page. Il
+ * existe parce que le retour doit être annoncé depuis plusieurs formulaires de ce fichier, et
+ * qu'un composant se place là où l'ancien encart se trouvait — le point d'appel reste lisible.
+ */
+function AnnonceRetour({ etat }: { etat: EtatFormulaire }) {
+  useRetourEnToast(etat)
   return null
 }

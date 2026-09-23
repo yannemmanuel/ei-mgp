@@ -17,6 +17,7 @@ import {
   actionRegenererMotDePasse,
   type EtatCompte,
 } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 export type CompteVue = {
   id: string
@@ -320,6 +321,7 @@ function FormulaireCompte({
   onFermer: () => void
 }) {
   const [etat, envoyer, enCours] = useActionState(actionEnregistrerCompte, ETAT)
+  useRetourEnToast(etat)
 
   /*
     Rattachement contrôlé : direction OU site, l'un excluant l'autre à l'écran.
@@ -378,18 +380,14 @@ function FormulaireCompte({
                 <>
                   <p className="font-medium">Un lien de première connexion a été envoyé.</p>
                   <p className="mt-1 text-caption">
-                    La personne choisira elle-même son mot de passe : vous ne le connaîtrez pas, et
-                    aucun secret n’a circulé par e-mail. Le lien est valable 72 heures et ne
-                    fonctionne qu’une fois.
+                    La personne choisira son mot de passe. Le lien vaut 72 heures, une seule fois.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="font-medium">L’envoi du lien a échoué.</p>
                   <p className="mt-1 text-caption">
-                    Le compte est bien créé, et un mot de passe lui a été attribué d’office
-                    ci-dessous : transmettez-le par un canal sûr. Vérifiez la configuration de la
-                    messagerie avec <code>npm run tester-email</code>.
+                    Le compte est créé et le mot de passe ci-dessous lui a été attribué : transmettez-le par un canal sûr. Diagnostic : <code>npm run tester-email</code>.
                   </p>
                 </>
               )}
@@ -416,10 +414,8 @@ function FormulaireCompte({
                 </p>
               ) : (
                 <p className="mt-2 text-caption text-amber-700">
-                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie
-                  n’est pas configurée sur ce serveur : tant que <code>MAIL_HOST</code> et{' '}
-                  <code>MAIL_FROM</code> sont absents, rien ne peut partir. Transmettez ce mot de
-                  passe par un canal sûr ; la personne le changera à sa première connexion.
+                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie n’est pas configurée (<code>MAIL_HOST</code>, <code>MAIL_FROM</code>).
+                  Transmettez ce mot de passe par un canal sûr.
                 </p>
               )}
             </AlertDescription>
@@ -653,11 +649,6 @@ function FormulaireCompte({
             Compte actif
           </label>
 
-          {etat.erreur && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{etat.erreur}</AlertDescription>
-            </Alert>
-          )}
 
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={enCours}>
@@ -682,6 +673,7 @@ function FormulaireCompte({
  */
 function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
   const [etat, envoyer, enCours] = useActionState(actionRegenererMotDePasse, ETAT)
+  useRetourEnToast(etat)
 
   return (
     <form action={envoyer} className="mt-6 space-y-2 border-t border-border pt-4">
@@ -701,11 +693,6 @@ function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
         </Alert>
       )}
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" size="sm" variant="outline" disabled={enCours}>
         {enCours ? 'Attribution…' : 'Réattribuer un mot de passe'}

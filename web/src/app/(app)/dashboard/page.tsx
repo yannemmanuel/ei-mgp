@@ -154,7 +154,7 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
             <EtatVide
               icone={Inbox}
               titre="Aucun dossier ne vous revient pour l’instant."
-              description="Ceux qui vous seront confiés — par affectation, ou par votre rattachement pour un évènement indésirable — apparaîtront ici."
+              description="Ceux qui vous seront confiés apparaîtront ici."
             />
           </Card>
         )
@@ -584,16 +584,35 @@ async function blocATraiter(codes: string[]) {
  */
 async function chargerReferentiels(parcoursId: bigint | null) {
   const [parcours, categories, statuts, gravites, sites, directions] = await Promise.all([
-    prisma.parcours.findMany({ where: { actif: true }, orderBy: { ordre: 'asc' } }),
+    prisma.parcours.findMany({
+      where: { actif: true },
+      orderBy: { ordre: 'asc' },
+      select: { id: true, libelle: true },
+    }),
     prisma.categories.findMany({
       where: { actif: true, ...(parcoursId ? { parcours_id: parcoursId } : {}) },
       orderBy: [{ parcours: { ordre: 'asc' } }, { libelle: 'asc' }],
       select: { id: true, libelle: true, parcours: { select: { libelle: true } } },
     }),
-    prisma.statuts_dossier.findMany({ orderBy: { ordre: 'asc' } }),
-    prisma.niveaux_gravite.findMany({ where: { actif: true }, orderBy: { niveau: 'asc' } }),
-    prisma.sites.findMany({ where: { actif: true }, orderBy: { libelle: 'asc' } }),
-    prisma.directions.findMany({ where: { actif: true }, orderBy: { libelle: 'asc' } }),
+    prisma.statuts_dossier.findMany({
+      orderBy: { ordre: 'asc' },
+      select: { id: true, libelle_interne: true },
+    }),
+    prisma.niveaux_gravite.findMany({
+      where: { actif: true },
+      orderBy: { niveau: 'asc' },
+      select: { id: true, libelle: true },
+    }),
+    prisma.sites.findMany({
+      where: { actif: true },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true },
+    }),
+    prisma.directions.findMany({
+      where: { actif: true },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true },
+    }),
   ])
 
   const option = (l: { id: bigint; libelle: string }) => ({

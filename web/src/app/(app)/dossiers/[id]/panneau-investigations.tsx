@@ -1,7 +1,6 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -10,6 +9,7 @@ import {
   actionMettreAJourInvestigation,
   actionOuvrirInvestigation,
 } from './investigations-actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 /**
  * ⚠️ Une investigation n'est soumise à AUCUNE validation (décision métier du 2026-09-18).
@@ -164,6 +164,7 @@ function FormulaireInvestigation({
   onAnnuler: () => void
 }) {
   const [etat, envoyer, enCours] = useActionState(action, ETAT)
+  useRetourEnToast(etat)
 
   return (
     <form action={envoyer} className="space-y-3">
@@ -199,11 +200,6 @@ function FormulaireInvestigation({
         aide="Source des actions correctives (EX-INV-04)."
       />
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={enCours}>

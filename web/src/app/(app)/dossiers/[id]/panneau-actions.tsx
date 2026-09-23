@@ -1,7 +1,6 @@
 'use client'
 
 import { useActionState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -14,6 +13,7 @@ import {
   actionReouvrir,
   type EtatAction,
 } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 type Option = { id: string; nom: string }
 
@@ -100,8 +100,8 @@ export function PanneauActions({
           {affectations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {parRattachement
-                ? 'Personne pour l’instant. Un évènement indésirable revient au chargé de sécurité dont le site ou la direction couvre ce dossier — vérifiez qu’au moins un compte y est habilité.'
-                : 'Personne pour l’instant. Les dossiers sont confiés aux comptes du parcours et du rattachement concernés — vérifiez qu’au moins un compte y est habilité.'}
+                ? 'Personne pour l’instant. Un évènement indésirable revient au chargé de sécurité du site concerné — vérifiez qu’au moins un compte y est habilité.'
+                : 'Personne pour l’instant. Vérifiez qu’au moins un compte est habilité sur ce type et ce rattachement.'}
             </p>
           ) : (
             <>
@@ -114,8 +114,8 @@ export function PanneauActions({
                 // Dire d'où vient cette charge : elle ne se change pas ici, mais dans le
                 // rattachement du compte. Sans cette ligne, on cherche un bouton qui n'existe pas.
                 <p className="text-caption text-muted-foreground">
-                  Au titre de leur rattachement : un évènement indésirable n’est affecté à
-                  personne. Pour changer qui le traite, modifiez le site ou la direction du compte.
+                  Au titre de leur rattachement. Pour changer qui traite, modifiez le site ou la direction
+                  du compte.
                 </p>
               )}
             </>
@@ -199,8 +199,8 @@ export function PanneauActions({
           </CardHeader>
           <CardContent>
             <p className="mb-3 text-caption text-muted-foreground">
-              À quoi ce dossier se rattache une fois instruit. À distinguer de la catégorie, qui
-              vient du déclarant au moment du dépôt.
+              À quoi ce dossier se rattache une fois instruit — la catégorie, elle, vient du
+              déclarant.
             </p>
             <FormulaireAction
               action={actionQualifierFamilleRisque}
@@ -372,22 +372,13 @@ function FormulaireAction({
   children: React.ReactNode
 }) {
   const [etat, envoyer, enCours] = useActionState(action, ETAT)
+  useRetourEnToast(etat)
 
   return (
     <form action={envoyer} className="space-y-3">
       <input type="hidden" name="dossierId" value={dossierId} />
       {children}
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
-      {etat.succes && (
-        <Alert role="status">
-          <AlertDescription>{etat.succes}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" variant={variante} disabled={enCours} className="w-full">
         {enCours ? 'En cours…' : libelleBouton}

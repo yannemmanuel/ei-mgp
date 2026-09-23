@@ -21,51 +21,29 @@ import { couvertureParParcours, type CouvertureParcours } from './suivi-ei'
 */
 
 /**
- * « Reçu, et personne ne le traite » — LA définition, partagée.
+ * « Reçu, et personne ne le traite » — définition partagée par le compteur du tableau de bord et
+ * la liste qu'il ouvre, qui compteraient sinon différemment.
  *
- * ⚠️ DEUX SENS SELON LE PARCOURS, et c'est ce qui rend le partage indispensable.
- *
- *   - Cas courant : reçu SANS ligne d'affectation active. L'affectation automatique n'a trouvé
- *     aucun compte portant le rôle de captage du parcours (EX-GES-02).
- *   - Évènement indésirable : il n'a JAMAIS de ligne d'affectation. Le lire ainsi les déclarait
- *     tous abandonnés. « Personne » y signifie : aucun chargé de sécurité dont le rattachement
- *     couvre ce dossier.
- *
- * Le compteur du tableau de bord et la liste qu'il ouvre appellent cette fonction. Deux
- * définitions écrites séparément finiraient par compter autrement — on cliquerait sur « 5 » pour
- * découvrir autre chose.
+ * ⚠️ Deux sens selon le parcours : sans ligne d'affectation active dans le cas courant ; pour
+ * l'évènement indésirable, qui n'en a jamais, aucun chargé de sécurité dont le rattachement
+ * couvre le dossier.
  */
 /**
- * « Les dossiers dont JE réponds » — LA définition, partagée elle aussi.
+ * « Les dossiers dont JE réponds » — définition partagée par la carte du tableau de bord, son lien
+ * et son compteur, qui montraient sinon trois choses différentes.
  *
- * ⚠️ DEUX ORIGINES À LA CHARGE, et une seule était lue.
- *
- *   - Une affectation active, pour tous les parcours qui en reçoivent une.
- *   - Le RATTACHEMENT, pour l'évènement indésirable, qui n'est affecté à personne : il revient au
- *     chargé de sécurité dont le site ou la direction couvre le dossier.
- *
- * Le rôle est exigé en plus du rattachement : un compte transverse voit tous les EI sans pour
- * autant en avoir la charge, et les faire entrer dans « vos dossiers » rendrait la carte inutile.
- *
- * Appelée par la carte du tableau de bord, par le lien qu'elle ouvre (`/dossiers?assigneAMoi=1`)
- * et par le compteur : les trois montraient sinon trois choses différentes.
+ * ⚠️ Deux origines à la charge : une affectation active, ou le RATTACHEMENT pour l'évènement
+ * indésirable, qui n'est affecté à personne. Le rôle est exigé en plus du rattachement — un compte
+ * transverse voit tous les EI sans en avoir la charge.
  */
 export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWhereInput {
   const parAffectation: Prisma.dossiersWhereInput = {
     dossier_affectations: { some: { user_id: u.id, actif: true } },
   }
 
-  /*
-    ⚠️ QUI TRAITE EST UN PARAMÈTRE, PAS UNE DÉDUCTION — correction du 2026-09-21.
-
-    Cette ligne lisait `dossiers.status.update`, « peut faire avancer un dossier ». Ce sont deux
-    choses différentes : le Service MGP porte ce droit — il arbitre, il relance après une
-    réouverture — sans être traitant. Il apparaissait pourtant comme titulaire de TOUS les
-    dossiers, ici comme sur la fiche.
-
-    Ce sont les correspondants qui instruisent. Aucune permission ne dit cela : c'est une donnée
-    d'organisation, et elle se coche rôle par rôle dans les habilitations.
-  */
+  // ⚠️ Qui traite est un PARAMÈTRE du rôle, jamais déduit de `dossiers.status.update` : le
+  // Service MGP porte ce droit sans être traitant, et le déduire le faisait apparaître titulaire
+  // de tous les dossiers.
   if (!u.traiteLesDossiers) return parAffectation
 
   // Même ordre que `rattachementCouvre()` : la direction d'abord, le site ensuite, et rien du
@@ -82,17 +60,8 @@ export function clauseDontJeReponds(u: UtilisateurAutorise): Prisma.dossiersWher
         // Les types que ses rôles ouvrent, bornés par son rattachement.
         parcours: { code: { in: parcoursAutorises(u) } },
         ...parRattachement,
-        /*
-          ⚠️ DT-06 : le déclarant n'instruit JAMAIS son propre dossier.
-
-          La règle ne vivait que dans l'affectation automatique, qui écartait le déclarant avant
-          de nommer les destinataires. Celle-ci ayant disparu, la règle serait partie avec elle :
-          un correspondant qui déclare un grief de son propre type se serait vu confier
-          l'instruction de son signalement.
-
-          Ne concerne que les déclarations IDENTIFIÉES : une déclaration anonyme n'est rattachée
-          à aucun compte (RG-06), et `declarant_user_id` y est nul.
-        */
+        // ⚠️ DT-06 : le déclarant n'instruit jamais son propre dossier. Ne concerne que les
+        // déclarations identifiées — une anonyme n'est rattachée à aucun compte (RG-06).
         /*
           ⚠️ LA FORME EXPLICITE, et non `NOT: { declarant_user_id: u.id }`.
 
@@ -157,16 +126,9 @@ export function perimetreDossiers(u: UtilisateurAutorise): Prisma.dossiersWhereI
   }
 
   /*
-    ⚠️ « TOUS LES DOSSIERS » VEUT DIRE « TOUS CEUX DE SES TYPES », pas tous sans exception.
-
-    Cette branche rendait une clause VIDE : le droit levait aussi le cloisonnement par type de
-    déclaration. Tant que ce cloisonnement était écrit dans le code et réservé aux rôles
-    transverses, la nuance ne se voyait pas — ils avaient les quatre types de toute façon.
-
-    Depuis que les types se cochent dans les habilitations (2026-09-20), elle se voit : cocher
-    « Grief employé » sur un rôle qui détient aussi « consulter tous les dossiers » n'aurait rien
-    changé, et la case aurait été un leurre. Le type est la borne EXTÉRIEURE ; ce droit lève le
-    rattachement et l'appartenance, jamais le type.
+    ⚠️ « Tous les dossiers » veut dire « tous ceux de ses TYPES », pas tous sans exception : le
+    type est la borne extérieure, et ce droit lève le rattachement et l'appartenance, jamais lui.
+    Rendre une clause vide ici ferait des cases de types un leurre.
   */
   if (aPermission(u, 'dossiers.view.all')) {
     return { parcours: { code: { in: parcoursAutorises(u) } } }
@@ -335,11 +297,8 @@ export async function listerDossiers(
 /**
  * Référentiels alimentant les listes déroulantes de filtres.
  *
- * Les catégories appartiennent chacune à un parcours, et plusieurs portent le même libellé d'un
- * parcours à l'autre — « Autre » existe quatre fois, « Environnement » deux fois. Tant qu'aucun
- * parcours n'est choisi, la liste complète affichait donc des doublons impossibles à départager.
- * Le parcours est alors accolé au libellé ; dès qu'un parcours est retenu, l'ambiguïté disparaît
- * avec lui et le suffixe aussi.
+ * Plusieurs catégories portent le même libellé d'un parcours à l'autre — « Autre » existe quatre
+ * fois. Le parcours est donc accolé au libellé tant qu'aucun n'est choisi ; il disparaît ensuite.
  */
 export async function referentielsFiltres(parcoursId?: string) {
   const [parcours, categories, statuts, gravites] = await Promise.all([

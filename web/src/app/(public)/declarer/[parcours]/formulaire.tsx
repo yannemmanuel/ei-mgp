@@ -1,11 +1,11 @@
 'use client'
 
 import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { compresserLot } from '@/lib/compression-images'
+import { useRetourEnToast } from '@/lib/retour-operation'
 import {
   MAX_FICHIERS,
   MAX_MEGAOCTETS_TOTAL,
@@ -44,11 +44,10 @@ type Props = {
   niveauxGravite: Option[]
   referentiels: Referentiels
   /**
-   * Horodatage d'affichage SIGNÉ par le serveur (DT-14) — voir `auth/horodatage-signe.ts`.
+   * Horodatage d'affichage signé par le serveur (DT-14).
    *
-   * ⚠️ Le formulaire ne le lit pas, ne le recalcule pas et ne le comprend pas : il le renvoie tel
-   * quel. C'est ce qui rend le délai minimal de remplissage vérifiable — la valeur était
-   * auparavant posée par le navigateur, donc forgeable.
+   * ⚠️ Renvoyé tel quel, jamais lu ni recalculé : c'est ce qui rend le délai minimal de
+   * remplissage vérifiable. Posé par le navigateur, il était forgeable.
    */
   horodatageSigne: string
   /**
@@ -66,19 +65,16 @@ const NB_ETAPES = 4
 /**
  * Délai pendant lequel « Envoyer ma déclaration » reste inerte après son apparition (ms).
  *
- * Il ne mesure pas un intervalle de double-clic — celui-là dépend du réglage du système. Il mesure
- * le temps qu'il faut à un œil pour prendre acte d'un bouton qui vient d'apparaître : en deçà,
- * l'activation visait ce qui occupait la place avant, c'est-à-dire « Continuer ».
+ * Mesure le temps qu'il faut pour prendre acte d'un bouton qui vient d'apparaître : en deçà,
+ * l'activation visait « Continuer », qui occupait la place. Pas un intervalle de double-clic,
+ * qui dépendrait du réglage du système.
  */
 const DELAI_ARMEMENT_ENVOI = 700
 
 /*
- * La description est obligatoire, et sans aucune borne de longueur.
- *
- * Le plancher de 20 caractères de RGI-02 a été levé le 08/09/2026 — « Fuite gaz zone B » est un
- * signalement recevable. Le plafond de 200 caractères et son compteur ont suivi le 11/09 (G1) :
- * compter les signes de quelqu'un qui décrit un accident le pousse à en dire moins, alors que
- * c'est le moment où l'on veut qu'il en dise plus.
+ * La description est obligatoire et sans borne de longueur : « Fuite gaz zone B » est un
+ * signalement recevable, et compter les signes de quelqu'un qui décrit un accident le pousse à
+ * en dire moins (RGI-02, révisée les 08 et 11/09/2026).
  */
 const ETAT_INITIAL: EtatSoumission = {}
 
@@ -93,14 +89,19 @@ export function FormulaireDeclaration({
   canauxRelais = [],
 }: Props) {
   const [etat, action, enCours] = useActionState(soumettre, ETAT_INITIAL)
+
+  /*
+   * Seule l'erreur GÉNÉRALE part en notification ; les erreurs de champ restent sous le champ à
+   * corriger. `useMemo` indexé sur `etat` : un objet neuf à chaque rendu ferait revenir la
+   * notification sans qu'aucun envoi n'ait eu lieu.
+   */
+  useRetourEnToast(useMemo(() => ({ erreur: etat.erreurGenerale }), [etat]))
   const viaRelais = canauxRelais.length > 0
   /**
    * L'étape affichée, et le nombre de déplacements demandés.
    *
-   * Le compteur n'est pas décoratif : redemander l'étape où l'on se trouve déjà — ce que fait
-   * `validerEtapes()` quand le champ fautif appartient à l'étape courante — doit tout de même
-   * replacer le curseur. Sans lui, l'état ne changerait pas et l'effet de focus ne s'exécuterait
-   * pas.
+   * Le compteur sert à replacer le curseur quand on redemande l'étape courante — ce que fait
+   * `validerEtapes()` : sans lui l'état ne changerait pas, et l'effet de focus non plus.
    */
   const [{ etape, deplacements }, setPosition] = useState({ etape: 1, deplacements: 0 })
   const allerA = (numero: number) => {
@@ -110,39 +111,21 @@ export function FormulaireDeclaration({
     setEnvoiArme(false)
     setPosition((p) => ({ etape: numero, deplacements: p.deplacements + 1 }))
   }
-  /*
-    ⚠️ L'HORODATAGE ANTI-ROBOT VIENT DU SERVEUR, ET IL EST SIGNÉ (DT-14).
-
-    Il était posé ICI, au montage, côté client — et le commentaire d'alors l'assumait : « un robot
-    peut forger cette valeur ». C'était vrai, et cela rendait le délai minimal de trois secondes
-    inopérant : il suffisait de poster « maintenant − 10 ».
-
-    La raison invoquée à l'époque — calculer l'heure pendant le rendu rendrait le composant
-    serveur impur — ne tient plus : la page est en `force-dynamic`, précisément pour que cet
-    horodatage soit frais. Il est donc produit et signé au rendu, et le formulaire le renvoie tel
-    quel sans le comprendre.
-
-    Voir `server/auth/horodatage-signe.ts` pour ce que la signature ferme, et ce qu'elle ne ferme
-    pas.
-  */
   const [anonymat, setAnonymat] = useState(false)
   const [categorieId, setCategorieId] = useState('')
   /**
    * Valeurs des champs dont d'autres dépendent — aujourd'hui la seule direction.
    *
-   * Le formulaire est non contrôlé partout ailleurs ; ces valeurs-là doivent l'être, parce
-   * qu'elles décident du CONTENU d'une autre liste. Changer de direction vide le poste choisi :
-   * garder un poste qui n'appartient plus à la direction retenue enverrait au serveur une
-   * combinaison qui n'existe pas.
+   * Contrôlées, à la différence du reste du formulaire, parce qu'elles décident du contenu d'une
+   * autre liste : changer de direction vide le poste, qui n'y appartiendrait plus.
    */
   const [valeursPilotes, setValeursPilotes] = useState<Record<string, string>>({})
 
   /**
    * Erreurs détectées dans le navigateur, avant tout aller-retour serveur.
    *
-   * Elles COMPLÈTENT `etat.erreurs` (le retour du serveur) sans jamais s'y substituer : la
-   * validation du navigateur est un confort d'ergonomie, celle des Server Actions reste la seule
-   * qui fasse autorité.
+   * Complètent `etat.erreurs` sans s'y substituer : la validation du navigateur est un confort,
+   * celle des Server Actions fait seule autorité.
    */
   const [erreursClient, setErreursClient] = useState<Record<string, string>>({})
   const formulaireRef = useRef<HTMLFormElement>(null)
@@ -151,42 +134,28 @@ export function FormulaireDeclaration({
   /**
    * `false` tant que le bouton d'envoi n'a pas été affiché pour lui-même.
    *
-   * Porté par l'attribut `disabled`, et non par un test dans le gestionnaire de clic : désarmé,
-   * le bouton est alors inatteignable par TOUTES les routes d'activation — souris, clavier,
-   * tactile, technologie d'assistance — et non par les seules que l'on a pensé à intercepter.
+   * Porté par `disabled` plutôt que par un test dans le gestionnaire de clic : désarmé, le bouton
+   * est inatteignable par TOUTES les routes d'activation, pas seulement celles qu'on intercepte.
    */
   const [envoiArme, setEnvoiArme] = useState(false)
-  /**
-   * Où en est la réduction des images.
-   *
-   * `en-cours` barre l'envoi : partir pendant la réduction déposerait les fichiers d'origine —
-   * exactement ce que la réduction cherche à éviter — et la course se gagnerait au hasard du
-   * débit et de la taille des photos.
-   */
+  /** `en-cours` barre l'envoi : partir maintenant déposerait les fichiers d'origine. */
   const [reduction, setReduction] = useState<'inactive' | 'en-cours'>('inactive')
 
   /*
-    RGI-03 : les champs d'identité ne sont pas rendus du tout si l'anonymat est coché — pas
-    seulement masqués en CSS, ils ne peuvent donc pas être soumis.
+    RGI-03 : en anonymat, les champs d'identité ne sont pas rendus du tout — donc pas soumissibles.
 
-    ⚠️ La règle est appelée, pas recopiée. Elle vivait ici en double du serveur, sous forme d'un
-    filtre écrit à la main ; un second motif de masquage l'a rendue fausse d'un côté seulement.
-    Deux filtres, dont l'un décide de ce qui est RENDU et l'autre de ce qui est ACCEPTÉ, ne
-    peuvent que finir par se contredire — et l'écart se lit alors comme un champ affiché puis
-    refusé, ou, dans le mauvais sens, comme un champ masqué qu'on peut quand même soumettre.
+    ⚠️ La règle est APPELÉE, jamais recopiée : deux filtres, l'un décidant de ce qui est rendu et
+    l'autre de ce qui est accepté, finissent par se contredire.
   */
   const visibles = useMemo(() => champsVisibles(config, anonymat), [config, anonymat])
 
   /**
    * Un champ conditionnel est-il demandé, au vu de ce qui est coché ?
    *
-   * ⚠️ Il n'est pas RENDU quand la condition ne tient pas, jamais seulement masqué en CSS : un
-   * champ présent dans le DOM est un champ soumissible. Le serveur refait de toute façon le
-   * contrôle — les deux verrous sont voulus — mais le premier évite d'envoyer des valeurs que
-   * le second devra jeter.
+   * ⚠️ Non RENDU quand la condition ne tient pas, jamais seulement masqué : un champ présent dans
+   * le DOM est soumissible. Le serveur refait le contrôle — les deux verrous sont voulus.
    *
-   * Une case non cochée n'ayant jamais été touchée n'est pas dans `valeursPilotes` : `?? false`
-   * la traite comme décochée, ce qu'elle est à l'écran.
+   * `?? false` : une case jamais touchée n'est pas dans `valeursPilotes`, et vaut décochée.
    */
   const conditionRemplie = (champ: Champ) =>
     champ.afficherSi === undefined ||
@@ -195,12 +164,8 @@ export function FormulaireDeclaration({
   const categorieEstAutre = categoriesAutre.includes(categorieId)
 
   /**
-   * Champs dont la valeur doit remonter à ce composant.
-   *
-   * Deux raisons de remonter, et une seule mécanique : soit un AUTRE champ dépend de celui-ci
-   * (le poste dépend de la direction), soit le champ révèle sa propre saisie libre quand il vaut
-   * « Autre ». Dans les deux cas il faut connaître sa valeur courante ; en tenir deux registres
-   * séparés aurait dupliqué l'état sans rien y gagner.
+   * Champs dont la valeur doit remonter ici : un autre champ en dépend, ou il révèle sa propre
+   * saisie libre sur « Autre ». Un seul registre pour les deux cas.
    */
   const pilotes = useMemo(() => {
     const noms = new Set<string>()
@@ -217,13 +182,9 @@ export function FormulaireDeclaration({
   }, [config])
 
   /*
-   * Le curseur suit l'étape affichée.
-   *
-   * Deux raisons, dont une corrige un défaut. La bonne pratique d'abord : après un changement
-   * d'étape, un utilisateur au clavier ou au lecteur d'écran doit se retrouver DANS ce qui vient
-   * d'apparaître, pas sur le bouton qu'il vient de presser. Le défaut ensuite : rester sur ce
-   * bouton, c'est garder le doigt sur la détente — une seconde pression sur Entrée atteignait
-   * l'envoi (voir le bouton de soumission plus bas).
+   * Le curseur suit l'étape affichée : au clavier comme au lecteur d'écran, on doit se retrouver
+   * DANS ce qui vient d'apparaître. Rester sur le bouton, c'était aussi garder le doigt sur la
+   * détente — une seconde pression sur Entrée atteignait l'envoi.
    *
    * `deplacements` et non `etape` en dépendance : voir sa déclaration.
    */
@@ -243,11 +204,8 @@ export function FormulaireDeclaration({
   }, [deplacements, etape])
 
   /*
-   * Le bouton d'envoi s'arme après coup, jamais à l'instant où il apparaît.
-   *
    * Le minuteur part du RENDU de l'étape 4, pas du clic qui y a mené : sur un appareil lent, le
-   * geste « il ne s'est rien passé, je reclique » arrive tard après le premier clic, mais tôt
-   * après l'apparition du bouton. C'est cette seconde distance qui compte.
+   * geste « il ne s'est rien passé, je reclique » arrive tôt après l'apparition du bouton.
    */
   useEffect(() => {
     if (etape !== NB_ETAPES) return
@@ -269,10 +227,8 @@ export function FormulaireDeclaration({
   /**
    * Vérifie les champs d'une ou plusieurs étapes, et renvoie la première en défaut.
    *
-   * `checkValidity()` fonctionne sur un champ masqué ; c'est `reportValidity()` qui échoue à y
-   * placer le curseur. On collecte donc les messages nous-mêmes et on affiche l'étape fautive
-   * avant de donner le focus — sinon le navigateur bloquerait l'envoi en désignant un champ que
-   * personne ne voit, sans dire lequel.
+   * `checkValidity()` marche sur un champ masqué, `reportValidity()` non : on collecte donc les
+   * messages soi-même et on affiche l'étape fautive avant de donner le focus.
    */
   function validerEtapes(numeros: number[]): number | null {
     const formulaire = formulaireRef.current
@@ -319,9 +275,8 @@ export function FormulaireDeclaration({
   /**
    * Remplace le contenu du champ fichier par les images réduites.
    *
-   * `DataTransfer` est le seul moyen d'écrire dans un `FileList`. S'il manque, on n'y touche pas :
-   * ce sont alors les fichiers d'origine qui partent, plus lourds mais intacts. Une pièce non
-   * réduite vaut mieux qu'une pièce perdue.
+   * `DataTransfer` est le seul moyen d'écrire dans un `FileList`. Absent, on n'y touche pas : une
+   * pièce non réduite vaut mieux qu'une pièce perdue.
    */
   function remplacerFichiers(champ: HTMLInputElement, fichiers: File[]) {
     if (typeof DataTransfer !== 'function') return
@@ -334,9 +289,7 @@ export function FormulaireDeclaration({
   /**
    * Réduit les images choisies, puis pèse le lot RÉELLEMENT déposé.
    *
-   * L'ordre compte : peser avant la réduction refuserait des lots que la réduction aurait rendus
-   * acceptables — dix photos de téléphone dépassent les bornes à l'état brut, presque jamais une
-   * fois réduites.
+   * L'ordre compte : peser avant refuserait des lots que la réduction aurait rendus acceptables.
    */
   async function reduirePuisVerifier(champ: HTMLInputElement) {
     const choisis = Array.from(champ.files ?? [])
@@ -364,13 +317,9 @@ export function FormulaireDeclaration({
       ref={formulaireRef}
       action={action}
       /*
-       * `noValidate` : la validation native est remplacée, pas supprimée.
-       *
-       * Toutes les étapes restent montées pour que les saisies survivent à la navigation ; le
-       * navigateur refuserait alors d'envoyer le formulaire en désignant un champ obligatoire
-       * d'une étape masquée, qu'il ne peut pas focaliser — l'envoi échouerait sans qu'aucun
-       * message n'apparaisse. `validerEtapes()` reprend le même contrôle, étape par étape, et
-       * ramène l'utilisateur devant le champ en cause.
+       * `noValidate` : la validation native est remplacée, pas supprimée. Les étapes restant
+       * toutes montées, le navigateur bloquerait l'envoi sur un champ masqué qu'il ne peut pas
+       * focaliser — sans aucun message. `validerEtapes()` reprend le contrôle étape par étape.
        */
       noValidate
       onInput={(e) => {
@@ -459,12 +408,6 @@ export function FormulaireDeclaration({
           )
         })}
       </ol>
-
-      {etat.erreurGenerale && (
-        <Alert variant="destructive" role="alert" className="mt-6">
-          <AlertDescription>{etat.erreurGenerale}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="mt-8 space-y-5">
         {/*
@@ -608,20 +551,12 @@ export function FormulaireDeclaration({
             multiple
             accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf"
             /*
-             * Le lot est pesé DANS LE NAVIGATEUR, avant l'envoi.
+             * Le lot est pesé dans le navigateur, APRÈS la réduction : sinon il n'est refusé
+             * qu'une fois tous les octets transmis, et le plafond de transport de la Server
+             * Action rejette sans message affichable.
              *
-             * Sans ce contrôle, un lot trop lourd part quand même : il est refusé après que tous
-             * les octets ont été transmis — au mieux par le serveur, au pire par le plafond de
-             * transport de la Server Action, dont le rejet ne produit aucun message que le
-             * formulaire sache afficher. Sur un téléphone en 3G, c'est une longue attente pour
-             * une erreur.
-             *
-             * `setCustomValidity` plutôt qu'un état à part : le message rejoint ainsi la
-             * mécanique de `validerEtapes()`, qui affiche l'étape fautive et y pose le curseur,
-             * et il barre l'envoi comme le ferait un champ obligatoire vide.
-             *
-             * La pesée a lieu APRÈS la réduction des images : c'est le lot réellement déposé qui
-             * doit tenir dans les bornes, pas celui d'avant.
+             * `setCustomValidity` plutôt qu'un état à part : le message rejoint `validerEtapes()`
+             * et barre l'envoi comme un champ obligatoire vide.
              */
             onChange={(e) => reduirePuisVerifier(e.currentTarget)}
           />
@@ -781,9 +716,8 @@ function ChampSelect({
 /**
  * Les options d'un select : liste figée de la configuration, ou référentiel administrable.
  *
- * Un champ en cascade ne propose que les valeurs rattachées au parent choisi, et RIEN tant qu'il
- * ne l'est pas — proposer les postes de toute l'entreprise ferait une liste inutilisable et
- * laisserait choisir un poste incohérent avec la direction.
+ * Un champ en cascade ne propose que les valeurs du parent choisi, et rien tant qu'il ne l'est
+ * pas — sans quoi on pourrait retenir un poste incohérent avec la direction.
  */
 function optionsDe(champ: Champ, referentiels: Referentiels, parent: string | null): Option[] {
   if (champ.referentiel === undefined) return [...(champ.options ?? [])]

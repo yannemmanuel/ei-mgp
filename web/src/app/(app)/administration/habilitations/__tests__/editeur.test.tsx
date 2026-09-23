@@ -92,8 +92,6 @@ const role = (libelle: string, description: string | null, permissions: string[]
   actif: true,
   permissions,
   comptes: 0,
-  retirees: [],
-  ajoutees: [],
   livre: false,
   rattachements: 0,
   parcours: [],

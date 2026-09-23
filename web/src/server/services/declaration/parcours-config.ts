@@ -39,24 +39,12 @@ export type Champ = {
   /**
    * Champ retiré en anonymat SANS être une donnée d'identité.
    *
-   * ⚠️ Distinct de `identite`, et il faut que les deux le restent. `identite` commande aussi le
-   * STOCKAGE : le champ part dans `declaration_identites`, table qui n'est pas créée pour une
-   * déclaration anonyme. Un champ rangé sur `dossiers` mais marqué `identite` serait affiché
-   * puis perdu sans le moindre signal — le piège déjà rencontré sur l'entreprise et la ville.
-   *
-   * Ce drapeau ne dit qu'une chose : ne pas le demander quand on ne se nomme pas. Le seul cas
-   * aujourd'hui est le poste, sur les deux parcours de salariés — associé à la direction, il
-   * resserre trop pour être demandé sous couvert d'anonymat.
+   * ⚠️ À ne pas confondre avec `identite`, qui commande aussi le STOCKAGE : un champ rangé sur
+   * `dossiers` mais marqué `identite` serait affiché puis perdu sans signal. Ce drapeau ne dit
+   * que « ne pas le demander quand on ne se nomme pas ».
    */
   readonly masqueSiAnonyme?: boolean
-  /**
-   * Référentiel à charger côté serveur pour alimenter les options.
-   *
-   * ⚠️ `tranchesAnciennete` A QUITTÉ CETTE LISTE le 2026-09-22 : les paliers sont désormais figés
-   * dans `TRANCHES_ANCIENNETE` et passent par `options`. Retirer la valeur de l'union est ce qui
-   * rend le nettoyage sûr — tout code qui la citait encore ne compile plus, plutôt que d'aller
-   * chercher une table qui n'existe pas.
-   */
+  /** Référentiel à charger côté serveur pour alimenter les options. */
   readonly referentiel?: 'directions' | 'postes' | 'lieux' | 'villes'
   /**
    * Ce champ ne se remplit qu'une fois `dependDe` renseigné, et ses options en dépendent.
@@ -69,30 +57,12 @@ export type Champ = {
   /** Colonne cible dans `declaration_identites` ou `dossiers`. */
   readonly colonne?: string
   /**
-   * Champ de saisie libre révélé quand ce champ prend une valeur donnée — « Autre ».
-   *
-   * « Autre » sans précision ne dit rien : on apprend que la personne n'entre dans aucune case,
-   * jamais dans laquelle elle se trouve. La réponse libre est donc rendue sous la liste, sous le
-   * nom `<champ>Precision`, et exigée dès qu'elle apparaît — la laisser facultative reviendrait
-   * à proposer « Autre » pour ne rien en tirer.
-   *
-   * ⚠️ Décrit ICI, dans la configuration, et non codé en dur dans le formulaire. La catégorie
-   * « Autre » l'est encore — elle vient des lignes `categories.is_autre` et précède ce
-   * mécanisme. Toute NOUVELLE liste offrant « Autre » passe par ce drapeau : une troisième
-   * exception écrite à la main aurait garanti qu'une quatrième soit oubliée.
-   */
-  /**
    * Champ affiché SEULEMENT quand une case à cocher est dans l'état attendu.
    *
-   * Le seul cas aujourd'hui est le rattachement du déclarant, demandé lorsqu'il n'est PAS la
-   * personne concernée. Un témoin parle d'une autre direction que celle des faits ; le lui
-   * demander quand il parle de lui-même serait poser deux fois la même question.
-   *
-   * ⚠️ Le serveur ne se contente pas de ne pas AFFICHER : il JETTE ce qui lui parvient alors que
-   * la condition n'est pas remplie. Un navigateur peut avoir gardé une saisie faite avant que la
-   * case ne soit cochée, et une requête forgée peut l'envoyer délibérément — enregistrer une
-   * direction de déclarant sur un dossier où le déclarant EST la victime produirait un dossier
-   * qui se contredit.
+   * ⚠️ Le serveur ne se contente pas de masquer : il JETTE ce qui lui parvient alors que la
+   * condition n'est pas remplie. Un navigateur peut avoir gardé une saisie antérieure, et une
+   * requête forgée peut l'envoyer — enregistrer une direction de déclarant sur un dossier où le
+   * déclarant EST la victime produirait un dossier qui se contredit.
    */
   readonly afficherSi?: {
     /** Nom de la case dont dépend l'affichage. */
@@ -100,6 +70,12 @@ export type Champ = {
     /** État attendu de cette case. */
     readonly vaut: boolean
   }
+  /**
+   * Saisie libre révélée quand ce champ vaut « Autre », sous le nom `<champ>Precision`.
+   *
+   * Exigée dès qu'elle apparaît : « Autre » sans précision apprend seulement que la personne
+   * n'entre dans aucune case, jamais dans laquelle elle se trouve.
+   */
   readonly precisionSi?: {
     /** La valeur qui déclenche la saisie libre, telle qu'elle figure dans `options`. */
     readonly valeur: string
@@ -141,34 +117,17 @@ const CANAUX_RETOUR = [
 ] as const
 
 /**
- * « Êtes-vous la personne concernée ? » — sur les deux parcours EMPLOYÉ seulement.
+ * « Êtes-vous la personne concernée ? » — parcours EMPLOYÉ seulement.
  *
- * Une déclaration est souvent déposée POUR quelqu'un d'autre : un témoin, un collègue, un agent
- * relais. Rien ne le disait, et le traitement ne pouvait donc pas savoir à qui il s'adressait —
- * ce qui change ce qu'on peut écrire en retour sans exposer la situation d'un tiers à un
- * intermédiaire.
+ * Une déclaration est souvent déposée pour quelqu'un d'autre, et le traitement doit le savoir :
+ * cela change ce qu'on peut écrire en retour sans exposer un tiers à un intermédiaire. Retirée
+ * des parcours externes (décision du 2026-09-21), où la réponse était toujours « oui ».
  *
- * Posé en étape 1, à côté de l'anonymat : les deux relèvent de la même décision préalable — qui
- * parle, et pour qui.
+ * ⚠️ Pas marqué `identite` : la question se pose aussi en anonyme, où elle est la plus utile.
+ * Stocké sur `dossiers`, jamais dans `declaration_identites`.
  *
- * ⚠️ RETIRÉ DU SOUS-TRAITANT ET DU COMMUNAUTAIRE le 2026-09-21, sur décision métier. La question
- * y appelait la réponse « oui » à peu près toujours, et n'orientait donc rien ; elle ajoutait une
- * case de plus en tête d'un formulaire rempli par des gens extérieurs à l'entreprise, pour qui
- * chaque question supplémentaire est un motif d'abandon.
- *
- * ⚠️ LA COLONNE RESTE, ET LES RÉPONSES DÉJÀ DONNÉES AUSSI. `dossiers.declarant_est_victime` n'est
- * ni supprimée ni vidée : la fiche la lit directement, sans passer par cette configuration, et
- * continue donc d'afficher la réponse des dossiers qui en portent une. On cesse de demander, on
- * n'efface rien.
- *
- * ⚠️ Pas marqué `identite`. La question se pose AUSSI en anonyme, où elle est même la plus utile :
- * savoir qu'un signalement anonyme émane d'un témoin plutôt que de la personne concernée oriente
- * l'instruction sans rien révéler de l'un ni de l'autre. Stocké sur `dossiers`, donc, jamais dans
- * `declaration_identites`.
- *
- * ⚠️ Facultatif, et sans valeur par défaut en base : `declarant_est_victime` reste NULL tant que
- * la case n'a pas été vue. Une case non cochée ne vaut pas « non » — elle vaut « pas répondu », et
- * les dossiers antérieurs à ce champ doivent rester distinguables de ceux qui ont dit non.
+ * ⚠️ Facultatif et sans défaut : `declarant_est_victime` reste NULL tant que la case n'a pas été
+ * vue. Non cochée ne vaut pas « non » mais « pas répondu ».
  */
 const DECLARANT_VICTIME = {
   nom: 'declarantEstVictime',
@@ -187,22 +146,10 @@ const CARACTERE_REPETITIF = [
 ] as const
 
 /*
-  L'adresse e-mail n'est plus collectée nulle part. Le NOM et le TÉLÉPHONE, eux, subsistent — mais
-  chacun sur les seuls parcours où il sert.
+  Le téléphone n'est demandé que sur les deux parcours qui proposent un rappel : ailleurs, il
+  promettrait un retour que rien ne permet d'honorer. L'adresse e-mail n'est plus collectée.
 
-  Le nom et le prénom restent demandés au sous-traitant et au riverain. Ces deux-là ne figurent
-  dans aucun fichier du personnel : ni matricule, ni direction pour les désigner. S'ils
-  choisissent de se nommer, leur nom est le seul point de reprise dont dispose le traitement. Les
-  salariés, eux, ont leur matricule — le nom n'y ajoutait rien qu'une donnée de plus à protéger.
-
-  Les retirer tous les quatre laissait « Je souhaite être recontacté » et « Canal de retour
-  préféré » promettre un rappel que plus rien ne permettait d'honorer : un écran qui demande
-  comment joindre quelqu'un sans jamais lui demander où. Le téléphone revient donc sur les deux
-  parcours qui posent la question, et sur eux seuls — l'évènement indésirable et la plainte
-  riveraine n'offrent pas de rappel et n'en ont pas besoin.
-
-  Les colonnes retirées restent en base et portent ce qui a déjà été déclaré : c'est la collecte
-  qui cesse, pas l'historique qui s'efface.
+  Les colonnes retirées restent en base : c'est la collecte qui cesse, pas l'historique.
 */
 const TELEPHONE = {
   nom: 'contactTelephone',
@@ -218,27 +165,16 @@ const TELEPHONE = {
 /**
  * Direction et poste, communs aux deux parcours de salariés.
  *
- * ⚠️ AUCUN des deux n'est une donnée d'IDENTITÉ au sens de la table, et ce n'est pas un oubli.
+ * ⚠️ Aucun des deux n'est marqué `identite`, et ce n'est pas un oubli.
  *
- * La direction détermine le site, donc le secrétaire qui recevra le signalement. Marquée
- * `identite`, elle disparaîtrait de toute déclaration anonyme — qui deviendrait alors un dossier
- * que personne ne voit, l'inverse exact de ce que l'anonymat sert à obtenir. Une direction compte
- * des centaines de personnes : la connaître n'identifie personne, pas plus que le lieu, déjà
- * obligatoire et collecté anonymement.
+ * La DIRECTION détermine le site, donc qui recevra le signalement : marquée `identite`, elle
+ * disparaîtrait des déclarations anonymes, qui deviendraient des dossiers que personne ne voit.
+ * Elle compte des centaines de personnes et n'identifie donc personne.
  *
- * Le POSTE, lui, n'est PAS demandé en anonymat — sur aucun des deux parcours. Direction et poste
- * réunis resserrent assez pour reconnaître quelqu'un dans un effectif restreint, et l'anonymat
- * n'aurait alors plus de sens. Il reste demandé à qui se nomme, où il ne coûte rien.
- *
- * ⚠️ Le masquage passe par `masqueSiAnonyme` et NON par `identite`, bien que le résultat à
- * l'écran soit le même. `identite` commande aussi le STOCKAGE : le champ partirait dans
- * `declaration_identites`, table qui n'est pas créée pour une déclaration anonyme. Le poste est
- * sur `dossiers.poste` ; l'y marquer `identite` l'aurait perdu également sur les déclarations
- * IDENTIFIÉES, où il est toujours attendu.
- *
- * ⚠️ Il reste FACULTATIF. Dans une direction restreinte, un poste unique désigne une seule
- * personne : l'exiger reviendrait à demander à quelqu'un de se resserrer jusqu'à devenir
- * reconnaissable, y compris quand il accepte de se nommer.
+ * Le POSTE n'est pas demandé en anonymat — direction et poste réunis suffisent à reconnaître
+ * quelqu'un dans un effectif restreint. Le masquage passe par `masqueSiAnonyme` et non par
+ * `identite` : le poste est sur `dossiers.poste`, et le marquer `identite` l'aurait aussi perdu
+ * sur les déclarations identifiées. Il reste facultatif, pour la même raison de resserrement.
  */
 const DIRECTION = {
   nom: 'directionId',
@@ -255,15 +191,8 @@ const POSTE = {
   // direction choisie. L'ordre n'est pas cosmétique — une cascade dont le déclencheur vient après
   // la liste qu'il remplit se lit à l'envers.
   nom: 'posteOccupe',
-  /*
-    Nommé explicitement depuis qu'un second poste existe : celui du DÉCLARANT, quand il n'est pas
-    la personne concernée. « Poste » tout court ne disait plus duquel il s'agissait.
-
-    ⚠️ « Victime » est le mot retenu par le métier pour ces quatre libellés, alors que la case
-    parle de « personne concernée ». L'écart est assumé : le second terme couvre l'évènement
-    indésirable sans victime — un presque-accident — où « victime » serait impropre, tandis que
-    les libellés de champs gagnent à être courts et sans ambiguïté pour qui remplit.
-  */
+  // Nommé explicitement depuis qu'existe un second poste, celui du déclarant. « Victime » est le
+  // mot retenu par le métier pour ces libellés, alors que la case parle de « personne concernée ».
   libelle: 'Poste de la victime',
   type: 'select',
   etape: 1,
@@ -316,23 +245,14 @@ const POSTE_DECLARANT = {
 } as const satisfies Champ
 
 /**
- * Les paliers d'ancienneté — FIGÉS ICI, et plus dans un référentiel administrable.
+ * Paliers d'ancienneté, figés ici plutôt qu'administrables (décision du 2026-09-22).
  *
- * ⚠️ RETIRÉ DE LA BASE le 2026-09-22, à la demande du métier. La table `tranches_anciennete`
- * offrait un écran d'administration pour cinq valeurs qui n'ont aucune raison de bouger : des
- * paliers d'années ne dépendent ni du site, ni de la direction, ni de l'organisation. Ce qui ne
- * varie pas ne gagne rien à être paramétrable, et l'écran coûtait une table, trois actions, un
- * tiers de page d'administration et un aller-retour en base à chaque affichage du formulaire.
+ * Des paliers d'années ne dépendent de rien qui varie. Le gain est dans la validation : une liste
+ * figée devient une énumération Zod refusée à la porte, là où une liste administrable se vérifie
+ * après coup contre la base.
  *
- * ⚠️ CE CHOIX RESSERRE LA VALIDATION, et c'est le vrai gain. Une liste administrable se vérifie
- * APRÈS coup, par `verifierReferentiels()`, qui confronte la chaîne reçue à la base ; une liste
- * figée devient une énumération Zod, refusée à la porte. Le contrôle passe d'une requête à un
- * type.
- *
- * ⚠️ LES LIBELLÉS SONT REPRIS À L'IDENTIQUE de ce que la base portait, dans son ordre
- * d'affichage. Les griefs déjà déposés stockent le libellé en clair dans
- * `declaration_identites.anciennete_tranche` : en changer un seul rendrait illisible ce qu'un
- * déclarant a répondu.
+ * ⚠️ Libellés repris à l'identique : les griefs déposés stockent le libellé en clair dans
+ * `declaration_identites.anciennete_tranche`, et en changer un rendrait des réponses illisibles.
  */
 const TRANCHES_ANCIENNETE = [
   { valeur: "Moins d'1 an", libelle: "Moins d'1 an" },
@@ -487,16 +407,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         aide: 'Obligatoire pour une déclaration identifiée. Cochez l’anonymat si vous préférez ne pas y consentir.',
       },
       {
-        /*
-          L'entreprise est demandée MÊME EN ANONYME, et elle est obligatoire.
-
-          L'anonymat protège la personne, pas la société pour laquelle elle travaille : sans le
-          nom de l'entreprise, un grief de sous-traitant ne peut être instruit par personne. Elle
-          n'est donc plus marquée `identite` — sans quoi elle aurait disparu de l'écran dès la
-          case cochée — et elle est stockée sur `dossiers.entreprise`, car
-          `declaration_identites` n'est pas créée pour une déclaration anonyme : l'y ranger
-          l'aurait perdue silencieusement à chaque fois.
-        */
+        // Demandée même en anonyme, et obligatoire : l'anonymat protège la personne, pas la
+        // société. Donc ni `identite`, ni `declaration_identites` — voir EXCEPTIONS_ANONYMAT.
         nom: 'entreprise',
         libelle: 'Entreprise sous-traitante',
         type: 'texte',
@@ -565,18 +477,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         aide: 'Facultatif — quartier, campement, point de repère.',
       },
       {
-        /*
-          ⚠️ STOCKÉ SUR `dossiers`, et plus dans `declaration_identites`.
-
-          Il y était, marqué `identite`, tout en restant affiché sous anonymat — il qualifie la
-          plainte, pas la personne. Or `declaration_identites` n'est PAS créée pour une
-          déclaration anonyme : la réponse était donc exigée à l'écran puis jetée en silence.
-          Cinq des six plaintes riveraines en base n'avaient aucun statut pour cette seule raison.
-
-          Il rejoint l'entreprise du sous-traitant et la ville du riverain, déplacées plus tôt
-          pour ce motif exact. La colonne d'origine est conservée et porte toujours ce que les
-          plaintes identifiées y ont écrit.
-        */
+        // Qualifie la plainte, pas la personne : stocké sur `dossiers`. Marqué `identite`, il
+        // était exigé à l'écran puis jeté en silence sur toute déclaration anonyme.
         nom: 'statutPlaignant',
         libelle: 'Vous êtes',
         type: 'select',
@@ -606,15 +508,10 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         options: CARACTERE_REPETITIF,
       },
       /*
-        Un SEUL champ « Solution souhaitée » ici, et c'est celui d'origine.
+        Un seul champ « Solution souhaitée » ici : la plainte riveraine portait les deux, et le
+        renommage métier de la seconde aurait posé deux fois la même question.
 
-        La plainte riveraine portait les deux : « Solution souhaitée » et « Mesure immédiate ».
-        Le retour métier demande de renommer la seconde en « Solution souhaitée » sur les autres
-        parcours et de la retirer d'ici — sans quoi ce formulaire aurait posé deux fois la même
-        question sous le même intitulé.
-
-        La colonne `proposition_mesure_corrective` reste en base et porte ce que les plaintes
-        déjà déposées y ont écrit : c'est la collecte qui cesse, pas l'historique qui s'efface.
+        La colonne `proposition_mesure_corrective` reste en base et porte l'historique.
       */
       { nom: 'solutionSouhaitee', libelle: 'Solution souhaitée', type: 'zone', etape: 3 },
     ],
@@ -628,20 +525,11 @@ export function estParcoursValide(code: string): code is ParcoursCode {
 }
 
 /**
- * ⚠️ CETTE EXCEPTION EST VIDE, et elle doit le rester.
+ * ⚠️ Cette exception est vide, et doit le rester.
  *
- * `statutPlaignant` y figurait : marqué `identite` pour le stockage, mais réintégré ici pour
- * rester affiché en anonymat. Le montage tenait à l'écran et échouait en base —
- * `declaration_identites` n'est pas créée pour une déclaration anonyme, si bien que la réponse
- * était exigée puis jetée. Le champ est désormais sur `dossiers`, et n'a plus besoin d'exception.
- *
- * Un champ exigé en anonymat ne se marque donc PAS `identite` : il se range sur `dossiers`. Cette
- * liste n'existe plus que pour documenter pourquoi on n'y ajoute rien.
- *
- * ⚠️ L'entreprise du sous-traitant et la ville du riverain, elles aussi exigées en anonyme, ne
- * passent PAS par cette exception : elles ne sont plus marquées `identite` du tout, et sont
- * stockées sur `dossiers`. La différence compte — `declaration_identites` n'est pas créée pour
- * une déclaration anonyme, si bien qu'un champ resté `identite` est affiché puis perdu.
+ * Un champ exigé en anonymat ne se marque PAS `identite` : il se range sur `dossiers`.
+ * `declaration_identites` n'étant pas créée pour une déclaration anonyme, un champ resté
+ * `identite` serait affiché puis perdu — le piège déjà rencontré sur `statutPlaignant`.
  */
 const IDENTITE_CONSERVEE_EN_ANONYME = new Set<string>()
 
@@ -670,13 +558,11 @@ export function champsVisibles(config: ParcoursConfig, anonyme: boolean): Champ[
  * La fiche affichait ces codes tels quels — lisibles pour qui a écrit le formulaire, obscurs pour
  * qui traite un dossier six mois plus tard.
  *
- * ⚠️ La traduction est lue dans la MÊME configuration que celle qui a produit le formulaire : une
- * table de correspondance séparée aurait divergé à la première option ajoutée, et l'écart se
- * serait vu comme un code brut au milieu de libellés français.
+ * Lue dans la même configuration que celle qui a produit le formulaire, pour qu'elles ne
+ * divergent pas.
  *
- * Rend la valeur INCHANGÉE quand aucune option ne correspond — un code inconnu doit rester
- * visible, jamais devenir un tiret. Le cas se produit pour une option retirée de la
- * configuration : les dossiers déjà déposés la portent encore.
+ * Rend la valeur INCHANGÉE si aucune option ne correspond : un code inconnu — option retirée
+ * depuis, mais encore portée par d'anciens dossiers — doit rester visible.
  */
 export function libelleValeur(
   parcours: ParcoursCode,

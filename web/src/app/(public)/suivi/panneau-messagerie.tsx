@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useRetourEnToast } from '@/lib/retour-operation'
 import { Button } from '@/components/ui/button'
 import {
   chargerConversationDeclarant,
@@ -42,6 +43,17 @@ export function PanneauMessagerie() {
 
   // Après un envoi, l'état de l'action fait autorité ; avant, c'est le chargement initial.
   const courant = etat.messages || etat.erreur ? etat : (initial ?? {})
+
+  /*
+   * Deux échecs de nature différente, deux traitements.
+   *
+   * L'échec d'un ENVOI est le retour d'une opération : il part en notification, comme partout
+   * ailleurs. Celui du CHARGEMENT initial reste dans le panneau — il explique pourquoi la
+   * conversation est vide, et une notification qui s'efface laisserait un panneau muet sans
+   * jamais dire pourquoi.
+   */
+  useRetourEnToast(etat)
+  const erreurDeChargement = courant === etat ? undefined : courant.erreur
   const messages = courant.messages ?? []
 
   return (
@@ -65,9 +77,9 @@ export function PanneauMessagerie() {
         ))}
       </div>
 
-      {courant.erreur && (
+      {erreurDeChargement && (
         <Alert variant="destructive" role="alert" className="mt-4">
-          <AlertDescription>{courant.erreur}</AlertDescription>
+          <AlertDescription>{erreurDeChargement}</AlertDescription>
         </Alert>
       )}
 

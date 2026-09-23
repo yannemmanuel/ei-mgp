@@ -4,18 +4,12 @@ import path from 'node:path'
 /**
  * Stockage des pièces jointes.
  *
- * Le dispositif précédent écrivait sur un disque local. Celui-ci est
- * destiné à un hébergement serverless, où **le système de fichiers est en lecture seule** hors
- * `/tmp`, lui-même éphémère : une écriture y échouerait, et un fichier écrit disparaîtrait à
- * l'invocation suivante.
+ * L'hébergement est serverless : le système de fichiers y est en lecture seule hors `/tmp`,
+ * lui-même éphémère. D'où cette abstraction — le magasin retenu est enregistré dans
+ * `pieces_jointes.disque`, si bien qu'une pièce écrite hier reste lisible si le défaut change.
  *
- * D'où cette abstraction. Le magasin retenu est enregistré dans `pieces_jointes.disque`, colonne
- * qui existait déjà pour cet usage — une pièce écrite hier reste donc lisible même si le magasin
- * par défaut change demain.
- *
- * ⚠️ Aucun fichier n'est jamais servi par une URL de stockage directe
- * (`docs/exigences-securite.md` §3) : la lecture passe par une route qui revérifie la Policy du
- * dossier parent.
+ * ⚠️ Aucun fichier n'est servi par une URL de stockage directe (`exigences-securite.md` §3) : la
+ * lecture passe par une route qui revérifie la Policy du dossier parent.
  */
 export type NomMagasin = 'local' | 'blobs'
 
@@ -26,15 +20,12 @@ export interface MagasinFichiers {
   /**
    * Efface un fichier. **IDEMPOTENT** : un fichier déjà absent n'est pas une erreur.
    *
-   * ⚠️ AJOUTÉ POUR L'ANONYMISATION RGPD (2026-09-22), et c'est le seul appelant. L'application
-   * n'offre aucune suppression de pièce jointe à ses utilisateurs — RG-03 interdit de supprimer
-   * un dossier, et une pièce qui disparaîtrait d'un dossier vivant rendrait son instruction
-   * incompréhensible. Ne pas ouvrir ce geste ailleurs sans une raison écrite.
+   * ⚠️ Seul appelant : l'anonymisation RGPD. Aucune suppression de pièce n'est offerte aux
+   * utilisateurs — ne pas ouvrir ce geste ailleurs sans une raison écrite.
    *
-   * ⚠️ L'IDEMPOTENCE EST LOAD-BEARING. L'anonymisation ne marque un dossier comme traité que si
-   * TOUTES ses pièces ont été effacées ; une exécution interrompue à mi-chemin est donc rejouée,
-   * et retombera sur des fichiers déjà partis. Lever à ce moment-là bloquerait définitivement le
-   * dossier, effacé pour moitié et jamais marqué.
+   * ⚠️ L'idempotence est NÉCESSAIRE : l'anonymisation ne marque un dossier traité que si toutes
+   * ses pièces sont parties, donc une exécution interrompue est rejouée sur des fichiers déjà
+   * absents. Lever alors bloquerait définitivement le dossier, effacé pour moitié.
    */
   supprimer(chemin: string): Promise<void>
   /**

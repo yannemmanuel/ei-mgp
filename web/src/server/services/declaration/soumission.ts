@@ -9,16 +9,13 @@ import { autoriserTentative, cleThrottle } from '@/server/auth/throttle'
 import { verifierHorodatage } from '@/server/auth/horodatage-signe'
 
 /**
- * Traitement d'une soumission de déclaration, commun aux DEUX voies d'entrée :
+ * Traitement d'une soumission, commun au formulaire public et à la saisie relais (EX-DEC-10).
  *
- * - le formulaire PUBLIC `/declarer/{parcours}`, non authentifié ;
- * - la saisie RELAIS `/relais/{parcours}`, réservée à un agent authentifié (EX-DEC-10).
+ * Partagé parce que RG-13 exige qu'une déclaration reçue par un canal relais suive exactement le
+ * même workflow : deux implémentations divergeraient, et la divergence porterait sur des règles
+ * de sûreté.
  *
- * Le partage n'est pas une commodité : RG-13 exige qu'une déclaration reçue par un canal relais
- * suive **exactement le même workflow** qu'une déclaration directe. Deux implémentations
- * finiraient par diverger, et la divergence porterait sur des règles de sûreté.
- *
- * Ce module ne vérifie AUCUNE autorisation : l'appelant relais le fait avant d'entrer ici.
+ * ⚠️ Ne vérifie AUCUNE autorisation : l'appelant relais le fait avant d'entrer ici.
  */
 
 /** Canaux proposés à l'agent relais — le QR code n'en fait évidemment pas partie. */
@@ -286,20 +283,16 @@ export async function traiterSoumission(
 }
 
 /**
- * Le piège du client Prisma périmé, nommé DANS LA CONSOLE DU SERVEUR.
+ * Le piège du client Prisma périmé, nommé dans la CONSOLE DU SERVEUR.
  *
- * Turbopack ne resurveille pas `node_modules` : un serveur de développement démarré AVANT une
- * migration garde en mémoire le client Prisma d'alors, qui ignore les colonnes ajoutées depuis.
- * L'écriture est refusée, le code est pourtant juste, la base est à jour, et rien ne le dit. Ce
- * piège a coûté trois incidents ; le nommer économise une demi-heure à chaque fois.
+ * Turbopack ne resurveille pas `node_modules` : un serveur démarré avant une migration garde le
+ * client d'alors, qui ignore les colonnes ajoutées depuis. L'écriture échoue, le code est juste,
+ * la base est à jour, et rien ne le dit.
  *
- * ⚠️ Rien de ceci n'atteint l'écran, et c'est délibéré. Ce formulaire est public : un message
- * d'erreur de base de données y révélerait des noms de colonnes et la forme des requêtes, à
- * quelqu'un qui vient signaler un accident et n'a besoin que d'une chose — savoir que rien n'est
- * perdu. Le destinataire de ce texte est celui qui lit le terminal, pas celui qui déclare.
+ * ⚠️ Rien n'atteint l'écran : ce formulaire est public, et un message de base de données y
+ * révélerait des noms de colonnes à quelqu'un venu signaler un accident.
  *
- * Renvoie `null` quand la panne est d'une autre nature : l'erreur brute, déjà journalisée juste
- * avant, se suffit alors à elle-même.
+ * Renvoie `null` pour toute autre panne — l'erreur brute, déjà journalisée, se suffit.
  */
 export function indiceClientPerime(erreur: unknown): string | null {
   const message = erreur instanceof Error ? erreur.message : String(erreur)
@@ -361,17 +354,12 @@ async function controlesAntiRobot(donnees: FormData): Promise<EtatSoumission | n
   }
 
   /*
-    ⚠️ L'HORODATAGE EST VÉRIFIÉ AVANT D'ÊTRE LU, et c'est toute la correction (S2, 2026-09-22).
-
-    Il était posé par le NAVIGATEUR : le délai minimal se contournait en postant
-    « maintenant − 10 ». La valeur est maintenant produite et signée au rendu de la page ; une
-    valeur forgée n'a pas de signature valide, et une valeur récoltée une fois ne se rejoue pas
+    ⚠️ L'horodatage est vérifié AVANT d'être lu : posé par le navigateur, le délai minimal se
+    contournait en postant « maintenant − 10 ». Signé au rendu, il n'est ni forgeable ni rejouable
     au-delà de sa fenêtre.
 
-    ⚠️ DEUX REFUS DISTINCTS, ET DEUX MESSAGES DISTINCTS. Une signature invalide trahit une
-    manipulation — on ne dit pas laquelle, et surtout on ne conseille pas de « réessayer », ce qui
-    guiderait celui qui cherche. Un envoi trop rapide est le fait d'un humain pressé, et mérite
-    l'invitation à recommencer.
+    ⚠️ Deux refus, deux messages. Une signature invalide trahit une manipulation : on ne conseille
+    pas de « réessayer », ce qui guiderait celui qui cherche.
   */
   const horodatage = verifierHorodatage(String(donnees.get('horodatageAffichage') ?? ''))
 

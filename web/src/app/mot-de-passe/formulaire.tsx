@@ -1,11 +1,11 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { actionChangerMotDePasse, type EtatMotDePasse } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 const ETAT: EtatMotDePasse = {}
 
@@ -21,6 +21,7 @@ export function FormulaireMotDePasse({
   octetsMaximum: number
 }) {
   const [etat, envoyer, enCours] = useActionState(actionChangerMotDePasse, ETAT)
+  useRetourEnToast(etat)
   const [nouveau, setNouveau] = useState('')
   const [confirmation, setConfirmation] = useState('')
 
@@ -89,11 +90,6 @@ export function FormulaireMotDePasse({
         )}
       </div>
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" disabled={enCours || tropCourt || tropLong || divergent}>
         {enCours ? 'Enregistrement…' : 'Changer mon mot de passe'}

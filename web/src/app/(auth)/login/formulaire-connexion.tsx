@@ -1,16 +1,17 @@
 'use client'
 
 import { useActionState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { seConnecter, type EtatConnexion } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 const ETAT_INITIAL: EtatConnexion = {}
 
 export function FormulaireConnexion() {
   const [etat, action, enCours] = useActionState(seConnecter, ETAT_INITIAL)
+  useRetourEnToast(etat)
 
   return (
     <form action={action} className="mt-6 space-y-4">
@@ -30,11 +31,6 @@ export function FormulaireConnexion() {
         />
       </div>
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" disabled={enCours} className="w-full">
         {enCours ? 'Connexion…' : 'Se connecter'}

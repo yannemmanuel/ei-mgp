@@ -28,27 +28,12 @@ import { MODELES } from '@/server/modeles'
 /**
  * Rôles auto-affectés au captage selon le parcours (CDC §5.1/§5.2, EX-GES-02).
  *
- * ⚠️ L'ÉVÈNEMENT INDÉSIRABLE N'EST PLUS AFFECTÉ — liste vide, et c'est une décision, pas un oubli.
+ * ⚠️ Les quatre listes sont VIDES : plus aucune déclaration n'est affectée à la création
+ * (décision du 2026-09-20). Une déclaration revient à tous ceux dont le rôle ouvre ce type et
+ * dont le rattachement couvre le dossier — il n'y a plus de destinataire nommé.
  *
- * Son traitement revient au chargé de sécurité du site, qui complète le dossier après chaque
- * comité. Il voit tous les évènements de son site par le cloisonnement (`authz/site.ts`) et n'a
- * besoin d'aucune affectation pour cela : en créer une n'aurait nommé qu'un responsable de plus
- * dans un circuit qui n'en demande pas, et lui en aurait masqué d'autres dans « mes dossiers ».
- *
- * Conséquence assumée : un évènement indésirable reste au statut « reçu » à sa création. Il
- * n'est pas en attente d'un destinataire — il attend d'être traité par qui le voit déjà.
- */
-/**
- * ⚠️ PLUS AUCUNE DÉCLARATION N'EST AFFECTÉE — les quatre listes sont vides.
- *
- * L'évènement indésirable avait cessé de l'être le premier ; la même logique vaut pour les griefs
- * depuis le 2026-09-20, le circuit des EI ayant fait ses preuves. Une déclaration revient
- * désormais à tous ceux dont l'habilitation de rôle ouvre ce type ET dont le rattachement couvre
- * le dossier. Il n'y a plus de destinataire nommé à la création.
- *
- * ⚠️ LA TABLE RESTE, ET LA FONCTION AUSSI. `dossier_affectations` porte les affectations déjà
- * écrites, que « mes dossiers » continue de lire ; et rendre la liste non vide suffit à remettre
- * un parcours sous affectation automatique, sans rien réécrire.
+ * La table et la fonction restent : rendre une liste non vide suffit à remettre un parcours sous
+ * affectation automatique.
  */
 const ROLES_AFFECTATION_AUTOMATIQUE: Record<ParcoursCode, readonly string[]> = {
   ei_employe: [],
@@ -297,29 +282,13 @@ export async function creerDeclaration(params: {
       },
     })
 
-    /*
-      ⚠️ AFFECTER NE CHANGE PLUS LE STATUT — « Affecté » a quitté le circuit le 2026-09-21.
-
-      Une déclaration reste à « Reçu » jusqu'à ce que quelqu'un l'analyse, quel que soit le type.
-      C'est l'état dans lequel elle attend d'être traitée, et non l'attente d'un destinataire :
-      elle revient déjà à tous ceux dont l'habilitation ouvre ce type et dont le rattachement la
-      couvre.
-
-      L'appel SUBSISTE, et la fonction aussi : elle écrit `dossier_affectations` et prévient les
-      titulaires (EX-NOT-01). Rendre non vide l'une des quatre listes de
-      `ROLES_AFFECTATION_AUTOMATIQUE` suffit donc à remettre un type sous affectation automatique
-      — ce qui lui nommera des destinataires, sans pour autant lui inventer un état de plus.
-    */
+    // ⚠️ Affecter ne change plus le statut : une déclaration reste à « Reçu » jusqu'à ce que
+    // quelqu'un l'analyse. L'appel subsiste — il écrit `dossier_affectations` et prévient les
+    // titulaires (EX-NOT-01).
     await affecterAutomatiquement(tx, dossier.id, dossier.categorie_id, params.parcours)
 
-    /*
-      Sans gravité, aucun circuit accéléré à la création — et c'est voulu.
-
-      L'évènement indésirable n'en porte plus au dépôt (EI8). Le déclenchement de RG-08 se
-      reporte alors sur `qualifierGravite()`, au moment où quelqu'un qui connaît l'échelle la
-      renseigne. Présumer « non critique » ici serait faux ; présumer « critique » alerterait la
-      Direction à chaque signalement. On ne présume rien : on attend de savoir.
-    */
+    // Sans gravité, aucun circuit accéléré ici : RG-08 se déclenche à `qualifierGravite()`.
+    // Présumer « non critique » serait faux, « critique » alerterait à chaque signalement.
     const gravite =
       d.niveauGraviteId === null
         ? null
@@ -328,14 +297,6 @@ export async function creerDeclaration(params: {
             select: { effet_circuit: true },
           })
 
-    /*
-      ⚠️ `aEteAffecte` A ÉTÉ RETIRÉ DU RETOUR le 2026-09-21, avec le statut « Affecté ».
-
-      Il valait `false` depuis le 2026-09-20 — plus aucun type n'étant affecté automatiquement —
-      et aucun appelant ne le lisait : vérifié dans tout `src`, il n'avait plus un seul lecteur.
-      Un drapeau toujours faux que personne ne consulte finit par être cru sur parole par le
-      prochain à le lire.
-    */
     return {
       dossierId: dossier.id,
       reference: dossier.reference,
@@ -346,16 +307,12 @@ export async function creerDeclaration(params: {
   /*
     EX-NOT-01 : les titulaires sont prévenus de ce qui leur est confié.
 
-    ⚠️ CET APPEL A FAILLI SE PERDRE DEUX FOIS. Il vivait d'abord dans la réaffectation manuelle,
-    supprimée ; reporté ici, il était conditionné à `aEteAffecte`, et cette condition n'est plus
-    jamais vraie depuis que plus aucune déclaration n'est affectée (2026-09-20). Aucun titulaire
-    n'aurait plus été prévenu d'une nouvelle déclaration, et rien ne l'aurait signalé.
+    ⚠️ Appel INCONDITIONNEL : le conditionner à une affectation n'aurait plus jamais prévenu
+    personne depuis que rien n'est affecté. Les destinataires se déduisent du rattachement, et la
+    fonction ne fait rien quand il n'y en a aucun.
 
-    ⚠️ APPEL INCONDITIONNEL désormais. Les destinataires se déduisent du rattachement — voir
-    `titulairesDuDossier()` — et la fonction ne fait rien quand il n'y en a aucun.
-
-    Comme RG-08 ci-dessous : APRÈS le commit. Notifier depuis l'intérieur de la transaction
-    enverrait des messages pour un dossier qui pourrait encore être annulé.
+    Après le commit, comme RG-08 : notifier depuis la transaction enverrait des messages pour un
+    dossier encore annulable.
   */
   await surAffectation(resultat.dossierId)
 
@@ -369,11 +326,10 @@ export async function creerDeclaration(params: {
 }
 
 /**
- * Site auquel appartient une direction.
+ * Site auquel appartient une direction, `null` si elle est inconnue ou orpheline.
  *
- * Renvoie `null` si la direction est inconnue ou n'est rattachée à aucun site. Un dossier sans
- * site n'est visible que des rôles transverses : c'est le comportement décidé, et l'écran
- * d'administration des directions signale celles qui restent orphelines.
+ * Un dossier sans site n'est visible que des rôles transverses ; l'écran d'administration
+ * signale les directions orphelines.
  */
 async function siteDeLaDirection(
   tx: ClientTransaction,
@@ -398,16 +354,12 @@ async function siteDeLaDirection(
  * structurellement par l'indexation de `sla_delais` sur le parcours seul.
  *
  * Tous les utilisateurs actifs portant le rôle sont affectés : le CDC ne borne pas leur nombre
- * et ne décrit aucun algorithme de répartition, qu'il serait donc arbitraire d'inventer.
+ * et ne décrit aucune répartition.
  *
- * ⚠️ Mais porter le rôle ne suffit plus : depuis que le parcours se confie personne par personne,
- * seuls les comptes RÉELLEMENT habilités sur ce parcours sont affectés. Sans ce filtre, le
- * dossier serait confié à quelqu'un dont le périmètre l'empêche de l'ouvrir — affecté et
- * introuvable à la fois, ce qui est pire que non affecté : personne ne le réclamerait.
- *
- * Conséquence à connaître : tant qu'aucun compte n'est habilité sur un parcours, ses déclarations
- * restent au statut « reçu », sans destinataire. C'est visible — le tableau de bord compte les
- * dossiers non affectés — là où une affectation à un aveugle ne l'était pas.
+ * ⚠️ Mais porter le rôle ne suffit pas : seuls les comptes réellement habilités sur ce parcours
+ * le sont, faute de quoi le dossier serait confié à quelqu'un qui ne peut pas l'ouvrir —
+ * affecté et introuvable à la fois. Tant qu'aucun compte ne l'est, les déclarations restent
+ * « reçu » sans destinataire, ce que le tableau de bord compte.
  */
 async function affecterAutomatiquement(
   tx: ClientTransaction,
@@ -447,14 +399,9 @@ async function affecterAutomatiquement(
     },
   })
 
-  /*
-    TOUS les rôles de chaque candidat, pas seulement celui du captage.
-
-    `model_has_roles` est POLYMORPHE : reliée par `model_id` + `model_type`,
-    elle n'est pas une relation Prisma et se lit à part. Elle est nécessaire ici parce qu'un rôle
-    transverse dispense d'attribution — le lire depuis `liens`, filtré sur les rôles de captage,
-    ne le montrerait jamais.
-  */
+  // TOUS les rôles de chaque candidat, pas seulement celui du captage : un rôle transverse
+  // dispense d'attribution, et `liens` — filtré sur le captage — ne le montrerait jamais.
+  // `model_has_roles` est polymorphe, donc lue à part.
   const tousLesLiens = await tx.model_has_roles.findMany({
     where: { model_type: MODEL_TYPE_USER, model_id: { in: candidats.map((c) => c.id) } },
     select: {
@@ -469,14 +416,8 @@ async function affecterAutomatiquement(
           role_has_permissions: {
             select: { permissions: { select: { name: true } } },
           },
-          /*
-            ⚠️ LES TYPES DE DÉCLARATION VIENNENT DU RÔLE, plus de l'attribution par personne.
-
-            Ce filtre lisait `utilisateur_parcours`, la table d'attribution individuelle — qui
-            n'entre plus dans aucune décision depuis le 2026-09-20 et n'est plus tenue à jour.
-            L'affectation automatique aurait donc suivi un périmètre différent de celui de la
-            lecture, sur la seule table que plus personne ne regarde.
-          */
+          // ⚠️ Les types viennent du RÔLE : lire `utilisateur_parcours`, qui n'est plus tenue à
+          // jour, ferait suivre à l'affectation un périmètre différent de celui de la lecture.
           role_parcours: {
             where: { parcours: { actif: true } },
             select: { parcours: { select: { code: true } } },
@@ -542,23 +483,13 @@ async function affecterAutomatiquement(
   )
 
   /*
-    ⚠️ ET DU MÊME RATTACHEMENT que le dossier. C'est la seconde moitié de la règle métier :
-    l'affectation suit le formulaire ET le rattachement.
+    ⚠️ Et du même RATTACHEMENT que le dossier : l'affectation suit le formulaire ET le
+    rattachement, sans quoi une déclaration est confiée aux correspondants de tous les sites,
+    à qui la lecture la masque ensuite.
 
-    « On peut être habilité sur un site, c'est-à-dire plusieurs directions à la fois, ou sur une
-    seule direction. Dans ce cas, on ne reçoit que les déclarations de la direction sur laquelle
-    on est habilité. »
-
-    Sans ce filtre, une déclaration déposée sur un site était confiée à tous les correspondants
-    de tous les sites — chacun la voyait dans « ses » dossiers, et personne ne savait qui la
-    traitait. Le cloisonnement en lecture la leur masquait ensuite, si bien qu'ils étaient
-    affectés à un dossier qu'ils ne pouvaient pas ouvrir.
-
-    ⚠️ LES MÊMES FONCTIONS que celles qui décident de l'accès en lecture, et non une règle
-    recopiée. La version précédente redérivait le site à la main et affectait à TOUT LE MONDE un
-    dossier sans site (`siteDuDossier === null`) — or `peutVoirDossier()` le refuse justement à
-    tout compte borné. Elle reproduisait donc exactement le défaut qu'elle prétendait corriger :
-    des comptes affectés à des dossiers qu'ils ne peuvent pas ouvrir.
+    ⚠️ Via les MÊMES fonctions que l'accès en lecture, jamais une règle recopiée : la version
+    qui redérivait le site à la main affectait à tout le monde les dossiers sans site — le défaut
+    exact qu'elle prétendait corriger.
   */
   const {
     site_id: siteDuDossier,
@@ -571,15 +502,11 @@ async function affecterAutomatiquement(
 
   const utilisateurs = surLeParcours.filter((u) => {
     /*
-      DT-06 : le DÉCLARANT identifié n'est jamais affecté à son propre dossier.
+      DT-06 : le déclarant identifié n'est jamais affecté à son propre dossier — sans quoi un
+      correspondant qui dépose un grief en instruirait lui-même le signalement.
 
-      ⚠️ Cette règle ne vivait que dans la réaffectation manuelle, qui vient d'être supprimée.
-      Sans ce filtre elle disparaîtrait avec elle — et un correspondant qui déclare un grief se
-      verrait confier l'instruction de son propre signalement. Le retrait d'une fonction ne doit
-      pas emporter une garantie qui ne s'y trouvait que par accident.
-
-      Ne concerne que les déclarations IDENTIFIÉES : une déclaration anonyme n'est rattachée à
-      aucun compte (RG-06), et `declarant_user_id` y est nul.
+      Ne concerne que les déclarations identifiées : une déclaration anonyme n'est rattachée à
+      aucun compte (RG-06).
     */
     if (declarantId !== null && u.id === declarantId) return false
 

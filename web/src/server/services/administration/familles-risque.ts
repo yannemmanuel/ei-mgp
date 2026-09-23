@@ -6,16 +6,9 @@ import { nomTechnique } from './habilitations'
 /**
  * Quels TYPES de déclaration demandent une famille de risque à leurs traitants.
  *
- * ⚠️ CE RÉGLAGE EST NÉ D'UN RETRAIT. Le métier a demandé de retirer les familles de risque des
- * évènements indésirables — leur nomenclature propre, catégorie au dépôt et gravité à la
- * qualification, dit déjà ce qu'il faut en savoir — « mais en laissant une possibilité de
- * paramétrage dans le back-office ». L'écrire dans le code aurait demandé un déploiement pour le
- * défaire ; il se coche ici, type par type.
- *
- * ⚠️ DÉCOCHER RETIRE DU CHOIX, JAMAIS DU PASSÉ. C'est la règle de tous les référentiels de cette
- * application : les dossiers qui portent déjà une famille la gardent, et leur fiche continue de
- * l'afficher. Seule la POSE devient impossible — et le retrait reste ouvert, sans quoi un dossier
- * qualifié avant la bascule resterait enfermé avec une donnée qu'on ne peut plus défaire.
+ * ⚠️ Décocher retire du CHOIX, jamais du passé : les dossiers qui portent déjà une famille la
+ * gardent et continuent de l'afficher. Seule la pose devient impossible — le retrait reste
+ * ouvert, sans quoi un dossier qualifié avant la bascule resterait enfermé avec sa valeur.
  */
 
 export type TypeDeclaration = {
@@ -29,11 +22,8 @@ export type TypeDeclaration = {
   /**
    * Familles que ce type propose RÉELLEMENT : les siennes, plus celles de « tous les types ».
    *
-   * ⚠️ C'est ce chiffre qui dit si cocher la case sert à quelque chose. Un type coché qui ne
-   * propose rien affiche aux traitants une carte vide, sans message — la panne silencieuse que cet
-   * écran doit rendre visible. Calculé ICI plutôt que dans la page : le déduire à l'écran
-   * demandait d'apparier les types aux familles par leur libellé, ce qui casse au premier
-   * renommage.
+   * ⚠️ Ce chiffre dit si cocher la case sert à quelque chose : un type coché qui ne propose rien
+   * affiche une carte vide, sans message. Calculé ici, l'écran devant sinon apparier par libellé.
    */
   readonly famillesProposees: number
 }
@@ -134,13 +124,11 @@ export async function chargerParametrageFamillesRisque(): Promise<ParametrageFam
 /**
  * Coche ou décoche « ce type de déclaration qualifie une famille de risque ».
  *
- * ⚠️ CE GESTE CHANGE CE QUE VOIENT LES TRAITANTS, immédiatement : le réglage est relu à chaque
- * ouverture de fiche. Décocher fait disparaître la carte de qualification de tous les dossiers du
- * type, et sort ce type de la répartition du tableau de bord.
+ * ⚠️ Effet immédiat : décocher fait disparaître la carte de qualification de tous les dossiers du
+ * type, et le sort de la répartition du tableau de bord.
  *
- * ⚠️ L'ABSENCE DE LIGNE VAUT « NON ». La liste reçue décrit l'état complet — un type absent est
- * décoché, jamais « laissé tel quel ». Un formulaire de cases à cocher n'envoie pas les cases
- * décochées ; les interpréter comme « ne pas toucher » rendrait tout décochage impossible.
+ * ⚠️ L'absence vaut « non » : la liste reçue décrit l'état complet. Un formulaire n'envoie pas ses
+ * cases décochées, et les lire comme « ne pas toucher » rendrait tout décochage impossible.
  */
 export async function modifierTypesQualifiants(
   acteur: { id: bigint },
@@ -171,16 +159,8 @@ export async function modifierTypesQualifiants(
     })
   }
 
-  /*
-    ⚠️ UNE SEULE ENTRÉE DE JOURNAL, qui porte l'état AVANT et APRÈS de tous les types.
-
-    Une entrée par type aurait éclaté un geste unique en quatre lignes qu'il aurait fallu recoller
-    pour comprendre ce qui a été voulu.
-
-    Le journal l'affiche « Type de déclaration modifié » : l'objet `parcours` a été ajouté à la
-    table des libellés, qu'un cas dédié tient synchronisée avec les codes que le code sait écrire.
-    Les valeurs ci-dessous disent exactement ce qui a changé, type par type.
-  */
+  // ⚠️ Une SEULE entrée de journal, portant l'état avant et après de tous les types : une entrée
+  // par type éclaterait un geste unique en quatre lignes qu'il faudrait recoller.
   await journaliser({
     action: 'parcours.modifie',
     acteurId: acteur.id,
@@ -222,14 +202,11 @@ async function verifierParcours(parcoursId: bigint | null): Promise<void> {
 /**
  * Le code technique d'une famille, dérivé de son libellé.
  *
- * ⚠️ IL N'EST PAS SAISI, et c'est délibéré. Aucun code applicatif ne cite un code de famille —
- * vérifié : les neuf livrées ne sont nommées nulle part dans `src`. Le demander à l'administrateur
- * n'aurait servi qu'à lui faire inventer une valeur technique dont rien ne dépend, avec le risque
- * de collisions qu'il n'aurait aucun moyen d'anticiper.
+ * Jamais saisi : aucun code applicatif ne cite un code de famille, et le demander reviendrait à
+ * faire inventer une valeur technique dont rien ne dépend.
  *
- * ⚠️ Il reste UNIQUE et IMMUABLE : c'est la clé de rapprochement du journal d'audit, qui est en
- * ajout seul. Renommer une famille change son libellé, jamais son code — sans quoi les lignes
- * déjà écrites désigneraient une entrée qu'on ne retrouverait plus.
+ * ⚠️ Unique et IMMUABLE : c'est la clé de rapprochement du journal, qui est en ajout seul.
+ * Renommer une famille change son libellé, jamais son code.
  */
 function codeDepuisLibelle(libelle: string): string {
   return nomTechnique(libelle).slice(0, 64)
@@ -238,13 +215,9 @@ function codeDepuisLibelle(libelle: string): string {
 /**
  * Un code libre, dérivé du libellé — suffixé par le type si la base le porte déjà.
  *
- * ⚠️ LE RATTACHEMENT REND LES COLLISIONS NORMALES. « Autre » réservée au grief employé et
- * « Autre » réservée au grief communautaire sont deux familles légitimes et distinctes ; le code
- * est pourtant unique en base. Refuser la seconde aurait obligé à inventer un libellé bancal pour
- * contourner une contrainte technique — c'est le code qui doit s'adapter, pas le libellé.
- *
- * Le suffixe n'est ajouté QU'EN CAS DE COLLISION : les codes déjà écrits ne bougent pas, et un
- * libellé sans homonyme garde un code lisible.
+ * ⚠️ Les collisions sont NORMALES : « Autre » réservée au grief employé et « Autre » réservée au
+ * communautaire sont deux familles légitimes, et c'est au code de s'adapter, pas au libellé. Le
+ * suffixe n'est ajouté qu'en cas de collision.
  */
 async function codeLibre(libelle: string, parcoursId: bigint | null): Promise<string> {
   const base = codeDepuisLibelle(libelle)
@@ -283,20 +256,15 @@ async function codeLibre(libelle: string, parcoursId: bigint | null): Promise<st
 }
 
 /**
- * ⚠️ AUCUN TYPE QUALIFIANT NE DOIT SE RETROUVER SANS AUCUNE FAMILLE À PROPOSER.
+ * ⚠️ Aucun type qualifiant ne doit se retrouver sans aucune famille à proposer.
  *
- * Le trou que cette garde ferme est silencieux : un type coché dont plus aucune famille n'est
- * proposée affiche une carte de qualification VIDE — ou, selon le chemin, ne l'affiche plus du
- * tout. Le traitant voit alors disparaître une étape de son travail sans qu'aucun message ne
- * l'explique, et l'administrateur, lui, voit toujours la case cochée.
+ * Le trou est silencieux : le traitant voit une carte vide, l'administrateur voit la case cochée.
  *
- * ⚠️ VÉRIFIÉ TYPE PAR TYPE depuis le rattachement (2026-09-22). La garde comptait les familles
- * actives GLOBALEMENT : elle se taisait dès qu'il en restait une, même réservée à un autre type.
- * Retirer la dernière famille du grief communautaire passait donc sans un mot tant qu'il restait
- * une famille pour les salariés — exactement la situation qu'elle existe pour empêcher.
+ * ⚠️ Vérifié TYPE PAR TYPE : compter les familles actives globalement se taisait dès qu'il en
+ * restait une, même réservée à un autre type.
  *
- * Deux issues sont laissées ouvertes, et c'est ce qui rend la garde acceptable : décocher le type
- * concerné, ou lui proposer une autre famille. Le message nomme le type.
+ * Deux issues restent ouvertes — décocher le type, ou lui proposer une famille — et le message
+ * nomme le type concerné.
  */
 async function refuserSiPlusAucuneFamilleProposable(exclureId: bigint): Promise<void> {
   const typesQualifiants = await prisma.parcours.findMany({

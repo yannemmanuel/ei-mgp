@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
 import { actionModifierTypesQualifiants, type EtatFamilles } from './actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 export type TypeVue = {
   code: string
@@ -29,6 +30,7 @@ const ETAT: EtatFamilles = {}
  */
 export function PanneauTypes({ types }: { types: TypeVue[] }) {
   const [etat, envoyer, enCours] = useActionState(actionModifierTypesQualifiants, ETAT)
+  useRetourEnToast(etat)
   const [coches, setCoches] = useState<string[]>(() =>
     types.filter((t) => t.qualifieLaFamille).map((t) => t.code)
   )
@@ -160,17 +162,7 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
             </Alert>
           )}
 
-          {etat.erreur && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>{etat.erreur}</AlertDescription>
-            </Alert>
-          )}
 
-          {etat.succes && (
-            <Alert role="status">
-              <AlertDescription>{etat.succes}</AlertDescription>
-            </Alert>
-          )}
 
           <Button type="submit" size="sm" disabled={enCours}>
             {enCours ? 'Enregistrement…' : 'Enregistrer'}

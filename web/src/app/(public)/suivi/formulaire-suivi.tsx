@@ -1,12 +1,12 @@
 'use client'
 
 import { useActionState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { quitterLeSuivi, rechercherDossier, type EtatSuivi } from './actions'
 import { PanneauMessagerie } from './panneau-messagerie'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 const ETAT_INITIAL: EtatSuivi = {}
 
@@ -15,6 +15,7 @@ const dateFr = (iso: string) =>
 
 export function FormulaireSuivi() {
   const [etat, action, enCours] = useActionState(rechercherDossier, ETAT_INITIAL)
+  useRetourEnToast(etat)
 
   if (etat.dossier) {
     const d = etat.dossier
@@ -84,11 +85,6 @@ export function FormulaireSuivi() {
         />
       </div>
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" disabled={enCours} className="w-full">
         {enCours ? 'Recherche…' : 'Consulter mon dossier'}

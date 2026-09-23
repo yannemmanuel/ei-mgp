@@ -360,8 +360,7 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                   // porter aucune. Le dire explicitement évite de laisser croire à un défaut
                   // d'affichage — et oriente vers le seul endroit où l'obtenir.
                   <p className="text-sm text-muted-foreground">
-                    Aucune description n’a été saisie lors de la déclaration. La messagerie du
-                    dossier permet d’en demander une au déclarant, s’il n’est pas anonyme.
+                    Aucune description n’a été saisie. La messagerie permet d’en demander une au déclarant.
                   </p>
                 ) : (
                   <p className="whitespace-pre-line text-sm text-secondary-700">

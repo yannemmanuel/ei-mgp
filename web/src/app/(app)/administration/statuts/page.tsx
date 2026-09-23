@@ -16,7 +16,7 @@ export default async function PageStatuts() {
   return (
     <EditeurReferentiel
       titre="Statuts"
-      description="Le libellé affiché est celui que voit le déclarant — le modifier ici le change partout, tout de suite. Désactiver un statut le retire des changements d’état proposés ; les dossiers qui s’y trouvent y restent et continuent d’en sortir."
+      description="Le libellé affiché est celui que voit le déclarant. Désactiver un statut le retire des changements d’état proposés, sans déplacer les dossiers qui s’y trouvent."
       colonnes={['Code', 'Libellé interne', 'Libellé affiché', 'Ordre', 'Terminal', 'État']}
       lignes={statuts.map((s) => ({
         id: String(s.id),

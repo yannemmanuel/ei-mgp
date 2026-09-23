@@ -20,10 +20,8 @@ const MODEL_TYPE_USER = MODELES.utilisateur
 /**
  * Ce qu'il faut savoir d'un dossier pour dire qui en répond.
  *
- * ⚠️ LE TYPE DE DÉCLARATION EN FAIT PARTIE depuis le 2026-09-20. Le rattachement ne suffit plus :
- * plus aucune déclaration n'est affectée, et la charge se lit désormais « habilité sur ce type,
- * et rattaché à ce site ou à cette direction ». Un correspondant DRH et un chargé de sécurité
- * peuvent couvrir le même site sans répondre des mêmes dossiers.
+ * ⚠️ Le TYPE en fait partie : la charge se lit « habilité sur ce type, et rattaché à ce site ou
+ * à cette direction ». Deux rôles peuvent couvrir le même site sans répondre des mêmes dossiers.
  */
 export type RattachementDossier = {
   readonly parcoursCode: ParcoursCode
@@ -42,31 +40,20 @@ export type RattachementDossier = {
 /**
  * Qui a la charge d'un évènement indésirable.
  *
- * L'évènement indésirable n'est affecté à personne : son traitement revient au chargé de sécurité
- * dont le RATTACHEMENT couvre le dossier, et qui le complète après chaque comité. « La personne en
- * charge » ne se lit donc pas dans `dossier_affectations` — cette table est vide pour ce parcours —
- * mais se déduit du rattachement.
+ * Il n'est affecté à personne : la charge se déduit du RATTACHEMENT, `dossier_affectations` étant
+ * vide pour ce parcours.
  *
- * ⚠️ Renvoie une LISTE, pas une personne. Rien n'impose qu'un rattachement n'ait qu'un chargé de
- * sécurité, ni qu'il en ait un : les deux cas se produisent, et l'écran doit pouvoir dire
- * « personne » plutôt que d'afficher un vide qu'on lira comme un défaut d'affichage.
+ * ⚠️ Renvoie une LISTE, éventuellement vide : rien n'impose qu'un rattachement ait un et un seul
+ * chargé de sécurité, et l'écran doit pouvoir dire « personne ».
  *
- * ⚠️ FILTRÉ PAR `rattachementCouvre()`, la même fonction que l'affectation et la lecture. Les deux
- * versions précédentes filtraient à la main, et toutes deux se trompaient :
- *
- *   - elles ignoraient la DIRECTION, donc un chargé de sécurité habilité sur une direction
- *     n'apparaissait jamais — alors que c'est lui qui répond du dossier ;
- *   - elles écrivaient `OR: [{}]` pour « tous les comptes » quand le dossier n'avait pas de site.
- *     Dans Prisma, un objet vide dans un `OR` ne correspond à RIEN, pas à tout : la fiche disait
- *     donc que personne n'en répondait, sur la majorité des dossiers.
+ * ⚠️ Filtré par `rattachementCouvre()`, la même fonction que l'affectation et la lecture. Les
+ * deux filtres écrits à la main qui l'ont précédée se trompaient tous les deux.
  */
 /**
  * Un traitant, accompagné de quoi décider s'il répond d'un dossier donné.
  *
- * ⚠️ PAS UN `UtilisateurAutorise` COMPLET, et c'est délibéré. Il n'est construit que pour trois
- * questions — le rattachement, le type de déclaration, la charge — et n'en porte donc que les
- * champs. Inventer les autres pour satisfaire le type ferait circuler des valeurs fausses : un
- * `etapes: []` inventé ici répondrait « non » à `peutFaireAvancerDepuis()` sans lever d'erreur.
+ * ⚠️ Volontairement PAS un `UtilisateurAutorise` complet : inventer les champs hors sujet ferait
+ * circuler des valeurs fausses — un `etapes: []` répondrait « non » sans lever d'erreur.
  */
 export type CompteEnCharge = {
   readonly id: bigint
@@ -79,20 +66,13 @@ export type CompteEnCharge = {
 }
 
 /**
- * Tous les comptes qui TRAITENT des déclarations, chargés UNE fois.
+ * Tous les comptes qui TRAITENT des déclarations, chargés une fois.
  *
- * ⚠️ « TRAITER » EST UN PARAMÈTRE DU RÔLE, coché dans les habilitations — ni un nom écrit dans le
- * code, ni une permission voisine. Cette liste se lisait dans `dossiers.status.update` : le
- * Service MGP, qui porte ce droit sans être traitant, apparaissait comme titulaire de tous les
- * dossiers. Ce sont les correspondants qui instruisent, et cela ne se déduit d'aucun droit.
- *
- * ⚠️ `parcours` EST RENSEIGNÉ, contrairement à avant. Tant que seuls les évènements indésirables
- * échappaient à l'affectation, le rôle de chargé de sécurité suffisait à désigner qui répondait ;
- * depuis que les quatre types en relèvent, il faut savoir sur lesquels chacun est habilité.
+ * ⚠️ « Traiter » est un paramètre du rôle, jamais déduit de `dossiers.status.update` : le Service
+ * MGP porte ce droit sans être traitant.
  *
  * Séparé de `personnesEnCharge()` parce que le tableau de bord pose la question sur beaucoup de
- * dossiers à la fois : la liste se charge une fois, puis chaque dossier se décide en mémoire. La
- * même fonction appelée par dossier ferait une requête par ligne sur l'écran le plus visité.
+ * dossiers : la liste se charge une fois, puis chacun se décide en mémoire.
  */
 export async function comptesQuiTraitent(): Promise<CompteEnCharge[]> {
   const comptes = await prisma.users.findMany({
@@ -226,15 +206,11 @@ export async function personnesEnCharge(
 }
 
 /**
- * Ce que les traitants couvrent, PAR TYPE DE DÉCLARATION, résumé en valeurs exploitables en SQL.
+ * Ce que les traitants couvrent, par TYPE de déclaration, en valeurs exploitables en SQL.
  *
- * Décider en mémoire, dossier par dossier, convient à une fiche ; pas à une liste paginée ni à un
- * compteur. Ce résumé permet d'exprimer « les dossiers dont personne ne répond » comme une
- * CLAUSE, donc de la partager entre le tableau de bord et la liste qu'il ouvre.
- *
- * ⚠️ UNE COUVERTURE PAR TYPE, et non plus une seule. Tant que seuls les évènements indésirables
- * échappaient à l'affectation, une couverture unique suffisait. Les quatre types en relèvent
- * maintenant, et celui qui couvre les griefs employés ne couvre pas les griefs communautaires.
+ * Décider en mémoire convient à une fiche, pas à une liste paginée : ce résumé permet d'exprimer
+ * « les dossiers dont personne ne répond » comme une clause, partagée par le tableau de bord et
+ * la liste qu'il ouvre.
  */
 export type CouvertureParcours = {
   /** Un traitant sans rattachement couvre TOUT ce type : aucun dossier n'est alors orphelin. */
@@ -289,11 +265,8 @@ export function estEvenementIndesirable(code: string): code is ParcoursCode {
 /**
  * Le plan d'action et son responsable, pour l'encadré de suivi d'un évènement indésirable.
  *
- * Rassemble en un endroit ce que le métier demande de voir « pour chaque EI » : le délai, la
- * personne en charge, le plan d'action et la gravité. Les deux derniers vivaient déjà sur la
- * fiche, mais dispersés — la gravité en étiquette d'en-tête, le plan d'action dans un panneau
- * plus bas qu'il fallait dérouler. Le chargé de sécurité arrive après un comité avec une décision
- * à consigner : ce qu'il lui faut d'abord, c'est l'état d'ensemble.
+ * Rassemble ce que le métier demande de voir pour chaque EI — délai, personne en charge, plan
+ * d'action, gravité — qui vivaient dispersés sur la fiche.
  */
 export async function suiviEi(dossierId: string): Promise<SuiviEi> {
   /*

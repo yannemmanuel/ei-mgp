@@ -38,8 +38,7 @@ export function Recepisse({ reference, codeAcces }: { reference: string; codeAcc
       <Alert className="mt-6">
         <AlertDescription>
           <strong className="font-medium">Conservez ces deux informations.</strong> Elles sont la
-          seule façon de consulter votre dossier. Le code d’accès ne peut pas vous être renvoyé :
-          il n’est conservé que sous forme chiffrée.
+          seule façon de consulter votre dossier, et le code d’accès ne peut pas vous être renvoyé.
         </AlertDescription>
       </Alert>
 

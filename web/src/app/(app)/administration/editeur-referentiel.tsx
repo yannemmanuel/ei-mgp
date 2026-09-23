@@ -1,13 +1,13 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EnTetePage } from '@/components/layout/en-tete-page'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 /**
  * Éditeur commun aux référentiels d'administration.
@@ -116,9 +116,11 @@ export function EditeurReferentiel({
     champs.map((c) => [c.nom, c.type === 'booleen' ? true : ''])
   )
 
-  const succes = etat.succes ?? etatRang.succes ?? etatSuppression.succes
-  // L'erreur d'enregistrement s'affiche dans le formulaire ; celles-ci n'ont pas d'autre place.
-  const erreurHorsFormulaire = etatRang.erreur ?? etatSuppression.erreur
+  // Les trois retours partent en notification. Ils n'ont plus de place réservée dans la page :
+  // l'encart de succès poussait le tableau vers le bas à chaque enregistrement.
+  useRetourEnToast(etat)
+  useRetourEnToast(etatRang)
+  useRetourEnToast(etatSuppression)
 
   return (
     <div className="space-y-6">
@@ -134,18 +136,6 @@ export function EditeurReferentiel({
           ) : null
         }
       />
-
-      {succes && (
-        <Alert>
-          <AlertDescription>{succes}</AlertDescription>
-        </Alert>
-      )}
-
-      {erreurHorsFormulaire && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{erreurHorsFormulaire}</AlertDescription>
-        </Alert>
-      )}
 
       {edition !== null && (
         <Card>
@@ -186,12 +176,6 @@ export function EditeurReferentiel({
                   />
                 ))}
               </div>
-
-              {etat.erreur && (
-                <Alert variant="destructive" role="alert">
-                  <AlertDescription>{etat.erreur}</AlertDescription>
-                </Alert>
-              )}
 
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={enCours}>
@@ -320,10 +304,10 @@ export function EditeurReferentiel({
 
       <p className="text-caption text-muted-foreground">
         {actionSupprimer
-          ? 'Une entrée déjà citée par un dossier ne peut pas être supprimée : l’historique deviendrait incohérent. La suppression est alors refusée avec son motif — désactivez l’entrée pour la retirer des formulaires sans toucher au passé.'
-          : 'Aucune suppression n’est proposée : une entrée déjà citée par un dossier ne peut pas disparaître sans rendre l’historique incohérent. Utilisez la désactivation.'}
+          ? 'Une entrée citée par un dossier ne peut pas être supprimée : désactivez-la pour la retirer des formulaires.'
+          : 'Aucune suppression n’est proposée : utilisez la désactivation.'}
         {actionDeplacer &&
-          ' L’ordre est alphabétique tant que les flèches ne sont pas utilisées ; elles ne servent qu’aux listes dont l’ordre porte un sens.'}
+          ' L’ordre est alphabétique tant que les flèches ne sont pas utilisées.'}
       </p>
     </div>
   )

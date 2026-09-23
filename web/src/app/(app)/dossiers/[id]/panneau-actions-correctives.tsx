@@ -14,6 +14,7 @@ import {
   actionCreerActionCorrective,
   actionVerifierEfficacite,
 } from './actions-correctives-actions'
+import { useRetourEnToast } from '@/lib/retour-operation'
 
 export type ActionVue = {
   id: string
@@ -175,6 +176,7 @@ function FormulaireSimple({
   libelle: string
 }) {
   const [etat, envoyer, enCours] = useActionState(action, ETAT)
+  useRetourEnToast(etat)
 
   return (
     <form action={envoyer} className="space-y-2">
@@ -184,17 +186,13 @@ function FormulaireSimple({
       <Button type="submit" size="sm" disabled={enCours}>
         {enCours ? 'En cours…' : libelle}
       </Button>
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
     </form>
   )
 }
 
 function FormulaireVerification({ actionId }: { actionId: string }) {
   const [etat, envoyer, enCours] = useActionState(actionVerifierEfficacite, ETAT)
+  useRetourEnToast(etat)
   const [efficace, setEfficace] = useState('oui')
 
   return (
@@ -223,11 +221,6 @@ function FormulaireVerification({ actionId }: { actionId: string }) {
         className={champ}
       />
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" size="sm" disabled={enCours}>
         {enCours ? 'En cours…' : 'Enregistrer la vérification'}
@@ -246,6 +239,7 @@ function FormulaireCreation({
   onAnnuler: () => void
 }) {
   const [etat, envoyer, enCours] = useActionState(actionCreerActionCorrective, ETAT)
+  useRetourEnToast(etat)
 
   const demain = new Date()
   demain.setDate(demain.getDate() + 1)
@@ -322,11 +316,6 @@ function FormulaireCreation({
         </div>
       )}
 
-      {etat.erreur && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{etat.erreur}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={enCours}>

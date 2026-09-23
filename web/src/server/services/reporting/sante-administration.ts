@@ -10,18 +10,12 @@ const MODEL_TYPE_USER = MODELES.utilisateur
 /**
  * Ce qui appelle une décision d'administrateur, par opposition à ce qui se compte.
  *
- * Le tableau de bord accueille TOUS les comptes authentifiés (DT-31), mais il ne parlait que de
- * dossiers. Or l'administrateur digital n'en a aucun, et n'en aura jamais : DT-02 lui refuse tout
- * accès au contenu des déclarations, délibérément. Il arrivait donc chaque matin sur
- * « Aucun dossier ne vous est affecté — ceux qui vous seront confiés apparaîtront ici », une
- * promesse que son propre rôle interdit de tenir, et pas un mot de ce dont il répond réellement.
+ * Les contrôles ci-dessous sont ceux qu'on ne voit nulle part ailleurs : chaque console montre son
+ * propre référentiel, aucune ne dit qu'un réglage en rend un autre inopérant. Un délai non validé
+ * n'éteint pas une console, il éteint TOUTES les relances.
  *
- * Les contrôles ci-dessous sont ceux qu'on ne voit nulle part ailleurs : chaque console
- * d'administration montre son propre référentiel, aucune ne dit qu'un réglage en rend un autre
- * inopérant. Un délai non validé n'éteint pas une console, il éteint TOUTES les relances.
- *
- * ⚠️ Un contrôle ne remonte que s'il a quelque chose à dire. Une ligne qui annonce zéro tous les
- * jours cesse d'être lue, et fait passer pour vide un écran qui ne l'est pas.
+ * ⚠️ Un contrôle ne remonte que s'il a quelque chose à dire : une ligne qui annonce zéro tous les
+ * jours cesse d'être lue.
  */
 
 export type AlerteAdministration = {
@@ -55,16 +49,9 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     prisma.sla_delais.count({ where: { est_valide_metier: false } }),
 
     /*
-      ⚠️ SANS SITE **ET** SANS PERSONNE HABILITÉE DESSUS.
-
-      Cette alerte comptait toutes les directions sans site, en affirmant que leurs déclarations
-      n'atteignaient personne. Ce n'est plus vrai : depuis qu'on peut habiliter un compte
+      ⚠️ Sans site ET sans personne habilitée dessus : depuis qu'un compte peut être habilité
       directement sur une direction, celle-ci achemine ses déclarations sans passer par un site.
-      C'est même le cas observé en production — une direction sans site, avec son chargé de
-      sécurité, qui fonctionne.
-
-      Maintenue telle quelle, l'alerte aurait signalé comme bloquant un paramétrage correct. Une
-      alerte fausse est ce qui finit par faire ignorer les vraies.
+      Compter toutes les directions sans site signalerait comme bloquant un paramétrage correct.
     */
     prisma.directions.count({
       where: { actif: true, site_id: null, users: { none: { actif: true } } },
@@ -79,12 +66,9 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     /*
       Comptes dont le poste ne figure PAS au référentiel.
 
-      ⚠️ EN SQL BRUT, PARCE QUE PRISMA NE SAIT PAS L'EXPRIMER : il n'y a aucune relation entre
-      `users.poste` et `postes.libelle` — c'est précisément le défaut que ce contrôle rend
-      visible. Le rapprochement se fait sur le TEXTE, et seul SQL peut le dire.
-
-      Requête paramétrée, sans interpolation : rien de ce qui suit ne vient d'une entrée
-      utilisateur, mais la forme doit rester celle qu'on peut copier sans danger ailleurs.
+      ⚠️ En SQL brut parce qu'aucune relation ne lie `users.poste` à `postes.libelle` — c'est le
+      défaut même que ce contrôle rend visible. Requête paramétrée, pour que la forme reste
+      copiable sans danger ailleurs.
     */
     prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM users u
@@ -167,16 +151,12 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
   ).length
 
   /*
-    Un état du circuit ABSENT de la base.
+    Un état du circuit ABSENT de la base : le plus coûteux des réglages manquants, et le plus muet.
+    Sans « recu », plus aucune déclaration ne s'enregistre et le déclarant lit « merci de
+    réessayer ».
 
-    Le plus coûteux des réglages manquants, et le plus muet. `creerDeclaration()` cherche
-    « recu » par son code à chaque dépôt : sans cette ligne, plus aucune déclaration ne peut
-    être enregistrée, et le déclarant ne lit qu'un « merci de réessayer ». Les autres états
-    immobilisent les dossiers qui devraient les atteindre.
-    
-    La suppression d'un statut est autorisée — décision métier — et n'est donc plus barrée en
-    amont. Elle est barrée en AVAL : ce contrôle nomme ce qui manque, et `npm run seed` le
-    restaure à l'identique depuis `referentiels.json`.
+    La suppression d'un statut étant autorisée, le garde-fou est en AVAL : ce contrôle nomme ce
+    qui manque, et `npm run seed` le restaure depuis `referentiels.json`.
   */
   const codesEnBase = new Set(statutsEnBase.map((s) => s.code))
   const etatsManquants = STATUTS.filter((code) => !codesEnBase.has(code))
