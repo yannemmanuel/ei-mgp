@@ -15,13 +15,17 @@
  * Usage :
  *   npm run seed
  */
+import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 
-process.loadEnvFile('.env')
+// ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+// dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+// Raisonnement complet dans `prisma.config.ts`.
+if (existsSync('.env')) process.loadEnvFile('.env')
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

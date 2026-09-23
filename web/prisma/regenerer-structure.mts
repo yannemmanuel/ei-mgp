@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
@@ -141,7 +141,10 @@ const EN_TETE = `-- Structure complète de la base — RÉGÉNÉRÉE, jamais éc
 
 async function principal(): Promise<void> {
   // Même convention que `seed.mts` : natif depuis Node 20.12, sans dépendance.
-  process.loadEnvFile('.env')
+  // ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+  // dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+  // Raisonnement complet dans `prisma.config.ts`.
+  if (existsSync('.env')) process.loadEnvFile('.env')
 
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL absent : impossible de relever ce que Prisma ne modélise pas.')

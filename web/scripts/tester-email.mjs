@@ -15,10 +15,14 @@
  *
  * ⚠️ N'ÉCRIT RIEN : ni compte, ni invitation, ni ligne d'audit. Il ne touche pas à la base.
  */
+import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { createTransport } from 'nodemailer'
 
-process.loadEnvFile('.env')
+// ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+// dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+// Raisonnement complet dans `prisma.config.ts`.
+if (existsSync('.env')) process.loadEnvFile('.env')
 
 const VARIABLES = ['MAIL_HOST', 'MAIL_PORT', 'MAIL_SECURE', 'MAIL_USER', 'MAIL_PASSWORD', 'MAIL_FROM']
 

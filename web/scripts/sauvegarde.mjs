@@ -16,6 +16,7 @@
  *
  * Nécessite `pg_dump` dans le PATH, à une version au moins égale à celle du serveur.
  */
+import { existsSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
@@ -25,7 +26,10 @@ import process from 'node:process'
 const JOURS_RETENTION = 30
 
 async function principal() {
-  process.loadEnvFile('.env')
+  // ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+  // dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+  // Raisonnement complet dans `prisma.config.ts`.
+  if (existsSync('.env')) process.loadEnvFile('.env')
 
   const url = process.env.DATABASE_URL
 
