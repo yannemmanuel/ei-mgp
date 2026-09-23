@@ -29,7 +29,7 @@ export async function referenceSuivante(
   // déclarations simultanées sur le même parcours liraient la même dernière référence et
   // tenteraient d'écrire le même numéro.
   const lignes = await tx.$queryRaw<{ reference: string }[]>`
-    SELECT reference FROM dossiers
+    SELECT reference FROM ei_mgp.dossiers
     WHERE reference LIKE ${racine + '%'}
     ORDER BY reference DESC
     LIMIT 1

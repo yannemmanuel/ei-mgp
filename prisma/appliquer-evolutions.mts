@@ -51,36 +51,11 @@ function lireEvolutions(): Evolution[] {
     })
 }
 
-/**
- * Exécute une évolution.
- *
- * ⚠️ INSTRUCTION PAR INSTRUCTION QUAND LE FICHIER N'A PAS DE TRANSACTION. `CREATE INDEX
- * CONCURRENTLY` ne peut pas s'exécuter dans un bloc transactionnel : PostgreSQL refuse l'ordre.
- * `2026-09-22-index-cles-etrangeres.sql` n'a donc ni BEGIN ni COMMIT, et l'envoyer d'un seul coup
- * place le serveur en transaction implicite — la première ligne échoue.
- *
- * Les fichiers qui portent leur propre BEGIN/COMMIT partent entiers : les découper romprait
- * l'atomicité qu'ils demandent explicitement.
- */
-async function executer(prisma: PrismaClient, evolution: Evolution): Promise<void> {
-  const transactionnel = /^\s*BEGIN\s*;/im.test(evolution.sql)
-
-  if (transactionnel) {
-    await prisma.$executeRawUnsafe(evolution.sql)
-    return
-  }
-
-  const instructions = evolution.sql
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('--'))
-    .join('\n')
-    .split(';')
-    .map((s) => s.trim())
-    .filter(Boolean)
-
-  for (const instruction of instructions) {
-    await prisma.$executeRawUnsafe(instruction)
-  }
+/** Les anciennes évolutions ne doivent pas s'exécuter dans le mauvais schéma. */
+async function executer(_prisma: PrismaClient, evolution: Evolution): Promise<void> {
+  // Les fichiers SQL utilisent des noms de tables sans schéma. Les qualifier et les valider
+  // individuellement avant toute nouvelle migration sur l'instance Supabase partagée.
+  throw new Error(`Évolution ${evolution.fichier} non qualifiée : migration manuelle dans ei_mgp requise.`)
 }
 
 type Appliquee = { fichier: string; empreinte: string; rang: number }
@@ -88,7 +63,7 @@ type Appliquee = { fichier: string; empreinte: string; rang: number }
 async function dejaAppliquees(prisma: PrismaClient): Promise<Appliquee[] | null> {
   try {
     return await prisma.$queryRaw<Appliquee[]>`
-      SELECT fichier, empreinte, rang FROM evolutions_appliquees ORDER BY rang`
+      SELECT fichier, empreinte, rang FROM ei_mgp.evolutions_appliquees ORDER BY rang`
   } catch {
     // La table n'existe pas : cette base n'a pas encore reçu l'évolution qui la crée.
     return null
@@ -107,7 +82,7 @@ async function principal(): Promise<void> {
   const appliquer = process.argv.includes('--appliquer')
   const adopter = process.argv.includes('--adopter')
 
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }, { schema: 'ei_mgp' }) })
 
   try {
     const evolutions = lireEvolutions()
@@ -123,7 +98,7 @@ async function principal(): Promise<void> {
     */
     const tables = await prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
+      WHERE table_schema = 'ei_mgp' AND table_type = 'BASE TABLE'`
 
     if (Number(tables[0]?.n ?? 0) === 0) {
       console.error(
@@ -206,7 +181,7 @@ async function principal(): Promise<void> {
       }
 
       await prisma.$executeRaw`
-        INSERT INTO evolutions_appliquees (fichier, empreinte, rang)
+        INSERT INTO ei_mgp.evolutions_appliquees (fichier, empreinte, rang)
         VALUES (${evolution.fichier}, ${evolution.empreinte}, ${rang})`
     }
 

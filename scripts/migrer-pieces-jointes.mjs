@@ -32,7 +32,7 @@ const SIMULATION = process.argv.includes('--verifier')
 const RACINE_LOCALE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 'storage', 'private')
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }, { schema: 'ei_mgp' }),
 })
 
 /** Les chemins écrits par Laravel portent des antislashs, hérités du nom de classe PHP. */

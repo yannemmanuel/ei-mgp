@@ -41,12 +41,12 @@ describe('⚠️ La structure de référence décrit la base réelle', () => {
   it('⚠️ ne laisse AUCUNE table de la base absente du fichier', async () => {
     const tables = await prisma.$queryRaw<{ nom: string }[]>`
       SELECT table_name AS nom FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      WHERE table_schema = 'ei_mgp' AND table_type = 'BASE TABLE'
       ORDER BY 1`
 
     const absentes = tables
       .map((t) => t.nom)
-      .filter((nom) => !STRUCTURE.includes(`CREATE TABLE "${nom}"`))
+      .filter((nom) => !STRUCTURE.includes(`CREATE TABLE "ei_mgp"."${nom}"`))
 
     expect(
       absentes,
@@ -62,10 +62,10 @@ describe('⚠️ La structure de référence décrit la base réelle', () => {
     */
     const tables = await prisma.$queryRaw<{ nom: string }[]>`
       SELECT table_name AS nom FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
+      WHERE table_schema = 'ei_mgp' AND table_type = 'BASE TABLE'`
 
     const enBase = new Set(tables.map((t) => t.nom))
-    const enTrop = [...STRUCTURE.matchAll(/CREATE TABLE "([^"]+)"/g)]
+    const enTrop = [...STRUCTURE.matchAll(/CREATE TABLE "ei_mgp"\."([^"]+)"/g)]
       .map((m) => m[1])
       .filter((nom) => !enBase.has(nom))
 
@@ -85,12 +85,12 @@ describe('⚠️ La structure de référence décrit la base réelle', () => {
     */
     const colonnes = await prisma.$queryRaw<{ tbl: string; col: string }[]>`
       SELECT table_name AS tbl, column_name AS col FROM information_schema.columns
-      WHERE table_schema = 'public'
+      WHERE table_schema = 'ei_mgp'
       ORDER BY 1, 2`
 
     // Le corps de chaque CREATE TABLE, indexé par table.
     const corps = new Map<string, string>()
-    for (const bloc of STRUCTURE.matchAll(/CREATE TABLE "([^"]+)" \(([\s\S]*?)\n\);/g)) {
+    for (const bloc of STRUCTURE.matchAll(/CREATE TABLE "ei_mgp"\."([^"]+)" \(([\s\S]*?)\n\);/g)) {
       corps.set(bloc[1], bloc[2])
     }
 
@@ -112,7 +112,7 @@ describe('⚠️ La structure de référence décrit la base réelle', () => {
     */
     const checks = await prisma.$queryRaw<{ nom: string }[]>`
       SELECT conname AS nom FROM pg_constraint
-      WHERE contype = 'c' AND connamespace = 'public'::regnamespace
+      WHERE contype = 'c' AND connamespace = 'ei_mgp'::regnamespace
         AND conname NOT LIKE '%\\_not\\_null'`
 
     const absentes = checks.map((c) => c.nom).filter((nom) => !STRUCTURE.includes(nom))

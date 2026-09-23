@@ -50,7 +50,7 @@ npm run dev               # http://localhost:3000
 
 ### Recréer un environnement
 
-Sur une base vierge :
+Sur une base vierge, dans le schéma privé `ei_mgp` :
 
 ```bash
 psql "$DATABASE_URL" -f prisma/structure.sql   # 37 tables, contraintes et commentaires
@@ -70,7 +70,7 @@ lorsqu'un référentiel modifié depuis l'application doit être versionné.
 
 | Variable                                                 | Rôle                                                                         | Sans elle                                                                        |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                           | Connexion PostgreSQL                                                         | L'application ne démarre pas                                                     |
+| `DATABASE_URL`                                           | Connexion PostgreSQL au schéma privé `ei_mgp`                                | L'application ne démarre pas                                                     |
 | `AUTH_SECRET`                                            | Signature des sessions Auth.js **et** du jeton de suivi déclarant            | Connexion et suivi impossibles                                                   |
 | `AUTH_URL`                                               | URL publique de l'application                                                | Auth.js refuse l'hôte (`UntrustedHost`)                                          |
 | `TRUST_PROXY_HEADERS`                                    | Autorise `X-Forwarded-For`/`X-Real-IP` derrière un proxy qui les reconstruit | En-têtes génériques ignorés ; Netlify utilise automatiquement son en-tête dédié  |
@@ -82,9 +82,10 @@ lorsqu'un référentiel modifié depuis l'application doit être versionné.
 | `MAIL_HOST`, `MAIL_FROM`                                 | Transport SMTP générique de secours                                           | Échec fermé en production ; journal minimal et expurgé en développement          |
 | `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires                                                | Port 587 en STARTTLS, sans authentification                                      |
 
-Comptes de démonstration présents dans la base de développement : `admin@`, `gestionnaire@`,
-`superviseur@`, `enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe
-`password`. **À supprimer avant toute mise en service.**
+Les six comptes de démonstration `@example.test` et leurs liens de rôles et de parcours ont été
+conservés lors de la reprise. Leurs mots de passe issus de la base source sont connus des
+utilisateurs de la démonstration : les remplacer avant d'ouvrir l'accès public, sans supprimer
+les comptes ni leurs associations.
 
 ---
 
@@ -98,7 +99,7 @@ Comptes de démonstration présents dans la base de développement : `admin@`, `
 | `npm run lint`                  | ESLint                                                         |
 | `npm run typecheck`             | `tsc --noEmit`                                                 |
 | `npm test`                      | Suite Vitest — plus de 800 tests, contre la base réelle        |
-| `npm run db:evolutions`         | Ce qui manque à cette base ; `-- --appliquer` pour l'appliquer |
+| `npm run db:evolutions`         | Évolutions manquantes dans `ei_mgp` ; `-- --appliquer` pour les appliquer |
 | `npm run db:pull`               | Réintrospecte `schema.prisma` depuis la base                   |
 | `npm run db:structure`          | Régénère `prisma/structure.sql` — après toute évolution        |
 | `npm run seed`                  | Rejoue les référentiels, idempotent                            |

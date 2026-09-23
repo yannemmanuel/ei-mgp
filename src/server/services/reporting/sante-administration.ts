@@ -71,9 +71,9 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
       copiable sans danger ailleurs.
     */
     prisma.$queryRaw<{ n: bigint }[]>`
-      SELECT count(*) AS n FROM users u
+      SELECT count(*) AS n FROM ei_mgp.users u
       WHERE u.poste IS NOT NULL AND u.poste <> ''
-        AND NOT EXISTS (SELECT 1 FROM postes p WHERE p.libelle = u.poste)
+        AND NOT EXISTS (SELECT 1 FROM ei_mgp.postes p WHERE p.libelle = u.poste)
     `.then((lignes) => Number(lignes[0]?.n ?? 0)),
 
     prisma.lieux.count({ where: { actif: true } }),

@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["ei_mgp"]
 }
 
 model actions_correctives {
@@ -29,6 +30,8 @@ model actions_correctives {
   @@index([echeance, statut], map: "actions_correctives_echeance_statut_index")
   @@index([investigation_id], map: "actions_correctives_investigation_id_index")
   @@index([responsable_id], map: "actions_correctives_responsable_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model audit_logs {
@@ -48,6 +51,8 @@ model audit_logs {
   @@index([auditable_type, auditable_id], map: "audit_logs_auditable_type_auditable_id_index")
   @@index([created_at], map: "audit_logs_created_at_index")
   @@index([user_id], map: "audit_logs_user_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model cache {
@@ -56,6 +61,8 @@ model cache {
   expiration Int
 
   @@index([expiration], map: "cache_expiration_index")
+
+  @@schema("ei_mgp")
 }
 
 model parametres_application {
@@ -66,6 +73,7 @@ model parametres_application {
   updated_by  BigInt?
 
   @@index([updated_by], map: "parametres_application_updated_by_index")
+  @@schema("ei_mgp")
 }
 
 model canaux_captage {
@@ -76,6 +84,8 @@ model canaux_captage {
   created_at DateTime?  @db.Timestamp(0)
   updated_at DateTime?  @db.Timestamp(0)
   dossiers   dossiers[]
+
+  @@schema("ei_mgp")
 }
 
 model categories {
@@ -93,6 +103,8 @@ model categories {
   statistiques_mensuelles statistiques_mensuelles[]
 
   @@unique([parcours_id, code], map: "categories_parcours_id_code_unique")
+
+  @@schema("ei_mgp")
 }
 
 model declaration_identites {
@@ -116,6 +128,8 @@ model declaration_identites {
   updated_at           DateTime? @db.Timestamp(0)
   anciennete_tranche   String?
   dossiers             dossiers  @relation(fields: [dossier_id], references: [id], onUpdate: NoAction, map: "declaration_identites_dossier_id_foreign")
+
+  @@schema("ei_mgp")
 }
 
 model directions {
@@ -133,6 +147,8 @@ model directions {
   users                                                users[]
 
   @@index([site_id], map: "directions_site_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model dossier_affectations {
@@ -154,6 +170,8 @@ model dossier_affectations {
   @@index([dossier_id, actif], map: "dossier_affectations_dossier_id_actif_index")
   @@index([user_id, actif], map: "dossier_affectations_user_id_actif_index")
   @@index([affecte_par], map: "dossier_affectations_affecte_par_index")
+
+  @@schema("ei_mgp")
 }
 
 model dossiers {
@@ -225,6 +243,8 @@ model dossiers {
   @@index([direction_id], map: "dossiers_direction_id_index")
   @@index([site_id], map: "dossiers_site_id_index")
   @@index([statut_id], map: "dossiers_statut_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model historique_statuts {
@@ -244,6 +264,8 @@ model historique_statuts {
   @@index([effectue_par], map: "historique_statuts_effectue_par_index")
   @@index([statut_precedent_id], map: "historique_statuts_statut_precedent_id_index")
   @@index([statut_suivant_id], map: "historique_statuts_statut_suivant_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model investigations {
@@ -269,6 +291,8 @@ model investigations {
   @@index([dossier_id], map: "investigations_dossier_id_index")
   @@index([enqueteur_id], map: "investigations_enqueteur_id_index")
   @@index([valide_par], map: "investigations_valide_par_index")
+
+  @@schema("ei_mgp")
 }
 
 model messages {
@@ -284,6 +308,8 @@ model messages {
 
   @@index([dossier_id, created_at], map: "messages_dossier_id_created_at_index")
   @@index([expediteur_user_id], map: "messages_expediteur_user_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model model_has_permissions {
@@ -294,6 +320,8 @@ model model_has_permissions {
 
   @@id([permission_id, model_id, model_type])
   @@index([model_id, model_type], map: "model_has_permissions_model_id_model_type_index")
+
+  @@schema("ei_mgp")
 }
 
 model model_has_roles {
@@ -304,6 +332,8 @@ model model_has_roles {
 
   @@id([role_id, model_id, model_type])
   @@index([model_id, model_type], map: "model_has_roles_model_id_model_type_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -319,6 +349,8 @@ model niveaux_gravite {
   updated_at              DateTime?                 @db.Timestamp(0)
   dossiers                dossiers[]
   statistiques_mensuelles statistiques_mensuelles[]
+
+  @@schema("ei_mgp")
 }
 
 model notification_templates {
@@ -335,6 +367,8 @@ model notification_templates {
   parcours                            parcours? @relation(fields: [parcours_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "notification_templates_parcours_id_foreign")
 
   @@index([parcours_id], map: "notification_templates_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model notifications {
@@ -348,6 +382,8 @@ model notifications {
   updated_at      DateTime? @db.Timestamp(0)
 
   @@index([notifiable_type, notifiable_id], map: "notifications_notifiable_type_notifiable_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model parcours {
@@ -369,6 +405,8 @@ model parcours {
   sla_delais              sla_delais[]
   statistiques_mensuelles statistiques_mensuelles[]
   utilisateur_parcours    utilisateur_parcours[]
+
+  @@schema("ei_mgp")
 }
 
 model permissions {
@@ -378,6 +416,8 @@ model permissions {
   updated_at            DateTime?               @db.Timestamp(0)
   model_has_permissions model_has_permissions[]
   role_has_permissions  role_has_permissions[]
+
+  @@schema("ei_mgp")
 }
 
 model pieces_jointes {
@@ -396,6 +436,8 @@ model pieces_jointes {
 
   @@index([attachable_type, attachable_id], map: "pieces_jointes_attachable_type_attachable_id_index")
   @@index([televerse_par], map: "pieces_jointes_televerse_par_index")
+
+  @@schema("ei_mgp")
 }
 
 model qr_codes {
@@ -414,6 +456,8 @@ model qr_codes {
 
   @@index([genere_par], map: "qr_codes_genere_par_index")
   @@index([parcours_id], map: "qr_codes_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model role_has_permissions {
@@ -424,6 +468,8 @@ model role_has_permissions {
 
   @@id([permission_id, role_id])
   @@index([role_id], map: "role_has_permissions_role_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model roles {
@@ -442,6 +488,8 @@ model roles {
   role_etapes                     role_etapes[]
   role_has_permissions            role_has_permissions[]
   role_parcours                   role_parcours[]
+
+  @@schema("ei_mgp")
 }
 
 model sites {
@@ -454,6 +502,8 @@ model sites {
   directions directions[]
   dossiers   dossiers[]
   users      users[]
+
+  @@schema("ei_mgp")
 }
 
 model sla_delais {
@@ -469,6 +519,8 @@ model sla_delais {
   parcours          parcours  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "sla_delais_parcours_id_foreign")
 
   @@unique([parcours_id, etape_code], map: "sla_delais_parcours_id_etape_code_unique")
+
+  @@schema("ei_mgp")
 }
 
 model statistiques_mensuelles {
@@ -491,6 +543,8 @@ model statistiques_mensuelles {
   @@index([categorie_id], map: "statistiques_mensuelles_categorie_id_index")
   @@index([niveau_gravite_id], map: "statistiques_mensuelles_niveau_gravite_id_index")
   @@index([parcours_id], map: "statistiques_mensuelles_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model statuts_dossier {
@@ -507,6 +561,8 @@ model statuts_dossier {
   historique_statuts_historique_statuts_statut_precedent_idTostatuts_dossier historique_statuts[] @relation("historique_statuts_statut_precedent_idTostatuts_dossier")
   historique_statuts_historique_statuts_statut_suivant_idTostatuts_dossier   historique_statuts[] @relation("historique_statuts_statut_suivant_idTostatuts_dossier")
   role_etapes                                                                role_etapes[]
+
+  @@schema("ei_mgp")
 }
 
 model users {
@@ -547,6 +603,8 @@ model users {
   @@index([direction_id], map: "users_direction_id_index")
   @@index([responsable_hierarchique_id], map: "users_responsable_hierarchique_id_index")
   @@index([site_id], map: "users_site_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model lieux {
@@ -556,6 +614,8 @@ model lieux {
   actif      Boolean   @default(true)
   created_at DateTime? @db.Timestamp(0)
   updated_at DateTime? @db.Timestamp(0)
+
+  @@schema("ei_mgp")
 }
 
 model postes {
@@ -570,6 +630,8 @@ model postes {
 
   @@unique([direction_id, libelle], map: "postes_direction_libelle_unique")
   @@index([direction_id], map: "postes_direction_id_index")
+
+  @@schema("ei_mgp")
 }
 
 model villes {
@@ -579,6 +641,8 @@ model villes {
   actif      Boolean   @default(true)
   created_at DateTime? @db.Timestamp(0)
   updated_at DateTime? @db.Timestamp(0)
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -594,6 +658,8 @@ model utilisateur_parcours {
   @@unique([user_id, parcours_id], map: "utilisateur_parcours_unique")
   @@index([user_id], map: "utilisateur_parcours_user_id_index")
   @@index([parcours_id], map: "utilisateur_parcours_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -608,6 +674,8 @@ model invitations_connexion {
   users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id], map: "invitations_connexion_user_id_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -624,6 +692,8 @@ model role_parcours {
   @@unique([role_id, parcours_id], map: "role_parcours_unique")
   @@index([role_id], map: "role_parcours_role_id_index")
   @@index([parcours_id], map: "role_parcours_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -640,6 +710,8 @@ model familles_risque {
   parcours    parcours?  @relation(fields: [parcours_id], references: [id], onUpdate: NoAction, map: "familles_risque_parcours_id_foreign")
 
   @@index([parcours_id], map: "familles_risque_parcours_id_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -658,6 +730,8 @@ model role_etapes {
   @@index([role_id], map: "role_etapes_role_id_index")
   @@index([parcours_id], map: "role_etapes_parcours_id_index")
   @@index([statut_id], map: "role_etapes_statut_id_index")
+
+  @@schema("ei_mgp")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -666,4 +740,6 @@ model evolutions_appliquees {
   empreinte   String   @db.Char(64)
   applique_le DateTime @default(now()) @db.Timestamp(0)
   rang        Int      @unique(map: "evolutions_appliquees_rang_unique")
+
+  @@schema("ei_mgp")
 }

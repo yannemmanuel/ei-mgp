@@ -122,7 +122,7 @@ async function delaiMoyenDe(
 
   const lignes = await prisma.$queryRaw<{ moyenne: number | null }[]>`
     SELECT AVG(EXTRACT(EPOCH FROM (date_cloture - created_at)) / 86400) AS moyenne
-    FROM dossiers
+    FROM ei_mgp.dossiers
     WHERE date_cloture IS NOT NULL
       AND parcours_id = ${parcoursId}
       AND categorie_id = ${categorieId}
@@ -182,7 +182,7 @@ export async function historiqueMensuel(
       ? Prisma.empty
       : parcoursDuLecteur.length === 0
         ? Prisma.sql`WHERE FALSE`
-        : Prisma.sql`WHERE parcours_id IN (SELECT id FROM parcours WHERE code IN (${Prisma.join([...parcoursDuLecteur])}))`
+        : Prisma.sql`WHERE parcours_id IN (SELECT id FROM ei_mgp.parcours WHERE code IN (${Prisma.join([...parcoursDuLecteur])}))`
 
   const lignes = await prisma.$queryRaw<
     {
@@ -198,7 +198,7 @@ export async function historiqueMensuel(
            SUM(nb_cloturees)      AS cloturees,
            AVG(delai_moyen_jours) AS delai_moyen,
            AVG(taux_resolution)   AS taux_resolution
-    FROM statistiques_mensuelles
+    FROM ei_mgp.statistiques_mensuelles
     ${perimetre}
     GROUP BY periode
     ORDER BY periode DESC

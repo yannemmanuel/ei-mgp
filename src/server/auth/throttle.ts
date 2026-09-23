@@ -78,7 +78,7 @@ export async function autoriserTentative(
 
   // Un seul ordre : incrémente si la fenêtre court encore, repart à 1 si elle est close.
   const lignes = await prisma.$queryRaw<{ tentatives: number }[]>`
-    INSERT INTO cache (key, value, expiration)
+    INSERT INTO ei_mgp.cache (key, value, expiration)
     VALUES (${cle}, '1', ${expiration})
     ON CONFLICT (key) DO UPDATE SET
       value = CASE

@@ -28,7 +28,7 @@ import { PrismaClient } from '@prisma/client'
 if (existsSync('.env')) process.loadEnvFile('.env')
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }, { schema: 'ei_mgp' }),
 })
 
 /** Ordre imposé par les clés étrangères : un parcours avant ses catégories. */

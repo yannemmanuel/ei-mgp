@@ -25,9 +25,9 @@ if (existsSync('.env')) process.loadEnvFile()
  * Prisma 7 : l'URL de connexion ne vit plus dans `schema.prisma` (le champ `datasource.url`
  * y est refusé) mais ici.
  *
- * ⚠️ Cette configuration pointe vers la base RÉELLE. Seule `prisma db pull` (lecture seule) doit
- * être exécutée : jamais `migrate dev`, `migrate reset` ni `db push` — `migrate reset` propose
- * d'effacer, et cette base porte des déclarations réelles.
+ * ⚠️ Cette configuration cible le schéma privé `ei_mgp` de la base RÉELLE. Seule
+ * `prisma db pull` (lecture seule) doit être exécutée : jamais `migrate dev`,
+ * `migrate reset` ni `db push` — cette base porte des déclarations réelles.
  */
 export default defineConfig({
   schema: 'prisma/schema.prisma',

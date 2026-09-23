@@ -1,4 +1,4 @@
-CREATE TABLE "parametres_application" (
+CREATE TABLE "ei_mgp"."parametres_application" (
     "cle" VARCHAR(100) NOT NULL,
     "valeur" TEXT NOT NULL,
     "description" TEXT,
@@ -8,8 +8,8 @@ CREATE TABLE "parametres_application" (
 );
 
 CREATE INDEX "parametres_application_updated_by_index"
-    ON "parametres_application"("updated_by");
+    ON "ei_mgp"."parametres_application"("updated_by");
 
-INSERT INTO "parametres_application" ("cle", "valeur", "description") VALUES
+INSERT INTO "ei_mgp"."parametres_application" ("cle", "valeur", "description") VALUES
 ('declarations.suppression_autorisee', 'false', 'Autorise le retrait fonctionnel des déclarations depuis le backoffice'),
 ('declarations.delai_suppression_jours', '30', 'Délai minimal avant qu’une déclaration puisse être retirée');

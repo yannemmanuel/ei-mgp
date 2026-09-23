@@ -45,13 +45,13 @@ async function principal() {
   const horodatage = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const fichier = path.join(destination, `ei-mgp-${horodatage}.dump`)
 
-  const { connexion, schemas } = pourPgDump(url)
+  const { connexion } = pourPgDump(url)
 
   // Format personnalisé (-Fc) : compressé, et restaurable table par table avec pg_restore.
   const code = await executer('pg_dump', [
     '--format=custom',
     '--no-owner',
-    ...schemas,
+    '--schema=ei_mgp',
     '--file',
     fichier,
     connexion,

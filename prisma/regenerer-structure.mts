@@ -66,9 +66,10 @@ function structureDepuisPrisma(): string {
  */
 async function horsPrisma(prisma: PrismaClient): Promise<string> {
   const checks = await prisma.$queryRaw<{ tbl: string; nom: string; def: string }[]>`
-    SELECT c.conrelid::regclass::text AS tbl, c.conname AS nom, pg_get_constraintdef(c.oid) AS def
+    SELECT t.relname AS tbl, c.conname AS nom, pg_get_constraintdef(c.oid) AS def
     FROM pg_constraint c
-    WHERE c.contype = 'c' AND c.connamespace = 'public'::regnamespace
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE c.contype = 'c' AND c.connamespace = 'ei_mgp'::regnamespace
       AND c.conname NOT LIKE '%\\_not\\_null'
     ORDER BY 1, 2`
 
@@ -77,7 +78,7 @@ async function horsPrisma(prisma: PrismaClient): Promise<string> {
     FROM pg_description d
     JOIN pg_class c ON c.oid = d.objoid
     JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = d.objsubid
-    WHERE c.relnamespace = 'public'::regnamespace AND d.objsubid > 0
+    WHERE c.relnamespace = 'ei_mgp'::regnamespace AND d.objsubid > 0
     ORDER BY 1, 2`
 
   const lignes: string[] = []
@@ -93,7 +94,7 @@ async function horsPrisma(prisma: PrismaClient): Promise<string> {
       ''
     )
     for (const c of checks) {
-      lignes.push(`ALTER TABLE "${c.tbl}" ADD CONSTRAINT "${c.nom}" ${c.def};`)
+      lignes.push(`ALTER TABLE "ei_mgp"."${c.tbl}" ADD CONSTRAINT "${c.nom}" ${c.def};`)
     }
     lignes.push('')
   }
@@ -112,7 +113,7 @@ async function horsPrisma(prisma: PrismaClient): Promise<string> {
     for (const c of commentaires) {
       // Les apostrophes sont doublées : un commentaire en français en contient presque toujours.
       lignes.push(
-        `COMMENT ON COLUMN "${c.tbl}"."${c.col}" IS '${c.texte.split("'").join("''")}';`
+        `COMMENT ON COLUMN "ei_mgp"."${c.tbl}"."${c.col}" IS '${c.texte.split("'").join("''")}';`
       )
     }
     lignes.push('')
@@ -149,7 +150,7 @@ async function principal(): Promise<void> {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL absent : impossible de relever ce que Prisma ne modélise pas.')
 
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }, { schema: 'ei_mgp' }) })
 
   try {
     const corps = structureDepuisPrisma()
