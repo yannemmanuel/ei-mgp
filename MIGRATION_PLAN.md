@@ -4609,6 +4609,100 @@ n'apparaisse. Lire le COMPTE DE FICHIERS, pas la couleur.
 
 ---
 
+### ✅ Étape 32 — L'anonymisation RGPD n'anonymisait pas
+
+`anonymiser()` supprimait la ligne `declaration_identites`, marquait `anonymise_le`, et s'arrêtait
+là. Le dossier était donc **déclaré anonymisé alors qu'il restait ré-identifiable** — et la trace
+juridique affirmait que l'obligation était tenue. C'est le pire des deux mondes : sans la marque,
+quelqu'un finit par revenir sur le dossier ; avec elle, plus personne.
+
+#### Ce qui survivait, et que l'audit n'avait pas entièrement vu
+
+L'audit citait les pièces jointes, les messages et les champs libres. Le relevé colonne par colonne
+en a trouvé deux autres, **aussi nominatives que l'identité elle-même** :
+
+| Colonne | Ce qu'elle contient |
+|---|---|
+| `investigations.personnes_rencontrees` | littéralement une liste de personnes |
+| `actions_correctives.responsable_nom` | un nom |
+| `dossiers.entreprise` | sur un grief de sous-traitant, désigne souvent une structure de quelques personnes |
+| `dossiers.poste`, `poste_precision`, `poste_declarant`, `poste_declarant_precision` | dans une direction restreinte, un poste unique ne désigne qu'une personne |
+| `historique_statuts.commentaire` | champ libre d'instruction |
+
+#### Le périmètre est ÉCRIT, pas déduit
+
+`rgpd/effacement.ts` énumère les colonnes une par une. Aucune boucle sur « toutes les colonnes
+texte » : une colonne ajoutée demain serait silencieusement oubliée **ou** silencieusement effacée,
+et les deux sont graves. Le module dit aussi ce qu'il **ne** touche **pas** — la référence, les
+champs structurés que RG-12 exige de garder calculables, le lieu et la ville contraints au
+référentiel — parce que c'est la moitié qu'on oublie d'écrire.
+
+Les champs libres sont remplacés par une MENTION, jamais vidés : un champ à `NULL` se lirait
+« jamais renseigné », et le dossier paraîtrait avoir été déposé sans description.
+
+#### Deux invariants, et ils comptent plus que le reste
+
+**Un dossier n'est marqué que si son effacement a ABOUTI.** Marquer malgré un échec produirait
+exactement le défaut que cette étape corrige. Un échec est compté, remonté dans le résumé de la
+tâche, et le dossier reste éligible au passage suivant.
+
+**Les fichiers partent AVANT leurs lignes.** Dans l'autre sens, une interruption laisserait des
+fichiers que plus aucune ligne ne désigne — donc introuvables, donc jamais effacés. Ici elle laisse
+au pire une ligne dont le fichier est déjà parti, et `supprimer()` est idempotent pour cette raison
+précise.
+
+#### A3 — le lot qui manquait
+
+L'ensemble éligible est « tous les dossiers clôturés depuis plus de dix ans » : sans borne, le
+premier passage traitait tout l'arriéré d'un coup, dans une fonction serverless dont le temps
+d'exécution est plafonné. Lot de 500, les plus anciens d'abord — sans ordre, un arriéré traité par
+lots pourrait en laisser indéfiniment de côté.
+
+#### S4 — les fichiers orphelins, et leur vraie cause
+
+L'audit les attribuait à des suppressions de dossiers. En production, **un dossier ne se supprime
+jamais** (RG-03) : la cause y est autre.
+
+`creer-declaration.ts` écrit les fichiers **à l'intérieur** de la transaction, avant d'insérer leurs
+lignes. Un `ROLLBACK` après ce point annule les lignes et laisse les fichiers. **L'ordre est
+délibéré** : l'inverse laisserait une ligne promettant un fichier qui n'existe pas — une pièce
+visible dans la fiche, introuvable au téléchargement. Mieux vaut un fichier de trop, qu'on sait
+retrouver, qu'une ligne qui ment.
+
+D'où `stockage/ramasse-miettes.ts`, hebdomadaire, qui **assume** cette conséquence plutôt que de la
+nier — et dont le garde-fou est le seul rempart contre la perte de pièces valides :
+
+> **Il n'efface que ce dont il peut prouver l'âge.** Un fichier de moins de 24 heures peut être une
+> pièce jointe entre son écriture et le commit de sa transaction. Un fichier d'âge inconnu est
+> SIGNALÉ, jamais effacé — on ne devine pas l'âge d'une pièce jointe.
+
+Netlify Blobs n'expose aucune date : `ecrire()` inscrit désormais `televerseLe` en métadonnée.
+Les fichiers antérieurs n'en ont pas, et ne partiront donc jamais d'eux-mêmes ; le résumé de la
+tâche le dit, parce que c'est le seul endroit où quelqu'un l'apprendra.
+
+Vérifié en supprimant le délai de grâce : le cas « épargne un fichier récent » échoue bien.
+
+#### Deux défauts que j'ai introduits, et corrigés
+
+**Mon propre test salissait la base.** Un `beforeEach` remettait à zéro la liste des dossiers
+créés : `afterAll` n'en nettoyait qu'un seul, et chaque exécution laissait une vingtaine de lignes
+et neuf fichiers derrière elle. `nettoyerDossiers()` a été étendu — il emporte désormais les
+FICHIERS en plus des lignes, ainsi que les investigations et actions correctives, dont la clé
+étrangère faisait échouer la suppression du dossier **sans que rien ne le dise**, l'erreur
+survenant dans un `afterAll`.
+
+**J'ai fait échouer la suite en travaillant pendant qu'elle tournait** : purge de 17 lignes et
+ramassage lancés en parallèle. Un cas sans rapport est passé au rouge. Ce n'était pas une
+régression — mais c'est précisément l'interférence contre laquelle ce journal met en garde
+ailleurs.
+
+**Vérifié** — 20 fichiers → 3 dans le magasin, exactement les 3 lignes légitimes ; 6,8 Mo libérés
+par le vrai code de la tâche, pas par une requête écrite à côté. Les 3 pièces restantes portent
+encore un chemin en `App\Models\Dossier`, que `normaliser()` traite : c'est le cas pour lequel elle
+a été conservée.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |

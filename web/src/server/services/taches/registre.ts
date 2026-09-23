@@ -3,9 +3,10 @@ import { recalculerRetards } from '../action-corrective/action-corrective'
 import { detecterRetards, relancerEcheances } from '../notification/taches-planifiees'
 import { calculerPour } from '../reporting/statistiques-mensuelles'
 import { appliquerPolitiqueConservation } from '../rgpd/conservation'
+import { ramasserFichiersOrphelins } from '../stockage/ramasse-miettes'
 
 /**
- * Les 5 tâches planifiées — port de `routes/console.php`.
+ * Les 6 tâches planifiées.
  *
  * ⚠️ **Next.js n'a pas d'ordonnanceur.** Là où un framework PHP déclare ses tâches et s'appuie
  * sur un ordonnanceur système, il faut ici un
@@ -27,7 +28,7 @@ export type ResultatTache = {
 
 export type DefinitionTache = {
   readonly libelle: string
-  /** Cadence attendue, reprise de `routes/console.php` — informative, l'ordonnanceur décide. */
+  /** Cadence attendue — informative : c'est l'ordonnanceur externe qui décide réellement. */
   readonly cadence: string
   readonly executer: () => Promise<ResultatTache>
 }
@@ -89,16 +90,70 @@ export const TACHES = {
       return { resume: `${nombre} compteur(s) expiré(s) purgé(s).`, details: { compteurs: nombre } }
     },
   },
+  'ramasser-fichiers-orphelins': {
+    libelle: 'Effacement des fichiers que plus aucune pièce jointe ne désigne',
+    /*
+      Hebdomadaire, pas quotidienne : ces fichiers ne gênent personne, ils occupent de la place.
+      Le traitement parcourt TOUT le magasin, ce qui n'a pas à se répéter chaque nuit.
+    */
+    cadence: 'hebdomadaire, le dimanche à 03h00',
+    executer: async () => {
+      const resultat = await ramasserFichiersOrphelins()
+
+      const mo = (resultat.octetsLiberes / 1_048_576).toFixed(1)
+
+      // ⚠️ L'âge inconnu est dit : ces fichiers ne partiront JAMAIS d'eux-mêmes, et ce résumé est
+      // le seul endroit où quelqu'un l'apprendra.
+      const alerte =
+        resultat.ageInconnu > 0
+          ? ` ⚠️ ${resultat.ageInconnu} orphelin(s) d'âge inconnu, laissés en place — décision à prendre à la main.`
+          : ''
+
+      return {
+        resume:
+          `${resultat.effaces} fichier(s) orphelin(s) effacé(s), ${mo} Mo libérés ` +
+          `(${resultat.tropRecents} encore dans le délai de grâce).${alerte}`,
+        details: {
+          effaces: resultat.effaces,
+          octets_liberes: resultat.octetsLiberes,
+          age_inconnu: resultat.ageInconnu,
+          trop_recents: resultat.tropRecents,
+        },
+      }
+    },
+  },
   'appliquer-politique-conservation': {
     libelle: 'Archivage et anonymisation des dossiers clôturés',
     cadence: 'mensuelle, le 1er à 02h00',
     executer: async () => {
       const resultat = await appliquerPolitiqueConservation()
+
+      /*
+        ⚠️ LES ÉCHECS ET LE RESTE À FAIRE SONT DITS DANS LE RÉSUMÉ, pas seulement dans le détail.
+
+        Un effacement en échec laisse un dossier NON marqué, donc ré-identifiable, et le seul
+        endroit où quelqu'un le verra est ce résumé. Le taire reproduirait exactement le défaut
+        que cette reprise corrige : un dispositif qui a l'air en règle et ne l'est pas.
+      */
+      const alertes = [
+        resultat.echecsAnonymisation > 0
+          ? `⚠️ ${resultat.echecsAnonymisation} effacement(s) en ÉCHEC — dossiers non marqués, repris au prochain passage`
+          : null,
+        resultat.restantsAAnonymiser > 0
+          ? `${resultat.restantsAAnonymiser} encore éligible(s) au prochain passage`
+          : null,
+      ].filter(Boolean)
+
       return {
-        resume: `${resultat.archives} archivé(s), ${resultat.anonymises} anonymisé(s), ${resultat.exclusPourContentieux} retenu(s) pour contentieux.`,
+        resume:
+          `${resultat.archives} archivé(s), ${resultat.anonymises} anonymisé(s), ` +
+          `${resultat.exclusPourContentieux} retenu(s) pour contentieux.` +
+          (alertes.length > 0 ? ` ${alertes.join(' · ')}` : ''),
         details: {
           archives: resultat.archives,
           anonymises: resultat.anonymises,
+          echecs_anonymisation: resultat.echecsAnonymisation,
+          restants_a_anonymiser: resultat.restantsAAnonymiser,
           exclus_pour_contentieux: resultat.exclusPourContentieux,
         },
       }

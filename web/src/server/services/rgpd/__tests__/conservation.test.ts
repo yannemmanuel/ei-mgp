@@ -142,7 +142,7 @@ describe('Anonymisation à 10 ans', () => {
     const avant = await prisma.declaration_identites.count({ where: { dossier_id: id } })
     expect(avant).toBe(1)
 
-    expect(await anonymiser()).toBe(1)
+    expect((await anonymiser()).anonymises).toBe(1)
 
     // L'identité disparaît…
     expect(await prisma.declaration_identites.count({ where: { dossier_id: id } })).toBe(0)
@@ -157,14 +157,14 @@ describe('Anonymisation à 10 ans', () => {
   it('épargne un dossier clôturé depuis moins de 10 ans', async () => {
     const id = await dossierClotureLe(ilYaAnnees(9))
 
-    expect(await anonymiser()).toBe(0)
+    expect((await anonymiser()).anonymises).toBe(0)
     expect(await prisma.declaration_identites.count({ where: { dossier_id: id } })).toBe(1)
   })
 
   it('n’effacera JAMAIS un dossier sous contentieux', async () => {
     const id = await dossierClotureLe(ilYaAnnees(20), { contentieux: true })
 
-    expect(await anonymiser()).toBe(0)
+    expect((await anonymiser()).anonymises).toBe(0)
     expect(await compterExclusPourContentieux()).toBe(1)
 
     // Même après vingt ans : le blocage n'expire pas, seul le DPO peut le lever.
@@ -177,7 +177,7 @@ describe('Anonymisation à 10 ans', () => {
     // Aucune ligne d'identité à supprimer : le traitement doit marquer le dossier sans échouer.
     const id = await dossierClotureLe(ilYaAnnees(11), { avecIdentite: false })
 
-    expect(await anonymiser()).toBe(1)
+    expect((await anonymiser()).anonymises).toBe(1)
 
     const apres = await prisma.dossiers.findUniqueOrThrow({ where: { id } })
     expect(apres.anonymise_le).not.toBeNull()
@@ -186,8 +186,8 @@ describe('Anonymisation à 10 ans', () => {
   it('ne retraite pas un dossier déjà anonymisé', async () => {
     await dossierClotureLe(ilYaAnnees(12))
 
-    expect(await anonymiser()).toBe(1)
-    expect(await anonymiser()).toBe(0)
+    expect((await anonymiser()).anonymises).toBe(1)
+    expect((await anonymiser()).anonymises).toBe(0)
   })
 
   it('journalise l’effacement sans y recopier l’identité', async () => {
@@ -217,10 +217,10 @@ describe('Blocage contentieux', () => {
     const id = await dossierClotureLe(ilYaAnnees(11))
 
     expect(await basculerContentieux(id)).toBe(true)
-    expect(await anonymiser()).toBe(0)
+    expect((await anonymiser()).anonymises).toBe(0)
 
     expect(await basculerContentieux(id)).toBe(false)
-    expect(await anonymiser()).toBe(1)
+    expect((await anonymiser()).anonymises).toBe(1)
   })
 })
 

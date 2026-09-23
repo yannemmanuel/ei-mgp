@@ -4,7 +4,7 @@ import { configurationSmtp } from '../notification/transport'
 import { STATUTS } from '../dossier/statuts'
 import { MODELES } from '@/server/modeles'
 
-/** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
+/** Le `model_type` des comptes dans la table d'attribution des rôles. Voir `@/server/modeles`. */
 const MODEL_TYPE_USER = MODELES.utilisateur
 
 /**
@@ -41,6 +41,7 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     directionsSansSite,
     motsDePasseATransmettre,
     postesActifs,
+    postesOrphelins,
     lieuxActifs,
     villesActives,
     rolesEnBase,
@@ -74,6 +75,23 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
     prisma.users.count({ where: { actif: true, doit_changer_mot_de_passe: true } }),
 
     prisma.postes.count({ where: { actif: true } }),
+
+    /*
+      Comptes dont le poste ne figure PAS au référentiel.
+
+      ⚠️ EN SQL BRUT, PARCE QUE PRISMA NE SAIT PAS L'EXPRIMER : il n'y a aucune relation entre
+      `users.poste` et `postes.libelle` — c'est précisément le défaut que ce contrôle rend
+      visible. Le rapprochement se fait sur le TEXTE, et seul SQL peut le dire.
+
+      Requête paramétrée, sans interpolation : rien de ce qui suit ne vient d'une entrée
+      utilisateur, mais la forme doit rester celle qu'on peut copier sans danger ailleurs.
+    */
+    prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT count(*) AS n FROM users u
+      WHERE u.poste IS NOT NULL AND u.poste <> ''
+        AND NOT EXISTS (SELECT 1 FROM postes p WHERE p.libelle = u.poste)
+    `.then((lignes) => Number(lignes[0]?.n ?? 0)),
+
     prisma.lieux.count({ where: { actif: true } }),
     prisma.villes.count({ where: { actif: true } }),
 
@@ -269,6 +287,27 @@ export async function santeAdministration(): Promise<AlerteAdministration[]> {
       consequence: 'La ville est obligatoire : les riverains ne peuvent plus déclarer.',
       href: '/administration/listes-formulaires',
       bloquant: true,
+    },
+    {
+      /*
+        ⚠️ LE SEUL LIEN QUE LE SCHÉMA NE PEUT PAS TENIR.
+
+        `users.poste` porte le LIBELLÉ du poste, pas une clé : aucune contrainte ne garantit qu'il
+        existe encore dans le référentiel. Un compte peut donc porter un poste que plus aucune
+        liste ne propose, et que plus rien n'explique — c'est le cas aujourd'hui de « CS Achat ».
+
+        Ce contrôle ne DÉCIDE rien : rattacher un poste orphelin suppose de choisir sa direction,
+        ce qui relève du métier. Il rend simplement visible ce qui, sans lui, n'apparaît nulle
+        part — ni dans la console des comptes, qui affiche le libellé sans le vérifier, ni dans
+        celle des postes, qui ne connaît que les siens.
+      */
+      cle: 'postes-orphelins',
+      libelle: 'Comptes portant un poste absent du référentiel',
+      valeur: postesOrphelins,
+      consequence:
+        'Leur poste ne correspond à aucune entrée : il n’apparaîtra dans aucune liste et ne peut pas être corrigé par filtrage.',
+      href: '/administration/utilisateurs',
+      bloquant: false,
     },
   ]
 

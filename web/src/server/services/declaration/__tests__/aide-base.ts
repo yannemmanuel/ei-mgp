@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { MODELES } from '@/server/modeles'
+import { magasinNomme } from '../../stockage/magasin'
 
 /**
  * Utilitaires des tests de création de déclaration.
@@ -26,15 +27,45 @@ export function graviteParNiveau(niveau: number) {
   return prisma.niveaux_gravite.findFirstOrThrow({ where: { niveau } })
 }
 
-/** Supprime un dossier et tout ce qui en dépend, dans l'ordre imposé par les clés étrangères. */
+/**
+ * Supprime un dossier et tout ce qui en dépend, dans l'ordre imposé par les clés étrangères.
+ *
+ * ⚠️ LES FICHIERS PARTENT AVEC LEURS LIGNES depuis le 2026-09-22. Cette fonction effaçait les
+ * lignes de `pieces_jointes` en laissant les fichiers dans le magasin : chaque exécution de la
+ * suite ajoutait donc des fichiers que plus aucune ligne ne désignait, donc que plus rien ne
+ * retrouverait. C'est le mécanisme même des 17 pièces orphelines relevées par l'audit — ici à
+ * petite échelle, et sur le poste de développement.
+ *
+ * ⚠️ INVESTIGATIONS ET ACTIONS CORRECTIVES y sont aussi depuis la même date. Elles portent une
+ * clé étrangère vers `dossiers` : un test qui en crée voyait la suppression du dossier ÉCHOUER,
+ * et laissait le dossier entier en base — sans que rien ne le dise, l'erreur survenant dans un
+ * `afterAll`.
+ */
 export async function nettoyerDossiers(ids: readonly string[]): Promise<void> {
   if (ids.length === 0) return
 
   const dossierIn = { dossier_id: { in: [...ids] } }
 
-  await prisma.pieces_jointes.deleteMany({
+  const pieces = await prisma.pieces_jointes.findMany({
     where: { attachable_type: MODEL_TYPE_DOSSIER, attachable_id: { in: [...ids] } },
+    select: { id: true, disque: true, chemin: true },
   })
+
+  for (const piece of pieces) {
+    // Le magasin peut être inconnu si un test a corrompu la colonne à dessein : le nettoyage ne
+    // doit pas échouer pour autant, sans quoi il laisserait TOUT le reste derrière lui.
+    try {
+      await magasinNomme(piece.disque).supprimer(piece.chemin)
+    } catch {
+      // Sans conséquence : le fichier reste, la ligne part. Signalé pour ne pas être silencieux.
+      console.warn(`Nettoyage : fichier non effacé (${piece.disque}) ${piece.chemin}`)
+    }
+  }
+
+  await prisma.pieces_jointes.deleteMany({ where: { id: { in: pieces.map((p) => p.id) } } })
+  // Les actions AVANT les investigations : `actions_correctives.investigation_id` les cite.
+  await prisma.actions_correctives.deleteMany({ where: dossierIn })
+  await prisma.investigations.deleteMany({ where: dossierIn })
   await prisma.historique_statuts.deleteMany({ where: dossierIn })
   await prisma.dossier_affectations.deleteMany({ where: dossierIn })
   await prisma.declaration_identites.deleteMany({ where: dossierIn })

@@ -36,6 +36,49 @@ describe('Ce qui remonte correspond à la base', () => {
     expect(alerte?.valeur ?? 0).toBe(attendu)
   })
 
+  it('⚠️ repère un compte dont le poste ne figure PAS au référentiel', async () => {
+    /*
+      ⚠️ LE SEUL LIEN QUE LE SCHÉMA NE PEUT PAS TENIR. `users.poste` porte un LIBELLÉ, pas une
+      clé : rien n'empêche qu'il désigne un poste disparu du référentiel. Le défaut existe déjà
+      en base — « CS Achat », porté par un compte réel —, et n'apparaissait nulle part : ni dans
+      la console des comptes, qui affiche le libellé sans le vérifier, ni dans celle des postes,
+      qui ne connaît que les siens.
+
+      ⚠️ CE CAS POSE SON ÉTAT plutôt que de compter sur l'orphelin existant : celui-ci peut être
+      corrigé demain par un administrateur, et le cas passerait alors au vert en ayant cessé de
+      vérifier quoi que ce soit.
+    */
+    const avant = (await santeAdministration()).find((a) => a.cle === 'postes-orphelins')
+
+    const compte = await prisma.users.create({
+      data: {
+        name: 'Compte de test — poste orphelin',
+        email: `test-poste-orphelin-${Date.now()}@example.test`,
+        password: 'x'.repeat(60),
+        poste: 'Poste qui n’existe dans aucun référentiel',
+        actif: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    })
+
+    try {
+      const apres = (await santeAdministration()).find((a) => a.cle === 'postes-orphelins')
+
+      expect(apres, 'l’alerte n’est pas remontée').toBeDefined()
+      expect(apres?.valeur, 'le compte orphelin n’a pas été compté').toBe(
+        (avant?.valeur ?? 0) + 1
+      )
+      // Ce n'est pas un blocage : le dispositif fonctionne, c'est le référentiel qui est incomplet.
+      expect(apres?.bloquant).toBe(false)
+    } finally {
+      // Dans un `finally` : une assertion en échec ne doit pas laisser un compte d'essai en base,
+      // où il ferait échouer l'exécution suivante en gonflant le décompte.
+      await prisma.users.delete({ where: { id: compte.id } })
+    }
+  })
+
   it('ne compte une direction sans site que si PERSONNE n’y est habilité', async () => {
     /*
       ⚠️ CE CAS A CHANGÉ DE SENS, et c'est voulu.

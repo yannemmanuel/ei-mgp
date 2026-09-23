@@ -30,7 +30,13 @@ afterEach(() => {
 })
 
 describe('Registre', () => {
-  it('couvre les 5 tâches de `routes/console.php`, plus l’entretien propre au portage', () => {
+  it('⚠️ déclare exactement les tâches attendues, dans l’ordre', () => {
+    /*
+      ⚠️ UNE ÉGALITÉ EXACTE, ET C'EST VOULU. Une tâche AJOUTÉE ici doit faire échouer ce cas :
+      c'est le seul rappel qu'il faut aussi la déclarer dans `netlify.toml`, faute de quoi elle
+      existe, se teste, et ne s'exécute jamais. Un `toContain` laisserait passer exactement cet
+      oubli — une tâche que personne ne déclenche et dont l'absence ne se voit nulle part.
+    */
     expect(Object.keys(TACHES)).toEqual([
       'recalculer-retard-actions',
       'relancer-echeances',
@@ -38,6 +44,8 @@ describe('Registre', () => {
       'calculer-statistiques-mensuelles',
       // Aucun framework ne purge cette table : c'est cette tâche qui s'en charge.
       'purger-compteurs-debit',
+      // Contrepartie assumée de l'écriture des fichiers AVANT leurs lignes (2026-09-22).
+      'ramasser-fichiers-orphelins',
       'appliquer-politique-conservation',
     ])
   })

@@ -42,3 +42,12 @@
 
 [functions."appliquer-politique-conservation"]
   schedule = "0 3 1 * *"
+
+# Hebdomadaire : ces fichiers occupent de la place, ils ne gênent personne. Le traitement
+# parcourt TOUT le magasin, ce qui n'a pas à se répéter chaque nuit.
+#
+# ⚠️ APRÈS l'anonymisation du 1er du mois, jamais avant : celle-ci efface des fichiers et leurs
+# lignes ensemble, et n'a donc rien à laisser derrière elle — mais si elle échouait à mi-chemin,
+# c'est ce ramassage qui récupérerait ce qui traîne.
+[functions."ramasser-fichiers-orphelins"]
+  schedule = "0 4 * * 0"

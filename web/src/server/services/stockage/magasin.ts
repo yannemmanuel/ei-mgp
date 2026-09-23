@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
@@ -23,6 +23,36 @@ export interface MagasinFichiers {
   readonly nom: NomMagasin
   ecrire(chemin: string, octets: Buffer): Promise<void>
   lire(chemin: string): Promise<Buffer>
+  /**
+   * Efface un fichier. **IDEMPOTENT** : un fichier déjà absent n'est pas une erreur.
+   *
+   * ⚠️ AJOUTÉ POUR L'ANONYMISATION RGPD (2026-09-22), et c'est le seul appelant. L'application
+   * n'offre aucune suppression de pièce jointe à ses utilisateurs — RG-03 interdit de supprimer
+   * un dossier, et une pièce qui disparaîtrait d'un dossier vivant rendrait son instruction
+   * incompréhensible. Ne pas ouvrir ce geste ailleurs sans une raison écrite.
+   *
+   * ⚠️ L'IDEMPOTENCE EST LOAD-BEARING. L'anonymisation ne marque un dossier comme traité que si
+   * TOUTES ses pièces ont été effacées ; une exécution interrompue à mi-chemin est donc rejouée,
+   * et retombera sur des fichiers déjà partis. Lever à ce moment-là bloquerait définitivement le
+   * dossier, effacé pour moitié et jamais marqué.
+   */
+  supprimer(chemin: string): Promise<void>
+  /**
+   * Inventaire du magasin, pour le ramasse-miettes des fichiers orphelins.
+   *
+   * ⚠️ `modifieLe` PEUT ÊTRE NULL, et ce n'est pas un détail. Le ramasse-miettes n'efface QUE ce
+   * dont il peut prouver l'ancienneté : un fichier écrit il y a dix secondes par une transaction
+   * encore en cours n'est référencé par aucune ligne, et le supprimer détruirait une pièce
+   * jointe en train d'être déposée. Sans date, l'âge est indémontrable — le fichier est donc
+   * signalé, jamais effacé.
+   */
+  lister(): Promise<readonly FichierStocke[]>
+}
+
+/** Une entrée d'inventaire. `modifieLe` est nul quand le magasin ne sait pas la donner. */
+export type FichierStocke = {
+  readonly chemin: string
+  readonly modifieLe: Date | null
 }
 
 /** Racine du magasin local, HORS du dossier public. */
@@ -60,6 +90,45 @@ export class MagasinLocal implements MagasinFichiers {
     return readFile(this.absolu(chemin))
   }
 
+  // `force` rend l'effacement idempotent : un fichier absent ne lève pas. Voir l'interface.
+  async supprimer(chemin: string): Promise<void> {
+    await rm(this.absolu(chemin), { force: true })
+  }
+
+  /**
+   * Parcourt la racine. Le disque porte la date de modification : l'âge est donc toujours
+   * démontrable ici, contrairement au magasin d'objets.
+   */
+  async lister(): Promise<readonly FichierStocke[]> {
+    const racine = /*turbopackIgnore: true*/ RACINE_LOCALE
+    const trouves: FichierStocke[] = []
+
+    const parcourir = async (dossier: string, prefixe: string): Promise<void> => {
+      let entrees
+      try {
+        entrees = await readdir(dossier, { withFileTypes: true })
+      } catch {
+        // Racine absente : magasin vide, pas une erreur.
+        return
+      }
+
+      for (const entree of entrees) {
+        const complet = path.join(dossier, entree.name)
+        const relatif = prefixe ? `${prefixe}/${entree.name}` : entree.name
+
+        if (entree.isDirectory()) {
+          await parcourir(complet, relatif)
+          continue
+        }
+
+        trouves.push({ chemin: relatif, modifieLe: (await stat(complet)).mtime })
+      }
+    }
+
+    await parcourir(racine, '')
+    return trouves
+  }
+
   /**
    * `turbopackIgnore` : ce sont des chemins de STOCKAGE construits à l'exécution, pas des modules
    * à résoudre. Sans ce marqueur, Turbopack parcourt tout le projet à la recherche d'un import
@@ -93,7 +162,20 @@ export class MagasinBlobs implements MagasinFichiers {
       octets.byteOffset + octets.byteLength
     ) as ArrayBuffer
 
-    await (await this.store()).set(normaliser(chemin), tampon)
+    /*
+      ⚠️ LA DATE EST ÉCRITE ICI PARCE QUE LE MAGASIN D'OBJETS NE LA DONNE PAS.
+
+      Netlify Blobs ne renvoie ni date de création ni date de modification : un fichier orphelin
+      y est donc d'âge indémontrable, et le ramasse-miettes refuse d'effacer ce dont il ne peut
+      pas prouver l'ancienneté. Sans cette métadonnée, il ne nettoierait jamais rien en
+      production — c'est-à-dire exactement là où il sert.
+
+      Les fichiers écrits AVANT cette date n'en ont pas : ils seront signalés, jamais effacés.
+      C'est le bon défaut — on ne devine pas l'âge d'une pièce jointe.
+    */
+    await (await this.store()).set(normaliser(chemin), tampon, {
+      metadata: { televerseLe: new Date().toISOString() },
+    })
   }
 
   async lire(chemin: string): Promise<Buffer> {
@@ -104,6 +186,40 @@ export class MagasinBlobs implements MagasinFichiers {
     }
 
     return Buffer.from(contenu)
+  }
+
+  // `delete` de Netlify Blobs est déjà idempotent : effacer une clé absente ne lève pas.
+  async supprimer(chemin: string): Promise<void> {
+    await (await this.store()).delete(normaliser(chemin))
+  }
+
+  /**
+   * Inventaire du magasin d'objets.
+   *
+   * ⚠️ LA DATE VIENT DE LA MÉTADONNÉE QUE `ecrire()` POSE, pas du magasin : Netlify Blobs
+   * n'expose aucune date. Un fichier écrit avant l'introduction de cette métadonnée rend donc
+   * `modifieLe: null`, et le ramasse-miettes le signalera sans y toucher.
+   *
+   * `list({ paginate })` évite de charger des dizaines de milliers de clés d'un coup.
+   */
+  async lister(): Promise<readonly FichierStocke[]> {
+    const store = await this.store()
+    const trouves: FichierStocke[] = []
+
+    for await (const page of store.list({ paginate: true })) {
+      for (const blob of page.blobs) {
+        // `getMetadata` rend `null` pour une clé disparue entre la liste et cette lecture.
+        const entree = await store.getMetadata(blob.key)
+        const brut = entree?.metadata?.televerseLe
+
+        const modifieLe =
+          typeof brut === 'string' && !Number.isNaN(Date.parse(brut)) ? new Date(brut) : null
+
+        trouves.push({ chemin: blob.key, modifieLe })
+      }
+    }
+
+    return trouves
   }
 }
 

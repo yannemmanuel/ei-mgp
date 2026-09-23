@@ -66,6 +66,16 @@ session. Une désactivation prend effet immédiatement, sans attendre l'expirati
 | Accès non autorisé | **Aucune pièce n'est jamais servie par une URL de stockage publique.** Le fichier transite par une route qui revérifie la Policy du dossier PARENT, que la pièce soit attachée au dossier, à une investigation ou à une action corrective | `api/pieces-jointes/[id]/route.ts` |
 | Contenu actif dans un aperçu | La réponse pose `nosniff` et une CSP dédiée ; `?apercu=1` ne relâche aucun contrôle, il est lu **après** l'autorisation et ne décide que des en-têtes | `stockage/reponse-piece-jointe.ts` |
 | Dépassement de quota | Plafond par fichier et plafond global du lot, appliqués côté serveur | `lib/limites-pieces-jointes.ts` |
+| Fichiers survivant à leur dossier | Tâche hebdomadaire qui efface du magasin ce que plus aucune ligne ne désigne | `stockage/ramasse-miettes.ts` |
+
+⚠️ **LES FICHIERS SONT ÉCRITS À L'INTÉRIEUR DE LA TRANSACTION, avant leurs lignes.** Un `ROLLBACK`
+après ce point laisse donc un fichier orphelin. **L'ordre est délibéré** : l'inverse laisserait une
+ligne promettant un fichier qui n'existe pas — une pièce jointe visible dans la fiche, introuvable
+au téléchargement. Mieux vaut un fichier de trop, qu'on sait retrouver, qu'une ligne qui ment.
+
+Le ramasse-miettes assume cette conséquence, et **n'efface que ce dont il peut prouver l'âge** :
+un fichier de moins de 24 heures peut être une pièce jointe en cours de dépôt, dont la transaction
+n'a pas encore commité. Un fichier d'âge inconnu est signalé, jamais effacé.
 
 ⚠️ **Écart connu** : le plafond annoncé au déclarant (5 Mo) dépasse ce que la plate-forme accepte
 une fois encodé en multipart (~6,7 Mo pour 6 Mo autorisés). Un lot au plafond exact sera refusé.
@@ -118,12 +128,37 @@ surface d'abus la plus large de l'application.
 - Politique de conservation (§11.3) appliquée par une tâche planifiée mensuelle, sous la
   responsabilité du rôle `dpo` (permission `rgpd.conservation.manage`).
 
-⚠️ **ÉCART CONNU, NON RÉSOLU.** `anonymiser()` supprime la ligne `declaration_identites` et marque
-le dossier, mais ne touche **ni les pièces jointes** — une photo d'accident montre des visages,
-un badge, une plaque — **ni les messages** échangés avec le déclarant, **ni les champs libres**
-`description` et `lieu`, où un nom est fréquemment écrit. Le dossier est donc déclaré anonymisé
-alors qu'il reste ré-identifiable, et la trace juridique affirme que l'obligation est tenue.
-C'est le pire des deux mondes ; à corriger avant toute mise en production durable.
+**Ce que l'anonymisation efface** (`rgpd/effacement.ts`, qui porte la liste et la justifie
+entrée par entrée) :
+
+| Effacé | Comment |
+|---|---|
+| `declaration_identites` | la ligne entière |
+| Pièces jointes | **les FICHIERS d'abord, puis les lignes** — une photo d'accident montre des visages, un badge, une plaque |
+| Messages | le corps remplacé par une mention ; la ligne survit, car le FAIT qu'un échange ait eu lieu reste une donnée d'instruction |
+| `investigations.personnes_rencontrees` | mis à NULL — c'est littéralement une liste de personnes |
+| `actions_correctives.responsable_nom` | mis à NULL |
+| `dossiers.entreprise`, les 4 colonnes de poste | mis à NULL — dans une structure ou une direction restreinte, ils désignent une personne |
+| Champs libres et commentaires d'historique | remplacés par une mention explicite, jamais vidés : un champ NULL se lirait « jamais renseigné » |
+
+**Ce qui N'EST PAS effacé**, et pourquoi : la ligne `dossiers` (RG-03), les champs structurés —
+type, catégorie, gravité, dates — que RG-12 exige de garder calculables sans limite de durée, le
+lieu et la ville (contraints au référentiel, donc non nominatifs), et la référence, sans laquelle
+le dossier deviendrait introuvable y compris pour un auditeur.
+
+⚠️ **UN DOSSIER N'EST MARQUÉ ANONYMISÉ QUE SI SON EFFACEMENT A ABOUTI.** C'est l'invariant qui
+compte : marquer malgré un échec produirait un dossier ré-identifiable portant une trace qui
+affirme le contraire, et qu'aucun passage ultérieur ne reprendrait. Un échec est compté, remonté
+dans le résumé de la tâche planifiée, et le dossier reste éligible.
+
+⚠️ **Traité par lots de 500.** L'ensemble éligible est « tous les dossiers clôturés depuis plus de
+dix ans » : sans borne, le premier passage traitait tout l'arriéré d'un coup, dans une fonction
+serverless dont le temps d'exécution est plafonné.
+
+⚠️ **DÉCISION À CONTESTER SI LE MÉTIER LE SOUHAITE.** Les champs libres — description, faits
+constatés, recommandations — sont effacés. À dix ans d'une clôture, leur valeur statistique est
+proche de zéro et leur risque ne l'est pas ; mais si le métier veut les conserver, la décision
+doit être **écrite**, car ce sont eux qui font qu'un dossier reste ré-identifiable.
 
 - Les demandes d'accès / rectification / suppression ne sont pas détaillées dans le CDC au-delà du
   rôle DPO (§3). Aucun module de ticket RGPD n'est construit tant que le CDC ne le spécifie pas
