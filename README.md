@@ -22,9 +22,18 @@ ses migrations et ses seeders, ont été extraits sous une forme qui vit sans lu
 
 | Fichier | Rôle |
 |---|---|
-| `web/prisma/schema-initial.sql` | Structure complète — 35 tables, contraintes comprises |
+| `web/prisma/structure.sql` | Structure complète — 36 tables, contraintes et commentaires compris |
 | `web/prisma/referentiels.json` | Parcours, catégories, statuts, gravités, délais, permissions… |
 | `web/prisma/seed.mts` | Rejoue les référentiels (`npm run seed`), idempotent |
+
+> ⚠️ **`structure.sql` se RÉGÉNÈRE, il ne s'écrit pas.** Il a remplacé le 23/09/2026 un
+> `schema-initial.sql` qui portait la même promesse — « structure complète » — et qui avait
+> silencieusement pris dix-huit évolutions de retard : **8 tables et 71 colonnes manquantes**,
+> plus 7 tables supprimées depuis. Une base recréée à partir de lui n'aurait su ni autoriser un
+> geste, ni recevoir une déclaration.
+>
+> Après toute évolution de schéma : `npm run db:pull` puis `npm run db:structure`. Ce n'est pas
+> une consigne à retenir — `structure-a-jour.test.ts` échoue si on l'oublie, et dit quoi taper.
 
 L'état antérieur reste intégralement récupérable :
 

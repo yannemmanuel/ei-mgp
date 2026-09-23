@@ -649,3 +649,11 @@ model role_etapes {
   @@index([parcours_id], map: "role_etapes_parcours_id_index")
   @@index([statut_id], map: "role_etapes_statut_id_index")
 }
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model evolutions_appliquees {
+  fichier     String   @id @db.VarChar(255)
+  empreinte   String   @db.Char(64)
+  applique_le DateTime @default(now()) @db.Timestamp(0)
+  rang        Int      @unique(map: "evolutions_appliquees_rang_unique")
+}

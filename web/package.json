@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:pull": "prisma db pull && prisma generate",
+    "db:structure": "tsx prisma/regenerer-structure.mts",
+    "db:evolutions": "tsx prisma/appliquer-evolutions.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "sauvegarde": "node scripts/sauvegarde.mjs",

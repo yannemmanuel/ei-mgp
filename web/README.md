@@ -4,18 +4,31 @@ Digitalisation du **Mécanisme de Gestion des Plaintes** : déclaration et suivi
 indésirables et de griefs sur 4 parcours (EI Employé, Grief Employé, Grief Sous-traitant, Grief
 Communauté).
 
-Cette application a remplacé un portage Laravel, retiré depuis. Le schéma et les référentiels,
-qui n'existaient que dans ses migrations et ses seeders, sont préservés ici (voir *Recréer un
-environnement*).
-
 ---
 
 ## ⚠️ À lire avant toute commande
 
-- **`schema.prisma` est une INTROSPECTION**, pas une source. La structure de référence est
-  `prisma/schema-initial.sql`. Une évolution du schéma s'écrit là, s'applique, puis se reprend
-  par `prisma db pull` — jamais l'inverse. `prisma migrate dev`, `migrate reset` et `db push`
-  restent à proscrire tant qu'aucun outil de migration n'a été mis en place.
+- **`schema.prisma` est une INTROSPECTION**, pas une source. Une évolution du schéma s'écrit dans
+  `prisma/evolutions/`, s'applique, puis se reprend par `npm run db:pull` — jamais l'inverse.
+  `prisma migrate dev`, `migrate reset` et `db push` restent à proscrire : `migrate reset`
+  **propose d'effacer**, et cette base porte des déclarations réelles.
+
+  ```bash
+  npm run db:evolutions                 # ce qui manque à CETTE base — n'écrit rien
+  npm run db:evolutions -- --appliquer  # applique, et enregistre ce qui est passé
+  npm run db:pull && npm run db:structure
+  ```
+
+  ⚠️ **`prisma/structure.sql` se régénère, il ne s'écrit pas.** C'est le seul chemin pour créer
+  une base NEUVE. Le fichier qu'il remplace, `schema-initial.sql`, portait la même promesse et
+  avait pris dix-huit évolutions de retard sans que rien ne le dise : 8 tables et 71 colonnes
+  manquantes. `structure-a-jour.test.ts` échoue désormais si on oublie de le régénérer.
+
+  ⚠️ **Ne JAMAIS rejouer `prisma/evolutions/` sur une base vide.** L'ordre des noms n'est pas
+  l'ordre d'application — `2026-09-21-alerte-circuit-par-type.sql` se trie avant
+  `2026-09-21-roles-entierement-parametrables.sql` alors qu'il supprime une colonne que le second
+  crée. Le résultat serait une base subtilement fausse ; le script refuse de s'exécuter sur une
+  base vide pour cette raison.
 - **Les tests écrivent dans la vraie base.** Ils créent puis suppriment leurs propres données, et
   `vitest.setup.mts` retire les lignes `notifications` et `audit_logs` produites pendant la
   campagne. Ne les lancez pas contre une base de production.

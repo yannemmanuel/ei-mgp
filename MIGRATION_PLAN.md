@@ -4703,6 +4703,103 @@ a été conservée.
 
 ---
 
+### ✅ Étape 33 — Le chemin de recréation était rompu, et personne ne pouvait le savoir
+
+Le constat O1 de l'audit disait : « les évolutions de schéma ne sont ni versionnées ni
+réversibles ». En allant le corriger, j'ai trouvé plus grave.
+
+#### `schema-initial.sql` avait pourri sans bruit
+
+Il était documenté comme « Structure complète » et constituait le **seul** chemin pour recréer un
+environnement. Mesuré sur la base réelle le 23/09 :
+
+```
+tables en base                : 36
+tables absentes du fichier    : 8
+   familles_risque · invitations_connexion · lieux · postes
+   role_etapes · role_parcours · utilisateur_parcours · villes
+
+colonnes absentes du fichier  : 71
+tables décrites mais DISPARUES: 7   (les tables Laravel retirées la veille)
+```
+
+Une base recréée à partir de lui n'aurait su **ni autoriser un geste** — pas de `role_etapes` —
+**ni recevoir une déclaration** — pas de `lieux`. Le fichier affirmait le contraire, et rien ne
+contredisait le fichier.
+
+⚠️ **La cause n'est pas l'étourderie.** C'était un fichier écrit UNE fois, complété À LA MAIN
+— le plan de migration le dit lui-même : « complété à la main | contrainte
+`niveaux_gravite_niveau_check` » — que rien n'obligeait à suivre les dix-huit évolutions venues
+après. Une consigne dans un README n'aurait rien changé : c'est exactement ce qui existait déjà.
+
+#### Ce qui remplace : un fichier qui se régénère
+
+`prisma/structure.sql`, produit par `npm run db:structure`.
+
+Le corps vient de `prisma migrate diff` depuis `schema.prisma` — lui-même introspecté, donc
+incapable de décrire autre chose que la base réelle. ⚠️ **Pas `pg_dump`** : sa version 18 émet des
+méta-commandes `\restrict` que seul `psql` comprend, et le fichier cesserait d'être du SQL
+portable.
+
+Ce que Prisma ne modélise pas est **relevé sur la base**, jamais recopié : la contrainte CHECK et
+les 28 commentaires de colonne. C'est la différence qui compte — la version précédente portait sa
+contrainte « à la main », et rien n'aurait signalé une SECONDE contrainte ajoutée plus tard.
+
+#### Le contrôle qui l'empêche de pourrir à nouveau
+
+`structure-a-jour.test.ts` compare le fichier à la base : tables présentes, tables en trop,
+colonnes, contraintes CHECK. Il dit quoi taper quand il échoue.
+
+⚠️ **Il a servi dans l'heure qui a suivi.** L'évolution qui crée `evolutions_appliquees` a ajouté
+une 37ᵉ table ; le cas est passé au rouge avant que j'y pense, avec le message
+« Relancer `npm run db:pull` puis `npm run db:structure` ». C'est la démonstration qu'une
+consigne écrite ne remplace pas un contrôle qui échoue.
+
+⚠️ La vérification des colonnes porte sur le COUPLE `table.colonne`. Chercher « le nom apparaît
+quelque part dans le fichier » laisserait passer une colonne `ordre` ajoutée à une table qui n'en
+avait pas — le mot figure déjà ailleurs. C'est le genre d'angle mort qui fait qu'un contrôle
+rassure sans protéger.
+
+#### O1 proprement dit : `evolutions_appliquees`
+
+Table de suivi + `npm run db:evolutions`, avec trois modes : constat (par défaut, n'écrit rien),
+`--appliquer`, et `--adopter` — qui enregistre sans exécuter, pour une base où les évolutions sont
+déjà passées à la main. Les 27 existantes ont été adoptées ainsi.
+
+**L'empreinte SHA-256 n'est pas décorative.** Elle répond à ce qu'un nom de fichier ne peut pas
+trancher : « ce fichier a-t-il changé depuis son application ? » Une évolution retouchée après
+coup donne une base qui ne correspond plus à son propre historique. Le script REFUSE alors de
+continuer — vérifié en ajoutant une ligne à une évolution adoptée.
+
+⚠️ **L'application se fait instruction par instruction quand le fichier n'a pas de transaction.**
+`CREATE INDEX CONCURRENTLY` ne peut pas s'exécuter dans un bloc transactionnel :
+`2026-09-22-index-cles-etrangeres.sql` n'a donc ni BEGIN ni COMMIT, et l'envoyer d'un coup place
+le serveur en transaction implicite. Les fichiers qui portent leur propre BEGIN partent entiers :
+les découper romprait l'atomicité qu'ils demandent.
+
+#### Le piège trouvé en chemin : l'ordre des noms ment
+
+Une analyse mécanique des dépendances entre les 27 évolutions a trouvé exactement un cas, et il
+est réel :
+
+> `2026-09-21-alerte-circuit-par-type.sql` se trie AVANT
+> `2026-09-21-roles-entierement-parametrables.sql` — le tiret précède le « s » — alors qu'il
+> SUPPRIME une colonne que le second CRÉE.
+
+Rejouées dans l'ordre des noms depuis une base vide, ces deux-là laissent
+`roles.alerte_circuit_critique` en place — ce qu'aucune production ne montre.
+
+⚠️ **Le remède n'est pas un renommage, c'est un refus.** Une base neuve part désormais de
+`structure.sql` et ne rejoue aucune évolution : le danger n'a plus de conséquence, à une condition
+— que personne ne s'avise de rejouer le dossier depuis le vide. Le script refuse donc de
+s'exécuter sur une base vide, et dit pourquoi.
+
+**Vérifié** — les deux garde-fous éprouvés en les provoquant : le fichier pourri fait échouer le
+contrôle de structure (8 tables, 7 obsolètes, 71 colonnes), l'évolution retouchée fait refuser le
+script. 27 évolutions adoptées, `structure.sql` à 37 tables et 28 commentaires.
+
+---
+
 ## 7. Risques ouverts
 
 | # | Risque | Gravité | État |
