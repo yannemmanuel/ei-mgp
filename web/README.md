@@ -52,9 +52,12 @@ npm run dev               # http://localhost:3000
 Sur une base vierge :
 
 ```bash
-psql "$DATABASE_URL" -f prisma/schema-initial.sql   # 35 tables et leurs contraintes
-npm run seed                                        # parcours, catégories, délais, permissions…
+psql "$DATABASE_URL" -f prisma/structure.sql   # 37 tables, contraintes et commentaires
+npm run seed                                   # parcours, catégories, délais, permissions…
 ```
+
+⚠️ `prisma/structure.sql`, et non `schema-initial.sql` — ce dernier a été retiré le 23/09/2026
+après avoir pris dix-huit évolutions de retard. Voir l'avertissement en tête de fichier.
 
 Le seed est idempotent : il peut être rejoué sur une base déjà peuplée. Il ne crée **aucun
 compte** — les comptes se créent depuis `/administration/utilisateurs`.
@@ -66,7 +69,7 @@ lorsqu'un référentiel modifié depuis l'application doit être versionné.
 
 | Variable | Rôle | Sans elle |
 |---|---|---|
-| `DATABASE_URL` | Connexion PostgreSQL, partagée avec Laravel | L'application ne démarre pas |
+| `DATABASE_URL` | Connexion PostgreSQL | L'application ne démarre pas |
 | `AUTH_SECRET` | Signature des sessions Auth.js **et** du jeton de suivi déclarant | Connexion et suivi impossibles |
 | `AUTH_URL` | URL publique de l'application | Auth.js refuse l'hôte (`UntrustedHost`) |
 | `TACHES_SECRET` | Secret du déclencheur de tâches planifiées, **32 caractères minimum** | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
@@ -91,7 +94,14 @@ Comptes de démonstration présents dans la base de développement : `admin@`, `
 | `npm start` | Serveur de production |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Suite Vitest (245 tests, contre la base réelle) |
+| `npm test` | Suite Vitest — plus de 800 tests, contre la base réelle |
+| `npm run db:evolutions` | Ce qui manque à cette base ; `-- --appliquer` pour l'appliquer |
+| `npm run db:pull` | Réintrospecte `schema.prisma` depuis la base |
+| `npm run db:structure` | Régénère `prisma/structure.sql` — après toute évolution |
+| `npm run seed` | Rejoue les référentiels, idempotent |
+| `npm run exporter-referentiels` | Reprend `referentiels.json` depuis la base courante |
+| `npm run sauvegarde` | Vidage `pg_dump`, rotation à 30 jours |
+| `npm run tester-email` | Diagnostic du transport SMTP |
 
 ---
 
@@ -129,6 +139,12 @@ Le journal complet — étapes livrées, défauts trouvés dans la baseline, ris
 
 1. **Transport SMTP** — sans `MAIL_HOST` et `MAIL_FROM`, les envois sont journalisés. Le
    démarrage annonce lequel des deux modes est actif.
+2. **Plafond des pièces jointes contre celui de l'hébergeur.** Le formulaire annonce 3 fichiers
+   et 5 Mo ; une Server Action passe par une fonction Netlify, dont la requête est plafonnée à
+   6 Mo — soit environ 4,5 Mo de binaire une fois encodé, et ce plafond vient d'AWS Lambda, il
+   ne se relève pas. Un lot au plafond exact sera donc refusé en production. Tenir la promesse
+   suppose un téléversement direct vers le magasin de blobs, la déclaration ne portant plus que
+   les références. Voir `docs/exigences-securite.md` §3.
 
 ## Sauvegardes
 

@@ -22,7 +22,7 @@ ses migrations et ses seeders, ont été extraits sous une forme qui vit sans lu
 
 | Fichier | Rôle |
 |---|---|
-| `web/prisma/structure.sql` | Structure complète — 36 tables, contraintes et commentaires compris |
+| `web/prisma/structure.sql` | Structure complète — 37 tables, contraintes et commentaires compris |
 | `web/prisma/referentiels.json` | Parcours, catégories, statuts, gravités, délais, permissions… |
 | `web/prisma/seed.mts` | Rejoue les référentiels (`npm run seed`), idempotent |
 

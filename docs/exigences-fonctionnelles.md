@@ -24,7 +24,7 @@ Colonnes :
 | EX-DEC-03 | Option anonymat sur les 4 formulaires, masquage identité | Essentielle | Déclarant | Composant Livewire commun `DeclarationForm` (toggle anonymat) | Fait |
 | EX-DEC-04 | Authentification conditionnelle employé (compte pro si identifié, libre si anonyme) | Essentielle | Employé déclarant | Guard web + logique conditionnelle dans le formulaire EI/Grief Employé | Fait |
 | EX-DEC-05 | Accès libre sans compte pour sous-traitant/communauté | Essentielle | Sous-traitant, Communauté | Routes publiques, aucun middleware `auth` | Fait |
-| EX-DEC-06 | Pièces jointes depuis l'appareil, max 10 fichiers / 50 Mo — les images sont réduites dans le navigateur avant le dépôt (arbitrage du 08/09/2026, en remplacement de « max 5 fichiers ») | Importante | Déclarant | `PieceJointeUploadService` + Form Request de validation | Fait |
+| EX-DEC-06 | Pièces jointes depuis l'appareil, **max 3 fichiers / 5 Mo** (retour métier du 11/09/2026) — les images sont réduites dans le navigateur avant le dépôt | Importante | Déclarant | `PieceJointeUploadService` + Form Request de validation | Fait |
 | EX-DEC-07 | Validation champs obligatoires, message d'erreur explicite | Essentielle | Déclarant | Form Requests dédiés par parcours | Fait |
 | EX-DEC-08 | Génération auto numéro de référence unique + accusé de réception | Essentielle | Système, Déclarant | `ReferenceGeneratorService` + vue accusé de réception | Fait |
 | EX-DEC-09 | Génération code d'accès secondaire (4-6 chiffres) si anonyme | Essentielle | Système, Déclarant anonyme | `AccessCodeService` (génération + hash) | Fait |

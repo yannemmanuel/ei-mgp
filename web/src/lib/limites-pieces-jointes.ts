@@ -11,7 +11,7 @@
  * tenir — trois photos réduites passent là où une seule photo brute ne passait pas.
  *
  * Ces constantes vivent ici, et non dans le service serveur, parce que le formulaire les annonce
- * (« 10 fichiers maximum, 50 Mo au total ») et doit les faire respecter AVANT l'envoi. Un module
+ * et doit les faire respecter AVANT l'envoi. Un module
  * partagé plutôt que deux jeux de valeurs : une promesse faite au déclarant et une règle
  * appliquée au serveur qui divergeraient produiraient exactement ce qu'on veut éviter — un envoi
  * accepté par l'écran puis refusé après coup, une fois les octets déjà transmis.
