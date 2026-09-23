@@ -2261,7 +2261,6 @@
         "valeur": "1"
       },
       "name": "dossiers.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2277,7 +2276,6 @@
         "valeur": "2"
       },
       "name": "dossiers.view.own",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2293,7 +2291,6 @@
         "valeur": "3"
       },
       "name": "dossiers.view.all",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2309,7 +2306,6 @@
         "valeur": "4"
       },
       "name": "dossiers.create",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2325,7 +2321,6 @@
         "valeur": "5"
       },
       "name": "dossiers.assign",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2341,7 +2336,6 @@
         "valeur": "6"
       },
       "name": "dossiers.reassign",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2357,7 +2351,6 @@
         "valeur": "7"
       },
       "name": "dossiers.status.update",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2373,7 +2366,6 @@
         "valeur": "8"
       },
       "name": "dossiers.close",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2389,7 +2381,6 @@
         "valeur": "9"
       },
       "name": "dossiers.reopen",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2405,7 +2396,6 @@
         "valeur": "10"
       },
       "name": "investigations.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2421,7 +2411,6 @@
         "valeur": "11"
       },
       "name": "investigations.create",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2437,7 +2426,6 @@
         "valeur": "12"
       },
       "name": "investigations.update",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2453,7 +2441,6 @@
         "valeur": "13"
       },
       "name": "investigations.validate",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2469,7 +2456,6 @@
         "valeur": "14"
       },
       "name": "actions.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2485,7 +2471,6 @@
         "valeur": "15"
       },
       "name": "actions.create",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2501,7 +2486,6 @@
         "valeur": "16"
       },
       "name": "actions.update",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2517,7 +2501,6 @@
         "valeur": "17"
       },
       "name": "actions.verify_efficacite",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2533,7 +2516,6 @@
         "valeur": "18"
       },
       "name": "actions.close",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2549,7 +2531,6 @@
         "valeur": "19"
       },
       "name": "messagerie.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2565,7 +2546,6 @@
         "valeur": "20"
       },
       "name": "messagerie.send",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2581,7 +2561,6 @@
         "valeur": "21"
       },
       "name": "notifications.templates.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2597,7 +2576,6 @@
         "valeur": "22"
       },
       "name": "referentiels.categories.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2613,7 +2591,6 @@
         "valeur": "23"
       },
       "name": "referentiels.statuts.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2629,7 +2606,6 @@
         "valeur": "24"
       },
       "name": "referentiels.sites.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2645,7 +2621,6 @@
         "valeur": "25"
       },
       "name": "qrcodes.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2661,7 +2636,6 @@
         "valeur": "26"
       },
       "name": "users.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2677,7 +2651,6 @@
         "valeur": "27"
       },
       "name": "roles.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2693,7 +2666,6 @@
         "valeur": "28"
       },
       "name": "canaux.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2709,7 +2681,6 @@
         "valeur": "29"
       },
       "name": "reporting.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2725,7 +2696,6 @@
         "valeur": "30"
       },
       "name": "reporting.export",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2741,7 +2711,6 @@
         "valeur": "31"
       },
       "name": "reporting.export.nominatif",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2757,7 +2726,6 @@
         "valeur": "32"
       },
       "name": "audit.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2773,7 +2741,6 @@
         "valeur": "33"
       },
       "name": "rgpd.conservation.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2789,7 +2756,6 @@
         "valeur": "34"
       },
       "name": "rgpd.acces.view",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2805,7 +2771,6 @@
         "valeur": "35"
       },
       "name": "referentiels.delais.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-07T17:20:10.000Z"
@@ -2821,7 +2786,6 @@
         "valeur": "36"
       },
       "name": "referentiels.gravites.manage",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-07T17:20:10.000Z"
@@ -2839,7 +2803,6 @@
         "valeur": "1"
       },
       "name": "employe_declarant",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2858,7 +2821,6 @@
         "valeur": "5"
       },
       "name": "rgp",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2877,7 +2839,6 @@
         "valeur": "6"
       },
       "name": "responsable_grief_employe",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2896,7 +2857,6 @@
         "valeur": "8"
       },
       "name": "service_mgp",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2915,7 +2875,6 @@
         "valeur": "9"
       },
       "name": "comite_ethique",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2934,7 +2893,6 @@
         "valeur": "11"
       },
       "name": "captage_grief_soustraitant",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2953,7 +2911,6 @@
         "valeur": "12"
       },
       "name": "dg",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2972,7 +2929,6 @@
         "valeur": "13"
       },
       "name": "dpo",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -2991,7 +2947,6 @@
         "valeur": "2"
       },
       "name": "agent_relais",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3010,7 +2965,6 @@
         "valeur": "15"
       },
       "name": "auditeur",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3029,7 +2983,6 @@
         "valeur": "10"
       },
       "name": "captage_grief_communaute",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3048,7 +3001,6 @@
         "valeur": "14"
       },
       "name": "administrateur_digital",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3067,7 +3019,6 @@
         "valeur": "216"
       },
       "name": "charge_securite",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-11T18:01:03.000Z"
@@ -3086,7 +3037,6 @@
         "valeur": "217"
       },
       "name": "correspondant_drh",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-11T18:01:03.000Z"
@@ -3105,7 +3055,6 @@
         "valeur": "218"
       },
       "name": "correspondant_dadd",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-11T18:01:03.000Z"
@@ -3124,7 +3073,6 @@
         "valeur": "219"
       },
       "name": "correspondant_dl",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-11T18:01:03.000Z"
@@ -3143,7 +3091,6 @@
         "valeur": "220"
       },
       "name": "responsable_mgp_structure",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-09-11T18:01:03.000Z"
@@ -3162,7 +3109,6 @@
         "valeur": "3"
       },
       "name": "secretaire_csst",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3181,7 +3127,6 @@
         "valeur": "4"
       },
       "name": "rqse",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"
@@ -3200,7 +3145,6 @@
         "valeur": "7"
       },
       "name": "correspondant_mgp",
-      "guard_name": "web",
       "created_at": {
         "__type": "date",
         "valeur": "2026-08-27T21:51:08.000Z"

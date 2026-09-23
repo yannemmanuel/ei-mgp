@@ -102,8 +102,23 @@ describe('⚠️ Ce qui est cité est REFUSÉ, en nommant par quoi', () => {
       Le message est la moitié utile du refus. « Cet élément est utilisé » n'apprend rien et ne se
       vérifie pas ; « cité par 20 dossiers » dit où chercher. Et sans le remède, l'administrateur
       reste devant une impasse.
+
+      ⚠️ LA GARDE N'EST PAS DÉCORATIVE, et son absence a déjà coûté une ligne de référentiel.
+
+      Ce cas attend un REFUS, et le refus ne vient que des dossiers qui citent le canal. Sur une
+      base vidée de ses dossiers, l'appel réussit — le test échoue ET supprime réellement
+      « qr_code », que plus rien ne retenait. Une déclaration publique ne pouvait alors plus être
+      enregistrée du tout.
+
+      Un test qui attend un refus doit donc vérifier d'abord que le refus a une raison d'être,
+      comme le fait celui juste au-dessus.
     */
-    const canal = await prisma.canaux_captage.findFirstOrThrow({ where: { code: 'qr_code' } })
+    const canal = await prisma.canaux_captage.findFirstOrThrow({
+      where: { code: 'qr_code' },
+      select: { id: true, _count: { select: { dossiers: true } } },
+    })
+
+    expect(canal._count.dossiers, 'aucun dossier : le cas ne prouverait rien').toBeGreaterThan(0)
 
     await expect(supprimerCanalCaptage(await acteur(), canal.id)).rejects.toThrow(/dossier/)
     await expect(supprimerCanalCaptage(await acteur(), canal.id)).rejects.toThrow(/[Dd]ésactivez/)

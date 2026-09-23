@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
@@ -96,7 +96,10 @@ async function dejaAppliquees(prisma: PrismaClient): Promise<Appliquee[] | null>
 }
 
 async function principal(): Promise<void> {
-  process.loadEnvFile('.env')
+  // ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+  // dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+  // Raisonnement complet dans `prisma.config.ts`.
+  if (existsSync('.env')) process.loadEnvFile('.env')
 
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL absent.')

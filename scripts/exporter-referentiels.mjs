@@ -9,12 +9,16 @@
  * N'exporte AUCUNE donnée métier ni personnelle : ni dossiers, ni identités, ni messages, ni
  * journal d'audit, ni comptes utilisateurs. Le fichier produit est versionnable.
  */
+import { existsSync } from 'node:fs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 import { writeFile } from 'node:fs/promises'
 import process from 'node:process'
 
-process.loadEnvFile('.env')
+// ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+// dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+// Raisonnement complet dans `prisma.config.ts`.
+if (existsSync('.env')) process.loadEnvFile('.env')
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

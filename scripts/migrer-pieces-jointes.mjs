@@ -15,6 +15,7 @@
  *
  * `--verifier` n'écrit rien : il liste ce qui serait transféré.
  */
+import { existsSync } from 'node:fs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 import { createHash } from 'node:crypto'
@@ -22,7 +23,10 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
-process.loadEnvFile('.env')
+// ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
+// dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
+// Raisonnement complet dans `prisma.config.ts`.
+if (existsSync('.env')) process.loadEnvFile('.env')
 
 const SIMULATION = process.argv.includes('--verifier')
 const RACINE_LOCALE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 'storage', 'private')
