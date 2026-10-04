@@ -1,6 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { AlertTriangle, ArrowRight, Inbox, ShieldCheck } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardCheck,
+  ShieldCheck,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EtatVide } from '@/components/ui/etat-vide'
 import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
@@ -88,42 +96,50 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
         }
       />
 
-      <BandeUrgences urgences={urgences} peutVoirTout={aPermission(utilisateur, 'dossiers.view.all')} />
-
-      {administre && <BandeAdministration alertes={alertes} traiteDesDossiers={traiteDesDossiers} />}
-
-      {mesDossiers.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-h3">Vos dossiers à traiter</CardTitle>
+      <section aria-labelledby="titre-priorites" className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">
+              Espace de décision
+            </p>
+            <h2 id="titre-priorites" className="mt-1 text-h2 text-secondary-900">
+              Priorités du jour
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Traitez d’abord les échéances dépassées, puis les dossiers qui attendent votre rôle.
+            </p>
+          </div>
+          {traiteDesDossiers && (
             <Link
-              href="/dossiers?assigneAMoi=1"
-              className="flex items-center gap-1 text-caption text-primary-700 underline-offset-2 hover:underline"
+              href="/dossiers?aMoiDAgir=1"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Voir tous les miens
-              <ArrowRight className="h-3 w-3" aria-hidden />
+              Ouvrir ma file de travail
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y divide-border">
-              {mesDossiers.map((d) => (
-                <li key={d.id} className="relative flex items-center justify-between gap-3 py-2">
-                  <Link
-                    href={`/dossiers/${d.id}`}
-                    className="min-w-0 text-sm after:absolute after:inset-0 hover:underline"
-                  >
-                    <span className="font-mono text-muted-foreground">{d.reference}</span>{' '}
-                    <span className="text-secondary-900">{d.categories.libelle}</span>
-                  </Link>
-                  <EtiquetteStatut ton="encours">
-                    {d.statuts_dossier.libelle_interne}
-                  </EtiquetteStatut>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </div>
+
+        {traiteDesDossiers && (
+          <BandeUrgences
+            urgences={urgences}
+            peutVoirTout={aPermission(utilisateur, 'dossiers.view.all')}
+          />
+        )}
+
+        <div
+          className={cn(
+            'grid gap-5',
+            administre && traiteDesDossiers &&
+              'xl:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.75fr)]'
+          )}
+        >
+          {traiteDesDossiers && <FileActions dossiers={mesDossiers} urgences={urgences} />}
+          {administre && (
+            <BandeAdministration alertes={alertes} traiteDesDossiers={traiteDesDossiers} />
+          )}
+        </div>
+      </section>
 
       {voitLeRapport ? (
         <VueConsolidee
@@ -141,25 +157,97 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           refuse délibérément. Lui annoncer que « ceux qui vous seront confiés apparaîtront ici »
           était une promesse que son propre rôle interdit de tenir.
         */
-        traiteDesDossiers &&
-        mesDossiers.length === 0 &&
-        urgences.enRetard === 0 &&
-        urgences.nonAffectes === 0 && (
-          <Card className="p-0">
-            {/*
-              « Affecté » ne dit pas tout : un évènement indésirable n'est affecté à personne et
-              revient au chargé de sécurité par son rattachement. Le libellé parlait d'affectation
-              là où la charge peut venir des deux, et laissait croire à un oubli de paramétrage.
-            */}
-            <EtatVide
-              icone={Inbox}
-              titre="Aucun dossier ne vous revient pour l’instant."
-              description="Ceux qui vous seront confiés apparaîtront ici."
-            />
-          </Card>
-        )
+        null
       )}
     </div>
+  )
+}
+
+function FileActions({
+  dossiers,
+  urgences,
+}: {
+  dossiers: Awaited<ReturnType<typeof dossiersATraiter>>
+  urgences: ADTraiter
+}) {
+  return (
+    <Card className="gap-0 py-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/70 bg-secondary-50/50 py-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-700">
+              <ClipboardCheck className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <CardTitle>Ma file de travail</CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {urgences.miens > 0
+                  ? `${urgences.miens} dossier${urgences.miens > 1 ? 's' : ''} attend${urgences.miens > 1 ? 'ent' : ''} votre intervention`
+                  : 'Aucune intervention requise actuellement'}
+              </p>
+            </div>
+          </div>
+        </div>
+        {urgences.miens > 0 && (
+          <span className="rounded-full bg-primary-100 px-2.5 py-1 text-xs font-bold text-primary-800">
+            {urgences.miens}
+          </span>
+        )}
+      </CardHeader>
+
+      {dossiers.length === 0 ? (
+        <div className="flex min-h-48 flex-col items-center justify-center px-6 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <CheckCircle2 className="h-6 w-6" aria-hidden />
+          </span>
+          <p className="mt-3 font-semibold text-secondary-900">Votre file est à jour</p>
+          <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+            Aucun dossier n’attend l’intervention de votre rôle pour le moment.
+          </p>
+        </div>
+      ) : (
+        <CardContent className="px-0">
+          <ul className="divide-y divide-border/70" aria-label="Dossiers en attente de votre action">
+            {dossiers.map((d, index) => (
+              <li key={d.id} className="group relative">
+                <Link
+                  href={`/dossiers/${d.id}`}
+                  className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-primary-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-100 text-xs font-bold text-secondary-600 group-hover:bg-primary-100 group-hover:text-primary-800">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-secondary-900">
+                      {d.categories.libelle}
+                    </span>
+                    <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                      {d.reference}
+                    </span>
+                  </span>
+                  <EtiquetteStatut ton="encours">
+                    {d.statuts_dossier.libelle_interne}
+                  </EtiquetteStatut>
+                  <ChevronRight
+                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary-700"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-border/70 bg-muted/20 px-5 py-3">
+            <Link
+              href="/dossiers?aMoiDAgir=1"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-700 hover:underline"
+            >
+              Voir toute la file
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
+        </CardContent>
+      )}
+    </Card>
   )
 }
 
@@ -183,9 +271,9 @@ function BandeUrgences({
   const cartes = [
     {
       cle: 'miens-retard',
-      libelle: 'Vos dossiers en retard',
+      libelle: 'Vos actions en retard',
       valeur: urgences.miensEnRetard,
-      href: '/dossiers?assigneAMoi=1',
+      href: '/dossiers?aMoiDAgir=1',
       aide: 'La date limite est passée.',
       grave: true,
     },
@@ -209,9 +297,9 @@ function BandeUrgences({
     },
     {
       cle: 'miens',
-      libelle: 'Vos dossiers en cours',
+      libelle: 'À vous d’agir',
       valeur: urgences.miens,
-      href: '/dossiers?assigneAMoi=1',
+      href: '/dossiers?aMoiDAgir=1',
       aide: 'Hors dossiers clos.',
       grave: false,
     },
@@ -225,30 +313,38 @@ function BandeUrgences({
   if (cartes.length === 0) return null
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
       {cartes.map((carte) => (
         <Link
           key={carte.cle}
           href={carte.href}
-          className="group block rounded-xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Card
-            className={`h-full p-4 transition-shadow group-hover:shadow-sm ${
-              carte.grave ? 'ring-destructive/30 group-hover:ring-destructive/50' : ''
-            }`}
+            className={cn(
+              'h-full p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
+              carte.grave
+                ? 'border-destructive/30 bg-gradient-to-br from-rose-50/70 via-card to-rose-50/20 hover:border-destructive/50 shadow-xs'
+                : 'border-border/80 bg-gradient-to-br from-card via-card to-secondary-50/40 hover:border-primary/40 shadow-xs'
+            )}
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="text-caption text-muted-foreground">{carte.libelle}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{carte.libelle}</p>
               {carte.grave && (
-                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" aria-hidden />
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-destructive/10 text-destructive shrink-0">
+                  <AlertTriangle className="h-4 w-4" aria-hidden />
+                </div>
               )}
             </div>
             <p
-              className={`mt-1 text-h1 ${carte.grave ? 'text-destructive' : 'text-secondary-900'}`}
+              className={cn(
+                'mt-2 text-chiffre font-heading',
+                carte.grave ? 'text-destructive' : 'text-secondary-900'
+              )}
             >
               {carte.valeur}
             </p>
-            <p className="mt-1 text-caption text-muted-foreground">{carte.aide}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{carte.aide}</p>
           </Card>
         </Link>
       ))}
@@ -382,42 +478,70 @@ async function VueConsolidee({
   ]
 
   return (
-    <>
+    <div className="space-y-8">
       <BarreFiltres base="/dashboard" champs={champs} valeurs={valeurs} />
+
+      <nav aria-label="Sections du tableau de bord" className="overflow-x-auto">
+        <ul className="flex min-w-max gap-1 rounded-xl border border-border/70 bg-card p-1 text-sm shadow-xs">
+          {[
+            { href: '#vue-ensemble', libelle: 'Vue d’ensemble' },
+            { href: '#repartitions', libelle: 'Répartitions' },
+            { href: '#historique', libelle: 'Historique' },
+          ].map((section) => (
+            <li key={section.href}>
+              <a
+                href={section.href}
+                className="block min-h-10 rounded-lg px-3 py-2.5 font-medium text-secondary-600 transition-colors hover:bg-muted hover:text-secondary-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {section.libelle}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/*
         Un « 0 % » sans contexte se lit comme un mauvais résultat, alors qu'il dit souvent qu'il
         n'y a rien à mesurer : aucun dossier clôturé, donc aucun délai moyen. Nommer la cause évite
         de faire passer un dispositif qui démarre pour un dispositif qui échoue.
       */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Indicateur libelle="Déclarations" valeur={String(indicateurs.total)} />
-        <Indicateur
-          libelle="Taux de résolution"
-          valeur={pourcent(indicateurs.tauxResolution)}
-          note={indicateurs.total === 0 ? 'Aucune déclaration.' : undefined}
-        />
-        <Indicateur
-          libelle="Taux de clôture"
-          valeur={pourcent(indicateurs.tauxCloture)}
-          note={
-            indicateurs.tauxCloture === 0 && indicateurs.total > 0
-              ? 'Aucun dossier clôturé.'
-              : undefined
-          }
-        />
-        <Indicateur
-          libelle="Délai moyen"
-          valeur={indicateurs.delaiMoyen === null ? '—' : `${indicateurs.delaiMoyen} j`}
-          note={
-            indicateurs.delaiMoyen === null
-              ? 'Se calcule à la clôture des dossiers.'
-              : undefined
-          }
-        />
-      </div>
+      <section id="vue-ensemble" aria-labelledby="titre-vue-ensemble" className="scroll-mt-6 space-y-4">
+        <div>
+          <h2 id="titre-vue-ensemble" className="text-h2 text-secondary-900">
+            Vue d’ensemble
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Les volumes, délais et éléments qui appellent une action.
+          </p>
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Indicateur libelle="Déclarations" valeur={String(indicateurs.total)} />
+          <Indicateur
+            libelle="Taux de résolution"
+            valeur={pourcent(indicateurs.tauxResolution)}
+            note={indicateurs.total === 0 ? 'Aucune déclaration.' : undefined}
+          />
+          <Indicateur
+            libelle="Taux de clôture"
+            valeur={pourcent(indicateurs.tauxCloture)}
+            note={
+              indicateurs.tauxCloture === 0 && indicateurs.total > 0
+                ? 'Aucun dossier clôturé.'
+                : undefined
+            }
+          />
+          <Indicateur
+            libelle="Délai moyen"
+            valeur={indicateurs.delaiMoyen === null ? '—' : `${indicateurs.delaiMoyen} j`}
+            note={
+              indicateurs.delaiMoyen === null
+                ? 'Se calcule à la clôture des dossiers.'
+                : undefined
+            }
+          />
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-h3">À traiter</CardTitle>
@@ -453,18 +577,27 @@ async function VueConsolidee({
             </div>
           </CardContent>
         </Card>
+      </section>
 
-        <Repartition titre="Par gravité" lignes={indicateurs.parGravite} total={indicateurs.total} />
-      </div>
+      <section id="repartitions" aria-labelledby="titre-repartitions" className="scroll-mt-6 space-y-4">
+        <div>
+          <h2 id="titre-repartitions" className="text-h2 text-secondary-900">
+            Répartitions
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            La composition des déclarations selon les principaux axes d’analyse.
+          </p>
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Repartition
-          titre="Par parcours"
-          lignes={indicateurs.parParcours}
-          total={indicateurs.total}
-        />
-        <Repartition titre="Par statut" lignes={indicateurs.parStatut} total={indicateurs.total} />
-      </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Repartition titre="Par gravité" lignes={indicateurs.parGravite} total={indicateurs.total} />
+          <Repartition
+            titre="Par parcours"
+            lignes={indicateurs.parParcours}
+            total={indicateurs.total}
+          />
+          <Repartition titre="Par statut" lignes={indicateurs.parStatut} total={indicateurs.total} />
+        </div>
 
       {/*
         ⚠️ SUR TOUTE LA LARGEUR, et non dans la grille à deux colonnes ci-dessus.
@@ -490,10 +623,12 @@ async function VueConsolidee({
           total={indicateurs.parFamilleRisque.reduce((somme, l) => somme + l.total, 0)}
         />
       )}
+      </section>
 
+      <section id="historique" aria-labelledby="titre-historique" className="scroll-mt-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-h3">Historique mensuel</CardTitle>
+          <CardTitle id="titre-historique" className="text-h3">Historique mensuel</CardTitle>
         </CardHeader>
         <CardContent>
           {historique.length === 0 ? (
@@ -503,15 +638,47 @@ async function VueConsolidee({
                 : 'Le récapitulatif du mois est établi au début du mois suivant. Une ligne apparaîtra ici dès le premier récapitulatif.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <GraphiqueHistorique lignes={historique} />
+            <ul className="space-y-3 md:hidden" aria-label="Historique mensuel">
+              {historique.map((ligne) => (
+                <li key={ligne.periode} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+                  <p className="font-semibold capitalize text-secondary-900">{moisFr(ligne.periode)}</p>
+                  <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <dt className="text-muted-foreground">Déclarations</dt>
+                      <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.total}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Clôturées</dt>
+                      <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.cloturees}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Délai moyen</dt>
+                      <dd className="mt-0.5 font-medium text-secondary-800">
+                        {ligne.delaiMoyen === null ? '—' : `${ligne.delaiMoyen} j`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Résolution</dt>
+                      <dd className="mt-0.5 font-medium text-secondary-800">
+                        {pourcent(ligne.tauxResolution)}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th className="py-2 font-medium text-muted-foreground">Période</th>
-                    <th className="py-2 font-medium text-muted-foreground">Déclarations</th>
-                    <th className="py-2 font-medium text-muted-foreground">Clôturées</th>
-                    <th className="py-2 font-medium text-muted-foreground">Délai moyen</th>
-                    <th className="py-2 font-medium text-muted-foreground">Taux de résolution</th>
+                    <th scope="col" className="py-2 font-medium text-muted-foreground">Période</th>
+                    <th scope="col" className="py-2 font-medium text-muted-foreground">Déclarations</th>
+                    <th scope="col" className="py-2 font-medium text-muted-foreground">Clôturées</th>
+                    <th scope="col" className="py-2 font-medium text-muted-foreground">Délai moyen</th>
+                    <th scope="col" className="py-2 font-medium text-muted-foreground">Taux de résolution</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -529,10 +696,12 @@ async function VueConsolidee({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
-    </>
+      </section>
+    </div>
   )
 }
 
@@ -640,14 +809,16 @@ function Indicateur({
 }: {
   libelle: string
   valeur: string
-  /** Ce que le chiffre ne dit pas : pourquoi il vaut zéro, ou pourquoi il n'existe pas. */
   note?: string
 }) {
   return (
-    <Card className="p-5">
-      <p className="text-caption text-muted-foreground">{libelle}</p>
-      <p className="mt-1 text-h1 text-secondary-900">{valeur}</p>
-      {note && <p className="mt-1 text-caption text-muted-foreground">{note}</p>}
+    <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-card to-secondary-50/30 border-border/80 shadow-xs hover:shadow-md transition-all duration-200 rounded-2xl">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-secondary-500">{libelle}</p>
+        <span className="h-2 w-2 rounded-full bg-primary-500/70" />
+      </div>
+      <p className="mt-2 text-chiffre text-secondary-900 font-heading">{valeur}</p>
+      {note && <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{note}</p>}
     </Card>
   )
 }
@@ -669,28 +840,37 @@ function CompteurActionnable({
   href: string | null
   alerte?: boolean
 }) {
+  const estAlerte = alerte && valeur > 0
   const contenu = (
-    <>
-      <p className="text-caption text-muted-foreground">{libelle}</p>
+    <div className="flex flex-col">
+      <p className="text-xs font-semibold uppercase tracking-wider text-secondary-500">{libelle}</p>
       <p
-        className={`mt-1 text-h2 ${alerte && valeur > 0 ? 'text-destructive' : 'text-secondary-900'}`}
+        className={cn(
+          'mt-1 text-titre',
+          estAlerte ? 'text-destructive' : 'text-secondary-900'
+        )}
       >
         {valeur}
       </p>
-    </>
+    </div>
   )
 
   if (href === null || valeur === 0) {
-    return <div>{contenu}</div>
+    return <div className="p-3.5 rounded-xl border border-border/50 bg-card/60">{contenu}</div>
   }
 
   return (
     <Link
       href={href}
-      className="group -m-2 rounded-lg p-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className={cn(
+        'group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        estAlerte
+          ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 hover:border-destructive/50'
+          : 'border-border/70 bg-card hover:bg-secondary-50/60 hover:border-primary/40 shadow-2xs hover:shadow-xs'
+      )}
     >
       {contenu}
-      <span className="mt-0.5 flex items-center gap-1 text-caption text-primary-700 opacity-0 transition-opacity group-hover:opacity-100">
+      <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">
         Voir la liste
         <ArrowRight className="h-3 w-3" aria-hidden />
       </span>
@@ -713,33 +893,53 @@ function Repartition({
   lignes: LigneRepartition[]
   total: number
 }) {
+  const lignesTriees = [...lignes].sort((a, b) => b.total - a.total)
+  const principale = lignesTriees[0]
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-h3">{titre}</CardTitle>
+    <Card className="rounded-2xl border-border/80 shadow-xs">
+      <CardHeader className="border-b border-border/50 pb-3">
+        <CardTitle className="text-sm font-semibold tracking-tight text-secondary-900">
+          {titre}
+        </CardTitle>
+        {principale && total > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Principal : <span className="font-semibold text-secondary-800">{principale.libelle}</span>
+            {' · '}{Math.round((principale.total / total) * 100)} %
+          </p>
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         {lignes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune donnée.</p>
+          <p className="text-xs text-muted-foreground">Aucune donnée.</p>
         ) : (
-          <ul className="space-y-2">
-            {lignes.map((ligne) => {
+          <ul className="space-y-4">
+            {lignesTriees.map((ligne, index) => {
               const part = total > 0 ? Math.round((ligne.total / total) * 100) : 0
 
               return (
-                <li key={ligne.libelle}>
-                  <div className="flex items-baseline justify-between text-sm">
-                    <span className="text-secondary-800">{ligne.libelle}</span>
-                    <span className="text-caption text-muted-foreground">
-                      {ligne.total} · {part} %
+                <li key={ligne.libelle} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="flex min-w-0 items-center gap-2 font-medium text-secondary-800">
+                      <span className="w-4 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+                        {index + 1}
+                      </span>
+                      <span className="truncate">{ligne.libelle}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums text-secondary-700">
+                      {ligne.total} <span className="font-normal text-muted-foreground">({part} %)</span>
                     </span>
                   </div>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="ml-6 h-2.5 overflow-hidden rounded-full bg-secondary-100"
+                    role="img"
+                    aria-label={`${ligne.libelle} : ${ligne.total}, soit ${part} %`}
+                  >
                     <div
-                      className="h-full rounded-full bg-primary-600"
+                      className="h-full min-w-1 rounded-full bg-gradient-to-r from-primary-700 to-primary-500 transition-[width] duration-500"
                       style={{
                         width: `${part}%`,
-                        ...(ligne.couleur ? { backgroundColor: ligne.couleur } : {}),
+                        ...(ligne.couleur ? { background: ligne.couleur } : {}),
                       }}
                     />
                   </div>
@@ -750,6 +950,77 @@ function Repartition({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function GraphiqueHistorique({
+  lignes,
+}: {
+  lignes: Awaited<ReturnType<typeof historiqueMensuel>>
+}) {
+  const visibles = lignes.slice(-12)
+  const maximum = Math.max(1, ...visibles.map((ligne) => ligne.total))
+
+  return (
+    <div className="mb-6 hidden rounded-xl border border-border/70 bg-secondary-50/35 p-5 md:block">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-secondary-900">Évolution des volumes</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Les 12 derniers mois disponibles</p>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground" aria-label="Légende">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-primary-500" /> Déclarations
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Clôturées
+          </span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto pb-1">
+        <div
+          className="flex h-52 min-w-[42rem] items-end gap-3 border-b border-secondary-200 px-2"
+          role="img"
+          aria-label="Évolution mensuelle des déclarations et dossiers clôturés"
+        >
+          {visibles.map((ligne) => {
+            const hauteurTotal = Math.max(4, Math.round((ligne.total / maximum) * 168))
+            const hauteurCloturees = Math.max(
+              ligne.cloturees > 0 ? 3 : 0,
+              Math.round((ligne.cloturees / maximum) * 168)
+            )
+
+            return (
+              <div
+                key={ligne.periode}
+                className="flex min-w-0 flex-1 flex-col items-center justify-end"
+                title={`${moisFr(ligne.periode)} : ${ligne.total} déclarations, ${ligne.cloturees} clôturées`}
+              >
+                <span className="mb-1 text-[10px] font-semibold tabular-nums text-secondary-700">
+                  {ligne.total}
+                </span>
+                <div className="flex h-[168px] items-end gap-1">
+                  <span
+                    className="w-3 rounded-t bg-primary-500"
+                    style={{ height: `${hauteurTotal}px` }}
+                    aria-hidden
+                  />
+                  <span
+                    className="w-3 rounded-t bg-emerald-500"
+                    style={{ height: `${hauteurCloturees}px` }}
+                    aria-hidden
+                  />
+                </div>
+                <span className="mt-2 whitespace-nowrap text-[10px] capitalize text-muted-foreground">
+                  {moisCourtFr(ligne.periode)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -764,5 +1035,10 @@ const pourcent = (valeur: number | null) => (valeur === null ? '—' : `${Math.r
 
 const moisFr = (periode: string) =>
   new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(
+    new Date(periode)
+  )
+
+const moisCourtFr = (periode: string) =>
+  new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(
     new Date(periode)
   )

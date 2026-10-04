@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans, Source_Serif_4 } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
@@ -22,12 +22,18 @@ const sourceSerif = Source_Serif_4({
 })
 
 export const metadata: Metadata = {
+  applicationName: 'EI-MGP',
   title: {
     default: 'EI-MGP',
     template: '%s — EI-MGP',
   },
   description:
     "Mécanisme de Gestion des Plaintes — déclaration et suivi des évènements indésirables et des griefs.",
+}
+
+export const viewport: Viewport = {
+  themeColor: '#12213b',
+  colorScheme: 'light',
 }
 
 /**
@@ -50,6 +56,12 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col" suppressHydrationWarning>
+        <a
+          href="#contenu-principal"
+          className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-secondary-900 px-4 py-3 text-sm font-semibold text-white shadow-xl transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:ring-offset-2"
+        >
+          Aller au contenu principal
+        </a>
         {children}
         <Toaster position="top-right" richColors />
       </body>

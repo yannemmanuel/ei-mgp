@@ -1,10 +1,11 @@
-'use client'
+"use client";
 
-import { useActionState, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import type { EtatSuppression } from './suppressions-actions'
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import type { EtatSuppression } from "./suppressions-actions";
 
-const ETAT: EtatSuppression = {}
+const ETAT: EtatSuppression = {};
 
 /**
  * Bouton de suppression, pour les écrans qui n'utilisent pas `EditeurReferentiel`.
@@ -24,25 +25,41 @@ export function BoutonSupprimer({
   id,
   nom,
   action,
-  libelle = 'Supprimer',
+  libelle = "Supprimer",
 }: {
-  id: string
+  id: string;
   /** Ce qui va disparaître, en clair : la confirmation le répète. */
-  nom: string
-  action: (etat: EtatSuppression, donnees: FormData) => Promise<EtatSuppression>
-  libelle?: string
+  nom: string;
+  action: (
+    etat: EtatSuppression,
+    donnees: FormData,
+  ) => Promise<EtatSuppression>;
+  libelle?: string;
 }) {
-  const [etat, envoyer, enCours] = useActionState(action, ETAT)
-  const [arme, setArme] = useState(false)
+  const [etat, envoyer, enCours] = useActionState(action, ETAT);
+  const [arme, setArme] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!etat.succes) return;
+    router.refresh();
+  }, [etat, router]);
 
   return (
     <span className="inline-flex flex-col items-end gap-1">
       {arme ? (
         <form action={envoyer} className="inline-flex items-center gap-2">
           <input type="hidden" name="id" value={id} />
-          <span className="text-caption text-muted-foreground">Supprimer « {nom} » ?</span>
-          <Button type="submit" size="sm" variant="destructive" disabled={enCours}>
-            {enCours ? 'Suppression…' : 'Confirmer'}
+          <span className="text-caption text-muted-foreground">
+            Supprimer « {nom} » ?
+          </span>
+          <Button
+            type="submit"
+            size="sm"
+            variant="destructive"
+            disabled={enCours}
+          >
+            {enCours ? "Suppression…" : "Confirmer"}
           </Button>
           <Button
             type="button"
@@ -67,8 +84,10 @@ export function BoutonSupprimer({
         désactivation. Le réduire à une alerte fugace priverait le refus de la moitié qui sert.
       */}
       {etat.erreur && (
-        <span className="max-w-xs text-right text-caption text-destructive">{etat.erreur}</span>
+        <span className="max-w-xs text-right text-caption text-destructive">
+          {etat.erreur}
+        </span>
       )}
     </span>
-  )
+  );
 }

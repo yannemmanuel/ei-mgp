@@ -1,8 +1,8 @@
-import type { Prisma } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
-import type { UtilisateurAutorise } from '@/server/authz'
-import { perimetreDossiers } from '../dossier/liste'
-import { STATUTS_ACTION, type StatutAction } from './action-corrective'
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import type { UtilisateurAutorise } from "@/server/authz";
+import { perimetreDossiers } from "../dossier/liste";
+import { STATUTS_ACTION, type StatutAction } from "./action-corrective";
 
 /**
  * Vue transverse des actions correctives, tous dossiers confondus
@@ -24,8 +24,10 @@ import { STATUTS_ACTION, type StatutAction } from './action-corrective'
  * lien qui menait à « Page introuvable ». Déléguer supprime la possibilité même d'un écart.
  * `perimetres-coherents.test.ts` le vérifie sur les comptes réels.
  */
-export function perimetreActions(u: UtilisateurAutorise): Prisma.actions_correctivesWhereInput {
-  return { dossiers: perimetreDossiers(u) }
+export function perimetreActions(
+  u: UtilisateurAutorise,
+): Prisma.actions_correctivesWhereInput {
+  return { dossiers: perimetreDossiers(u) };
 }
 
 /**
@@ -39,57 +41,66 @@ export function perimetreActions(u: UtilisateurAutorise): Prisma.actions_correct
  * Le filtre par responsable, lui, subsiste : il porte sur le nom saisi.
  */
 export type FiltresActions = {
-  statut?: string
-  responsable?: string
-  parcoursId?: string
-  echeanceDebut?: string
-  echeanceFin?: string
-}
+  statut?: string;
+  responsable?: string;
+  parcoursId?: string;
+  echeanceDebut?: string;
+  echeanceFin?: string;
+};
 
-function clauseFiltres(filtres: FiltresActions): Prisma.actions_correctivesWhereInput {
-  const where: Prisma.actions_correctivesWhereInput = {}
+function clauseFiltres(
+  filtres: FiltresActions,
+): Prisma.actions_correctivesWhereInput {
+  const where: Prisma.actions_correctivesWhereInput = {};
 
-  if (filtres.statut && (STATUTS_ACTION as readonly string[]).includes(filtres.statut)) {
-    where.statut = filtres.statut
+  if (
+    filtres.statut &&
+    (STATUTS_ACTION as readonly string[]).includes(filtres.statut)
+  ) {
+    where.statut = filtres.statut;
   }
 
   if (filtres.responsable) {
-    where.responsable_nom = filtres.responsable
+    where.responsable_nom = filtres.responsable;
   }
 
   if (filtres.parcoursId) {
-    where.dossiers = { parcours_id: BigInt(filtres.parcoursId) }
+    where.dossiers = { parcours_id: BigInt(filtres.parcoursId) };
   }
 
   if (filtres.echeanceDebut || filtres.echeanceFin) {
     where.echeance = {
-      ...(filtres.echeanceDebut ? { gte: new Date(filtres.echeanceDebut) } : {}),
-      ...(filtres.echeanceFin ? { lte: new Date(`${filtres.echeanceFin}T23:59:59.999`) } : {}),
-    }
+      ...(filtres.echeanceDebut
+        ? { gte: new Date(filtres.echeanceDebut) }
+        : {}),
+      ...(filtres.echeanceFin
+        ? { lte: new Date(`${filtres.echeanceFin}T23:59:59.999`) }
+        : {}),
+    };
   }
 
-  return where
+  return where;
 }
 
-const PAR_PAGE = 20
+const PAR_PAGE = 20;
 
 export async function listerActions(
   u: UtilisateurAutorise,
   filtres: FiltresActions = {},
-  page = 1
+  page = 1,
 ) {
   const where: Prisma.actions_correctivesWhereInput = {
     // ⚠️ `perimetreActions(u)` reste le premier terme : c'est LUI qui cloisonne. Les filtres ne
     // font que restreindre à l'intérieur de ce périmètre, jamais l'élargir.
     AND: [perimetreActions(u), clauseFiltres(filtres)],
-  }
+  };
 
   const [total, actions] = await Promise.all([
     prisma.actions_correctives.count({ where }),
     prisma.actions_correctives.findMany({
       where,
       // L'échéance la plus proche en tête : c'est un écran de travail, pas un journal.
-      orderBy: { echeance: 'asc' },
+      orderBy: { echeance: "asc" },
       skip: (page - 1) * PAR_PAGE,
       take: PAR_PAGE,
       select: {
@@ -111,12 +122,18 @@ export async function listerActions(
         },
       },
     }),
-  ])
+  ]);
 
-  return { actions, total, page, parPage: PAR_PAGE, pages: Math.max(1, Math.ceil(total / PAR_PAGE)) }
+  return {
+    actions,
+    total,
+    page,
+    parPage: PAR_PAGE,
+    pages: Math.max(1, Math.ceil(total / PAR_PAGE)),
+  };
 }
 
-export async function referentielsActions() {
+export async function referentielsActions(u: UtilisateurAutorise) {
   /*
     Les responsables proposés sont les noms RÉELLEMENT SAISIS, et non plus la liste des comptes.
     Même règle qu'avant le changement : ne proposer que des valeurs qui ramènent des lignes. Lire
@@ -124,32 +141,35 @@ export async function referentielsActions() {
   */
   const [parcours, responsables] = await Promise.all([
     prisma.parcours.findMany({
-      where: { actif: true },
-      orderBy: { ordre: 'asc' },
+      where: { actif: true, dossiers: { some: perimetreDossiers(u) } },
+      orderBy: { ordre: "asc" },
       select: { id: true, libelle: true },
     }),
     prisma.actions_correctives.findMany({
-      where: { responsable_nom: { not: null } },
-      distinct: ['responsable_nom'],
-      orderBy: { responsable_nom: 'asc' },
+      where: {
+        responsable_nom: { not: null },
+        dossiers: perimetreDossiers(u),
+      },
+      distinct: ["responsable_nom"],
+      orderBy: { responsable_nom: "asc" },
       select: { responsable_nom: true },
     }),
-  ])
+  ]);
 
   return {
     parcours,
     responsables: responsables
       .map((a) => a.responsable_nom)
       .filter((nom): nom is string => nom !== null),
-  }
+  };
 }
 
 export const LIBELLES_STATUT_ACTION: Record<StatutAction, string> = {
-  non_demarree: 'Non démarrée',
-  en_cours: 'En cours',
-  realisee: 'Réalisée',
-  en_retard: 'En retard',
-}
+  non_demarree: "Non démarrée",
+  en_cours: "En cours",
+  realisee: "Réalisée",
+  en_retard: "En retard",
+};
 
 /**
  * Jours restants avant l'échéance — négatif si elle est dépassée.
@@ -158,12 +178,15 @@ export const LIBELLES_STATUT_ACTION: Record<StatutAction, string> = {
  * définitions différentes de « aujourd'hui » finiraient par afficher un décompte que la tâche
  * planifiée contredit.
  */
-export function joursAvantEcheance(echeance: Date, maintenant = new Date()): number {
+export function joursAvantEcheance(
+  echeance: Date,
+  maintenant = new Date(),
+): number {
   const debutJour = (d: Date) => {
-    const copie = new Date(d)
-    copie.setHours(0, 0, 0, 0)
-    return copie.getTime()
-  }
+    const copie = new Date(d);
+    copie.setHours(0, 0, 0, 0);
+    return copie.getTime();
+  };
 
-  return Math.round((debutJour(echeance) - debutJour(maintenant)) / 86_400_000)
+  return Math.round((debutJour(echeance) - debutJour(maintenant)) / 86_400_000);
 }

@@ -1,49 +1,56 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { KeyRound, LogOut, Menu } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  KeyRound,
+  LogOut,
+  Menu,
+  ChevronDown,
+  LayoutDashboard,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { LogoProduit } from "@/components/ui/logo-produit";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import type { NotificationVue } from '@/server/services/notification/boite'
-import type { SectionNavigation } from './navigation'
-import { BarreLaterale } from './barre-laterale'
-import { ClocheNotifications } from './cloche-notifications'
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import type { NotificationVue } from "@/server/services/notification/boite";
+import type { SectionNavigation } from "./navigation";
+import { BarreLaterale } from "./barre-laterale";
+import { ClocheNotifications } from "./cloche-notifications";
 
 type Props = {
-  nom: string
-  /** Rôles déjà traduits côté serveur : la barre n'affiche jamais d'identifiant technique. */
-  roles: readonly string[]
-  sections: SectionNavigation[]
-  actionDeconnexion: () => Promise<void>
-  notifications: NotificationVue[]
-  nonLues: number
-}
+  nom: string;
+  roles: readonly string[];
+  sections: SectionNavigation[];
+  actionDeconnexion: () => Promise<void>;
+  notifications: NotificationVue[];
+  nonLues: number;
+};
 
-/** « Marie-Claire N'Guessan » → « MN ». Deux lettres au plus : au-delà, la pastille devient illisible. */
 function initiales(nom: string): string {
-  const mots = nom.trim().split(/[\s-]+/).filter(Boolean)
-  if (mots.length === 0) return '?'
-
-  return (mots[0][0] + (mots.length > 1 ? mots[mots.length - 1][0] : '')).toUpperCase()
+  const mots = nom
+    .trim()
+    .split(/[\s-]+/)
+    .filter(Boolean);
+  if (mots.length === 0) return "?";
+  return (
+    mots[0][0] + (mots.length > 1 ? mots[mots.length - 1][0] : "")
+  ).toUpperCase();
 }
 
-/**
- * Barre supérieure.
- *
- * Le nom, les rôles et « Se déconnecter » occupaient en permanence le coin droit, les rôles sous
- * leur identifiant technique (`admin_digital`). Trois informations consultées rarement, dont une
- * illisible. Elles sont regroupées dans un menu de compte : la barre ne garde que ce qui appelle
- * une action — les notifications — et l'identité, réduite à sa pastille.
- */
 export function EnTete({
   nom,
   roles,
@@ -52,27 +59,76 @@ export function EnTete({
   notifications,
   nonLues,
 }: Props) {
-  const [tiroirOuvert, setTiroirOuvert] = useState(false)
+  const [tiroirOuvert, setTiroirOuvert] = useState(false);
+  const chemin = usePathname();
+  const lienActif = sections
+    .flatMap((section) => section.liens)
+    .filter(
+      (lien) => chemin === lien.href || chemin.startsWith(`${lien.href}/`),
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const titrePage = lienActif?.libelle ?? "Espace de travail";
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      {/* Navigation repliée en tiroir sous le point de rupture lg. */}
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border/80 bg-card/94 px-4 shadow-[0_1px_12px_rgba(18,33,59,0.04)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/85 sm:px-6 lg:h-18 lg:px-8">
+      {/* Navigation repliée en tiroir sous le point de rupture lg */}
       <Sheet open={tiroirOuvert} onOpenChange={setTiroirOuvert}>
         <SheetTrigger
           render={
-            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Ouvrir la navigation" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden h-9 w-9 rounded-lg border border-border/50 text-secondary-600 hover:text-secondary-900"
+              aria-label="Ouvrir la navigation"
+            />
           }
         >
           <Menu className="h-5 w-5" />
         </SheetTrigger>
-        <SheetContent side="left" className="w-72 bg-sidebar p-0">
+        <SheetContent
+          side="left"
+          className="w-[18rem] border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+        >
           <SheetTitle className="sr-only">Navigation principale</SheetTitle>
-          <BarreLaterale sections={sections} onNaviguer={() => setTiroirOuvert(false)} />
+          <div className="flex h-20 items-center border-b border-sidebar-border px-5">
+            <LogoProduit />
+            <span className="ml-3 text-sm font-bold tracking-tight text-secondary-900">
+              SODECI
+            </span>
+          </div>
+          <div className="py-4">
+            <BarreLaterale
+              sections={sections}
+              onNaviguer={() => setTiroirOuvert(false)}
+            />
+          </div>
         </SheetContent>
       </Sheet>
 
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary-500 lg:block">
+          Espace de travail
+        </p>
+        <p className="truncate text-sm font-semibold tracking-tight text-secondary-900 lg:mt-0.5 lg:text-base">
+          {titrePage}
+        </p>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {chemin !== "/dashboard" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href="/dashboard" />}
+            className="hidden h-9 gap-2 rounded-lg text-xs font-medium text-secondary-600 hover:bg-secondary-50 hover:text-secondary-900 md:inline-flex"
+          >
+            <LayoutDashboard className="h-4 w-4" aria-hidden />
+            Vue d’ensemble
+          </Button>
+        )}
         <ClocheNotifications notifications={notifications} nonLues={nonLues} />
+
+        <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -80,45 +136,60 @@ export function EnTete({
               <Button
                 variant="ghost"
                 size="sm"
-                className="gap-2 pl-1.5 pr-2"
+                className="group h-10 gap-2.5 rounded-full border border-border/60 pl-1.5 pr-3 py-1 hover:border-border hover:bg-secondary-50/80 transition-all duration-200 cursor-pointer"
                 aria-label={`Compte de ${nom}`}
               />
             }
           >
-            <Avatar className="h-7 w-7">
-              <AvatarFallback className="bg-primary-100 text-[11px] font-semibold text-primary-800">
-                {initiales(nom)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="hidden max-w-40 truncate text-sm font-normal text-secondary-700 sm:inline">
-              {nom}
-            </span>
+            <div className="relative">
+              <Avatar className="h-7 w-7 ring-2 ring-primary/20">
+                <AvatarFallback className="bg-primary-100 text-[11px] font-bold text-primary-800">
+                  {initiales(nom)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" />
+            </div>
+
+            <div className="hidden flex-col items-start text-left sm:flex">
+              <span className="max-w-36 truncate text-xs font-semibold text-secondary-900 leading-tight">
+                {nom}
+              </span>
+              <span className="max-w-36 truncate text-[10px] text-muted-foreground leading-tight">
+                {roles[0] ?? "Utilisateur"}
+              </span>
+            </div>
+
+            <ChevronDown className="h-3.5 w-3.5 text-secondary-400 group-hover:text-secondary-600 transition-transform group-data-[state=open]:rotate-180" />
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end" className="w-64">
-            <div className="px-2 py-1.5">
-              <p className="truncate text-sm font-medium text-secondary-900">{nom}</p>
-              <p className="mt-0.5 text-caption text-muted-foreground">
-                {roles.length === 0 ? 'Aucun rôle attribué' : roles.join(' · ')}
+          <DropdownMenuContent
+            align="end"
+            className="w-64 p-1.5 shadow-xl rounded-xl border-border/80"
+          >
+            <div className="px-3 py-2 bg-muted/40 rounded-lg mb-1">
+              <p className="truncate text-xs font-semibold text-secondary-900">
+                {nom}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground font-medium">
+                {roles.length === 0 ? "Aucun rôle attribué" : roles.join(" • ")}
               </p>
             </div>
 
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem render={<Link href="/mot-de-passe" />}>
-              <KeyRound className="h-4 w-4" aria-hidden />
+            <DropdownMenuItem
+              render={<Link href="/mot-de-passe" />}
+              className="rounded-lg gap-2.5 py-2 text-xs font-medium cursor-pointer"
+            >
+              <KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />
               Changer mon mot de passe
             </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="my-1" />
 
-            {/* Le bouton vit dans le menu, le formulaire en dehors : Base UI place le contenu du
-                menu dans un portail et le referme au clic. Un formulaire imbriqué serait démonté
-                avant d'avoir soumis. L'attribut `form` fait le lien par identifiant, à travers
-                l'arbre, et la déconnexion reste une vraie soumission — donc une navigation, pas
-                un appel dont il faudrait gérer l'échec à la main. */}
             <DropdownMenuItem
-              render={<button type="submit" form="deconnexion" className="w-full" />}
+              render={
+                <button type="submit" form="deconnexion" className="w-full" />
+              }
+              className="rounded-lg gap-2.5 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 focus:bg-destructive/10 focus:text-destructive cursor-pointer"
             >
               <LogOut className="h-4 w-4" aria-hidden />
               Se déconnecter
@@ -129,5 +200,5 @@ export function EnTete({
         <form id="deconnexion" action={actionDeconnexion} className="hidden" />
       </div>
     </header>
-  )
+  );
 }

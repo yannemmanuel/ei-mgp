@@ -1,6 +1,5 @@
-import type { ParcoursCode } from '../parcours'
-import { peutVoirParcours } from '../parcours'
-import { aPermission, type UtilisateurAutorise } from '../utilisateur'
+import { aPermission, type UtilisateurAutorise } from "../utilisateur";
+import { peutVoirDossier, type DossierPourAutorisation } from "./dossier";
 
 /**
  * Port de `App\Policies\MessagePolicy` — côté ACTEUR AUTHENTIFIÉ uniquement.
@@ -9,14 +8,18 @@ import { aPermission, type UtilisateurAutorise } from '../utilisateur'
  * JAMAIS par ce module : il s'authentifie par référence + code de suivi, pas par un compte
  * utilisateur (RG-06). Ce chemin sera traité séparément à l'étape 9.
  */
-export type MessagePourAutorisation = {
-  readonly parcoursCode: ParcoursCode
+export type MessagePourAutorisation = DossierPourAutorisation;
+
+export function peutVoirMessagerie(
+  u: UtilisateurAutorise,
+  m: MessagePourAutorisation,
+): boolean {
+  return aPermission(u, "messagerie.view") && peutVoirDossier(u, m);
 }
 
-export function peutVoirMessagerie(u: UtilisateurAutorise, m: MessagePourAutorisation): boolean {
-  return aPermission(u, 'messagerie.view') && peutVoirParcours(u, m.parcoursCode)
-}
-
-export function peutEnvoyerMessage(u: UtilisateurAutorise, m: MessagePourAutorisation): boolean {
-  return aPermission(u, 'messagerie.send') && peutVoirParcours(u, m.parcoursCode)
+export function peutEnvoyerMessage(
+  u: UtilisateurAutorise,
+  m: MessagePourAutorisation,
+): boolean {
+  return aPermission(u, "messagerie.send") && peutVoirDossier(u, m);
 }

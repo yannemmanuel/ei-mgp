@@ -1,14 +1,30 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import { prisma } from '@/lib/prisma'
-import { exigerUnePermissionParmi } from '@/server/auth'
-import { aPermission, type Permission } from '@/server/authz'
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  BellRing,
+  Building2,
+  ChevronRight,
+  CircleGauge,
+  Database,
+  FileSliders,
+  KeyRound,
+  ListChecks,
+  MapPinned,
+  MessageSquareMore,
+  QrCode,
+  ShieldCheck,
+  Tags,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import { prisma } from "@/lib/prisma";
+import { exigerUnePermissionParmi } from "@/server/auth";
+import { aPermission, type Permission } from "@/server/authz";
 
-export const metadata: Metadata = { title: 'Administration' }
-export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: "Administration" };
+export const dynamic = "force-dynamic";
 
 /**
  * Sommaire de l'administration.
@@ -22,78 +38,107 @@ export const dynamic = 'force-dynamic'
  * d'un regard, une grille de dix se lit ligne à ligne.
  */
 type Entree = {
-  libelle: string
-  href: string
-  permission: Permission
-  description: string
-  compter: () => Promise<number>
+  libelle: string;
+  href: string;
+  permission: Permission;
+  description: string;
+  compter: () => Promise<number>;
   /** Unité au singulier puis au pluriel — jamais de « compte(s) ». */
-  unite: readonly [string, string]
-}
+  unite: readonly [string, string];
+};
 
-type Groupe = { titre: string; entrees: Entree[] }
+type Groupe = { titre: string; entrees: Entree[] };
+
+const ICONES: Record<string, LucideIcon> = {
+  "/administration/utilisateurs": Users,
+  "/administration/habilitations": KeyRound,
+  "/administration/conservation": Database,
+  "/administration/statuts": ListChecks,
+  "/administration/delais": CircleGauge,
+  "/administration/gravites": ShieldCheck,
+  "/administration/categories": Tags,
+  "/administration/familles-risque": FileSliders,
+  "/administration/organisation": Building2,
+  "/administration/postes": MapPinned,
+  "/administration/listes-formulaires": ListChecks,
+  "/administration/canaux": MessageSquareMore,
+  "/administration/notifications": BellRing,
+  "/administration/qr-codes": QrCode,
+};
 
 const GROUPES: Groupe[] = [
   {
-    titre: 'Accès et droits',
+    titre: "Accès et droits",
     entrees: [
       {
-        libelle: 'Comptes',
-        href: '/administration/utilisateurs',
-        permission: 'users.manage',
-        description: 'Comptes, rôles et rattachements.',
+        libelle: "Comptes",
+        href: "/administration/utilisateurs",
+        permission: "users.manage",
+        description: "Comptes, rôles et rattachements.",
         compter: () => prisma.users.count(),
-        unite: ['compte', 'comptes'],
+        unite: ["compte", "comptes"],
       },
       {
-        libelle: 'Habilitations',
-        href: '/administration/habilitations',
-        permission: 'roles.manage',
-        description: 'Ce que chaque rôle a le droit de faire. Modifiable, avec journalisation.',
+        libelle: "Habilitations",
+        href: "/administration/habilitations",
+        permission: "roles.manage",
+        description:
+          "Ce que chaque rôle a le droit de faire. Modifiable, avec journalisation.",
         compter: () => prisma.roles.count(),
-        unite: ['rôle', 'rôles'],
+        unite: ["rôle", "rôles"],
+      },
+      {
+        libelle: "Conservation des données",
+        href: "/administration/conservation",
+        permission: "users.manage",
+        description: "Règles de retrait et d’effacement des déclarations.",
+        compter: () =>
+          prisma.dossiers.count({ where: { archive_le: { not: null } } }),
+        unite: ["déclaration retirée", "déclarations retirées"],
       },
     ],
   },
   {
-    titre: 'Traitement des dossiers',
+    titre: "Traitement des dossiers",
     entrees: [
       {
-        libelle: 'Statuts',
-        href: '/administration/statuts',
-        permission: 'referentiels.statuts.manage',
-        description: 'Libellés internes et libellés montrés au déclarant.',
+        libelle: "Statuts",
+        href: "/administration/statuts",
+        permission: "referentiels.statuts.manage",
+        description: "Libellés internes et libellés montrés au déclarant.",
         compter: () => prisma.statuts_dossier.count(),
-        unite: ['statut', 'statuts'],
+        unite: ["statut", "statuts"],
       },
       {
-        libelle: 'Délais de traitement',
-        href: '/administration/delais',
-        permission: 'referentiels.delais.manage',
-        description: 'Délais par étape et par parcours, et leur validation métier.',
-        compter: () => prisma.sla_delais.count({ where: { est_valide_metier: true } }),
-        unite: ['délai validé', 'délais validés'],
+        libelle: "Délais de traitement",
+        href: "/administration/delais",
+        permission: "referentiels.delais.manage",
+        description:
+          "Délais par étape et par parcours, et leur validation métier.",
+        compter: () =>
+          prisma.sla_delais.count({ where: { est_valide_metier: true } }),
+        unite: ["délai validé", "délais validés"],
       },
       {
-        libelle: 'Niveaux de gravité',
-        href: '/administration/gravites',
-        permission: 'referentiels.gravites.manage',
-        description: 'Échelle de gravité et déclenchement du circuit accéléré.',
+        libelle: "Niveaux de gravité",
+        href: "/administration/gravites",
+        permission: "referentiels.gravites.manage",
+        description: "Échelle de gravité et déclenchement du circuit accéléré.",
         compter: () => prisma.niveaux_gravite.count({ where: { actif: true } }),
-        unite: ['niveau actif', 'niveaux actifs'],
+        unite: ["niveau actif", "niveaux actifs"],
       },
     ],
   },
   {
-    titre: 'Nomenclatures',
+    titre: "Nomenclatures",
     entrees: [
       {
-        libelle: 'Catégories',
-        href: '/administration/categories',
-        permission: 'referentiels.categories.manage',
-        description: 'Catégories de déclaration, par parcours.',
+        libelle: "Catégories",
+        href: "/administration/categories",
+        permission: "referentiels.categories.manage",
+        description: "Catégories de déclaration, par parcours.",
         compter: () => prisma.categories.count(),
-        unite: ['catégorie', 'catégories'],
+        unite: ["catégorie", "catégories"],
       },
       {
         /*
@@ -101,75 +146,77 @@ const GROUPES: Groupe[] = [
           risque des évènements indésirables « mais en laissant une possibilité de paramétrage » :
           la décision se coche ici, type par type, plutôt que de vivre dans le code.
         */
-        libelle: 'Familles de risque',
-        href: '/administration/familles-risque',
-        permission: 'referentiels.categories.manage',
-        description: 'À quels types de déclaration la famille est demandée au traitement.',
+        libelle: "Familles de risque",
+        href: "/administration/familles-risque",
+        permission: "referentiels.categories.manage",
+        description:
+          "À quels types de déclaration la famille est demandée au traitement.",
         compter: () => prisma.familles_risque.count({ where: { actif: true } }),
-        unite: ['famille', 'familles'],
+        unite: ["famille", "familles"],
       },
       {
-        libelle: 'Sites et directions',
-        href: '/administration/organisation',
-        permission: 'referentiels.sites.manage',
+        libelle: "Sites et directions",
+        href: "/administration/organisation",
+        permission: "referentiels.sites.manage",
         description:
-          'Un site regroupe plusieurs directions. Ce rattachement décide du site d’un dossier, donc de qui le reçoit.',
+          "Un site regroupe plusieurs directions. Ce rattachement décide du site d’un dossier, donc de qui le reçoit.",
         // Ce sont les directions ORPHELINES qui méritent l'attention : leurs dossiers
         // n'atteignent aucun secrétaire habilité par site. Compter les sites n'appellerait
         // aucune action.
-        compter: () => prisma.directions.count({ where: { actif: true, site_id: null } }),
-        unite: ['direction sans site', 'directions sans site'],
+        compter: () =>
+          prisma.directions.count({ where: { actif: true, site_id: null } }),
+        unite: ["direction sans site", "directions sans site"],
       },
       {
-        libelle: 'Postes',
-        href: '/administration/postes',
-        permission: 'referentiels.sites.manage',
-        description: 'Postes par direction, proposés dans le formulaire.',
+        libelle: "Postes",
+        href: "/administration/postes",
+        permission: "referentiels.sites.manage",
+        description: "Postes par direction, proposés dans le formulaire.",
         compter: () => prisma.postes.count({ where: { actif: true } }),
-        unite: ['poste actif', 'postes actifs'],
+        unite: ["poste actif", "postes actifs"],
       },
       {
-        libelle: 'Listes des formulaires',
-        href: '/administration/listes-formulaires',
-        permission: 'referentiels.categories.manage',
-        description: 'Lieux et villes proposés dans les formulaires.',
+        libelle: "Listes des formulaires",
+        href: "/administration/listes-formulaires",
+        permission: "referentiels.categories.manage",
+        description: "Lieux et villes proposés dans les formulaires.",
         compter: async () =>
           (await prisma.lieux.count({ where: { actif: true } })) +
           (await prisma.villes.count({ where: { actif: true } })),
-        unite: ['valeur active', 'valeurs actives'],
+        unite: ["valeur active", "valeurs actives"],
       },
       {
-        libelle: 'Canaux de captage',
-        href: '/administration/canaux',
-        permission: 'canaux.manage',
-        description: 'Voies par lesquelles une déclaration parvient.',
+        libelle: "Canaux de captage",
+        href: "/administration/canaux",
+        permission: "canaux.manage",
+        description: "Voies par lesquelles une déclaration parvient.",
         compter: () => prisma.canaux_captage.count(),
-        unite: ['canal', 'canaux'],
+        unite: ["canal", "canaux"],
       },
     ],
   },
   {
-    titre: 'Vers le déclarant',
+    titre: "Vers le déclarant",
     entrees: [
       {
-        libelle: 'Gabarits de notification',
-        href: '/administration/notifications',
-        permission: 'notifications.templates.manage',
-        description: 'Objets, corps et destinataires supplémentaires.',
+        libelle: "Gabarits de notification",
+        href: "/administration/notifications",
+        permission: "notifications.templates.manage",
+        description: "Objets, corps et destinataires supplémentaires.",
         compter: () => prisma.notification_templates.count(),
-        unite: ['gabarit', 'gabarits'],
+        unite: ["gabarit", "gabarits"],
       },
       {
-        libelle: 'QR codes',
-        href: '/administration/qr-codes',
-        permission: 'qrcodes.manage',
-        description: 'Supports physiques de déclaration.',
+        libelle: "QR codes",
+        href: "/administration/qr-codes",
+        permission: "qrcodes.manage",
+        description: "Supports physiques de déclaration.",
         compter: () => prisma.qr_codes.count(),
-        unite: ['code', 'codes'],
+        unite: ["code", "codes"],
       },
     ],
   },
-]
+];
 
 /**
  * Les droits qui ouvrent ce sommaire — dérivés des consoles elles-mêmes.
@@ -179,8 +226,8 @@ const GROUPES: Groupe[] = [
  * au moins une carte, jamais à moins, jamais à plus.
  */
 export const PERMISSIONS_CONSOLES = GROUPES.flatMap((groupe) =>
-  groupe.entrees.map((entree) => entree.permission)
-)
+  groupe.entrees.map((entree) => entree.permission),
+);
 
 export default async function PageAdministration() {
   /*
@@ -192,25 +239,29 @@ export default async function PageAdministration() {
     masquer un lien n'est pas un contrôle d'accès : c'est écrit en tête de `navigation.ts`, et le
     contrôle manquait ici.
   */
-  const utilisateur = await exigerUnePermissionParmi(PERMISSIONS_CONSOLES)
+  const utilisateur = await exigerUnePermissionParmi(PERMISSIONS_CONSOLES);
 
   const groupes = GROUPES.map((groupe) => ({
     titre: groupe.titre,
-    entrees: groupe.entrees.filter((entree) => aPermission(utilisateur, entree.permission)),
-  })).filter((groupe) => groupe.entrees.length > 0)
+    entrees: groupe.entrees.filter((entree) =>
+      aPermission(utilisateur, entree.permission),
+    ),
+  })).filter((groupe) => groupe.entrees.length > 0);
 
-  const accessibles = groupes.flatMap((groupe) => groupe.entrees)
+  const accessibles = groupes.flatMap((groupe) => groupe.entrees);
   const compteurs = new Map(
     await Promise.all(
-      accessibles.map(async (entree) => [entree.href, await entree.compter()] as const)
-    )
-  )
+      accessibles.map(
+        async (entree) => [entree.href, await entree.compter()] as const,
+      ),
+    ),
+  );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-9">
       <EnTetePage
         titre="Administration"
-        lede="Le paramétrage de l’application."
+        lede="Gérez les accès, les règles métier et les points de contact depuis un espace centralisé."
       />
 
       {accessibles.length === 0 ? (
@@ -221,41 +272,54 @@ export default async function PageAdministration() {
         </Card>
       ) : (
         groupes.map((groupe) => (
-          <section key={groupe.titre} className="space-y-3">
-            <h2 className="text-label uppercase tracking-wide text-secondary-400">
-              {groupe.titre}
-            </h2>
+          <section key={groupe.titre} className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <h2 className="text-label uppercase tracking-[0.14em] text-secondary-500">
+                {groupe.titre}
+              </h2>
+              <div className="h-px flex-1 bg-border" />
+            </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {groupe.entrees.map((entree) => {
-                const nombre = compteurs.get(entree.href) ?? 0
+                const nombre = compteurs.get(entree.href) ?? 0;
+                const Icone = ICONES[entree.href] ?? FileSliders;
 
                 return (
                   <Link
                     key={entree.href}
                     href={entree.href}
-                    className="group block rounded-xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
-                    <Card className="h-full p-4 transition-shadow group-hover:ring-primary-300 group-hover:shadow-sm">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-h3 text-secondary-900">{entree.libelle}</p>
+                    <Card className="h-full p-5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary-200 group-hover:shadow-md">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100">
+                          <Icone className="h-5 w-5" aria-hidden />
+                        </span>
                         <ChevronRight
-                          className="mt-0.5 h-4 w-4 shrink-0 text-secondary-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-600"
+                          className="mt-1 h-4 w-4 shrink-0 text-secondary-300 transition-transform group-hover:translate-x-1 group-hover:text-primary-600"
                           aria-hidden
                         />
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{entree.description}</p>
-                      <p className="mt-3 text-caption text-secondary-600">
-                        {nombre} {nombre > 1 ? entree.unite[1] : entree.unite[0]}
+                      <p className="mt-4 text-h3 text-secondary-900">
+                        {entree.libelle}
+                      </p>
+                      <p className="mt-1.5 min-h-10 text-sm leading-5 text-muted-foreground">
+                        {entree.description}
+                      </p>
+                      <p className="mt-4 w-fit rounded-full bg-secondary-50 px-2.5 py-1 text-caption font-semibold text-secondary-600">
+                        {nombre}{" "}
+                        {nombre > 1 ? entree.unite[1] : entree.unite[0]}
                       </p>
                     </Card>
                   </Link>
-                )
+                );
               })}
             </div>
           </section>
         ))
       )}
     </div>
-  )
+  );
 }

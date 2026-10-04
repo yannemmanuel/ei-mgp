@@ -1,15 +1,18 @@
-'use client'
+"use client";
 
-import { useActionState, useMemo, useState, type KeyboardEvent } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useRetourEnToast } from '@/lib/retour-operation'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useActionState, useMemo, useState, type KeyboardEvent } from "react";
+import { ChevronDown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  useActualiserApresSucces,
+  useRetourEnToast,
+} from "@/lib/retour-operation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { EtiquetteStatut } from "@/components/ui/etiquette-statut";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   actionChangerActivationRole,
   actionChangerComportementsRole,
@@ -20,61 +23,63 @@ import {
   actionModifierParcoursRole,
   actionSupprimerRole,
   type EtatHabilitation,
-} from './actions'
+} from "./actions";
 
 /** Un type de déclaration, tel qu'on le coche. */
-export type ParcoursVue = { code: string; libelle: string }
+export type ParcoursVue = { code: string; libelle: string };
 
 /** Un type OUVERT par le rôle, avec son alerte de circuit accéléré. */
-export type ParcoursDuRoleVue = ParcoursVue & { alerteCircuitCritique: boolean }
+export type ParcoursDuRoleVue = ParcoursVue & {
+  alerteCircuitCritique: boolean;
+};
 
 /** Une étape de départ, colonne de la grille « qui fait avancer quoi ». */
-export type EtapeVue = { code: string; libelle: string }
+export type EtapeVue = { code: string; libelle: string };
 
 /**
  * Un comportement du rôle — ce qui ne se dit ni par une permission, ni par un type, ni par une
  * étape. Le libellé et l'aide viennent du serveur : l'écran ne les reformule pas.
  */
-export type ComportementVue = { cle: string; libelle: string; aide: string }
+export type ComportementVue = { cle: string; libelle: string; aide: string };
 
 export type PermissionVue = {
-  nom: string
-  libelle: string
-  explication: string
-  sensibilite: 'ordinaire' | 'donnees_personnelles' | 'gouvernance'
+  nom: string;
+  libelle: string;
+  explication: string;
+  sensibilite: "ordinaire" | "donnees_personnelles" | "gouvernance";
   /** Aucun code ne consulte ce droit : l'accorder ou le retirer ne change rien. */
-  sansEffet?: boolean
-}
+  sansEffet?: boolean;
+};
 
 export type DomaineVue = {
-  cle: string
-  titre: string
-  description: string
-  permissions: PermissionVue[]
-}
+  cle: string;
+  titre: string;
+  description: string;
+  permissions: PermissionVue[];
+};
 
 export type RoleVue = {
-  role: string
-  libelle: string
-  description: string | null
-  actif: boolean
-  permissions: string[]
-  comptes: number
+  role: string;
+  libelle: string;
+  description: string | null;
+  actif: boolean;
+  permissions: string[];
+  comptes: number;
   /** Rôle du CDC, nommé par le code. Supprimable comme les autres, si personne ne le porte. */
-  livre: boolean
+  livre: boolean;
   /** Comptes rattachés, actifs ou non — ce qui empêche une suppression. */
-  rattachements: number
+  rattachements: number;
   /** Types de déclaration ouverts. Vide = ce rôle ne donne accès à aucun dossier. */
-  parcours: ParcoursDuRoleVue[]
+  parcours: ParcoursDuRoleVue[];
   /** Le rôle les ouvre tous. Évite d'énumérer quatre libellés pour rien. */
-  tousLesParcours: boolean
+  tousLesParcours: boolean;
   /** Les quatre comportements, cochés ou non — indexés par la clé du catalogue serveur. */
-  comportements: Record<string, boolean>
+  comportements: Record<string, boolean>;
   /** Les cases cochées de la grille « qui fait avancer quoi ». */
-  etapes: { parcours: string; statut: string }[]
-}
+  etapes: { parcours: string; statut: string }[];
+};
 
-const ETAT: EtatHabilitation = {}
+const ETAT: EtatHabilitation = {};
 
 /**
  * La valeur ORDINAIRE de chaque comportement — celle qui ne mérite pas d'être signalée.
@@ -88,7 +93,7 @@ const VALEUR_PAR_DEFAUT: Record<string, boolean> = {
   cloisonne_par_rattachement: false,
   voit_seulement_ses_declarations: false,
   voit_identite_declarant: true,
-}
+};
 
 /**
  * Nature d'un droit, en deux mots et sans couleur d'alerte.
@@ -97,17 +102,19 @@ const VALEUR_PAR_DEFAUT: Record<string, boolean> = {
  * erreur, or il s'agit d'une information de nature. Il criait, et il occupait une ligne de plus
  * sur chacun des droits sensibles.
  */
-const MENTION_SENSIBILITE: Record<PermissionVue['sensibilite'], string | null> = {
-  ordinaire: null,
-  donnees_personnelles: 'Données personnelles',
-  gouvernance: 'Droits des autres',
-}
+const MENTION_SENSIBILITE: Record<PermissionVue["sensibilite"], string | null> =
+  {
+    ordinaire: null,
+    donnees_personnelles: "Données personnelles",
+    gouvernance: "Droits des autres",
+  };
 
-type Onglet = 'droits' | 'declarations' | 'etapes' | 'comportements' | 'nom' | 'activation'
+type Onglet =
+  "droits" | "declarations" | "etapes" | "comportements" | "nom" | "activation";
 
 /** La clé d'une case de la grille, dans la forme que la Server Action attend. */
 function cleEtape(parcours: string, statut: string): string {
-  return `${parcours}/${statut}`
+  return `${parcours}/${statut}`;
 }
 
 /**
@@ -126,17 +133,17 @@ export function EditeurHabilitations({
   etapesDisponibles,
   comportementsDisponibles,
 }: {
-  roles: RoleVue[]
-  domaines: DomaineVue[]
+  roles: RoleVue[];
+  domaines: DomaineVue[];
   /** Les types de déclaration proposés à la coche. */
-  parcoursDisponibles: ParcoursVue[]
+  parcoursDisponibles: ParcoursVue[];
   /** Les lignes de la grille des étapes : celles d'où un dossier peut partir. */
-  etapesDisponibles: EtapeVue[]
+  etapesDisponibles: EtapeVue[];
   /** Les quatre comportements, décrits par le serveur. */
-  comportementsDisponibles: ComportementVue[]
+  comportementsDisponibles: ComportementVue[];
 }) {
-  const [recherche, setRecherche] = useState('')
-  const [creation, setCreation] = useState(false)
+  const [recherche, setRecherche] = useState("");
+  const [creation, setCreation] = useState(false);
 
   /**
    * Ordre ALPHABÉTIQUE, sur le libellé lisible.
@@ -146,18 +153,20 @@ export function EditeurHabilitations({
    * on les attend — « Équipe » après « Employé », là où un tri brut le renverrait en fin de liste.
    */
   const tries = useMemo(
-    () => [...roles].sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr')),
-    [roles]
-  )
+    () => [...roles].sort((a, b) => a.libelle.localeCompare(b.libelle, "fr")),
+    [roles],
+  );
 
   const filtres = useMemo(() => {
-    const terme = recherche.trim().toLowerCase()
-    if (terme === '') return tries
+    const terme = recherche.trim().toLowerCase();
+    if (terme === "") return tries;
 
     return tries.filter(
-      (r) => r.role.toLowerCase().includes(terme) || r.libelle.toLowerCase().includes(terme)
-    )
-  }, [tries, recherche])
+      (r) =>
+        r.role.toLowerCase().includes(terme) ||
+        r.libelle.toLowerCase().includes(terme),
+    );
+  }, [tries, recherche]);
 
   /**
    * Le rôle en cours d'édition, désigné par son slug.
@@ -165,10 +174,10 @@ export function EditeurHabilitations({
    * ⚠️ Le SLUG et non l'objet : la page se revalide à chaque enregistrement et rend des objets
    * neufs. Garder l'ancien afficherait indéfiniment les valeurs d'avant la sauvegarde.
    */
-  const [selection, setSelection] = useState<string | null>(null)
-  const choisi = filtres.find((r) => r.role === selection) ?? null
+  const [selection, setSelection] = useState<string | null>(null);
+  const choisi = filtres.find((r) => r.role === selection) ?? null;
 
-  const inactifs = roles.filter((r) => !r.actif).length
+  const inactifs = roles.filter((r) => !r.actif).length;
 
   return (
     <div className="space-y-4">
@@ -183,16 +192,17 @@ export function EditeurHabilitations({
         />
         {inactifs > 0 && (
           <p className="text-caption text-muted-foreground">
-            {inactifs} rôle{inactifs > 1 ? 's' : ''} désactivé{inactifs > 1 ? 's' : ''}.
+            {inactifs} rôle{inactifs > 1 ? "s" : ""} désactivé
+            {inactifs > 1 ? "s" : ""}.
           </p>
         )}
         <Button
           size="sm"
-          variant={creation ? 'outline' : 'default'}
+          variant={creation ? "outline" : "default"}
           className="ms-auto"
           onClick={() => setCreation((v) => !v)}
         >
-          {creation ? 'Annuler' : 'Nouveau rôle'}
+          {creation ? "Annuler" : "Nouveau rôle"}
         </Button>
       </div>
 
@@ -206,7 +216,11 @@ export function EditeurHabilitations({
         à l'autre sans perdre le repère de celui qu'on vient de quitter.
       */}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-        <ListeRoles roles={filtres} selection={selection} onSelectionner={setSelection} />
+        <ListeRoles
+          roles={filtres}
+          selection={selection}
+          onSelectionner={setSelection}
+        />
 
         {choisi ? (
           /*
@@ -228,14 +242,14 @@ export function EditeurHabilitations({
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
               {filtres.length === 0
-                ? 'Aucun rôle ne correspond à votre recherche.'
-                : 'Choisissez un rôle à gauche pour voir et modifier ses droits.'}
+                ? "Aucun rôle ne correspond à votre recherche."
+                : "Choisissez un rôle à gauche pour voir et modifier ses droits."}
             </CardContent>
           </Card>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -249,15 +263,15 @@ function ListeRoles({
   selection,
   onSelectionner,
 }: {
-  roles: RoleVue[]
-  selection: string | null
-  onSelectionner: (role: string) => void
+  roles: RoleVue[];
+  selection: string | null;
+  onSelectionner: (role: string) => void;
 }) {
   return (
     <Card className="overflow-hidden">
       <ul aria-label="Rôles" className="divide-y divide-border">
         {roles.map((role) => {
-          const estChoisi = role.role === selection
+          const estChoisi = role.role === selection;
 
           return (
             <li key={role.role}>
@@ -266,36 +280,39 @@ function ListeRoles({
               <button
                 type="button"
                 onClick={() => onSelectionner(role.role)}
-                aria-current={estChoisi ? 'true' : undefined}
+                aria-current={estChoisi ? "true" : undefined}
                 className={`flex w-full flex-col items-start gap-1 px-4 py-3 text-left transition-colors ${
-                  estChoisi ? 'bg-primary/10' : 'hover:bg-muted/50'
+                  estChoisi ? "bg-primary/10" : "hover:bg-muted/50"
                 }`}
               >
                 <span className="flex w-full flex-wrap items-center gap-2">
                   <span
                     className={`min-w-0 flex-1 truncate text-sm font-medium ${
-                      role.actif ? 'text-secondary-900' : 'text-secondary-500'
+                      role.actif ? "text-secondary-900" : "text-secondary-500"
                     }`}
                   >
                     {role.libelle}
                   </span>
-                  {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+                  {!role.actif && (
+                    <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>
+                  )}
                 </span>
 
                 <span className="text-caption text-muted-foreground">
                   {role.comptes === 0
-                    ? 'Personne'
-                    : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
-                  {' · '}
-                  {role.permissions.length} droit{role.permissions.length > 1 ? 's' : ''}
+                    ? "Personne"
+                    : `${role.comptes} personne${role.comptes > 1 ? "s" : ""}`}
+                  {" · "}
+                  {role.permissions.length} droit
+                  {role.permissions.length > 1 ? "s" : ""}
                 </span>
               </button>
             </li>
-          )
+          );
         })}
       </ul>
     </Card>
-  )
+  );
 }
 
 /**
@@ -311,15 +328,15 @@ function PanneauRole({
   etapesDisponibles,
   comportementsDisponibles,
 }: {
-  role: RoleVue
-  domaines: DomaineVue[]
-  parcoursDisponibles: ParcoursVue[]
-  etapesDisponibles: EtapeVue[]
-  comportementsDisponibles: ComportementVue[]
+  role: RoleVue;
+  domaines: DomaineVue[];
+  parcoursDisponibles: ParcoursVue[];
+  etapesDisponibles: EtapeVue[];
+  comportementsDisponibles: ComportementVue[];
 }) {
-  const [onglet, setOnglet] = useState<Onglet>('droits')
+  const [onglet, setOnglet] = useState<Onglet>("droits");
 
-  const detenues = new Set(role.permissions)
+  const detenues = new Set(role.permissions);
 
   // Quels domaines ce rôle touche, et combien de droits dans chacun. Vingt étiquettes techniques
   // côte à côte n'apprennent rien ; « Dossiers (5) » se lit d'un coup.
@@ -328,34 +345,44 @@ function PanneauRole({
       titre: d.titre,
       nombre: d.permissions.filter((p) => detenues.has(p.nom)).length,
     }))
-    .filter((d) => d.nombre > 0)
+    .filter((d) => d.nombre > 0);
 
   // Seuls les comportements qui S'ÉCARTENT du défaut : les répéter tous sur chaque rôle ne
   // distinguerait rien.
   const ecartsDeComportement = comportementsDisponibles
     .filter((c) => role.comportements[c.cle] !== VALEUR_PAR_DEFAUT[c.cle])
-    .map((c) => (role.comportements[c.cle] ? c.libelle : `Pas de « ${c.libelle.toLowerCase()} »`))
+    .map((c) =>
+      role.comportements[c.cle]
+        ? c.libelle
+        : `Pas de « ${c.libelle.toLowerCase()} »`,
+    );
 
   return (
-    <Card className={role.actif ? undefined : 'border-dashed bg-muted/30'}>
+    <Card className={role.actif ? undefined : "border-dashed bg-muted/30"}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className={`text-h3 ${role.actif ? 'text-secondary-900' : 'text-secondary-500'}`}>
+              <p
+                className={`text-h3 ${role.actif ? "text-secondary-900" : "text-secondary-500"}`}
+              >
                 {role.libelle}
               </p>
-              {!role.actif && <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>}
+              {!role.actif && (
+                <EtiquetteStatut ton="alerte">Désactivé</EtiquetteStatut>
+              )}
             </div>
             {role.description && (
-              <p className="mt-1 max-w-2xl text-sm text-secondary-600">{role.description}</p>
+              <p className="mt-1 max-w-2xl text-sm text-secondary-600">
+                {role.description}
+              </p>
             )}
           </div>
 
-          <Badge variant={role.comptes === 0 ? 'secondary' : 'default'}>
+          <Badge variant={role.comptes === 0 ? "secondary" : "default"}>
             {role.comptes === 0
-              ? 'Personne'
-              : `${role.comptes} personne${role.comptes > 1 ? 's' : ''}`}
+              ? "Personne"
+              : `${role.comptes} personne${role.comptes > 1 ? "s" : ""}`}
           </Badge>
         </div>
 
@@ -371,8 +398,9 @@ function PanneauRole({
             Ce rôle ne donne plus aucun droit.
             {role.comptes > 0 && (
               <>
-                {' '}
-                {role.comptes} compte{role.comptes > 1 ? 's le portent' : ' le porte'} encore.
+                {" "}
+                {role.comptes} compte
+                {role.comptes > 1 ? "s le portent" : " le porte"} encore.
               </>
             )}
           </p>
@@ -388,17 +416,23 @@ function PanneauRole({
             <dt className="text-caption text-muted-foreground">Droits</dt>
             <dd className="text-secondary-800">
               {resume.length === 0
-                ? 'Aucun pour l’instant'
-                : resume.map((d) => `${d.titre} (${d.nombre})`).join(' · ')}
+                ? "Aucun pour l’instant"
+                : resume.map((d) => `${d.titre} (${d.nombre})`).join(" · ")}
             </dd>
 
             <dt className="text-caption text-muted-foreground">Déclarations</dt>
-            <dd className={role.parcours.length === 0 ? 'text-destructive' : 'text-secondary-800'}>
+            <dd
+              className={
+                role.parcours.length === 0
+                  ? "text-destructive"
+                  : "text-secondary-800"
+              }
+            >
               {role.parcours.length === 0
-                ? 'Aucun type — ses porteurs ne voient aucun dossier'
+                ? "Aucun type — ses porteurs ne voient aucun dossier"
                 : role.tousLesParcours
-                  ? 'Tous les types'
-                  : role.parcours.map((p) => p.libelle).join(' · ')}
+                  ? "Tous les types"
+                  : role.parcours.map((p) => p.libelle).join(" · ")}
             </dd>
 
             {/*
@@ -407,16 +441,26 @@ function PanneauRole({
               changement de statut reste absent sans que rien ne l'explique.
             */}
             <dt className="text-caption text-muted-foreground">Étapes</dt>
-            <dd className={role.etapes.length === 0 ? 'text-destructive' : 'text-secondary-800'}>
+            <dd
+              className={
+                role.etapes.length === 0
+                  ? "text-destructive"
+                  : "text-secondary-800"
+              }
+            >
               {role.etapes.length === 0
-                ? 'Aucune — ne fait avancer aucun dossier'
-                : `${role.etapes.length} cochée${role.etapes.length > 1 ? 's' : ''}`}
+                ? "Aucune — ne fait avancer aucun dossier"
+                : `${role.etapes.length} cochée${role.etapes.length > 1 ? "s" : ""}`}
             </dd>
 
             {ecartsDeComportement.length > 0 && (
               <>
-                <dt className="text-caption text-muted-foreground">Comportement</dt>
-                <dd className="text-secondary-800">{ecartsDeComportement.join(' · ')}</dd>
+                <dt className="text-caption text-muted-foreground">
+                  Comportement
+                </dt>
+                <dd className="text-secondary-800">
+                  {ecartsDeComportement.join(" · ")}
+                </dd>
               </>
             )}
           </dl>
@@ -433,14 +477,20 @@ function PanneauRole({
             onChange={setOnglet}
             role={role.role}
             onglets={[
-              { cle: 'droits', libelle: `Droits (${role.permissions.length})` },
-              { cle: 'declarations', libelle: `Déclarations (${role.parcours.length})` },
-              { cle: 'etapes' as const, libelle: `Étapes (${role.etapes.length})` },
-              { cle: 'comportements' as const, libelle: 'Comportement' },
-              { cle: 'nom', libelle: 'Nom' },
+              { cle: "droits", libelle: `Droits (${role.permissions.length})` },
+              {
+                cle: "declarations",
+                libelle: `Déclarations (${role.parcours.length})`,
+              },
+              {
+                cle: "etapes" as const,
+                libelle: `Étapes (${role.etapes.length})`,
+              },
+              { cle: "comportements" as const, libelle: "Comportement" },
+              { cle: "nom", libelle: "Nom" },
               // ⚠️ Offert pour TOUS les rôles : le service ne regarde plus que l'attribution, et
               // l'écran doit suivre — sinon la règle change côté serveur sans être atteignable.
-              { cle: 'activation' as const, libelle: 'Supprimer' },
+              { cle: "activation" as const, libelle: "Supprimer" },
             ]}
           />
 
@@ -449,7 +499,7 @@ function PanneauRole({
               role="tabpanel"
               id={`panneau-${role.role}-droits`}
               aria-labelledby={`onglet-${role.role}-droits`}
-              hidden={onglet !== 'droits'}
+              hidden={onglet !== "droits"}
               tabIndex={0}
             >
               {/*
@@ -460,10 +510,10 @@ function PanneauRole({
                 soumises survivent, elles, à un enregistrement voisin.
               */}
               <FormulairePermissions
-                key={role.permissions.join(' ')}
+                key={role.permissions.join(" ")}
                 role={role}
                 domaines={domaines}
-                onAnnuler={() => setOnglet('droits')}
+                onAnnuler={() => setOnglet("droits")}
               />
             </div>
 
@@ -471,7 +521,7 @@ function PanneauRole({
               role="tabpanel"
               id={`panneau-${role.role}-declarations`}
               aria-labelledby={`onglet-${role.role}-declarations`}
-              hidden={onglet !== 'declarations'}
+              hidden={onglet !== "declarations"}
               tabIndex={0}
             >
               {/*
@@ -481,8 +531,8 @@ function PanneauRole({
               */}
               <FormulaireParcours
                 key={role.parcours
-                  .map((p) => `${p.code}${p.alerteCircuitCritique ? '!' : ''}`)
-                  .join(' ')}
+                  .map((p) => `${p.code}${p.alerteCircuitCritique ? "!" : ""}`)
+                  .join(" ")}
                 role={role}
                 parcoursDisponibles={parcoursDisponibles}
               />
@@ -492,7 +542,7 @@ function PanneauRole({
               role="tabpanel"
               id={`panneau-${role.role}-etapes`}
               aria-labelledby={`onglet-${role.role}-etapes`}
-              hidden={onglet !== 'etapes'}
+              hidden={onglet !== "etapes"}
               tabIndex={0}
             >
               {/*
@@ -500,7 +550,10 @@ function PanneauRole({
                 enregistrement mené ailleurs laisserait sinon voir autre chose que la base.
               */}
               <FormulaireEtapes
-                key={role.etapes.map((e) => cleEtape(e.parcours, e.statut)).sort().join(' ')}
+                key={role.etapes
+                  .map((e) => cleEtape(e.parcours, e.statut))
+                  .sort()
+                  .join(" ")}
                 role={role}
                 parcoursDisponibles={parcoursDisponibles}
                 etapesDisponibles={etapesDisponibles}
@@ -511,13 +564,15 @@ function PanneauRole({
               role="tabpanel"
               id={`panneau-${role.role}-comportements`}
               aria-labelledby={`onglet-${role.role}-comportements`}
-              hidden={onglet !== 'comportements'}
+              hidden={onglet !== "comportements"}
               tabIndex={0}
             >
               <FormulaireComportements
                 key={comportementsDisponibles
-                  .map((c) => `${c.cle}=${role.comportements[c.cle] ? '1' : '0'}`)
-                  .join(' ')}
+                  .map(
+                    (c) => `${c.cle}=${role.comportements[c.cle] ? "1" : "0"}`,
+                  )
+                  .join(" ")}
                 role={role}
                 comportementsDisponibles={comportementsDisponibles}
               />
@@ -527,7 +582,7 @@ function PanneauRole({
               role="tabpanel"
               id={`panneau-${role.role}-nom`}
               aria-labelledby={`onglet-${role.role}-nom`}
-              hidden={onglet !== 'nom'}
+              hidden={onglet !== "nom"}
               tabIndex={0}
             >
               {/*
@@ -535,14 +590,17 @@ function PanneauRole({
                 espaces et ramène une description vide à `null` ; sans remontage, `defaultValue`
                 n'est plus relu et le champ cesse de montrer ce qui est enregistré.
               */}
-              <FormulaireIdentite key={`${role.libelle}|${role.description ?? ''}`} role={role} />
+              <FormulaireIdentite
+                key={`${role.libelle}|${role.description ?? ""}`}
+                role={role}
+              />
             </div>
 
             <div
               role="tabpanel"
               id={`panneau-${role.role}-activation`}
               aria-labelledby={`onglet-${role.role}-activation`}
-              hidden={onglet !== 'activation'}
+              hidden={onglet !== "activation"}
               tabIndex={0}
             >
               <FormulaireSuppression role={role} />
@@ -551,7 +609,7 @@ function PanneauRole({
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 /**
@@ -561,7 +619,7 @@ function PanneauRole({
  * TANT QUE rien n'est coché. L'écran doit dire où aller le cocher.
  */
 function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
-  const [etat, envoyer, enCours] = useActionState(actionCreerRole, ETAT)
+  const [etat, envoyer, enCours] = useActionState(actionCreerRole, ETAT);
 
   return (
     <Card>
@@ -571,7 +629,10 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="nouveau-libelle" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="nouveau-libelle"
+                className="text-caption text-muted-foreground"
+              >
                 Nom affiché
               </Label>
               <Input
@@ -585,7 +646,10 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
               />
             </div>
             <div>
-              <Label htmlFor="nouveau-description" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="nouveau-description"
+                className="text-caption text-muted-foreground"
+              >
                 Description (facultative)
               </Label>
               <Input
@@ -609,9 +673,10 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
           */}
           <Alert>
             <AlertDescription className="text-caption">
-              Un rôle créé ici n’ouvre <strong>aucun dossier tant que rien n’est coché</strong> :
-              l’onglet « Déclarations » lui donne son périmètre, « Étapes » le droit de faire
-              avancer un dossier.
+              Un rôle créé ici n’ouvre{" "}
+              <strong>aucun dossier tant que rien n’est coché</strong> :
+              l’onglet « Déclarations » lui donne son périmètre, « Étapes » le
+              droit de faire avancer un dossier.
             </AlertDescription>
           </Alert>
 
@@ -619,7 +684,7 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
 
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" size="sm" disabled={enCours}>
-              {enCours ? 'Création…' : 'Créer le rôle'}
+              {enCours ? "Création…" : "Créer le rôle"}
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={onFerme}>
               Annuler
@@ -631,7 +696,7 @@ function FormulaireCreation({ onFerme }: { onFerme: () => void }) {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 /**
@@ -646,26 +711,26 @@ function Onglets({
   onglets,
   role,
 }: {
-  actif: Onglet
-  onChange: (onglet: Onglet) => void
-  onglets: { cle: Onglet; libelle: string }[]
-  role: string
+  actif: Onglet;
+  onChange: (onglet: Onglet) => void;
+  onglets: { cle: Onglet; libelle: string }[];
+  role: string;
 }) {
   function surTouche(evenement: KeyboardEvent<HTMLDivElement>) {
-    const index = onglets.findIndex((o) => o.cle === actif)
+    const index = onglets.findIndex((o) => o.cle === actif);
     const deplacements: Record<string, number> = {
       ArrowRight: (index + 1) % onglets.length,
       ArrowLeft: (index - 1 + onglets.length) % onglets.length,
       Home: 0,
       End: onglets.length - 1,
-    }
+    };
 
-    const suivant = deplacements[evenement.key]
-    if (suivant === undefined) return
+    const suivant = deplacements[evenement.key];
+    if (suivant === undefined) return;
 
-    evenement.preventDefault()
-    onChange(onglets[suivant].cle)
-    document.getElementById(`onglet-${role}-${onglets[suivant].cle}`)?.focus()
+    evenement.preventDefault();
+    onChange(onglets[suivant].cle);
+    document.getElementById(`onglet-${role}-${onglets[suivant].cle}`)?.focus();
   }
 
   return (
@@ -687,20 +752,23 @@ function Onglets({
           onClick={() => onChange(onglet.cle)}
           className={`rounded-md px-3 py-1.5 text-caption font-medium transition-colors ${
             actif === onglet.cle
-              ? 'bg-background text-secondary-900 shadow-sm'
-              : 'text-muted-foreground hover:text-secondary-800'
+              ? "bg-background text-secondary-900 shadow-sm"
+              : "text-muted-foreground hover:text-secondary-800"
           }`}
         >
           {onglet.libelle}
         </button>
       ))}
     </div>
-  )
+  );
 }
 
 /** Nom lisible et description. L'identifiant technique est affiché, jamais éditable. */
 function FormulaireIdentite({ role }: { role: RoleVue }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierIdentiteRole, ETAT)
+  const [etat, envoyer, enCours] = useActionState(
+    actionModifierIdentiteRole,
+    ETAT,
+  );
 
   return (
     <form action={envoyer} className="space-y-3">
@@ -708,7 +776,10 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`libelle-${role.role}`} className="text-caption text-muted-foreground">
+          <Label
+            htmlFor={`libelle-${role.role}`}
+            className="text-caption text-muted-foreground"
+          >
             Nom affiché
           </Label>
           <Input
@@ -730,7 +801,7 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
           <Input
             id={`description-${role.role}`}
             name="description"
-            defaultValue={role.description ?? ''}
+            defaultValue={role.description ?? ""}
             maxLength={1000}
             placeholder="À quoi sert ce rôle, pour qui"
             className="mt-1"
@@ -739,16 +810,17 @@ function FormulaireIdentite({ role }: { role: RoleVue }) {
       </div>
 
       <p className="text-caption text-muted-foreground">
-        Nom interne : <code className="font-mono">{role.role}</code>. Il n’est pas modifiable.
+        Nom interne : <code className="font-mono">{role.role}</code>. Il n’est
+        pas modifiable.
       </p>
 
       <AnnonceRetour etat={etat} />
 
       <Button type="submit" size="sm" variant="outline" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer le nom'}
+        {enCours ? "Enregistrement…" : "Enregistrer le nom"}
       </Button>
     </form>
-  )
+  );
 }
 
 /**
@@ -771,18 +843,25 @@ function FormulaireComportements({
   role,
   comportementsDisponibles,
 }: {
-  role: RoleVue
-  comportementsDisponibles: ComportementVue[]
+  role: RoleVue;
+  comportementsDisponibles: ComportementVue[];
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionChangerComportementsRole, ETAT)
+  const [etat, envoyer, enCours] = useActionState(
+    actionChangerComportementsRole,
+    ETAT,
+  );
   const [cochees, setCochees] = useState<string[]>(() =>
-    comportementsDisponibles.filter((c) => role.comportements[c.cle]).map((c) => c.cle)
-  )
+    comportementsDisponibles
+      .filter((c) => role.comportements[c.cle])
+      .map((c) => c.cle),
+  );
 
   function basculer(cle: string, actif: boolean) {
     setCochees((actuelles) =>
-      actif ? [...new Set([...actuelles, cle])] : actuelles.filter((c) => c !== cle)
-    )
+      actif
+        ? [...new Set([...actuelles, cle])]
+        : actuelles.filter((c) => c !== cle),
+    );
   }
 
   return (
@@ -795,8 +874,8 @@ function FormulaireComportements({
 
       <div className="space-y-2">
         {comportementsDisponibles.map((comportement) => {
-          const id = `comportement-${role.role}-${comportement.cle}`
-          const actif = cochees.includes(comportement.cle)
+          const id = `comportement-${role.role}-${comportement.cle}`;
+          const actif = cochees.includes(comportement.cle);
 
           return (
             <label
@@ -810,7 +889,9 @@ function FormulaireComportements({
                 type="checkbox"
                 value={comportement.cle}
                 checked={actif}
-                onChange={(evenement) => basculer(comportement.cle, evenement.target.checked)}
+                onChange={(evenement) =>
+                  basculer(comportement.cle, evenement.target.checked)
+                }
                 className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
               />
               <span className="min-w-0 text-sm text-secondary-900">
@@ -820,7 +901,7 @@ function FormulaireComportements({
                 </span>
               </span>
             </label>
-          )
+          );
         })}
       </div>
 
@@ -831,10 +912,11 @@ function FormulaireComportements({
         voit nulle part depuis l'écran d'administration : les fiches continuent de s'afficher,
         simplement amputées du nom. Le dire au moment où on décoche est la seule occasion.
       */}
-      {!cochees.includes('voit_identite_declarant') && (
+      {!cochees.includes("voit_identite_declarant") && (
         <Alert role="status">
           <AlertDescription>
-            Ses porteurs ne verront jamais qui a déclaré, même sur une déclaration identifiée.
+            Ses porteurs ne verront jamais qui a déclaré, même sur une
+            déclaration identifiée.
           </AlertDescription>
         </Alert>
       )}
@@ -852,10 +934,10 @@ function FormulaireComportements({
       )}
 
       <Button type="submit" size="sm" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer le comportement'}
+        {enCours ? "Enregistrement…" : "Enregistrer le comportement"}
       </Button>
     </form>
-  )
+  );
 }
 
 /**
@@ -870,32 +952,40 @@ function FormulaireEtapes({
   parcoursDisponibles,
   etapesDisponibles,
 }: {
-  role: RoleVue
-  parcoursDisponibles: ParcoursVue[]
-  etapesDisponibles: EtapeVue[]
+  role: RoleVue;
+  parcoursDisponibles: ParcoursVue[];
+  etapesDisponibles: EtapeVue[];
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierEtapesRole, ETAT)
+  const [etat, envoyer, enCours] = useActionState(
+    actionModifierEtapesRole,
+    ETAT,
+  );
   const [cochees, setCochees] = useState<string[]>(() =>
-    role.etapes.map((e) => cleEtape(e.parcours, e.statut))
-  )
+    role.etapes.map((e) => cleEtape(e.parcours, e.statut)),
+  );
 
-  const ouverts = useMemo(() => new Set(role.parcours.map((p) => p.code)), [role.parcours])
+  const ouverts = useMemo(
+    () => new Set(role.parcours.map((p) => p.code)),
+    [role.parcours],
+  );
 
   function basculer(cle: string, actif: boolean) {
     setCochees((actuelles) =>
-      actif ? [...new Set([...actuelles, cle])] : actuelles.filter((c) => c !== cle)
-    )
+      actif
+        ? [...new Set([...actuelles, cle])]
+        : actuelles.filter((c) => c !== cle),
+    );
   }
 
   /** Toute une colonne d’un coup : quatorze cases à cocher une à une décourage le paramétrage. */
   function basculerColonne(codeParcours: string, actif: boolean) {
-    const cles = etapesDisponibles.map((e) => cleEtape(codeParcours, e.code))
+    const cles = etapesDisponibles.map((e) => cleEtape(codeParcours, e.code));
 
     setCochees((actuelles) =>
       actif
         ? [...new Set([...actuelles, ...cles])]
-        : actuelles.filter((c) => !cles.includes(c))
-    )
+        : actuelles.filter((c) => !cles.includes(c)),
+    );
   }
 
   return (
@@ -903,8 +993,8 @@ function FormulaireEtapes({
       <input type="hidden" name="role" value={role.role} />
 
       <p className="text-sm text-muted-foreground">
-        À quelles étapes ce rôle peut faire avancer un dossier, et sur quels types. Une case
-        décochée interdit.
+        À quelles étapes ce rôle peut faire avancer un dossier, et sur quels
+        types. Une case décochée interdit.
       </p>
 
       {/*
@@ -916,7 +1006,10 @@ function FormulaireEtapes({
         <table className="w-full min-w-[34rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th scope="col" className="p-2 text-left font-medium text-secondary-700">
+              <th
+                scope="col"
+                className="p-2 text-left font-medium text-secondary-700"
+              >
                 Étape
               </th>
               {parcoursDisponibles.map((parcours) => (
@@ -946,17 +1039,17 @@ function FormulaireEtapes({
                       basculerColonne(
                         parcours.code,
                         !etapesDisponibles.every((e) =>
-                          cochees.includes(cleEtape(parcours.code, e.code))
-                        )
+                          cochees.includes(cleEtape(parcours.code, e.code)),
+                        ),
                       )
                     }
                     className="mt-1 text-caption font-normal text-primary-700 underline underline-offset-2"
                   >
                     {etapesDisponibles.every((e) =>
-                      cochees.includes(cleEtape(parcours.code, e.code))
+                      cochees.includes(cleEtape(parcours.code, e.code)),
                     )
-                      ? 'Tout décocher'
-                      : 'Tout cocher'}
+                      ? "Tout décocher"
+                      : "Tout cocher"}
                   </button>
                 </th>
               ))}
@@ -965,7 +1058,10 @@ function FormulaireEtapes({
 
           <tbody>
             {etapesDisponibles.map((etape) => (
-              <tr key={etape.code} className="border-b border-border last:border-b-0">
+              <tr
+                key={etape.code}
+                className="border-b border-border last:border-b-0"
+              >
                 <th
                   scope="row"
                   className="p-2 text-left font-normal text-secondary-900"
@@ -974,8 +1070,8 @@ function FormulaireEtapes({
                 </th>
 
                 {parcoursDisponibles.map((parcours) => {
-                  const cle = cleEtape(parcours.code, etape.code)
-                  const id = `etape-${role.role}-${parcours.code}-${etape.code}`
+                  const cle = cleEtape(parcours.code, etape.code);
+                  const id = `etape-${role.role}-${parcours.code}-${etape.code}`;
 
                   return (
                     <td key={parcours.code} className="p-2 text-center">
@@ -985,12 +1081,14 @@ function FormulaireEtapes({
                         type="checkbox"
                         value={cle}
                         checked={cochees.includes(cle)}
-                        onChange={(evenement) => basculer(cle, evenement.target.checked)}
+                        onChange={(evenement) =>
+                          basculer(cle, evenement.target.checked)
+                        }
                         aria-label={`${etape.libelle} — ${parcours.libelle}`}
                         className="h-4 w-4 accent-primary-700"
                       />
                     </td>
-                  )
+                  );
                 })}
               </tr>
             ))}
@@ -1001,8 +1099,8 @@ function FormulaireEtapes({
       {cochees.length === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Aucune étape cochée : ce rôle ne pourra faire avancer aucun dossier, même avec le
-            droit de le faire.
+            Aucune étape cochée : ce rôle ne pourra faire avancer aucun dossier,
+            même avec le droit de le faire.
           </AlertDescription>
         </Alert>
       )}
@@ -1020,42 +1118,51 @@ function FormulaireEtapes({
       )}
 
       <Button type="submit" size="sm" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer la grille'}
+        {enCours ? "Enregistrement…" : "Enregistrer la grille"}
       </Button>
     </form>
-  )
+  );
 }
 
 function FormulaireParcours({
   role,
   parcoursDisponibles,
 }: {
-  role: RoleVue
-  parcoursDisponibles: ParcoursVue[]
+  role: RoleVue;
+  parcoursDisponibles: ParcoursVue[];
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierParcoursRole, ETAT)
-  const [cochees, setCochees] = useState<string[]>(role.parcours.map((p) => p.code))
+  const [etat, envoyer, enCours] = useActionState(
+    actionModifierParcoursRole,
+    ETAT,
+  );
+  const [cochees, setCochees] = useState<string[]>(
+    role.parcours.map((p) => p.code),
+  );
   const [alertes, setAlertes] = useState<string[]>(
-    role.parcours.filter((p) => p.alerteCircuitCritique).map((p) => p.code)
-  )
+    role.parcours.filter((p) => p.alerteCircuitCritique).map((p) => p.code),
+  );
 
   function basculer(code: string, actif: boolean) {
     setCochees((actuelles) =>
-      actif ? [...new Set([...actuelles, code])] : actuelles.filter((c) => c !== code)
-    )
+      actif
+        ? [...new Set([...actuelles, code])]
+        : actuelles.filter((c) => c !== code),
+    );
 
     /*
       ⚠️ DÉCOCHER UN TYPE RETIRE SON ALERTE, et l'écran le montre au lieu de le faire en
       silence côté serveur. Les deux vivent sur la même ligne : le type parti, l'alerte l'est
       aussi. Laisser la case cochée à l'écran aurait laissé croire qu'elle survivait.
     */
-    if (!actif) setAlertes((actuelles) => actuelles.filter((c) => c !== code))
+    if (!actif) setAlertes((actuelles) => actuelles.filter((c) => c !== code));
   }
 
   function basculerAlerte(code: string, actif: boolean) {
     setAlertes((actuelles) =>
-      actif ? [...new Set([...actuelles, code])] : actuelles.filter((c) => c !== code)
-    )
+      actif
+        ? [...new Set([...actuelles, code])]
+        : actuelles.filter((c) => c !== code),
+    );
   }
 
   return (
@@ -1063,33 +1170,40 @@ function FormulaireParcours({
       <input type="hidden" name="role" value={role.role} />
 
       <p className="text-sm text-muted-foreground">
-        Les types de déclaration que ce rôle ouvre. Le rattachement restreint ensuite à
-        l’intérieur.
+        Les types de déclaration que ce rôle ouvre. Le rattachement restreint
+        ensuite à l’intérieur.
       </p>
 
       <div className="space-y-2">
         {parcoursDisponibles.map((parcours) => {
-          const id = `parcours-${role.role}-${parcours.code}`
-          const actif = cochees.includes(parcours.code)
+          const id = `parcours-${role.role}-${parcours.code}`;
+          const actif = cochees.includes(parcours.code);
 
-          const idAlerte = `circuit-${role.role}-${parcours.code}`
+          const idAlerte = `circuit-${role.role}-${parcours.code}`;
 
           return (
             <div
               key={parcours.code}
               className="rounded-md border border-border transition-colors hover:bg-muted/40"
             >
-              <label htmlFor={id} className="flex cursor-pointer items-start gap-3 p-3">
+              <label
+                htmlFor={id}
+                className="flex cursor-pointer items-start gap-3 p-3"
+              >
                 <input
                   id={id}
                   name="parcours"
                   type="checkbox"
                   value={parcours.code}
                   checked={actif}
-                  onChange={(evenement) => basculer(parcours.code, evenement.target.checked)}
+                  onChange={(evenement) =>
+                    basculer(parcours.code, evenement.target.checked)
+                  }
                   className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
                 />
-                <span className="text-sm text-secondary-900">{parcours.libelle}</span>
+                <span className="text-sm text-secondary-900">
+                  {parcours.libelle}
+                </span>
               </label>
 
               {/*
@@ -1119,22 +1233,22 @@ function FormulaireParcours({
                   <span className="text-caption text-secondary-700">
                     Alerté en circuit accéléré
                     <span className="mt-0.5 block text-muted-foreground">
-                      Prévenu immédiatement dès qu’une déclaration de ce type, dans son périmètre,
-                      est qualifiée critique.
+                      Prévenu immédiatement dès qu’une déclaration de ce type,
+                      dans son périmètre, est qualifiée critique.
                     </span>
                   </span>
                 </label>
               )}
             </div>
-          )
+          );
         })}
       </div>
 
       {cochees.length === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Aucun type coché : ce rôle ne verra aucun dossier. Attendu pour un rôle
-            d’administration ou de saisie, une panne pour tout autre.
+            Aucun type coché : ce rôle ne verra aucun dossier. Attendu pour un
+            rôle d’administration ou de saisie, une panne pour tout autre.
           </AlertDescription>
         </Alert>
       )}
@@ -1152,10 +1266,10 @@ function FormulaireParcours({
       )}
 
       <Button type="submit" size="sm" disabled={enCours}>
-        {enCours ? 'Enregistrement…' : 'Enregistrer les types de déclaration'}
+        {enCours ? "Enregistrement…" : "Enregistrer les types de déclaration"}
       </Button>
     </form>
-  )
+  );
 }
 
 function FormulairePermissions({
@@ -1163,52 +1277,65 @@ function FormulairePermissions({
   domaines,
   onAnnuler,
 }: {
-  role: RoleVue
-  domaines: DomaineVue[]
-  onAnnuler: () => void
+  role: RoleVue;
+  domaines: DomaineVue[];
+  onAnnuler: () => void;
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierHabilitations, ETAT)
-  const [cochees, setCochees] = useState<string[]>(role.permissions)
+  const [etat, envoyer, enCours] = useActionState(
+    actionModifierHabilitations,
+    ETAT,
+  );
+  const [cochees, setCochees] = useState<string[]>(role.permissions);
 
   /*
     Tout est déplié d'emblée : on vient ici pour accorder un droit que le rôle n'a pas, et replier
     les domaines qu'il ne touche pas cachait précisément celui qu'on cherche. C'est la recherche
     qui réduit la page, pas le repliement — qui reste disponible.
   */
-  const [deplies, setDeplies] = useState<string[]>(() => domaines.map((d) => d.cle))
-  const [recherche, setRecherche] = useState('')
+  const [deplies, setDeplies] = useState<string[]>(() =>
+    domaines.map((d) => d.cle),
+  );
+  const [recherche, setRecherche] = useState("");
 
-  const terme = recherche.trim().toLowerCase()
+  const terme = recherche.trim().toLowerCase();
 
   const visibles = useMemo(() => {
-    if (terme === '') return domaines
+    if (terme === "") return domaines;
 
     return domaines
       .map((domaine) => ({
         ...domaine,
         permissions: domaine.permissions.filter(
           (p) =>
-            p.libelle.toLowerCase().includes(terme) || p.explication.toLowerCase().includes(terme)
+            p.libelle.toLowerCase().includes(terme) ||
+            p.explication.toLowerCase().includes(terme),
         ),
       }))
-      .filter((domaine) => domaine.permissions.length > 0)
-  }, [domaines, terme])
+      .filter((domaine) => domaine.permissions.length > 0);
+  }, [domaines, terme]);
 
   function basculerDomaine(domaine: DomaineVue, tout: boolean) {
-    const noms = domaine.permissions.map((p) => p.nom)
+    const noms = domaine.permissions.map((p) => p.nom);
 
     setCochees((actuelles) =>
-      tout ? [...new Set([...actuelles, ...noms])] : actuelles.filter((p) => !noms.includes(p))
-    )
+      tout
+        ? [...new Set([...actuelles, ...noms])]
+        : actuelles.filter((p) => !noms.includes(p)),
+    );
   }
 
-  const toutDeplie = deplies.length === domaines.length
+  const toutDeplie = deplies.length === domaines.length;
 
   return (
     <form action={envoyer} className="space-y-4">
       <input type="hidden" name="role" value={role.role} />
       {cochees.map((permission) => (
-        <input key={permission} type="hidden" name="permissions" value={permission} />
+        <input
+          key={permission}
+          type="hidden"
+          name="permissions"
+          value={permission}
+        />
       ))}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -1221,33 +1348,39 @@ function FormulairePermissions({
           className="w-full max-w-xs rounded-md border border-input bg-background px-3 py-1.5 text-sm"
         />
         <p className="text-caption text-muted-foreground">
-          {cochees.length} droit{cochees.length > 1 ? 's' : ''} accordé
-          {cochees.length > 1 ? 's' : ''}
-          {!role.actif && ' — sans effet tant que le rôle est désactivé'}
+          {cochees.length} droit{cochees.length > 1 ? "s" : ""} accordé
+          {cochees.length > 1 ? "s" : ""}
+          {!role.actif && " — sans effet tant que le rôle est désactivé"}
         </p>
         <button
           type="button"
-          onClick={() => setDeplies(toutDeplie ? [] : domaines.map((d) => d.cle))}
+          onClick={() =>
+            setDeplies(toutDeplie ? [] : domaines.map((d) => d.cle))
+          }
           className="ms-auto text-caption text-primary-700 underline underline-offset-2"
         >
-          {toutDeplie ? 'Tout replier' : 'Tout déplier'}
+          {toutDeplie ? "Tout replier" : "Tout déplier"}
         </button>
       </div>
 
-      {terme !== '' && visibles.length === 0 && (
-        <p className="text-sm text-muted-foreground">Aucun droit ne correspond à « {recherche} ».</p>
+      {terme !== "" && visibles.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Aucun droit ne correspond à « {recherche} ».
+        </p>
       )}
 
       <div className="divide-y divide-border rounded-lg border border-border">
         {visibles.map((domaine) => {
           // Le compte porte sur le domaine ENTIER, jamais sur le sous-ensemble filtré : « 2/9 »
           // qui deviendrait « 1/1 » pendant une recherche ferait croire à un droit perdu.
-          const entier = domaines.find((d) => d.cle === domaine.cle) ?? domaine
-          const total = entier.permissions.length
-          const actives = entier.permissions.filter((p) => cochees.includes(p.nom)).length
+          const entier = domaines.find((d) => d.cle === domaine.cle) ?? domaine;
+          const total = entier.permissions.length;
+          const actives = entier.permissions.filter((p) =>
+            cochees.includes(p.nom),
+          ).length;
           // Une recherche déplie ce qu'elle trouve : sans cela, les résultats resteraient
           // derrière un chevron fermé et la recherche ne servirait à rien.
-          const deplie = terme !== '' || deplies.includes(domaine.cle)
+          const deplie = terme !== "" || deplies.includes(domaine.cle);
 
           return (
             <fieldset key={domaine.cle}>
@@ -1259,21 +1392,25 @@ function FormulairePermissions({
                   aria-expanded={deplie}
                   onClick={() =>
                     setDeplies((actuels) =>
-                      deplie ? actuels.filter((c) => c !== domaine.cle) : [...actuels, domaine.cle]
+                      deplie
+                        ? actuels.filter((c) => c !== domaine.cle)
+                        : [...actuels, domaine.cle],
                     )
                   }
                   className="flex min-w-0 items-center gap-2 text-left"
                 >
                   <ChevronDown
                     className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                      deplie ? '' : '-rotate-90'
+                      deplie ? "" : "-rotate-90"
                     }`}
                     aria-hidden
                   />
-                  <span className="text-sm font-medium text-secondary-900">{domaine.titre}</span>
+                  <span className="text-sm font-medium text-secondary-900">
+                    {domaine.titre}
+                  </span>
                   <span
                     className={`text-caption ${
-                      actives > 0 ? 'text-primary-700' : 'text-muted-foreground'
+                      actives > 0 ? "text-primary-700" : "text-muted-foreground"
                     }`}
                   >
                     {actives}/{total}
@@ -1282,21 +1419,23 @@ function FormulairePermissions({
 
                 {/* Pendant une recherche, « Tout accorder » ne dirait pas s'il vise les droits
                     affichés ou tout le domaine : on ne le propose pas. */}
-                {deplie && terme === '' && (
+                {deplie && terme === "" && (
                   <button
                     type="button"
                     onClick={() => basculerDomaine(entier, actives < total)}
                     className="text-caption text-primary-700 underline underline-offset-2"
                   >
-                    {actives < total ? 'Tout accorder' : 'Tout retirer'}
+                    {actives < total ? "Tout accorder" : "Tout retirer"}
                   </button>
                 )}
               </div>
 
               {deplie && (
                 <div className="px-3 pb-3">
-                  {terme === '' && (
-                    <p className="text-caption text-muted-foreground">{domaine.description}</p>
+                  {terme === "" && (
+                    <p className="text-caption text-muted-foreground">
+                      {domaine.description}
+                    </p>
                   )}
 
                   {/* Deux colonnes dès que la largeur le permet : neuf droits de suite pour le
@@ -1311,7 +1450,7 @@ function FormulairePermissions({
                           setCochees((actuelles) =>
                             actif
                               ? [...actuelles, permission.nom]
-                              : actuelles.filter((p) => p !== permission.nom)
+                              : actuelles.filter((p) => p !== permission.nom),
                           )
                         }
                       />
@@ -1320,7 +1459,7 @@ function FormulairePermissions({
                 </div>
               )}
             </fieldset>
-          )
+          );
         })}
       </div>
 
@@ -1328,19 +1467,20 @@ function FormulairePermissions({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" size="sm" disabled={enCours}>
-          {enCours ? 'Enregistrement…' : 'Enregistrer les droits'}
+          {enCours ? "Enregistrement…" : "Enregistrer les droits"}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onAnnuler}>
           Annuler
         </Button>
         {role.actif && (
           <span className="text-caption text-muted-foreground">
-            S’applique tout de suite aux {role.comptes} personne(s) concernée(s).
+            S’applique tout de suite aux {role.comptes} personne(s)
+            concernée(s).
           </span>
         )}
       </div>
     </form>
-  )
+  );
 }
 
 /**
@@ -1351,13 +1491,16 @@ function FormulairePermissions({
  * pour ce qu'il fait.
  */
 function FormulaireActivation({ role }: { role: RoleVue }) {
-  const [etat, envoyer, enCours] = useActionState(actionChangerActivationRole, ETAT)
-  const [confirme, setConfirme] = useState(false)
+  const [etat, envoyer, enCours] = useActionState(
+    actionChangerActivationRole,
+    ETAT,
+  );
+  const [confirme, setConfirme] = useState(false);
 
   return (
     <form action={envoyer} className="space-y-3">
       <input type="hidden" name="role" value={role.role} />
-      <input type="hidden" name="actif" value={role.actif ? '0' : '1'} />
+      <input type="hidden" name="actif" value={role.actif ? "0" : "1"} />
 
       <p className="text-caption text-muted-foreground">
         {role.actif ? (
@@ -1366,8 +1509,8 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
           </>
         ) : (
           <>
-            Réactiver ce rôle rend ses droits aux {role.comptes} personne(s) qui le portent
-            encore.
+            Réactiver ce rôle rend ses droits aux {role.comptes} personne(s) qui
+            le portent encore.
           </>
         )}
       </p>
@@ -1375,39 +1518,58 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
       <AnnonceRetour etat={etat} />
 
       {role.actif && !confirme ? (
-        <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(true)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setConfirme(true)}
+        >
           Désactiver…
         </Button>
       ) : role.actif ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <p className="text-sm text-secondary-900">
             {role.comptes === 0 ? (
-              <>Aucun compte actif ne porte ce rôle : personne ne perdra d’accès.</>
+              <>
+                Aucun compte actif ne porte ce rôle : personne ne perdra
+                d’accès.
+              </>
             ) : (
               <>
                 <strong>
-                  {role.comptes} personne{role.comptes > 1 ? 's' : ''}
-                </strong>{' '}
-                perdr{role.comptes > 1 ? 'ont' : 'a'} immédiatement les droits de ce rôle.
+                  {role.comptes} personne{role.comptes > 1 ? "s" : ""}
+                </strong>{" "}
+                perdr{role.comptes > 1 ? "ont" : "a"} immédiatement les droits
+                de ce rôle.
               </>
             )}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="submit" size="sm" variant="destructive" disabled={enCours}>
-              {enCours ? 'Désactivation…' : 'Confirmer la désactivation'}
+            <Button
+              type="submit"
+              size="sm"
+              variant="destructive"
+              disabled={enCours}
+            >
+              {enCours ? "Désactivation…" : "Confirmer la désactivation"}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(false)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirme(false)}
+            >
               Annuler
             </Button>
           </div>
         </div>
       ) : (
         <Button type="submit" size="sm" disabled={enCours}>
-          {enCours ? 'Réactivation…' : 'Réactiver'}
+          {enCours ? "Réactivation…" : "Réactiver"}
         </Button>
       )}
     </form>
-  )
+  );
 }
 
 /**
@@ -1418,24 +1580,26 @@ function FormulaireActivation({ role }: { role: RoleVue }) {
  * faire d'abord.
  */
 function FormulaireSuppression({ role }: { role: RoleVue }) {
-  const [etat, envoyer, enCours] = useActionState(actionSupprimerRole, ETAT)
-  const [confirme, setConfirme] = useState(false)
+  const [etat, envoyer, enCours] = useActionState(actionSupprimerRole, ETAT);
+  const [confirme, setConfirme] = useState(false);
 
   return (
     <form action={envoyer} className="space-y-3 border-t border-border pt-4">
       <input type="hidden" name="role" value={role.role} />
 
-      <p className="text-sm font-medium text-secondary-900">Supprimer ce rôle</p>
+      <p className="text-sm font-medium text-secondary-900">
+        Supprimer ce rôle
+      </p>
 
       {role.rattachements > 0 ? (
         <p className="text-caption text-muted-foreground">
-          {role.rattachements} compte(s) portent encore ce rôle. Retirez-le-leur depuis les
-          comptes, puis revenez ici.
+          {role.rattachements} compte(s) portent encore ce rôle. Retirez-le-leur
+          depuis les comptes, puis revenez ici.
         </p>
       ) : (
         <p className="text-caption text-muted-foreground">
-          Personne ne le porte : la suppression ne retirera d’accès à personne. Le journal en
-          gardera la trace.
+          Personne ne le porte : la suppression ne retirera d’accès à personne.
+          Le journal en gardera la trace.
         </p>
       )}
 
@@ -1450,8 +1614,9 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
       {role.livre && role.rattachements === 0 && (
         <Alert role="status">
           <AlertDescription>
-            Ce rôle est nommé par le code : le supprimer laissera les règles qui s’y réfèrent
-            sans effet, et sans erreur. Pour seulement lui retirer ses droits, désactivez-le.
+            Ce rôle est nommé par le code : le supprimer laissera les règles qui
+            s’y réfèrent sans effet, et sans erreur. Pour seulement lui retirer
+            ses droits, désactivez-le.
           </AlertDescription>
         </Alert>
       )}
@@ -1462,24 +1627,40 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
         (confirme ? (
           <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
             <p className="text-sm text-secondary-900">
-              « {role.libelle} » sera supprimé définitivement. Cette action ne s’annule pas.
+              « {role.libelle} » sera supprimé définitivement. Cette action ne
+              s’annule pas.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="submit" size="sm" variant="destructive" disabled={enCours}>
-                {enCours ? 'Suppression…' : 'Confirmer la suppression'}
+              <Button
+                type="submit"
+                size="sm"
+                variant="destructive"
+                disabled={enCours}
+              >
+                {enCours ? "Suppression…" : "Confirmer la suppression"}
               </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(false)}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirme(false)}
+              >
                 Annuler
               </Button>
             </div>
           </div>
         ) : (
-          <Button type="button" size="sm" variant="outline" onClick={() => setConfirme(true)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirme(true)}
+          >
             Supprimer…
           </Button>
         ))}
     </form>
-  )
+  );
 }
 
 /**
@@ -1490,8 +1671,9 @@ function FormulaireSuppression({ role }: { role: RoleVue }) {
  * qu'un composant se place là où l'ancien encart se trouvait — le point d'appel reste lisible.
  */
 function AnnonceRetour({ etat }: { etat: EtatHabilitation }) {
-  useRetourEnToast(etat)
-  return null
+  useRetourEnToast(etat);
+  useActualiserApresSucces(etat);
+  return null;
 }
 
 function Droit({
@@ -1499,16 +1681,18 @@ function Droit({
   coche,
   onChange,
 }: {
-  permission: PermissionVue
-  coche: boolean
-  onChange: (actif: boolean) => void
+  permission: PermissionVue;
+  coche: boolean;
+  onChange: (actif: boolean) => void;
 }) {
-  const mention = MENTION_SENSIBILITE[permission.sensibilite]
+  const mention = MENTION_SENSIBILITE[permission.sensibilite];
 
   return (
     <label
       className={`flex cursor-pointer items-start gap-2.5 rounded-md border p-2 transition-colors ${
-        coche ? 'border-primary-600/40 bg-primary-50/40' : 'border-border hover:bg-muted/40'
+        coche
+          ? "border-primary-600/40 bg-primary-50/40"
+          : "border-border hover:bg-muted/40"
       }`}
     >
       <input
@@ -1518,8 +1702,12 @@ function Droit({
         className="mt-0.5"
       />
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-secondary-900">{permission.libelle}</span>
-        <span className="block text-caption text-secondary-600">{permission.explication}</span>
+        <span className="block text-sm font-medium text-secondary-900">
+          {permission.libelle}
+        </span>
+        <span className="block text-caption text-secondary-600">
+          {permission.explication}
+        </span>
         {mention && (
           <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-caption text-secondary-600">
             {mention}
@@ -1532,5 +1720,5 @@ function Droit({
         )}
       </span>
     </label>
-  )
+  );
 }

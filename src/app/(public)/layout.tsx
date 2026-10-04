@@ -1,74 +1,112 @@
-import Link from 'next/link'
+import Link from "next/link";
+import { Shield, ChevronRight } from "lucide-react";
+import { LogoProduit } from "@/components/ui/logo-produit";
 
-/**
- * Coquille du front-office public (déclaration, suivi).
- *
- * Le panneau de contexte — accroche en serif, réassurance, étapes — reste visible en
- * permanence sur grand écran — la réassurance doit être constante pour un déclarant qui peut
- * être en situation de méfiance (docs/visual-direction.md).
- */
 const ETAPES = [
-  { titre: 'Décrivez les faits', description: 'Lieu, date, ce qui s’est passé.' },
-  { titre: 'Recevez une référence', description: 'Un numéro de dossier vous est remis immédiatement.' },
-  { titre: 'Suivez l’avancement', description: 'Consultez l’état de votre dossier à tout moment.' },
-]
+  {
+    titre: "Décrivez les faits",
+    description: "Lieu, date, ce qui s\u2019est passé.",
+  },
+  {
+    titre: "Recevez une référence",
+    description: "Un numéro de dossier vous est remis immédiatement.",
+  },
+  {
+    titre: "Suivez l\u2019avancement",
+    description: "Consultez l\u2019état de votre dossier à tout moment.",
+  },
+];
 
-export default function LayoutPublic({ children }: LayoutProps<'/'>) {
+export default function LayoutPublic({ children }: LayoutProps<"/">) {
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
-      <aside className="bg-gradient-to-b from-white to-secondary-50 px-6 py-8 lg:w-96 lg:shrink-0 lg:px-10 lg:py-12">
-        {/*
-          `/declarer` et non `/`.
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
+      {/* Panneau latéral de réassurance */}
+      <aside className="brand-panel relative overflow-hidden border-b border-secondary-100 px-4 py-4 text-secondary-900 sm:px-6 lg:flex lg:w-[28rem] lg:shrink-0 lg:border-b-0 lg:border-r lg:px-12 lg:py-10 xl:w-[31rem]">
+        <div
+          className="absolute inset-0 bg-[radial-gradient(circle_at_center,#1f386418_1px,transparent_1.5px)] bg-[size:1.5rem_1.5rem] opacity-35 [mask-image:linear-gradient(to_bottom,black,transparent_80%)] pointer-events-none"
+          aria-hidden
+        />
 
-          `/` n'est pas un accueil : c'est un aiguillage personnel — `/dashboard` si l'on est
-          connecté, `/login` sinon. Or personne ne l'est ici : ce gabarit sert le front-office
-          public, dont le déclarant est par construction un visiteur anonyme. Cliquer la marque
-          en cours de déclaration le renvoyait donc à la connexion du PERSONNEL, page qui ne le
-          concerne pas et qui lui fait perdre sa saisie.
+        <div className="relative z-10 flex w-full flex-col lg:min-h-[calc(100vh-5rem)]">
+          <div className="flex items-center justify-between gap-4 lg:block">
+            <Link
+              href="/declarer"
+              className="group flex min-h-11 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
+            >
+              <LogoProduit />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold tracking-tight text-secondary-900">
+                  SODECI
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
+                  Écoute &amp; intégrité
+                </span>
+              </div>
+            </Link>
 
-          `/declarer` est le point d'entrée unique de la déclaration (EX-DEC-01/02) : c'est
-          l'accueil de qui se trouve ici.
-        */}
-        <Link href="/declarer" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
-            EI
-          </span>
-          <span className="text-label uppercase tracking-wide text-secondary-500">
-            Digitalisation EI / MGP
-          </span>
-        </Link>
-
-        <h2 className="mt-8 font-serif text-h1 text-secondary-900">
-          Votre signalement compte.
-        </h2>
-        <p className="mt-3 text-sm text-secondary-600">
-          Chaque déclaration est enregistrée, suivie et traitée. Vous pouvez la déposer de manière
-          totalement anonyme.
-        </p>
-
-        <ol className="mt-8 space-y-4">
-          {ETAPES.map((etape, index) => (
-            <li key={etape.titre} className="flex gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-100 text-caption text-primary-800">
-                {index + 1}
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 lg:hidden">
+              <Shield className="h-3.5 w-3.5 text-primary-700" aria-hidden />
+              <span className="text-xs font-semibold text-primary-800">
+                Confidentiel
               </span>
-              <span>
-                <span className="block text-sm font-medium text-secondary-900">{etape.titre}</span>
-                <span className="block text-caption text-secondary-500">{etape.description}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
+            </div>
+          </div>
 
-        <p className="mt-10 text-caption text-secondary-500">
-          Vous avez déjà déclaré ?{' '}
-          <Link href="/suivi" className="text-primary-700 underline underline-offset-2">
-            Suivre mon dossier
-          </Link>
-        </p>
+          <div className="mt-auto hidden pb-8 pt-24 lg:block">
+            <p className="max-w-sm text-[2.5rem] font-semibold leading-[1.08] tracking-[-0.04em] text-secondary-900">
+              Votre parole mérite une écoute sûre.
+            </p>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-secondary-600">
+              Chaque déclaration est enregistrée, suivie et traitée. Vous pouvez
+              la déposer de manière totalement anonyme.
+            </p>
+
+            <ol className="mt-10 space-y-5 border-l border-secondary-200 pl-6">
+              {ETAPES.map((etape, index) => (
+                <li key={etape.titre} className="flex gap-3 items-start">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary-200 bg-primary-100 text-[11px] font-bold text-primary-800">
+                    {index + 1}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-secondary-900">
+                      {etape.titre}
+                    </span>
+                    <span className="mt-1 block text-xs leading-relaxed text-secondary-600">
+                      {etape.description}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-10 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5">
+              <Shield className="h-3.5 w-3.5 text-primary-400" aria-hidden />
+              <span className="text-xs font-semibold text-primary-800">
+                Traitement confidentiel garanti
+              </span>
+            </div>
+
+            <p className="mt-6 text-xs text-secondary-600">
+              Vous avez déjà déclaré ?{" "}
+              <Link
+                href="/suivi"
+                className="inline-flex items-center gap-1 font-semibold text-primary-700 transition-colors hover:text-primary-900"
+              >
+                Suivre mon dossier
+                <ChevronRight className="h-3 w-3" aria-hidden />
+              </Link>
+            </p>
+          </div>
+        </div>
       </aside>
 
-      <main className="flex-1 bg-background px-4 py-8 lg:px-10 lg:py-12">{children}</main>
+      <main
+        id="contenu-principal"
+        tabIndex={-1}
+        className="surface-grid relative flex flex-1 items-start px-4 py-8 sm:px-8 sm:py-12 lg:items-center lg:px-12 xl:px-20"
+      >
+        <div className="relative mx-auto w-full max-w-3xl">{children}</div>
+      </main>
     </div>
-  )
+  );
 }

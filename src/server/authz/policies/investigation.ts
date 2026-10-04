@@ -1,27 +1,34 @@
-import type { ParcoursCode } from '../parcours'
-import { peutVoirParcours } from '../parcours'
-import { aPermission, type UtilisateurAutorise } from '../utilisateur'
+import { aPermission, type UtilisateurAutorise } from "../utilisateur";
+import { peutVoirDossier, type DossierPourAutorisation } from "./dossier";
 
 /** Port de `App\Policies\InvestigationPolicy`. */
-export type InvestigationPourAutorisation = {
-  readonly parcoursCode: ParcoursCode
-  readonly enqueteurId: bigint
-}
+export type InvestigationPourAutorisation = DossierPourAutorisation & {
+  readonly enqueteurId: bigint;
+};
 
 export function peutVoirListeInvestigations(u: UtilisateurAutorise): boolean {
-  return aPermission(u, 'investigations.view')
+  return aPermission(u, "investigations.view");
 }
 
-export function peutVoirInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.view') && peutVoirParcours(u, i.parcoursCode)
+export function peutVoirInvestigation(
+  u: UtilisateurAutorise,
+  i: InvestigationPourAutorisation,
+): boolean {
+  return aPermission(u, "investigations.view") && peutVoirDossier(u, i);
 }
 
-export function peutCreerInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.create') && peutVoirParcours(u, i.parcoursCode)
+export function peutCreerInvestigation(
+  u: UtilisateurAutorise,
+  i: InvestigationPourAutorisation,
+): boolean {
+  return aPermission(u, "investigations.create") && peutVoirDossier(u, i);
 }
 
-export function peutModifierInvestigation(u: UtilisateurAutorise, i: InvestigationPourAutorisation): boolean {
-  return aPermission(u, 'investigations.update') && peutVoirParcours(u, i.parcoursCode)
+export function peutModifierInvestigation(
+  u: UtilisateurAutorise,
+  i: InvestigationPourAutorisation,
+): boolean {
+  return aPermission(u, "investigations.update") && peutVoirDossier(u, i);
 }
 
 /*

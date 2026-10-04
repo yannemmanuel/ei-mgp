@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from "@/lib/prisma";
 
 /**
  * Limitation de débit — équivalent de `RateLimiter`.
@@ -16,10 +16,25 @@ import { prisma } from '@/lib/prisma'
  * clés) : les deux applications tiennent donc des compteurs distincts pendant la cohabitation.
  * L'objectif ici est le partage entre instances Next, pas l'interopérabilité.
  */
-export type LimiteDebit = { readonly fenetreMs: number; readonly maxTentatives: number }
+export type LimiteDebit = {
+  readonly fenetreMs: number;
+  readonly maxTentatives: number;
+};
 
-/** `RateLimiter::for('login')` : 5 tentatives par minute. */
-const LIMITE_CONNEXION: LimiteDebit = { fenetreMs: 60_000, maxTentatives: 5 }
+/** Une même adresse ne peut balayer qu'un nombre borné de comptes par minute. */
+export const LIMITE_CONNEXION_IP: LimiteDebit = {
+  fenetreMs: 60_000,
+  maxTentatives: 20,
+};
+
+/** Un même compte reste protégé même si l'attaquant distribue ses essais entre plusieurs IP. */
+export const LIMITE_CONNEXION_COMPTE: LimiteDebit = {
+  fenetreMs: 60_000,
+  maxTentatives: 5,
+};
+
+/** Limite historique par défaut, conservée pour le suivi public et les autres appelants. */
+const LIMITE_PAR_DEFAUT: LimiteDebit = LIMITE_CONNEXION_COMPTE;
 
 /**
  * Envoi de message par le canal PUBLIC (`MessagerieDossier`, branche non authentifiée) :
@@ -27,10 +42,13 @@ const LIMITE_CONNEXION: LimiteDebit = { fenetreMs: 60_000, maxTentatives: 5 }
  * seul le canal ouvert est exposé au flood (docs/exigences-securite.md §4, même principe que
  * DT-14 sur la déclaration).
  */
-export const LIMITE_MESSAGERIE: LimiteDebit = { fenetreMs: 600_000, maxTentatives: 10 }
+export const LIMITE_MESSAGERIE: LimiteDebit = {
+  fenetreMs: 600_000,
+  maxTentatives: 10,
+};
 
 /** Préfixe distinctif : `cache` est une table à tout faire, et d'autres usages peuvent s'y ajouter. */
-const PREFIXE = 'next:debit:'
+const PREFIXE = "next:debit:";
 
 /**
  * Les DEUX parties sont normalisées.
@@ -40,9 +58,9 @@ const PREFIXE = 'next:debit:'
  * l'autre exploitable — une simple variation de casse de l'e-mail suffirait à repartir de zéro.
  */
 export function cleThrottle(portee: string, valeur: string): string {
-  const normaliser = (v: string) => v.trim().toLowerCase()
+  const normaliser = (v: string) => v.trim().toLowerCase();
 
-  return `${PREFIXE}${normaliser(portee)}|${normaliser(valeur)}`
+  return `${PREFIXE}${normaliser(portee)}|${normaliser(valeur)}`;
 }
 
 /**
@@ -53,10 +71,10 @@ export function cleThrottle(portee: string, valeur: string): string {
 export async function autoriserTentative(
   cle: string,
   maintenant: number = Date.now(),
-  limite: LimiteDebit = LIMITE_CONNEXION
+  limite: LimiteDebit = LIMITE_PAR_DEFAUT,
 ): Promise<boolean> {
-  const secondes = Math.floor(maintenant / 1000)
-  const expiration = secondes + Math.ceil(limite.fenetreMs / 1000)
+  const secondes = Math.floor(maintenant / 1000);
+  const expiration = secondes + Math.ceil(limite.fenetreMs / 1000);
 
   // Un seul ordre : incrémente si la fenêtre court encore, repart à 1 si elle est close.
   const lignes = await prisma.$queryRaw<{ tentatives: number }[]>`
@@ -72,14 +90,41 @@ export async function autoriserTentative(
         ELSE cache.expiration
       END
     RETURNING value::int AS tentatives
-  `
+  `;
 
-  return (lignes[0]?.tentatives ?? 1) <= limite.maxTentatives
+  return (lignes[0]?.tentatives ?? 1) <= limite.maxTentatives;
 }
 
 /** Remet le compteur à zéro après une opération réussie : seuls les ÉCHECS s'accumulent. */
 export async function reinitialiserTentatives(cle: string): Promise<void> {
-  await prisma.cache.deleteMany({ where: { key: cle } })
+  await prisma.cache.deleteMany({ where: { key: cle } });
+}
+
+/** Applique conjointement les plafonds par compte et par origine réseau. */
+export async function autoriserConnexion(
+  email: string,
+  ip: string,
+  maintenant: number = Date.now(),
+): Promise<boolean> {
+  const [compteAutorise, ipAutorisee] = await Promise.all([
+    autoriserTentative(
+      cleThrottle("connexion-compte", email),
+      maintenant,
+      LIMITE_CONNEXION_COMPTE,
+    ),
+    autoriserTentative(
+      cleThrottle("connexion-ip", ip),
+      maintenant,
+      LIMITE_CONNEXION_IP,
+    ),
+  ]);
+
+  return compteAutorise && ipAutorisee;
+}
+
+/** Un succès libère le compte, mais pas l'IP qui pourrait poursuivre un balayage. */
+export function reinitialiserConnexionCompte(email: string): Promise<void> {
+  return reinitialiserTentatives(cleThrottle("connexion-compte", email));
 }
 
 /**
@@ -88,15 +133,20 @@ export async function reinitialiserTentatives(cle: string): Promise<void> {
  * Les lignes expirées ne faussent aucun calcul — l'ordre d'incrément les traite comme absentes —
  * mais elles s'accumuleraient indéfiniment. Appelée par les tâches planifiées.
  */
-export async function purgerDebits(maintenant: number = Date.now()): Promise<number> {
+export async function purgerDebits(
+  maintenant: number = Date.now(),
+): Promise<number> {
   const resultat = await prisma.cache.deleteMany({
-    where: { key: { startsWith: PREFIXE }, expiration: { lte: Math.floor(maintenant / 1000) } },
-  })
+    where: {
+      key: { startsWith: PREFIXE },
+      expiration: { lte: Math.floor(maintenant / 1000) },
+    },
+  });
 
-  return resultat.count
+  return resultat.count;
 }
 
 /** Réservé aux tests : retire tous les compteurs de débit. */
 export async function viderThrottle(): Promise<void> {
-  await prisma.cache.deleteMany({ where: { key: { startsWith: PREFIXE } } })
+  await prisma.cache.deleteMany({ where: { key: { startsWith: PREFIXE } } });
 }

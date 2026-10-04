@@ -1,9 +1,10 @@
-'use server'
+"use server";
 
-import { revalidatePath } from 'next/cache'
-import { utilisateurCourant } from '@/server/auth'
-import { aPermission, type Permission } from '@/server/authz'
-import { ErreurWorkflow } from '@/server/services/dossier/workflow'
+import { revalidatePath } from "next/cache";
+import { revaliderComptes } from "@/server/revalidation";
+import { utilisateurCourant } from "@/server/auth";
+import { aPermission, type Permission } from "@/server/authz";
+import { ErreurWorkflow } from "@/server/services/dossier/workflow";
 import {
   supprimerCanalCaptage,
   supprimerCompte,
@@ -13,7 +14,7 @@ import {
   supprimerQrCode,
   supprimerSite,
   supprimerStatut,
-} from '@/server/services/administration/suppression'
+} from "@/server/services/administration/suppression";
 
 /**
  * Les suppressions du back-office qui n'existaient pas.
@@ -29,18 +30,18 @@ import {
  */
 
 export type EtatSuppression = {
-  erreur?: string
-  succes?: string
-}
+  erreur?: string;
+  succes?: string;
+};
 
-const REFUS = "Vous n'êtes pas autorisé à effectuer cette action."
+const REFUS = "Vous n'êtes pas autorisé à effectuer cette action.";
 
 async function acteurAutorise(permission: Permission) {
-  const utilisateur = await utilisateurCourant()
+  const utilisateur = await utilisateurCourant();
 
-  if (!utilisateur || !aPermission(utilisateur, permission)) return null
+  if (!utilisateur || !aPermission(utilisateur, permission)) return null;
 
-  return utilisateur
+  return utilisateur;
 }
 
 /**
@@ -49,15 +50,15 @@ async function acteurAutorise(permission: Permission) {
  * moitié qui sert.
  */
 function messageErreur(erreur: unknown): string {
-  if (erreur instanceof ErreurWorkflow) return erreur.message
+  if (erreur instanceof ErreurWorkflow) return erreur.message;
 
-  console.error('Suppression en échec', erreur)
-  return "La suppression n'a pas abouti. Vous pouvez réessayer."
+  console.error("Suppression en échec", erreur);
+  return "La suppression n'a pas abouti. Vous pouvez réessayer.";
 }
 
 function identifiant(donnees: FormData): bigint | undefined {
-  const brut = String(donnees.get('id') ?? '').trim()
-  return brut === '' ? undefined : BigInt(brut)
+  const brut = String(donnees.get("id") ?? "").trim();
+  return brut === "" ? undefined : BigInt(brut);
 }
 
 /**
@@ -68,103 +69,107 @@ function identifiant(donnees: FormData): bigint | undefined {
  * qui est la seule ligne qui compte vraiment ici.
  */
 function actionDeSuppression<Id extends bigint | string>(config: {
-  permission: Permission
-  supprimer: (acteur: { id: bigint }, id: Id) => Promise<void>
-  lireId: (donnees: FormData) => Id | undefined
-  chemin: string
-  introuvable: string
-  succes: string
+  permission: Permission;
+  supprimer: (acteur: { id: bigint }, id: Id) => Promise<void>;
+  lireId: (donnees: FormData) => Id | undefined;
+  chemin: string;
+  introuvable: string;
+  succes: string;
+  apresSuppression?: () => void;
 }) {
   return async function supprimer(
     _precedent: EtatSuppression,
-    donnees: FormData
+    donnees: FormData,
   ): Promise<EtatSuppression> {
-    const acteur = await acteurAutorise(config.permission)
-    if (!acteur) return { erreur: REFUS }
+    const acteur = await acteurAutorise(config.permission);
+    if (!acteur) return { erreur: REFUS };
 
-    const id = config.lireId(donnees)
-    if (id === undefined) return { erreur: config.introuvable }
+    const id = config.lireId(donnees);
+    if (id === undefined) return { erreur: config.introuvable };
 
     try {
-      await config.supprimer(acteur, id)
+      await config.supprimer(acteur, id);
     } catch (erreur) {
-      return { erreur: messageErreur(erreur) }
+      return { erreur: messageErreur(erreur) };
     }
 
-    revalidatePath(config.chemin)
-    return { succes: config.succes }
-  }
+    revalidatePath(config.chemin);
+    config.apresSuppression?.();
+    return { succes: config.succes };
+  };
 }
 
 export const actionSupprimerCanal = actionDeSuppression({
-  permission: 'canaux.manage',
+  permission: "canaux.manage",
   supprimer: supprimerCanalCaptage,
   lireId: identifiant,
-  chemin: '/administration/canaux',
-  introuvable: 'Canal introuvable.',
-  succes: 'Canal supprimé.',
-})
+  chemin: "/administration/canaux",
+  introuvable: "Canal introuvable.",
+  succes: "Canal supprimé.",
+});
 
 export const actionSupprimerGravite = actionDeSuppression({
-  permission: 'referentiels.gravites.manage',
+  permission: "referentiels.gravites.manage",
   supprimer: supprimerNiveauGravite,
   lireId: identifiant,
-  chemin: '/administration/gravites',
-  introuvable: 'Niveau introuvable.',
-  succes: 'Niveau de gravité supprimé.',
-})
+  chemin: "/administration/gravites",
+  introuvable: "Niveau introuvable.",
+  succes: "Niveau de gravité supprimé.",
+});
 
 export const actionSupprimerSite = actionDeSuppression({
-  permission: 'referentiels.sites.manage',
+  permission: "referentiels.sites.manage",
   supprimer: supprimerSite,
   lireId: identifiant,
-  chemin: '/administration/organisation',
-  introuvable: 'Site introuvable.',
-  succes: 'Site supprimé.',
-})
+  chemin: "/administration/organisation",
+  introuvable: "Site introuvable.",
+  succes: "Site supprimé.",
+});
 
 export const actionSupprimerDirection = actionDeSuppression({
-  permission: 'referentiels.sites.manage',
+  permission: "referentiels.sites.manage",
   supprimer: supprimerDirection,
   lireId: identifiant,
-  chemin: '/administration/organisation',
-  introuvable: 'Direction introuvable.',
-  succes: 'Direction supprimée.',
-})
+  chemin: "/administration/organisation",
+  introuvable: "Direction introuvable.",
+  succes: "Direction supprimée.",
+});
 
 export const actionSupprimerGabarit = actionDeSuppression({
-  permission: 'notifications.templates.manage',
+  permission: "notifications.templates.manage",
   supprimer: supprimerGabarit,
   lireId: identifiant,
-  chemin: '/administration/notifications',
-  introuvable: 'Modèle introuvable.',
-  succes: 'Modèle supprimé. ⚠️ Plus aucun message ne partira pour cet évènement.',
-})
+  chemin: "/administration/notifications",
+  introuvable: "Modèle introuvable.",
+  succes:
+    "Modèle supprimé. ⚠️ Plus aucun message ne partira pour cet évènement.",
+});
 
 export const actionSupprimerQrCode = actionDeSuppression({
-  permission: 'qrcodes.manage',
+  permission: "qrcodes.manage",
   supprimer: supprimerQrCode,
   // Un QR code porte un ULID, pas un entier : il voyage donc en texte.
-  lireId: (donnees) => String(donnees.get('id') ?? '').trim() || undefined,
-  chemin: '/administration/qr-codes',
-  introuvable: 'QR code introuvable.',
-  succes: 'QR code supprimé.',
-})
+  lireId: (donnees) => String(donnees.get("id") ?? "").trim() || undefined,
+  chemin: "/administration/qr-codes",
+  introuvable: "QR code introuvable.",
+  succes: "QR code supprimé.",
+});
 
 export const actionSupprimerStatut = actionDeSuppression({
-  permission: 'referentiels.statuts.manage',
+  permission: "referentiels.statuts.manage",
   supprimer: supprimerStatut,
   lireId: identifiant,
-  chemin: '/administration/statuts',
-  introuvable: 'Statut introuvable.',
-  succes: 'Statut supprimé.',
-})
+  chemin: "/administration/statuts",
+  introuvable: "Statut introuvable.",
+  succes: "Statut supprimé.",
+});
 
 export const actionSupprimerCompte = actionDeSuppression({
-  permission: 'users.manage',
+  permission: "users.manage",
   supprimer: supprimerCompte,
   lireId: identifiant,
-  chemin: '/administration/utilisateurs',
-  introuvable: 'Compte introuvable.',
-  succes: 'Compte supprimé.',
-})
+  chemin: "/administration/utilisateurs",
+  introuvable: "Compte introuvable.",
+  succes: "Compte supprimé.",
+  apresSuppression: revaliderComptes,
+});

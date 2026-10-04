@@ -1,10 +1,13 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { Wrench } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { EtatVide } from '@/components/ui/etat-vide'
-import { EtiquetteStatut, type TonStatut } from '@/components/ui/etiquette-statut'
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Wrench } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { EtatVide } from "@/components/ui/etat-vide";
+import {
+  EtiquetteStatut,
+  type TonStatut,
+} from "@/components/ui/etiquette-statut";
 import {
   Table,
   TableBody,
@@ -12,31 +15,35 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { BarreFiltres, type ChampFiltre } from '@/components/layout/barre-filtres'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import { Pagination } from '@/components/layout/pagination'
-import { exigerUtilisateur } from '@/server/auth'
-import { peutVoirListeActions } from '@/server/authz'
-import type { StatutAction } from '@/server/services/action-corrective/action-corrective'
+} from "@/components/ui/table";
+import {
+  BarreFiltres,
+  type ChampFiltre,
+} from "@/components/layout/barre-filtres";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import { Pagination } from "@/components/layout/pagination";
+import { exigerUtilisateur } from "@/server/auth";
+import { peutVoirListeActions } from "@/server/authz";
+import type { StatutAction } from "@/server/services/action-corrective/action-corrective";
 import {
   joursAvantEcheance,
   LIBELLES_STATUT_ACTION,
   listerActions,
   referentielsActions,
-} from '@/server/services/action-corrective/liste'
+} from "@/server/services/action-corrective/liste";
 
-export const metadata: Metadata = { title: 'Actions correctives' }
-export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: "Actions correctives" };
+export const dynamic = "force-dynamic";
 
-const dateFr = (d: Date) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' }).format(d)
+const dateFr = (d: Date) =>
+  new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" }).format(d);
 
 const TONS: Record<StatutAction, TonStatut> = {
-  non_demarree: 'neutre',
-  en_cours: 'encours',
-  realisee: 'succes',
-  en_retard: 'alerte',
-}
+  non_demarree: "neutre",
+  en_cours: "encours",
+  realisee: "succes",
+  en_retard: "alerte",
+};
 
 /**
  * Vue transverse des actions correctives
@@ -47,100 +54,187 @@ const TONS: Record<StatutAction, TonStatut> = {
  */
 export default async function PageActionsCorrectives({
   searchParams,
-}: PageProps<'/actions-correctives'>) {
-  const utilisateur = await exigerUtilisateur()
+}: PageProps<"/actions-correctives">) {
+  const utilisateur = await exigerUtilisateur();
 
   if (!peutVoirListeActions(utilisateur)) {
-    redirect('/acces-refuse?droit=actions.view')
+    redirect("/acces-refuse?droit=actions.view");
   }
 
-  const params = await searchParams
+  const params = await searchParams;
   const lire = (cle: string) => {
-    const v = params[cle]
-    return typeof v === 'string' && v !== '' ? v : undefined
-  }
+    const v = params[cle];
+    return typeof v === "string" && v !== "" ? v : undefined;
+  };
 
   const filtres = {
-    statut: lire('statut'),
-    responsable: lire('responsable'),
-    parcoursId: lire('parcoursId'),
-    echeanceDebut: lire('echeanceDebut'),
-    echeanceFin: lire('echeanceFin'),
-  }
+    statut: lire("statut"),
+    responsable: lire("responsable"),
+    parcoursId: lire("parcoursId"),
+    echeanceDebut: lire("echeanceDebut"),
+    echeanceFin: lire("echeanceFin"),
+  };
 
-  const pageDemandee = Number(lire('page') ?? '1')
+  const pageDemandee = Number(lire("page") ?? "1");
   const [resultat, referentiels] = await Promise.all([
     listerActions(
       utilisateur,
       filtres,
-      Number.isFinite(pageDemandee) && pageDemandee > 0 ? pageDemandee : 1
+      Number.isFinite(pageDemandee) && pageDemandee > 0 ? pageDemandee : 1,
     ),
-    referentielsActions(),
-  ])
+    referentielsActions(utilisateur),
+  ]);
 
   const champs: ChampFiltre[] = [
     {
-      type: 'select',
-      cle: 'statut',
-      libelle: 'Statut',
-      tous: 'Tous',
-      options: Object.entries(LIBELLES_STATUT_ACTION).map(([valeur, libelle]) => ({
-        valeur,
-        libelle,
+      type: "select",
+      cle: "statut",
+      libelle: "Statut",
+      tous: "Tous",
+      options: Object.entries(LIBELLES_STATUT_ACTION).map(
+        ([valeur, libelle]) => ({
+          valeur,
+          libelle,
+        }),
+      ),
+    },
+    {
+      type: "select",
+      cle: "parcoursId",
+      libelle: "Parcours",
+      tous: "Tous",
+      options: referentiels.parcours.map((p) => ({
+        valeur: String(p.id),
+        libelle: p.libelle,
       })),
     },
     {
-      type: 'select',
-      cle: 'parcoursId',
-      libelle: 'Parcours',
-      tous: 'Tous',
-      options: referentiels.parcours.map((p) => ({ valeur: String(p.id), libelle: p.libelle })),
-    },
-    {
-      type: 'select',
-      cle: 'responsable',
-      libelle: 'Responsable',
-      tous: 'Tous',
+      type: "select",
+      cle: "responsable",
+      libelle: "Responsable",
+      tous: "Tous",
       // Les noms saisis sur les actions existantes : le responsable n'est plus un compte.
-      options: referentiels.responsables.map((nom) => ({ valeur: nom, libelle: nom })),
+      options: referentiels.responsables.map((nom) => ({
+        valeur: nom,
+        libelle: nom,
+      })),
     },
-    { type: 'date', cle: 'echeanceDebut', libelle: 'Échéance à partir du' },
-    { type: 'date', cle: 'echeanceFin', libelle: 'Jusqu’au' },
-  ]
+    { type: "date", cle: "echeanceDebut", libelle: "Échéance à partir du" },
+    { type: "date", cle: "echeanceFin", libelle: "Jusqu’au" },
+  ];
 
-  const filtree = champs.some((c) => filtres[c.cle as keyof typeof filtres])
+  const filtree = champs.some((c) => filtres[c.cle as keyof typeof filtres]);
 
   return (
     <div className="space-y-5">
       <EnTetePage
         titre="Actions correctives"
         lede="Les actions décidées après investigation, par échéance la plus proche."
-        compteur={`${resultat.total} ${resultat.total > 1 ? 'actions' : 'action'}`}
+        compteur={`${resultat.total} ${resultat.total > 1 ? "actions" : "action"}`}
       />
 
       {/*
         ⚠️ Plus de bascule « Les miennes » : le responsable est saisi à la main et n'est plus
         rattaché à un compte. Voir `FiltresActions` pour le détail.
       */}
-      <BarreFiltres base="/actions-correctives" champs={champs} valeurs={filtres} />
+      <BarreFiltres
+        base="/actions-correctives"
+        champs={champs}
+        valeurs={filtres}
+      />
 
-      <Card className="overflow-hidden p-0">
-        {resultat.actions.length === 0 ? (
+      {resultat.actions.length === 0 ? (
+        <Card className="overflow-hidden p-0">
           <EtatVide
             icone={Wrench}
             titre={
               filtree
-                ? 'Aucune action ne correspond à ces critères.'
-                : 'Aucune action corrective enregistrée.'
+                ? "Aucune action ne correspond à ces critères."
+                : "Aucune action corrective enregistrée."
             }
             description={
               filtree
-                ? 'Retirez un filtre pour élargir la recherche.'
-                : 'Une action se crée depuis un dossier passé en action corrective.'
+                ? "Retirez un filtre pour élargir la recherche."
+                : "Une action se crée depuis un dossier passé en action corrective."
             }
           />
-        ) : (
-          <div className="overflow-x-auto">
+        </Card>
+      ) : (
+        <>
+          <ul
+            className="space-y-3 md:hidden"
+            aria-label="Liste des actions correctives"
+          >
+            {resultat.actions.map((action) => {
+              const statut = action.statut as StatutAction;
+              const restants = joursAvantEcheance(action.echeance);
+              const aboutie = statut === "realisee";
+
+              return (
+                <li key={action.id}>
+                  <Link
+                    href={`/dossiers/${action.dossiers.id}#actions-correctives`}
+                    className="block rounded-2xl border border-border/80 bg-card p-4 shadow-xs transition-colors hover:border-primary-300 hover:bg-primary-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 text-sm font-semibold text-secondary-900">
+                          {action.intitule}
+                        </p>
+                        <p className="mt-1 font-mono text-caption text-muted-foreground">
+                          {action.dossiers.reference}
+                        </p>
+                      </div>
+                      <EtiquetteStatut ton={TONS[statut] ?? "neutre"}>
+                        {LIBELLES_STATUT_ACTION[statut] ?? action.statut}
+                      </EtiquetteStatut>
+                    </div>
+
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-xs">
+                      <div>
+                        <dt className="text-muted-foreground">Responsable</dt>
+                        <dd className="mt-0.5 truncate font-medium text-secondary-800">
+                          {action.responsable_nom ?? action.users?.name ?? "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Échéance</dt>
+                        <dd className="mt-0.5 font-medium text-secondary-800">
+                          {dateFr(action.echeance)}
+                        </dd>
+                        {!aboutie && (
+                          <dd
+                            className={
+                              restants < 0
+                                ? "mt-0.5 font-medium text-destructive"
+                                : restants <= 3
+                                  ? "mt-0.5 font-medium text-accent-700"
+                                  : "mt-0.5 text-muted-foreground"
+                            }
+                          >
+                            {restants < 0
+                              ? `${Math.abs(restants)} j de retard`
+                              : restants === 0
+                                ? "Aujourd’hui"
+                                : `dans ${restants} j`}
+                          </dd>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">Contexte</dt>
+                        <dd className="mt-0.5 truncate font-medium text-secondary-800">
+                          {action.dossiers.categories.libelle} ·{" "}
+                          {action.dossiers.parcours.libelle}
+                        </dd>
+                      </div>
+                    </dl>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <Card className="hidden overflow-hidden p-0 md:flex">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -153,9 +247,9 @@ export default async function PageActionsCorrectives({
               </TableHeader>
               <TableBody>
                 {resultat.actions.map((action) => {
-                  const statut = action.statut as StatutAction
-                  const restants = joursAvantEcheance(action.echeance)
-                  const aboutie = statut === 'realisee'
+                  const statut = action.statut as StatutAction;
+                  const restants = joursAvantEcheance(action.echeance);
+                  const aboutie = statut === "realisee";
 
                   return (
                     <TableRow
@@ -183,7 +277,7 @@ export default async function PageActionsCorrectives({
                         </span>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {action.responsable_nom ?? action.users?.name ?? '—'}
+                        {action.responsable_nom ?? action.users?.name ?? "—"}
                       </TableCell>
                       <TableCell className="text-sm">
                         {dateFr(action.echeance)}
@@ -193,33 +287,33 @@ export default async function PageActionsCorrectives({
                           <span
                             className={
                               restants < 0
-                                ? 'block text-caption font-medium text-destructive'
+                                ? "block text-caption font-medium text-destructive"
                                 : restants <= 3
-                                  ? 'block text-caption font-medium text-accent-700'
-                                  : 'block text-caption text-muted-foreground'
+                                  ? "block text-caption font-medium text-accent-700"
+                                  : "block text-caption text-muted-foreground"
                             }
                           >
                             {restants < 0
                               ? `${Math.abs(restants)} j de retard`
                               : restants === 0
-                                ? 'Aujourd’hui'
+                                ? "Aujourd’hui"
                                 : `dans ${restants} j`}
                           </span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <EtiquetteStatut ton={TONS[statut] ?? 'neutre'}>
+                        <EtiquetteStatut ton={TONS[statut] ?? "neutre"}>
                           {LIBELLES_STATUT_ACTION[statut] ?? action.statut}
                         </EtiquetteStatut>
                       </TableCell>
                     </TableRow>
-                  )
+                  );
                 })}
               </TableBody>
             </Table>
-          </div>
-        )}
-      </Card>
+          </Card>
+        </>
+      )}
 
       <Pagination
         base="/actions-correctives"
@@ -227,8 +321,8 @@ export default async function PageActionsCorrectives({
         page={resultat.page}
         pages={resultat.pages}
         total={resultat.total}
-        unite={resultat.total > 1 ? 'actions' : 'action'}
+        unite={resultat.total > 1 ? "actions" : "action"}
       />
     </div>
-  )
+  );
 }

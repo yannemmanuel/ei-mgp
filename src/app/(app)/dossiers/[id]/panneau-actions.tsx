@@ -188,11 +188,11 @@ export function PanneauActions({
         dépôt, dans ses mots ; la famille est une lecture de traitant, après analyse. Sans cette
         phrase, on croit remplir deux fois la même chose et on finit par en négliger une.
 
-        La carte reste visible une fois la famille posée — contrairement à la gravité, qui ne se
-        requalifie pas : une lecture d'analyse s'affine, et devoir passer par un autre écran pour
-        la corriger reviendrait à ne jamais la corriger.
+        Comme la gravité, la carte disparaît dès que la qualification est enregistrée. La valeur
+        retenue reste visible dans la synthèse de la fiche ; garder deux représentations du même
+        état donnait à tort l'impression que l'enregistrement n'avait pas été pris en compte.
       */}
-      {droits.changerStatut && famillesRisque.length > 0 && (
+      {droits.changerStatut && familleRisqueActuelle === '' && famillesRisque.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-h3">Famille de risque</CardTitle>

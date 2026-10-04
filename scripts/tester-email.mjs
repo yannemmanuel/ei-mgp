@@ -24,10 +24,16 @@ import { createTransport } from 'nodemailer'
 // Raisonnement complet dans `prisma.config.ts`.
 if (existsSync('.env')) process.loadEnvFile('.env')
 
-const VARIABLES = ['MAIL_HOST', 'MAIL_PORT', 'MAIL_SECURE', 'MAIL_USER', 'MAIL_PASSWORD', 'MAIL_FROM']
-
-/** Ce que l'application elle-même exige pour cesser de journaliser. Voir `notification/transport.ts`. */
-const INDISPENSABLES = ['MAIL_HOST', 'MAIL_FROM']
+const VARIABLES = [
+  'RESEND_API_KEY',
+  'RESEND_FROM',
+  'MAIL_HOST',
+  'MAIL_PORT',
+  'MAIL_SECURE',
+  'MAIL_USER',
+  'MAIL_PASSWORD',
+  'MAIL_FROM',
+]
 
 function valeur(nom) {
   const brut = process.env[nom]
@@ -39,34 +45,52 @@ function afficher(nom) {
   const v = valeur(nom)
 
   if (v === null) return '(vide)'
-  if (nom === 'MAIL_PASSWORD') return `(défini, ${v.length} caractères)`
+  if (nom === 'MAIL_PASSWORD' || nom === 'RESEND_API_KEY') {
+    return `(défini, ${v.length} caractères)`
+  }
 
   return v
 }
 
 console.log('\nConfiguration lue dans .env\n')
 for (const nom of VARIABLES) {
-  const manquant = INDISPENSABLES.includes(nom) && valeur(nom) === null
-  console.log(`  ${manquant ? '✗' : ' '} ${nom.padEnd(14)} ${afficher(nom)}`)
+  console.log(`    ${nom.padEnd(15)} ${afficher(nom)}`)
 }
 
-const manquants = INDISPENSABLES.filter((nom) => valeur(nom) === null)
+const resendConfigure = valeur('RESEND_API_KEY') !== null && valeur('RESEND_FROM') !== null
+const smtpConfigure = valeur('MAIL_HOST') !== null && valeur('MAIL_FROM') !== null
 
-if (manquants.length > 0) {
+if (!resendConfigure && !smtpConfigure) {
   console.error(
-    `\n✗ ${manquants.join(' et ')} ${manquants.length > 1 ? 'sont absents' : 'est absent'}.` +
+    '\n✗ Aucun transport complet : configurez RESEND_API_KEY et RESEND_FROM' +
+      ' (recommandé), ou MAIL_HOST et MAIL_FROM.' +
       "\n  Tant que c'est le cas, l'application JOURNALISE les messages au lieu de les expédier :" +
       "\n  aucun courriel ne part, et aucune erreur ne s'affiche.\n"
   )
   process.exit(1)
 }
 
-const port = Number(valeur('MAIL_PORT') ?? 587)
-const securise = valeur('MAIL_SECURE') === 'true' || port === 465
-const utilisateur = valeur('MAIL_USER')
-const motDePasse = valeur('MAIL_PASSWORD')
+const config = resendConfigure
+  ? {
+      fournisseur: 'Resend',
+      hote: 'smtp.resend.com',
+      port: 465,
+      securise: true,
+      utilisateur: 'resend',
+      motDePasse: valeur('RESEND_API_KEY'),
+      expediteur: valeur('RESEND_FROM'),
+    }
+  : {
+      fournisseur: 'SMTP générique',
+      hote: valeur('MAIL_HOST'),
+      port: Number(valeur('MAIL_PORT') ?? 587),
+      securise: valeur('MAIL_SECURE') === 'true' || Number(valeur('MAIL_PORT') ?? 587) === 465,
+      utilisateur: valeur('MAIL_USER'),
+      motDePasse: valeur('MAIL_PASSWORD'),
+      expediteur: valeur('MAIL_FROM'),
+    }
 
-if (utilisateur && !motDePasse) {
+if (config.utilisateur && !config.motDePasse) {
   console.warn(
     '\n⚠️  MAIL_USER est défini mais MAIL_PASSWORD est vide : la connexion partira SANS' +
       "\n   authentification. La plupart des serveurs la refuseront.\n"
@@ -74,10 +98,13 @@ if (utilisateur && !motDePasse) {
 }
 
 const transporteur = createTransport({
-  host: valeur('MAIL_HOST'),
-  port,
-  secure: securise,
-  auth: utilisateur && motDePasse ? { user: utilisateur, pass: motDePasse } : undefined,
+  host: config.hote,
+  port: config.port,
+  secure: config.securise,
+  auth:
+    config.utilisateur && config.motDePasse
+      ? { user: config.utilisateur, pass: config.motDePasse }
+      : undefined,
   // Mêmes verrous que le transport de l'application (avis GHSA-p6gq-j5cr-w38f).
   disableFileAccess: true,
   disableUrlAccess: true,
@@ -110,7 +137,7 @@ function expliquer(erreur) {
 
   if (code === 'ECONNREFUSED') {
     return [
-      `Rien n’écoute sur ${valeur('MAIL_HOST')}:${port}.`,
+      `Rien n’écoute sur ${config.hote}:${config.port}.`,
       '  · Vérifiez le port : 587 (STARTTLS, le plus courant) ou 465 (TLS implicite).',
       '  · Sur 465, MAIL_SECURE doit valoir "true".',
     ]
@@ -135,7 +162,10 @@ function expliquer(erreur) {
   return ['Cause non reconnue. La réponse brute du serveur figure ci-dessus.']
 }
 
-console.log(`\nConnexion à ${valeur('MAIL_HOST')}:${port} (TLS ${securise ? 'implicite' : 'STARTTLS'})…`)
+console.log(
+  `\nConnexion ${config.fournisseur} à ${config.hote}:${config.port}` +
+    ` (TLS ${config.securise ? 'implicite' : 'STARTTLS'})…`
+)
 
 try {
   await transporteur.verify()
@@ -162,7 +192,7 @@ if (!destinataire) {
 
 try {
   const info = await transporteur.sendMail({
-    from: valeur('MAIL_FROM'),
+    from: config.expediteur,
     to: destinataire,
     subject: 'Essai — plateforme EI / MGP',
     text: [
@@ -171,8 +201,8 @@ try {
       'Si vous le lisez, la messagerie de la plateforme fonctionne : les liens de première',
       'connexion, les relances d’échéance et les alertes du circuit critique partiront.',
       '',
-      `Expéditeur configuré : ${valeur('MAIL_FROM')}`,
-      `Serveur : ${valeur('MAIL_HOST')}:${port}`,
+      `Expéditeur configuré : ${config.expediteur}`,
+      `Serveur : ${config.hote}:${config.port}`,
     ].join('\n'),
   })
 

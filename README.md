@@ -29,6 +29,7 @@ Communauté).
   `2026-09-21-roles-entierement-parametrables.sql` alors qu'il supprime une colonne que le second
   crée. Le résultat serait une base subtilement fausse ; le script refuse de s'exécuter sur une
   base vide pour cette raison.
+
 - **Les tests écrivent dans la vraie base.** Ils créent puis suppriment leurs propres données, et
   `vitest.setup.mts` retire les lignes `notifications` et `audit_logs` produites pendant la
   campagne. Ne les lancez pas contre une base de production.
@@ -67,17 +68,19 @@ lorsqu'un référentiel modifié depuis l'application doit être versionné.
 
 ### Variables d'environnement
 
-| Variable | Rôle | Sans elle |
-|---|---|---|
-| `DATABASE_URL` | Connexion PostgreSQL | L'application ne démarre pas |
-| `AUTH_SECRET` | Signature des sessions Auth.js **et** du jeton de suivi déclarant | Connexion et suivi impossibles |
-| `AUTH_URL` | URL publique de l'application | Auth.js refuse l'hôte (`UntrustedHost`) |
-| `TACHES_SECRET` | Secret du déclencheur de tâches planifiées, **32 caractères minimum** | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
-| `BCRYPT_ROUNDS` | Coût bcrypt, `12` par défaut | — (abaissé à `4` en test uniquement) |
-| `STOCKAGE_RACINE` | Racine du magasin local, hors du dossier public | `./storage/private` |
-| `STOCKAGE_MAGASIN` | `local` ou `blobs` | Détecté d'après l'hébergement |
-| `MAIL_HOST`, `MAIL_FROM` | Transport SMTP — **les deux sont requis** pour expédier | Les e-mails sont journalisés, pas envoyés |
-| `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires | Port 587 en STARTTLS, sans authentification |
+| Variable                                                 | Rôle                                                                         | Sans elle                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                           | Connexion PostgreSQL                                                         | L'application ne démarre pas                                                     |
+| `AUTH_SECRET`                                            | Signature des sessions Auth.js **et** du jeton de suivi déclarant            | Connexion et suivi impossibles                                                   |
+| `AUTH_URL`                                               | URL publique de l'application                                                | Auth.js refuse l'hôte (`UntrustedHost`)                                          |
+| `TRUST_PROXY_HEADERS`                                    | Autorise `X-Forwarded-For`/`X-Real-IP` derrière un proxy qui les reconstruit | En-têtes génériques ignorés ; Netlify utilise automatiquement son en-tête dédié  |
+| `TACHES_SECRET`                                          | Secret du déclencheur de tâches planifiées, **32 caractères minimum**        | Les tâches renvoient 503 : aucune relance, aucune escalade, aucune anonymisation |
+| `BCRYPT_ROUNDS`                                          | Coût bcrypt, `12` par défaut                                                 | — (abaissé à `4` en test uniquement)                                             |
+| `STOCKAGE_RACINE`                                        | Racine du magasin local, hors du dossier public                              | `./storage/private`                                                              |
+| `STOCKAGE_MAGASIN`                                       | `local` ou `blobs`                                                           | Détecté d'après l'hébergement                                                    |
+| `RESEND_API_KEY`, `RESEND_FROM`                          | Envoi via Resend — clé d’envoi et expéditeur sur un domaine vérifié           | Repli sur le SMTP générique                                                       |
+| `MAIL_HOST`, `MAIL_FROM`                                 | Transport SMTP générique de secours                                           | Échec fermé en production ; journal minimal et expurgé en développement          |
+| `MAIL_PORT`, `MAIL_SECURE`, `MAIL_USER`, `MAIL_PASSWORD` | Réglages SMTP complémentaires                                                | Port 587 en STARTTLS, sans authentification                                      |
 
 Comptes de démonstration présents dans la base de développement : `admin@`, `gestionnaire@`,
 `superviseur@`, `enqueteur@`, `direction@`, `auditeur@` — tous en `@example.test`, mot de passe
@@ -87,21 +90,21 @@ Comptes de démonstration présents dans la base de développement : `admin@`, `
 
 ## Scripts
 
-| Commande | Effet |
-|---|---|
-| `npm run dev` | Serveur de développement |
-| `npm run build` | Compilation de production (inclut la vérification TypeScript) |
-| `npm start` | Serveur de production |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Suite Vitest — plus de 800 tests, contre la base réelle |
-| `npm run db:evolutions` | Ce qui manque à cette base ; `-- --appliquer` pour l'appliquer |
-| `npm run db:pull` | Réintrospecte `schema.prisma` depuis la base |
-| `npm run db:structure` | Régénère `prisma/structure.sql` — après toute évolution |
-| `npm run seed` | Rejoue les référentiels, idempotent |
-| `npm run exporter-referentiels` | Reprend `referentiels.json` depuis la base courante |
-| `npm run sauvegarde` | Vidage `pg_dump`, rotation à 30 jours |
-| `npm run tester-email` | Diagnostic du transport SMTP |
+| Commande                        | Effet                                                          |
+| ------------------------------- | -------------------------------------------------------------- |
+| `npm run dev`                   | Serveur de développement                                       |
+| `npm run build`                 | Compilation de production (inclut la vérification TypeScript)  |
+| `npm start`                     | Serveur de production                                          |
+| `npm run lint`                  | ESLint                                                         |
+| `npm run typecheck`             | `tsc --noEmit`                                                 |
+| `npm test`                      | Suite Vitest — plus de 800 tests, contre la base réelle        |
+| `npm run db:evolutions`         | Ce qui manque à cette base ; `-- --appliquer` pour l'appliquer |
+| `npm run db:pull`               | Réintrospecte `schema.prisma` depuis la base                   |
+| `npm run db:structure`          | Régénère `prisma/structure.sql` — après toute évolution        |
+| `npm run seed`                  | Rejoue les référentiels, idempotent                            |
+| `npm run exporter-referentiels` | Reprend `referentiels.json` depuis la base courante            |
+| `npm run sauvegarde`            | Vidage `pg_dump`, rotation à 30 jours                          |
+| `npm run tester-email`          | Diagnostic du transport SMTP                                   |
 
 ---
 
@@ -116,14 +119,14 @@ curl -X POST -H "Authorization: Bearer $TACHES_SECRET" \
   https://<hote>/api/taches/<nom>
 ```
 
-| Tâche | Cadence attendue | Effet |
-|---|---|---|
-| `recalculer-retard-actions` | quotidienne | Bascule en retard les actions correctives échues |
-| `relancer-echeances` | quotidienne | Relance J-3 des acteurs de traitement |
-| `detecter-retards` | quotidienne | Escalade N+1 / Service MGP / Direction |
-| `calculer-statistiques-mensuelles` | le 1er, 01h30 | Archive le mois écoulé |
-| `appliquer-politique-conservation` | le 1er, 02h00 | Archivage 24 mois, anonymisation 10 ans |
-| `purger-compteurs-debit` | quotidienne | Entretien des compteurs de limitation de débit |
+| Tâche                              | Cadence attendue | Effet                                            |
+| ---------------------------------- | ---------------- | ------------------------------------------------ |
+| `recalculer-retard-actions`        | quotidienne      | Bascule en retard les actions correctives échues |
+| `relancer-echeances`               | quotidienne      | Relance J-3 des acteurs de traitement            |
+| `detecter-retards`                 | quotidienne      | Escalade N+1 / Service MGP / Direction           |
+| `calculer-statistiques-mensuelles` | le 1er, 01h30    | Archive le mois écoulé                           |
+| `appliquer-politique-conservation` | le 1er, 02h00    | Archivage 24 mois, anonymisation 10 ans          |
+| `purger-compteurs-debit`           | quotidienne      | Entretien des compteurs de limitation de débit   |
 
 **Sans ce câblage, aucune de ces opérations n'a jamais lieu** — y compris l'anonymisation
 exigée par le RGPD. C'est le point d'exploitation le plus important de ce portage.
@@ -137,8 +140,8 @@ Le journal complet — étapes livrées, défauts trouvés dans la baseline, ris
 
 **Ce qui reste bloquant avant une mise en service :**
 
-1. **Transport SMTP** — sans `MAIL_HOST` et `MAIL_FROM`, les envois sont journalisés. Le
-   démarrage annonce lequel des deux modes est actif.
+1. **Transport SMTP** — `MAIL_HOST` et `MAIL_FROM` sont obligatoires en production. Sans eux,
+   le premier envoi échoue explicitement ; aucun lien d'accès n'est écrit dans les journaux.
 2. **Plafond des pièces jointes contre celui de l'hébergeur.** Le formulaire annonce 3 fichiers
    et 5 Mo ; une Server Action passe par une fonction Netlify, dont la requête est plafonnée à
    6 Mo — soit environ 4,5 Mo de binaire une fois encodé, et ce plafond vient d'AWS Lambda, il

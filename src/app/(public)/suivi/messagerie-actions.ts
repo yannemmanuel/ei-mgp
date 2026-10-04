@@ -1,10 +1,19 @@
-'use server'
+"use server";
 
-import { headers } from 'next/headers'
-import { ErreurWorkflow } from '@/server/services/dossier/workflow'
-import { envoyerMessage, marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
-import { dossierDeLaSessionSuivi } from '@/server/auth/session-suivi'
-import { autoriserTentative, cleThrottle, LIMITE_MESSAGERIE } from '@/server/auth/throttle'
+import { headers } from "next/headers";
+import { ErreurWorkflow } from "@/server/services/dossier/workflow";
+import {
+  envoyerMessage,
+  marquerMessagesLus,
+  messagesDuDossier,
+} from "@/server/services/messagerie/messagerie";
+import { dossierDeLaSessionSuivi } from "@/server/auth/session-suivi";
+import {
+  autoriserTentative,
+  cleThrottle,
+  LIMITE_MESSAGERIE,
+} from "@/server/auth/throttle";
+import { adresseClient } from "@/lib/adresse-client";
 
 /**
  * Messagerie côté DÉCLARANT (EX-NOT-07) — pendant public de la vue interne.
@@ -17,87 +26,91 @@ import { autoriserTentative, cleThrottle, LIMITE_MESSAGERIE } from '@/server/aut
  */
 
 export type MessageVue = {
-  id: string
-  cote: 'agent' | 'declarant'
-  auteur: string
-  corps: string
-  envoyeLe: string
-}
+  id: string;
+  cote: "agent" | "declarant";
+  auteur: string;
+  corps: string;
+  envoyeLe: string;
+};
 
 export type EtatConversation = {
-  messages?: MessageVue[]
-  erreur?: string
-}
+  messages?: MessageVue[];
+  erreur?: string;
+};
 
 const SESSION_EXPIREE =
-  'Votre session de suivi a expiré. Saisissez à nouveau votre référence et votre code d’accès.'
-const TROP_DE_MESSAGES = 'Trop de messages envoyés. Merci de réessayer plus tard.'
+  "Votre session de suivi a expiré. Saisissez à nouveau votre référence et votre code d’accès.";
+const TROP_DE_MESSAGES =
+  "Trop de messages envoyés. Merci de réessayer plus tard.";
 
 async function adresseIp(): Promise<string> {
-  const entetes = await headers()
-  return (
-    entetes.get('x-forwarded-for')?.split(',')[0]?.trim() ?? entetes.get('x-real-ip') ?? 'inconnue'
-  )
+  return adresseClient(await headers()) ?? "inconnue";
 }
 
 async function conversation(dossierId: string): Promise<MessageVue[]> {
-  const messages = await messagesDuDossier(dossierId)
+  const messages = await messagesDuDossier(dossierId);
 
   return messages.map((m) => ({
     id: m.id,
-    cote: m.expediteur_type === 'agent' ? 'agent' : 'declarant',
+    cote: m.expediteur_type === "agent" ? "agent" : "declarant",
     // Le déclarant voit le nom de l'agent qui lui répond, ce qui
     // rend l'échange non anonyme DANS CE SENS uniquement. L'inverse reste impossible.
-    auteur: m.expediteur_type === 'agent' ? (m.users?.name ?? 'Agent') : 'Vous',
+    auteur: m.expediteur_type === "agent" ? (m.users?.name ?? "Agent") : "Vous",
     corps: m.corps,
     envoyeLe: (m.created_at ?? new Date()).toISOString(),
-  }))
+  }));
 }
 
 /** Chargement initial du panneau : marque au passage les messages de l'agent comme lus. */
 export async function chargerConversationDeclarant(): Promise<EtatConversation> {
-  const dossierId = await dossierDeLaSessionSuivi()
+  const dossierId = await dossierDeLaSessionSuivi();
 
-  if (!dossierId) return { erreur: SESSION_EXPIREE }
+  if (!dossierId) return { erreur: SESSION_EXPIREE };
 
-  await marquerMessagesLus(dossierId, 'declarant')
+  await marquerMessagesLus(dossierId, "declarant");
 
-  return { messages: await conversation(dossierId) }
+  return { messages: await conversation(dossierId) };
 }
 
 export async function envoyerMessageDeclarant(
   _precedent: EtatConversation,
-  donnees: FormData
+  donnees: FormData,
 ): Promise<EtatConversation> {
-  const dossierId = await dossierDeLaSessionSuivi()
+  const dossierId = await dossierDeLaSessionSuivi();
 
-  if (!dossierId) return { erreur: SESSION_EXPIREE }
+  if (!dossierId) return { erreur: SESSION_EXPIREE };
 
-  const cle = cleThrottle('messagerie-envoi', await adresseIp())
+  const cle = cleThrottle("messagerie-envoi", await adresseIp());
 
   if (!(await autoriserTentative(cle, Date.now(), LIMITE_MESSAGERIE))) {
-    return { erreur: TROP_DE_MESSAGES, messages: await conversation(dossierId) }
+    return {
+      erreur: TROP_DE_MESSAGES,
+      messages: await conversation(dossierId),
+    };
   }
 
   try {
     await envoyerMessage({
       dossierId,
-      expediteur: 'declarant',
-      corps: String(donnees.get('corps') ?? ''),
+      expediteur: "declarant",
+      corps: String(donnees.get("corps") ?? ""),
       // Aucun `expediteurUserId` : le service le forcerait à NULL de toute façon (RG-06), mais
       // ne pas l'écrire ici évite qu'un futur remaniement le rende possible par inadvertance.
-    })
+    });
   } catch (erreur) {
     if (erreur instanceof ErreurWorkflow) {
-      return { erreur: erreur.message, messages: await conversation(dossierId) }
+      return {
+        erreur: erreur.message,
+        messages: await conversation(dossierId),
+      };
     }
 
-    console.error('Envoi de message déclarant en échec', erreur)
+    console.error("Envoi de message déclarant en échec", erreur);
     return {
       erreur: "Le message n'a pas pu être envoyé. Vous pouvez réessayer.",
       messages: await conversation(dossierId),
-    }
+    };
   }
 
-  return { messages: await conversation(dossierId) }
+  return { messages: await conversation(dossierId) };
 }

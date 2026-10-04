@@ -63,7 +63,6 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     niveauGraviteId: lire('niveauGraviteId'),
     periodeDebut: lire('periodeDebut'),
     periodeFin: lire('periodeFin'),
-    assigneAMoi: lire('assigneAMoi') === '1',
     aMoiDAgir: lire('aMoiDAgir') === '1',
     nonAffectes: lire('nonAffectes') === '1',
   }
@@ -115,7 +114,6 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
 
   const filtree =
     champs.some((c) => lire(c.cle)) ||
-    filtres.assigneAMoi ||
     filtres.aMoiDAgir ||
     filtres.nonAffectes
 
@@ -132,11 +130,9 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
         champs={champs}
         valeurs={{
           ...filtres,
-          assigneAMoi: filtres.assigneAMoi ? '1' : undefined,
           aMoiDAgir: filtres.aMoiDAgir ? '1' : undefined,
           nonAffectes: filtres.nonAffectes ? '1' : undefined,
         }}
-        bascule={{ cle: 'assigneAMoi', libelleTous: 'Tous', libelleMiens: 'Les miens' }}
         interrupteur={{
           cle: 'aMoiDAgir',
           libelle: 'À moi d’agir',
@@ -144,8 +140,8 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
         }}
       />
 
-      <Card className="overflow-hidden p-0">
-        {resultat.dossiers.length === 0 ? (
+      {resultat.dossiers.length === 0 ? (
+        <Card className="overflow-hidden p-0">
           <EtatVide
             icone={FolderOpen}
             titre={
@@ -157,8 +153,53 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
                 : 'Les déclarations reçues apparaîtront ici.'
             }
           />
-        ) : (
-          <div className="overflow-x-auto">
+        </Card>
+      ) : (
+        <>
+          <ul className="space-y-3 md:hidden" aria-label="Liste des dossiers">
+            {resultat.dossiers.map((d) => (
+              <li key={d.id}>
+                <Link
+                  href={`/dossiers/${d.id}`}
+                  className="block rounded-2xl border border-border/80 bg-card p-4 shadow-xs transition-colors hover:border-primary-300 hover:bg-primary-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold text-primary-700">
+                        {d.reference}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-medium text-secondary-900">
+                        {d.categories.libelle}
+                      </p>
+                    </div>
+                    <EtiquetteStatut ton="encours">
+                      {d.statuts_dossier.libelle_interne}
+                    </EtiquetteStatut>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {d.niveaux_gravite ? (
+                      <EtiquetteStatut ton={tonGravite(d.niveaux_gravite.niveau)}>
+                        {d.niveaux_gravite.libelle}
+                      </EtiquetteStatut>
+                    ) : (
+                      <EtiquetteStatut ton="attention">À qualifier</EtiquetteStatut>
+                    )}
+                    {d.is_anonymous && (
+                      <span className="text-caption text-muted-foreground">Anonyme</span>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                    <span className="truncate">{d.parcours.libelle}</span>
+                    <span className="shrink-0">Reçu le {dateFr(d.created_at)}</span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <Card className="hidden overflow-hidden p-0 md:flex">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -213,9 +254,9 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
                 ))}
               </TableBody>
             </Table>
-          </div>
-        )}
-      </Card>
+          </Card>
+        </>
+      )}
 
       <Pagination
         base="/dossiers"
