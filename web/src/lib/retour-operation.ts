@@ -1,7 +1,8 @@
-'use client'
+"use client";
 
-import { useEffect, useRef } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 /**
  * Le retour d'une opération s'annonce en surimpression, plus dans la page.
@@ -20,7 +21,7 @@ import { toast } from 'sonner'
  * - une valeur à lire ou à recopier, un mot de passe initial par exemple : une notification
  *   s'efface, et avec elle ce qu'on n'a pas eu le temps de noter.
  */
-export type RetourOperation = { succes?: string; erreur?: string }
+export type RetourOperation = { succes?: string; erreur?: string };
 
 export function useRetourEnToast(etat: RetourOperation): void {
   /*
@@ -34,13 +35,25 @@ export function useRetourEnToast(etat: RetourOperation): void {
    *
    * Cette garde couvre aussi le double appel des effets en mode strict.
    */
-  const annonce = useRef<RetourOperation | null>(null)
+  const annonce = useRef<RetourOperation | null>(null);
 
   useEffect(() => {
-    if (annonce.current === etat) return
-    annonce.current = etat
+    if (annonce.current === etat) return;
+    annonce.current = etat;
 
-    if (etat.succes) toast.success(etat.succes)
-    else if (etat.erreur) toast.error(etat.erreur)
-  }, [etat])
+    if (etat.succes) toast.success(etat.succes);
+    else if (etat.erreur) toast.error(etat.erreur);
+  }, [etat]);
+}
+
+/** Force la récupération des données serveur après une écriture réussie. */
+export function useActualiserApresSucces(etat: RetourOperation): void {
+  const router = useRouter();
+  const traite = useRef<RetourOperation | null>(null);
+
+  useEffect(() => {
+    if (!etat.succes || traite.current === etat) return;
+    traite.current = etat;
+    router.refresh();
+  }, [etat, router]);
 }

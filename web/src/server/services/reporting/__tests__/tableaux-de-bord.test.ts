@@ -201,7 +201,7 @@ describe('⚠️ La carte, son lien et le compteur disent la MÊME chose', () =>
     const lecteur = chargeSurLaDirection(direction.id)
 
     const apercu = await dossiersATraiter(lecteur)
-    const { dossiers: listes } = await listerDossiers(lecteur, { assigneAMoi: true }, 1)
+    const { dossiers: listes } = await listerDossiers(lecteur, { aMoiDAgir: true }, 1)
 
     expect(apercu.length, 'l’aperçu est vide : le cas ne prouverait rien').toBeGreaterThan(0)
 

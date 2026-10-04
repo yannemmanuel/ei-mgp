@@ -1,5 +1,5 @@
-import { ulid } from 'ulid'
-import { prisma } from '@/lib/prisma'
+import { ulid } from "ulid";
+import { prisma } from "@/lib/prisma";
 import {
   peutVoirParcours,
   rattachementCouvre,
@@ -9,12 +9,19 @@ import {
   type Role,
   cloisonnePourSesRoles,
   donneAccesAuxDossiers,
-} from '@/server/authz'
-import { genererCodeAcces, hacherCodeAcces } from './code-acces'
-import { stockerFichiers, verifierLot, type FichierAValider } from './pieces-jointes'
-import { referenceSuivante } from './reference'
-import { surAffectation, surDeclarationCritique } from '../notification/evenements'
-import { MODELES } from '@/server/modeles'
+} from "@/server/authz";
+import { genererCodeAcces, hacherCodeAcces } from "./code-acces";
+import {
+  stockerFichiers,
+  verifierLot,
+  type FichierAValider,
+} from "./pieces-jointes";
+import { referenceSuivante } from "./reference";
+import {
+  surAffectation,
+  surDeclarationCritique,
+} from "../notification/evenements";
+import { MODELES } from "@/server/modeles";
 
 /**
  * Orchestration de la création d'un dossier de bout en bout — port de
@@ -40,14 +47,14 @@ const ROLES_AFFECTATION_AUTOMATIQUE: Record<ParcoursCode, readonly string[]> = {
   grief_employe: [],
   grief_sous_traitant: [],
   grief_communaute: [],
-}
+};
 
 /** `String.raw` obligatoire : en littéral classique, `\M` et `\U` seraient supprimés. */
-const MODEL_TYPE_USER = MODELES.utilisateur
-const MODEL_TYPE_DOSSIER = MODELES.dossier
+const MODEL_TYPE_USER = MODELES.utilisateur;
+const MODEL_TYPE_DOSSIER = MODELES.dossier;
 
 export type DonneesDossier = {
-  categorieId: bigint
+  categorieId: bigint;
   /**
    * Nulle tant que la gravité n'est pas qualifiée.
    *
@@ -55,17 +62,17 @@ export type DonneesDossier = {
    * traitement. ⚠️ Le circuit accéléré (RG-08) ne peut donc plus se décider ici pour ces
    * dossiers — il se déclenche à la qualification, dans `qualifierGravite()`.
    */
-  niveauGraviteId: bigint | null
-  description: string
-  lieu?: string | null
-  dateSurvenance?: Date | null
-  attentesDeclarant?: string | null
-  categorieAutrePrecision?: string | null
-  declarantUserId?: bigint | null
-  siteId?: bigint | null
-  directionId?: bigint | null
-  caractereRepetitif?: string | null
-  propositionMesureCorrective?: string | null
+  niveauGraviteId: bigint | null;
+  description: string;
+  lieu?: string | null;
+  dateSurvenance?: Date | null;
+  attentesDeclarant?: string | null;
+  categorieAutrePrecision?: string | null;
+  declarantUserId?: bigint | null;
+  siteId?: bigint | null;
+  directionId?: bigint | null;
+  caractereRepetitif?: string | null;
+  propositionMesureCorrective?: string | null;
   /**
    * Le déclarant parle-t-il pour lui-même ?
    *
@@ -73,23 +80,23 @@ export type DonneesDossier = {
    * ce champ, à qui la question n'a jamais été posée. Les confondre ferait passer 37 dossiers
    * pour des signalements déposés par des tiers.
    */
-  declarantEstVictime?: boolean | null
+  declarantEstVictime?: boolean | null;
   /**
    * Exigés même en anonyme, donc stockés sur le dossier et non dans `declaration_identites`.
    *
    * Cette table n'est pas créée quand l'anonymat est coché : une entreprise ou une ville rangée
    * là aurait été demandée à l'écran puis perdue, sans le moindre signal.
    */
-  entreprise?: string | null
+  entreprise?: string | null;
   /**
    * Poste occupé, choisi dans le référentiel et rattaché à la direction du dossier.
    *
    * Sur `dossiers` et non dans `declaration_identites` : le retour métier du 11/09 demande de
    * pouvoir le choisir EN ANONYME, or cette table n'est pas créée dans ce cas.
    */
-  poste?: string | null
+  poste?: string | null;
   /** Poste saisi à la main quand « Autre » est retenu. */
-  postePrecision?: string | null
+  postePrecision?: string | null;
   /**
    * Rattachement du DÉCLARANT, renseigné seulement s'il n'est pas la personne concernée.
    *
@@ -97,9 +104,9 @@ export type DonneesDossier = {
    * les faits, qui l'établit. Router sur la direction d'un témoin enverrait le signalement à un
    * service étranger à l'évènement.
    */
-  directionDeclarantId?: bigint | null
-  posteDeclarant?: string | null
-  posteDeclarantPrecision?: string | null
+  directionDeclarantId?: bigint | null;
+  posteDeclarant?: string | null;
+  posteDeclarantPrecision?: string | null;
   /**
    * Qualité du plaignant, et sa précision si « autre ».
    *
@@ -107,74 +114,91 @@ export type DonneesDossier = {
    * anonymat — elle qualifie la plainte, pas la personne — et cette table n'est pas créée dans
    * ce cas. L'y laisser revenait à exiger une réponse à l'écran puis à la jeter.
    */
-  statutPlaignant?: string | null
-  statutPlaignantPrecision?: string | null
-  ville?: string | null
-  precisionLocalisation?: string | null
-}
+  statutPlaignant?: string | null;
+  statutPlaignantPrecision?: string | null;
+  ville?: string | null;
+  precisionLocalisation?: string | null;
+};
 
 /** Champs de `declaration_identites`. Ignorés si la déclaration est anonyme (RG-06). */
 export type DonneesIdentite = {
-  nomPrenom?: string | null
-  matricule?: string | null
-  entreprise?: string | null
-  fonction?: string | null
-  ancienneteAnnees?: number | null
+  nomPrenom?: string | null;
+  matricule?: string | null;
+  entreprise?: string | null;
+  fonction?: string | null;
+  ancienneteAnnees?: number | null;
   /** Tranche choisie dans le référentiel (GE1). `ancienneteAnnees` reste pour l'historique. */
-  ancienneteTranche?: string | null
-  localite?: string | null
-  statutPlaignant?: string | null
-  contactEmail?: string | null
-  contactTelephone?: string | null
-  souhaitRecontact?: boolean | null
-  canalRetourPrefere?: string | null
-  personnesImpliquees?: string | null
-  temoins?: string | null
-  consentementRgpd?: boolean | null
-}
+  ancienneteTranche?: string | null;
+  localite?: string | null;
+  statutPlaignant?: string | null;
+  contactEmail?: string | null;
+  contactTelephone?: string | null;
+  souhaitRecontact?: boolean | null;
+  canalRetourPrefere?: string | null;
+  personnesImpliquees?: string | null;
+  temoins?: string | null;
+  consentementRgpd?: boolean | null;
+};
 
 export type ResultatDeclaration = {
-  readonly dossierId: string
-  readonly reference: string
-  readonly codeAcces: string
+  readonly dossierId: string;
+  readonly reference: string;
+  readonly codeAcces: string;
   /** RG-08 : vrai si le circuit accéléré doit être déclenché EN SYNCHRONE (étape 9). */
-  readonly estCritique: boolean
-}
+  readonly estCritique: boolean;
+};
 
-type ClientTransaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+type ClientTransaction = Parameters<
+  Parameters<typeof prisma.$transaction>[0]
+>[0];
 
 export async function creerDeclaration(params: {
-  parcours: ParcoursCode
-  canalCaptageCode: string
-  anonyme: boolean
-  donneesDossier: DonneesDossier
-  donneesIdentite?: DonneesIdentite
-  fichiers?: readonly FichierAValider[]
-  televersePar?: bigint | null
+  parcours: ParcoursCode;
+  canalCaptageCode: string;
+  anonyme: boolean;
+  donneesDossier: DonneesDossier;
+  donneesIdentite?: DonneesIdentite;
+  fichiers?: readonly FichierAValider[];
+  televersePar?: bigint | null;
 }): Promise<ResultatDeclaration> {
-  const fichiers = params.fichiers ?? []
+  const fichiers = params.fichiers ?? [];
 
   // Validé AVANT la transaction : un lot rejeté ne doit jamais laisser un dossier créé sans ses
   // pièces jointes (l'ordre compte : voir `stockerFichiers`).
-  await verifierLot(fichiers)
+  await verifierLot(fichiers);
 
-  const codeAccesClair = genererCodeAcces()
-  const accessCodeHash = await hacherCodeAcces(codeAccesClair)
+  const codeAccesClair = genererCodeAcces();
+  const accessCodeHash = await hacherCodeAcces(codeAccesClair);
+  const dossierId = ulid().toLowerCase();
+
+  /*
+    Le stockage est une E/S externe — réseau avec Blobs, disque en local — et ne doit pas garder
+    une transaction PostgreSQL ouverte. Les fichiers sont donc préparés AVANT la transaction.
+
+    Si l'écriture échoue, aucune ligne n'existe. Si la transaction SQL échoue ensuite, les objets
+    deviennent orphelins et le ramasse-miettes existant les retire après son délai de sûreté.
+  */
+  const preparees =
+    fichiers.length > 0
+      ? await stockerFichiers(fichiers, MODEL_TYPE_DOSSIER, dossierId)
+      : [];
 
   const resultat = await prisma.$transaction(async (tx) => {
     const [parcours, statutRecu, canal] = await Promise.all([
       tx.parcours.findFirstOrThrow({ where: { code: params.parcours } }),
-      tx.statuts_dossier.findFirstOrThrow({ where: { code: 'recu' } }),
-      tx.canaux_captage.findFirstOrThrow({ where: { code: params.canalCaptageCode } }),
-    ])
+      tx.statuts_dossier.findFirstOrThrow({ where: { code: "recu" } }),
+      tx.canaux_captage.findFirstOrThrow({
+        where: { code: params.canalCaptageCode },
+      }),
+    ]);
 
-    const reference = await referenceSuivante(tx, params.parcours)
-    const d = params.donneesDossier
-    const maintenant = new Date()
+    const reference = await referenceSuivante(tx, params.parcours);
+    const d = params.donneesDossier;
+    const maintenant = new Date();
 
     const dossier = await tx.dossiers.create({
       data: {
-        id: ulid().toLowerCase(),
+        id: dossierId,
         reference,
         parcours_id: parcours.id,
         categorie_id: d.categorieId,
@@ -200,7 +224,8 @@ export async function creerDeclaration(params: {
         // directions). Le déduire ici plutôt que de le demander évite deux informations à tenir
         // cohérentes, et une contradiction entre elles qu'aucun écran ne saurait arbitrer.
         // `siteId` reste accepté pour les appels qui le connaissent déjà (reprise, tests).
-        site_id: d.siteId ?? (await siteDeLaDirection(tx, d.directionId ?? null)),
+        site_id:
+          d.siteId ?? (await siteDeLaDirection(tx, d.directionId ?? null)),
         direction_id: d.directionId ?? null,
         // RG-06 : une déclaration anonyme n'est JAMAIS rattachée à un compte, même si le
         // déclarant était connecté au moment du dépôt.
@@ -217,13 +242,14 @@ export async function creerDeclaration(params: {
         updated_at: maintenant,
       },
       select: { id: true, reference: true, categorie_id: true },
-    })
+    });
 
     // RG-06 : la ligne d'identité n'est PAS créée pour une déclaration anonyme. La garantie est
     // structurelle — la donnée n'existe nulle part —, pas seulement un masquage à l'affichage.
-    const identite = params.donneesIdentite
+    const identite = params.donneesIdentite;
     const identiteRenseignee =
-      identite !== undefined && Object.values(identite).some((v) => v !== null && v !== undefined)
+      identite !== undefined &&
+      Object.values(identite).some((v) => v !== null && v !== undefined);
 
     if (!params.anonyme && identiteRenseignee) {
       await tx.declaration_identites.create({
@@ -247,12 +273,10 @@ export async function creerDeclaration(params: {
           created_at: maintenant,
           updated_at: maintenant,
         },
-      })
+      });
     }
 
-    if (fichiers.length > 0) {
-      const preparees = await stockerFichiers(fichiers, MODEL_TYPE_DOSSIER, dossier.id)
-
+    if (preparees.length > 0) {
       await tx.pieces_jointes.createMany({
         data: preparees.map((p) => ({
           id: p.id,
@@ -267,7 +291,7 @@ export async function creerDeclaration(params: {
           televerse_par: params.televersePar ?? null,
           created_at: maintenant,
         })),
-      })
+      });
     }
 
     // RG-04 : historique append-only, dès la première transition.
@@ -276,16 +300,21 @@ export async function creerDeclaration(params: {
         dossier_id: dossier.id,
         statut_precedent_id: null,
         statut_suivant_id: statutRecu.id,
-        commentaire: 'Déclaration reçue.',
+        commentaire: "Déclaration reçue.",
         effectue_par: null,
         created_at: maintenant,
       },
-    })
+    });
 
     // ⚠️ Affecter ne change plus le statut : une déclaration reste à « Reçu » jusqu'à ce que
     // quelqu'un l'analyse. L'appel subsiste — il écrit `dossier_affectations` et prévient les
     // titulaires (EX-NOT-01).
-    await affecterAutomatiquement(tx, dossier.id, dossier.categorie_id, params.parcours)
+    await affecterAutomatiquement(
+      tx,
+      dossier.id,
+      dossier.categorie_id,
+      params.parcours,
+    );
 
     // Sans gravité, aucun circuit accéléré ici : RG-08 se déclenche à `qualifierGravite()`.
     // Présumer « non critique » serait faux, « critique » alerterait à chaque signalement.
@@ -295,14 +324,14 @@ export async function creerDeclaration(params: {
         : await tx.niveaux_gravite.findUniqueOrThrow({
             where: { id: d.niveauGraviteId },
             select: { effet_circuit: true },
-          })
+          });
 
     return {
       dossierId: dossier.id,
       reference: dossier.reference,
-      estCritique: gravite?.effet_circuit === 'accelere',
-    }
-  })
+      estCritique: gravite?.effet_circuit === "accelere",
+    };
+  });
 
   /*
     EX-NOT-01 : les titulaires sont prévenus de ce qui leur est confié.
@@ -314,15 +343,15 @@ export async function creerDeclaration(params: {
     Après le commit, comme RG-08 : notifier depuis la transaction enverrait des messages pour un
     dossier encore annulable.
   */
-  await surAffectation(resultat.dossierId)
+  await surAffectation(resultat.dossierId);
 
   // RG-08 : circuit accéléré déclenché EN SYNCHRONE, après commit — notifier depuis l'intérieur
   // de la transaction enverrait des messages pour un dossier qui pourrait encore être annulé.
   if (resultat.estCritique) {
-    await surDeclarationCritique(resultat.dossierId, params.parcours)
+    await surDeclarationCritique(resultat.dossierId, params.parcours);
   }
 
-  return { ...resultat, codeAcces: codeAccesClair }
+  return { ...resultat, codeAcces: codeAccesClair };
 }
 
 /**
@@ -333,16 +362,16 @@ export async function creerDeclaration(params: {
  */
 async function siteDeLaDirection(
   tx: ClientTransaction,
-  directionId: bigint | null
+  directionId: bigint | null,
 ): Promise<bigint | null> {
-  if (directionId === null) return null
+  if (directionId === null) return null;
 
   const direction = await tx.directions.findUnique({
     where: { id: directionId },
     select: { site_id: true },
-  })
+  });
 
-  return direction?.site_id ?? null
+  return direction?.site_id ?? null;
 }
 
 /**
@@ -365,14 +394,16 @@ async function affecterAutomatiquement(
   tx: ClientTransaction,
   dossierId: string,
   categorieId: bigint,
-  parcours: ParcoursCode
+  parcours: ParcoursCode,
 ): Promise<boolean> {
   const categorie = await tx.categories.findUniqueOrThrow({
     where: { id: categorieId },
     select: { is_autre: true },
-  })
+  });
 
-  const roles = categorie.is_autre ? ['service_mgp'] : ROLES_AFFECTATION_AUTOMATIQUE[parcours]
+  const roles = categorie.is_autre
+    ? ["service_mgp"]
+    : ROLES_AFFECTATION_AUTOMATIQUE[parcours];
 
   const liens = await tx.model_has_roles.findMany({
     where: {
@@ -380,10 +411,10 @@ async function affecterAutomatiquement(
       roles: { name: { in: [...roles] } },
     },
     select: { model_id: true },
-  })
+  });
 
   if (liens.length === 0) {
-    return false
+    return false;
   }
 
   const candidats = await tx.users.findMany({
@@ -397,13 +428,16 @@ async function affecterAutomatiquement(
       // Le site de sa direction : un compte rattaché à une direction appartient à son site.
       directions: { select: { site_id: true } },
     },
-  })
+  });
 
   // TOUS les rôles de chaque candidat, pas seulement celui du captage : un rôle transverse
   // dispense d'attribution, et `liens` — filtré sur le captage — ne le montrerait jamais.
   // `model_has_roles` est polymorphe, donc lue à part.
   const tousLesLiens = await tx.model_has_roles.findMany({
-    where: { model_type: MODEL_TYPE_USER, model_id: { in: candidats.map((c) => c.id) } },
+    where: {
+      model_type: MODEL_TYPE_USER,
+      model_id: { in: candidats.map((c) => c.id) },
+    },
     select: {
       model_id: true,
       roles: {
@@ -427,35 +461,41 @@ async function affecterAutomatiquement(
         },
       },
     },
-  })
+  });
 
-  const rolesParCompte = new Map<bigint, Role[]>()
-  const permissionsParCompte = new Map<bigint, Set<Permission>>()
-  const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>()
+  const rolesParCompte = new Map<bigint, Role[]>();
+  const permissionsParCompte = new Map<bigint, Set<Permission>>();
+  const parcoursParCompte = new Map<bigint, Set<ParcoursCode>>();
   /*
     ⚠️ UN RÔLE À LA FOIS, puis la règle au bout : le compte n'est borné que si TOUS ses rôles
     porteurs d'accès le prévoient — voir `cloisonnePourSesRoles()`.
   */
-  const cloisonnementParCompte = new Map<bigint, { cloisonne: boolean; donneAcces: boolean }[]>()
+  const cloisonnementParCompte = new Map<
+    bigint,
+    { cloisonne: boolean; donneAcces: boolean }[]
+  >();
 
   for (const lien of tousLesLiens) {
     // Un rôle désactivé ne confère rien, exactement comme dans `chargerUtilisateurAutorise()`.
-    if (!lien.roles.actif) continue
+    if (!lien.roles.actif) continue;
 
     rolesParCompte.set(lien.model_id, [
       ...(rolesParCompte.get(lien.model_id) ?? []),
       lien.roles.name as Role,
-    ])
+    ]);
 
-    const permissions = permissionsParCompte.get(lien.model_id) ?? new Set<Permission>()
+    const permissions =
+      permissionsParCompte.get(lien.model_id) ?? new Set<Permission>();
     for (const rhp of lien.roles.role_has_permissions) {
-      permissions.add(rhp.permissions.name as Permission)
+      permissions.add(rhp.permissions.name as Permission);
     }
-    permissionsParCompte.set(lien.model_id, permissions)
+    permissionsParCompte.set(lien.model_id, permissions);
 
-    const ouverts = parcoursParCompte.get(lien.model_id) ?? new Set<ParcoursCode>()
-    for (const rp of lien.roles.role_parcours) ouverts.add(rp.parcours.code as ParcoursCode)
-    parcoursParCompte.set(lien.model_id, ouverts)
+    const ouverts =
+      parcoursParCompte.get(lien.model_id) ?? new Set<ParcoursCode>();
+    for (const rp of lien.roles.role_parcours)
+      ouverts.add(rp.parcours.code as ParcoursCode);
+    parcoursParCompte.set(lien.model_id, ouverts);
 
     // Même lecture que `chargerUtilisateurAutorise()`, règle du cumul comprise.
     cloisonnementParCompte.set(lien.model_id, [
@@ -463,11 +503,10 @@ async function affecterAutomatiquement(
       {
         cloisonne: lien.roles.cloisonne_par_rattachement,
         donneAcces: donneAccesAuxDossiers(
-          lien.roles.role_has_permissions
-            .map((rhp) => rhp.permissions.name)
+          lien.roles.role_has_permissions.map((rhp) => rhp.permissions.name),
         ),
       },
-    ])
+    ]);
   }
 
   // Filtré par la MÊME fonction que celle qui décide de l'accès en lecture. Recopier la règle ici
@@ -478,9 +517,9 @@ async function affecterAutomatiquement(
         roles: rolesParCompte.get(u.id) ?? [],
         parcours: [...(parcoursParCompte.get(u.id) ?? [])],
       },
-      parcours
-    )
-  )
+      parcours,
+    ),
+  );
 
   /*
     ⚠️ Et du même RATTACHEMENT que le dossier : l'affectation suit le formulaire ET le
@@ -498,7 +537,7 @@ async function affecterAutomatiquement(
   } = await tx.dossiers.findUniqueOrThrow({
     where: { id: dossierId },
     select: { site_id: true, direction_id: true, declarant_user_id: true },
-  })
+  });
 
   const utilisateurs = surLeParcours.filter((u) => {
     /*
@@ -508,7 +547,7 @@ async function affecterAutomatiquement(
       Ne concerne que les déclarations identifiées : une déclaration anonyme n'est rattachée à
       aucun compte (RG-06).
     */
-    if (declarantId !== null && u.id === declarantId) return false
+    if (declarantId !== null && u.id === declarantId) return false;
 
     // La photographie d'autorisation du candidat, dans la forme qu'attendent les fonctions de
     // cloisonnement. `siteId` est déduit de la direction comme dans `chargerUtilisateurAutorise()`.
@@ -516,33 +555,35 @@ async function affecterAutomatiquement(
       siteId: u.site_id ?? u.directions?.site_id ?? null,
       directionId: u.direction_id,
       permissions: permissionsParCompte.get(u.id) ?? new Set<Permission>(),
-      cloisonneParRattachement: cloisonnePourSesRoles(cloisonnementParCompte.get(u.id) ?? []),
-    } satisfies PourCloisonnement
+      cloisonneParRattachement: cloisonnePourSesRoles(
+        cloisonnementParCompte.get(u.id) ?? [],
+      ),
+    } satisfies PourCloisonnement;
 
     return rattachementCouvre(pourCloisonnement, {
       siteId: siteDuDossier,
       directionId: directionDuDossier,
-    })
-  })
+    });
+  });
 
   if (utilisateurs.length === 0) {
-    return false
+    return false;
   }
 
-  const maintenant = new Date()
+  const maintenant = new Date();
 
   await tx.dossier_affectations.createMany({
     data: utilisateurs.map((u) => ({
       dossier_id: dossierId,
       user_id: u.id,
       affecte_par: null,
-      type: 'automatique',
+      type: "automatique",
       actif: true,
       affecte_le: maintenant,
       created_at: maintenant,
       updated_at: maintenant,
     })),
-  })
+  });
 
-  return true
+  return true;
 }

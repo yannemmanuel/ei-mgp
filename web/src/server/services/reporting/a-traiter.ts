@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { UtilisateurAutorise } from '@/server/authz'
 import { datesLimites, statutsAvecEcheance } from '../dossier/delais'
-import { clauseDontJeReponds, clauseNonAffectes, perimetreDossiers } from '../dossier/liste'
+import { clauseAMoiDAgir, clauseNonAffectes, perimetreDossiers } from '../dossier/liste'
 import { couvertureParParcours } from '../dossier/suivi-ei'
 import type { StatutCode } from '../dossier/statuts'
 
@@ -30,9 +30,9 @@ export type ADTraiter = {
   readonly enRetard: number
   /** Reçus dont personne ne répond — ni par affectation, ni par rattachement pour un EI. */
   readonly nonAffectes: number
-  /** Parmi ceux dont il répond, ceux dont l'échéance est dépassée. */
+  /** Parmi ceux qui attendent son rôle, ceux dont l'échéance est dépassée. */
   readonly miensEnRetard: number
-  /** Ceux dont il répond parmi les dossiers OUVERTS et suivis — pas son historique. */
+  /** Ceux qui attendent son rôle parmi les dossiers ouverts et suivis. */
   readonly miens: number
 }
 
@@ -56,7 +56,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
   // fait diverger au premier ajustement, et on aurait cliqué sur « 5 » pour découvrir autre chose.
   const couverture = await couvertureParParcours()
 
-  const [ouverts, dontJeReponds, nonAffectes] = await Promise.all([
+  const [ouverts, aMoiDAgir, nonAffectes] = await Promise.all([
     prisma.dossiers.findMany({
       where: {
         AND: [perimetre, { statuts_dossier: { code: { in: [...statutsSuivis] } } }],
@@ -79,7 +79,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
         AND: [
           perimetre,
           { statuts_dossier: { code: { in: [...statutsSuivis] } } },
-          clauseDontJeReponds(u),
+          clauseAMoiDAgir(u),
         ],
       },
       select: { id: true },
@@ -92,7 +92,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
     }),
   ])
 
-  const idsDontJeReponds = new Set(dontJeReponds.map((d) => d.id))
+  const idsAMoiDAgir = new Set(aMoiDAgir.map((d) => d.id))
 
   const limites = await datesLimites(
     ouverts.map((d) => ({
@@ -108,7 +108,7 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
   let miens = 0
 
   for (const dossier of ouverts) {
-    const aMoi = idsDontJeReponds.has(dossier.id)
+    const aMoi = idsAMoiDAgir.has(dossier.id)
     if (aMoi) miens += 1
 
     const limite = limites.get(dossier.id)
@@ -140,10 +140,9 @@ export async function dossiersATraiter(utilisateur: UtilisateurAutorise) {
     where: {
       AND: [
         perimetreDossiers(utilisateur),
-        // ⚠️ La MÊME clause que le compteur et que `/dossiers?assigneAMoi=1`. Un évènement
-        // indésirable n'est affecté à personne : lire les seules affectations laissait la carte
-        // vide chez celui-là même qui les traite.
-        clauseDontJeReponds(utilisateur),
+        // Même clause que le compteur et que `/dossiers?aMoiDAgir=1` : l'étape et le rôle
+        // déterminent l'acteur attendu, sans affectation nominative.
+        clauseAMoiDAgir(utilisateur),
       ],
     },
     orderBy: { updated_at: 'desc' },

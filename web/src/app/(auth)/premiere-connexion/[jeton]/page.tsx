@@ -28,7 +28,7 @@ export default async function PagePremiereConnexion({
   const invitation = await verifierInvitation(jeton)
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-white to-secondary-50 p-4">
+    <main id="contenu-principal" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-gradient-to-b from-white to-secondary-50 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <div className="flex items-center gap-2">

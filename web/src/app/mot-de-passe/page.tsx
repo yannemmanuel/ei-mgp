@@ -27,7 +27,7 @@ export default async function PageMotDePasse() {
   const obligatoire = utilisateur.doitChangerMotDePasse
 
   return (
-    <main className="mx-auto min-h-screen max-w-xl px-4 py-16">
+    <main id="contenu-principal" tabIndex={-1} className="mx-auto min-h-screen max-w-xl px-4 py-16">
       <div className="flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-100">
           <KeyRound className="h-5 w-5 text-primary-700" aria-hidden />

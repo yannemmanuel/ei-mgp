@@ -1,5 +1,12 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import path from 'node:path'
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import path from "node:path";
 
 /**
  * Stockage des pièces jointes.
@@ -11,12 +18,12 @@ import path from 'node:path'
  * ⚠️ Aucun fichier n'est servi par une URL de stockage directe (`exigences-securite.md` §3) : la
  * lecture passe par une route qui revérifie la Policy du dossier parent.
  */
-export type NomMagasin = 'local' | 'blobs'
+export type NomMagasin = "local" | "blobs";
 
 export interface MagasinFichiers {
-  readonly nom: NomMagasin
-  ecrire(chemin: string, octets: Buffer): Promise<void>
-  lire(chemin: string): Promise<Buffer>
+  readonly nom: NomMagasin;
+  ecrire(chemin: string, octets: Buffer): Promise<void>;
+  lire(chemin: string): Promise<Buffer>;
   /**
    * Efface un fichier. **IDEMPOTENT** : un fichier déjà absent n'est pas une erreur.
    *
@@ -27,7 +34,7 @@ export interface MagasinFichiers {
    * ses pièces sont parties, donc une exécution interrompue est rejouée sur des fichiers déjà
    * absents. Lever alors bloquerait définitivement le dossier, effacé pour moitié.
    */
-  supprimer(chemin: string): Promise<void>
+  supprimer(chemin: string): Promise<void>;
   /**
    * Inventaire du magasin, pour le ramasse-miettes des fichiers orphelins.
    *
@@ -37,17 +44,18 @@ export interface MagasinFichiers {
    * jointe en train d'être déposée. Sans date, l'âge est indémontrable — le fichier est donc
    * signalé, jamais effacé.
    */
-  lister(): Promise<readonly FichierStocke[]>
+  lister(): Promise<readonly FichierStocke[]>;
 }
 
 /** Une entrée d'inventaire. `modifieLe` est nul quand le magasin ne sait pas la donner. */
 export type FichierStocke = {
-  readonly chemin: string
-  readonly modifieLe: Date | null
-}
+  readonly chemin: string;
+  readonly modifieLe: Date | null;
+};
 
 /** Racine du magasin local, HORS du dossier public. */
-const RACINE_LOCALE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 'storage', 'private')
+const RACINE_LOCALE =
+  process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), "storage", "private");
 
 /**
  * Normalise un chemin enregistré en base.
@@ -64,26 +72,26 @@ const RACINE_LOCALE = process.env.STOCKAGE_RACINE ?? path.join(process.cwd(), 's
  * rendrait donc introuvable tout ce qui a été déposé avant cette date.
  */
 function normaliser(chemin: string): string {
-  return chemin.split('\\').join('/')
+  return chemin.split("\\").join("/");
 }
 
 export class MagasinLocal implements MagasinFichiers {
-  readonly nom = 'local' as const
+  readonly nom = "local" as const;
 
   async ecrire(chemin: string, octets: Buffer): Promise<void> {
-    const absolu = this.absolu(chemin)
+    const absolu = this.absolu(chemin);
 
-    await mkdir(path.dirname(absolu), { recursive: true })
-    await writeFile(absolu, octets)
+    await mkdir(path.dirname(absolu), { recursive: true });
+    await writeFile(absolu, octets);
   }
 
   async lire(chemin: string): Promise<Buffer> {
-    return readFile(this.absolu(chemin))
+    return readFile(this.absolu(chemin));
   }
 
   // `force` rend l'effacement idempotent : un fichier absent ne lève pas. Voir l'interface.
   async supprimer(chemin: string): Promise<void> {
-    await rm(this.absolu(chemin), { force: true })
+    await rm(this.absolu(chemin), { force: true });
   }
 
   /**
@@ -91,33 +99,39 @@ export class MagasinLocal implements MagasinFichiers {
    * démontrable ici, contrairement au magasin d'objets.
    */
   async lister(): Promise<readonly FichierStocke[]> {
-    const racine = /*turbopackIgnore: true*/ RACINE_LOCALE
-    const trouves: FichierStocke[] = []
+    const racine = /*turbopackIgnore: true*/ RACINE_LOCALE;
+    const trouves: FichierStocke[] = [];
 
-    const parcourir = async (dossier: string, prefixe: string): Promise<void> => {
-      let entrees
+    const parcourir = async (
+      dossier: string,
+      prefixe: string,
+    ): Promise<void> => {
+      let entrees;
       try {
-        entrees = await readdir(dossier, { withFileTypes: true })
+        entrees = await readdir(dossier, { withFileTypes: true });
       } catch {
         // Racine absente : magasin vide, pas une erreur.
-        return
+        return;
       }
 
       for (const entree of entrees) {
-        const complet = path.join(dossier, entree.name)
-        const relatif = prefixe ? `${prefixe}/${entree.name}` : entree.name
+        const complet = path.join(dossier, entree.name);
+        const relatif = prefixe ? `${prefixe}/${entree.name}` : entree.name;
 
         if (entree.isDirectory()) {
-          await parcourir(complet, relatif)
-          continue
+          await parcourir(complet, relatif);
+          continue;
         }
 
-        trouves.push({ chemin: relatif, modifieLe: (await stat(complet)).mtime })
+        trouves.push({
+          chemin: relatif,
+          modifieLe: (await stat(complet)).mtime,
+        });
       }
-    }
+    };
 
-    await parcourir(racine, '')
-    return trouves
+    await parcourir(racine, "");
+    return trouves;
   }
 
   /**
@@ -126,7 +140,23 @@ export class MagasinLocal implements MagasinFichiers {
    * dynamique qui n'existe pas.
    */
   private absolu(chemin: string): string {
-    return path.join(/*turbopackIgnore: true*/ RACINE_LOCALE, normaliser(chemin))
+    const racine = path.resolve(/*turbopackIgnore: true*/ RACINE_LOCALE);
+    const absolu = path.resolve(racine, normaliser(chemin));
+    const relatif = path.relative(racine, absolu);
+
+    // Une valeur corrompue en base ne doit jamais transformer le magasin en lecteur ou effaceur
+    // arbitraire du disque. `path.join()` seul normalise `../` sans garantir le confinement.
+    if (
+      relatif === "" ||
+      relatif.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relatif)
+    ) {
+      throw new Error(
+        "Chemin de stockage local invalide : sortie de la racine interdite.",
+      );
+    }
+
+    return absolu;
   }
 }
 
@@ -137,12 +167,12 @@ export class MagasinLocal implements MagasinFichiers {
  * chargement échouerait au démarrage, alors même que le magasin local suffit en développement.
  */
 export class MagasinBlobs implements MagasinFichiers {
-  readonly nom = 'blobs' as const
+  readonly nom = "blobs" as const;
 
   private async store() {
-    const { getStore } = await import('@netlify/blobs')
+    const { getStore } = await import("@netlify/blobs");
 
-    return getStore({ name: 'pieces-jointes', consistency: 'strong' })
+    return getStore({ name: "pieces-jointes", consistency: "strong" });
   }
 
   async ecrire(chemin: string, octets: Buffer): Promise<void> {
@@ -150,8 +180,8 @@ export class MagasinBlobs implements MagasinFichiers {
     // que le fichier : la découpe ci-dessous n'en extrait que les octets utiles.
     const tampon = octets.buffer.slice(
       octets.byteOffset,
-      octets.byteOffset + octets.byteLength
-    ) as ArrayBuffer
+      octets.byteOffset + octets.byteLength,
+    ) as ArrayBuffer;
 
     /*
       ⚠️ LA DATE EST ÉCRITE ICI PARCE QUE LE MAGASIN D'OBJETS NE LA DONNE PAS.
@@ -164,24 +194,30 @@ export class MagasinBlobs implements MagasinFichiers {
       Les fichiers écrits AVANT cette date n'en ont pas : ils seront signalés, jamais effacés.
       C'est le bon défaut — on ne devine pas l'âge d'une pièce jointe.
     */
-    await (await this.store()).set(normaliser(chemin), tampon, {
+    await (
+      await this.store()
+    ).set(normaliser(chemin), tampon, {
       metadata: { televerseLe: new Date().toISOString() },
-    })
+    });
   }
 
   async lire(chemin: string): Promise<Buffer> {
-    const contenu = await (await this.store()).get(normaliser(chemin), { type: 'arrayBuffer' })
+    const contenu = await (
+      await this.store()
+    ).get(normaliser(chemin), { type: "arrayBuffer" });
 
     if (!contenu) {
-      throw new Error(`Pièce jointe introuvable dans le magasin d'objets : ${chemin}`)
+      throw new Error(
+        `Pièce jointe introuvable dans le magasin d'objets : ${chemin}`,
+      );
     }
 
-    return Buffer.from(contenu)
+    return Buffer.from(contenu);
   }
 
   // `delete` de Netlify Blobs est déjà idempotent : effacer une clé absente ne lève pas.
   async supprimer(chemin: string): Promise<void> {
-    await (await this.store()).delete(normaliser(chemin))
+    await (await this.store()).delete(normaliser(chemin));
   }
 
   /**
@@ -194,30 +230,32 @@ export class MagasinBlobs implements MagasinFichiers {
    * `list({ paginate })` évite de charger des dizaines de milliers de clés d'un coup.
    */
   async lister(): Promise<readonly FichierStocke[]> {
-    const store = await this.store()
-    const trouves: FichierStocke[] = []
+    const store = await this.store();
+    const trouves: FichierStocke[] = [];
 
     for await (const page of store.list({ paginate: true })) {
       for (const blob of page.blobs) {
         // `getMetadata` rend `null` pour une clé disparue entre la liste et cette lecture.
-        const entree = await store.getMetadata(blob.key)
-        const brut = entree?.metadata?.televerseLe
+        const entree = await store.getMetadata(blob.key);
+        const brut = entree?.metadata?.televerseLe;
 
         const modifieLe =
-          typeof brut === 'string' && !Number.isNaN(Date.parse(brut)) ? new Date(brut) : null
+          typeof brut === "string" && !Number.isNaN(Date.parse(brut))
+            ? new Date(brut)
+            : null;
 
-        trouves.push({ chemin: blob.key, modifieLe })
+        trouves.push({ chemin: blob.key, modifieLe });
       }
     }
 
-    return trouves
+    return trouves;
   }
 }
 
 const magasins: Record<NomMagasin, MagasinFichiers> = {
   local: new MagasinLocal(),
   blobs: new MagasinBlobs(),
-}
+};
 
 /**
  * Magasin utilisé pour les NOUVELLES pièces.
@@ -227,16 +265,16 @@ const magasins: Record<NomMagasin, MagasinFichiers> = {
  * mieux vaut que le défaut suive l'environnement plutôt qu'une valeur oubliée.
  */
 export function magasinCourant(): MagasinFichiers {
-  const choisi = process.env.STOCKAGE_MAGASIN
+  const choisi = process.env.STOCKAGE_MAGASIN;
 
-  if (choisi === 'local' || choisi === 'blobs') return magasins[choisi]
+  if (choisi === "local" || choisi === "blobs") return magasins[choisi];
 
-  return process.env.NETLIFY ? magasins.blobs : magasins.local
+  return process.env.NETLIFY ? magasins.blobs : magasins.local;
 }
 
 /** Magasin d'une pièce DÉJÀ écrite, désigné par sa colonne `disque`. */
 export function magasinNomme(nom: string): MagasinFichiers {
-  if (nom === 'local' || nom === 'blobs') return magasins[nom]
+  if (nom === "local" || nom === "blobs") return magasins[nom];
 
-  throw new Error(`Magasin de fichiers inconnu : « ${nom} ».`)
+  throw new Error(`Magasin de fichiers inconnu : « ${nom} ».`);
 }

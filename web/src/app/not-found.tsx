@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 
 export default function PageIntrouvable() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+    <main id="contenu-principal" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <div className="max-w-md text-center">
         <FileQuestion className="mx-auto h-10 w-10 text-secondary-400" aria-hidden />
         <h1 className="mt-4 text-h2 text-secondary-900">Page introuvable</h1>

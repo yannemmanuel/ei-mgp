@@ -1,13 +1,15 @@
-'use client'
+"use client";
 
-import { useActionState, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import { useRetourEnToast } from '@/lib/retour-operation'
+import { useActionState, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import { useRetourEnToast } from "@/lib/retour-operation";
 
 /**
  * Éditeur commun aux référentiels d'administration.
@@ -22,49 +24,74 @@ import { useRetourEnToast } from '@/lib/retour-operation'
  * revérifie la permission. `creationPossible` ne masque qu'un bouton.
  */
 export type ChampReferentiel =
-  | { type: 'texte'; nom: string; libelle: string; requis?: boolean; max?: number }
-  | { type: 'zone'; nom: string; libelle: string; requis?: boolean; max?: number; aide?: string }
-  | { type: 'nombre'; nom: string; libelle: string; requis?: boolean; min?: number }
-  | { type: 'booleen'; nom: string; libelle: string }
   | {
-      type: 'liste'
-      nom: string
-      libelle: string
-      options: { valeur: string; libelle: string }[]
-      requis?: boolean
-      vide?: string
+      type: "texte";
+      nom: string;
+      libelle: string;
+      requis?: boolean;
+      max?: number;
     }
+  | {
+      type: "zone";
+      nom: string;
+      libelle: string;
+      requis?: boolean;
+      max?: number;
+      aide?: string;
+    }
+  | {
+      type: "nombre";
+      nom: string;
+      libelle: string;
+      requis?: boolean;
+      min?: number;
+    }
+  | { type: "booleen"; nom: string; libelle: string }
+  | {
+      type: "liste";
+      nom: string;
+      libelle: string;
+      options: { valeur: string; libelle: string }[];
+      requis?: boolean;
+      vide?: string;
+    };
 
-export type ValeursLigne = Record<string, string | boolean>
+export type ValeursLigne = Record<string, string | boolean>;
 
 export type LigneReferentiel = {
-  id: string
-  cellules: (string | { badge: string; variant?: 'default' | 'secondary' | 'destructive' })[]
-  valeurs: ValeursLigne
+  id: string;
+  cellules: (
+    | string
+    | { badge: string; variant?: "default" | "secondary" | "destructive" }
+  )[];
+  valeurs: ValeursLigne;
   /**
    * Groupe auquel la ligne appartient — le parcours d'une catégorie, la direction d'un poste.
    *
    * Sert au seul calcul des extrémités : monter la première ligne d'un parcours ne doit pas la
    * faire passer dans le parcours précédent. Absent, tout le tableau ne forme qu'un groupe.
    */
-  groupe?: string
-}
+  groupe?: string;
+};
 
-export type EtatFormulaire = { erreur?: string; succes?: string }
+export type EtatFormulaire = { erreur?: string; succes?: string };
 
-type ActionReferentiel = (etat: EtatFormulaire, donnees: FormData) => Promise<EtatFormulaire>
+type ActionReferentiel = (
+  etat: EtatFormulaire,
+  donnees: FormData,
+) => Promise<EtatFormulaire>;
 
 type Props = {
-  titre: string
-  description?: string
-  colonnes: string[]
-  lignes: LigneReferentiel[]
-  champs: ChampReferentiel[]
-  action: ActionReferentiel
+  titre: string;
+  description?: string;
+  colonnes: string[];
+  lignes: LigneReferentiel[];
+  champs: ChampReferentiel[];
+  action: ActionReferentiel;
   /** Faux pour un référentiel dont les lignes sont fixées (statuts, canaux). */
-  creationPossible: boolean
-  libelleCreation?: string
-  messageVide?: string
+  creationPossible: boolean;
+  libelleCreation?: string;
+  messageVide?: string;
   /**
    * Déplacement d'une ligne d'un rang. Absente, aucun bouton de rang n'est rendu.
    *
@@ -72,7 +99,7 @@ type Props = {
    * partagent, l'affichage est alphabétique. Ces boutons servent aux listes où l'ordre porte un
    * sens que l'alphabet ignore — une échelle d'ancienneté, par exemple.
    */
-  actionDeplacer?: ActionReferentiel
+  actionDeplacer?: ActionReferentiel;
   /**
    * Suppression d'une ligne. Absente, aucun bouton de suppression n'est rendu.
    *
@@ -80,14 +107,15 @@ type Props = {
    * ce qui la cite et refuse tant que ce compte n'est pas nul (RG-03). Le refus revient dans
    * `erreur`, avec son motif.
    */
-  actionSupprimer?: ActionReferentiel
-}
+  actionSupprimer?: ActionReferentiel;
+};
 
-const ETAT: EtatFormulaire = {}
-const champCss = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
+const ETAT: EtatFormulaire = {};
+const champCss =
+  "mt-1.5 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 focus-visible:outline-none";
 
 /** Action neutre : `useActionState` ne peut pas être appelé conditionnellement. */
-const INERTE: ActionReferentiel = async (etat) => etat
+const INERTE: ActionReferentiel = async (etat) => etat;
 
 export function EditeurReferentiel({
   titre,
@@ -97,40 +125,57 @@ export function EditeurReferentiel({
   champs,
   action,
   creationPossible,
-  libelleCreation = 'Ajouter',
-  messageVide = 'Aucune entrée.',
+  libelleCreation = "Ajouter",
+  messageVide = "Aucune entrée.",
   actionDeplacer,
   actionSupprimer,
 }: Props) {
-  const [etat, envoyer, enCours] = useActionState(action, ETAT)
-  const [etatRang, envoyerRang, rangEnCours] = useActionState(actionDeplacer ?? INERTE, ETAT)
-  const [etatSuppression, envoyerSuppression, suppressionEnCours] = useActionState(
-    actionSupprimer ?? INERTE,
-    ETAT
-  )
-  const [edition, setEdition] = useState<{ id: string; valeurs: ValeursLigne } | null>(null)
+  const [etat, envoyer, enCours] = useActionState(action, ETAT);
+  const [etatRang, envoyerRang, rangEnCours] = useActionState(
+    actionDeplacer ?? INERTE,
+    ETAT,
+  );
+  const [etatSuppression, envoyerSuppression, suppressionEnCours] =
+    useActionState(actionSupprimer ?? INERTE, ETAT);
+  const [edition, setEdition] = useState<{
+    id: string;
+    valeurs: ValeursLigne;
+  } | null>(null);
   /** Ligne dont la suppression attend confirmation — un clic ne suffit pas à effacer. */
-  const [aConfirmer, setAConfirmer] = useState<string | null>(null)
+  const [aConfirmer, setAConfirmer] = useState<string | null>(null);
+  const router = useRouter();
 
   const valeursVides: ValeursLigne = Object.fromEntries(
-    champs.map((c) => [c.nom, c.type === 'booleen' ? true : ''])
-  )
+    champs.map((c) => [c.nom, c.type === "booleen" ? true : ""]),
+  );
 
   // Les trois retours partent en notification. Ils n'ont plus de place réservée dans la page :
   // l'encart de succès poussait le tableau vers le bas à chaque enregistrement.
-  useRetourEnToast(etat)
-  useRetourEnToast(etatRang)
-  useRetourEnToast(etatSuppression)
+  useRetourEnToast(etat);
+  useRetourEnToast(etatRang);
+  useRetourEnToast(etatSuppression);
+
+  useEffect(() => {
+    if (etat.succes || etatRang.succes || etatSuppression.succes)
+      router.refresh();
+  }, [etat, etatRang, etatSuppression, router]);
 
   return (
     <div className="space-y-6">
       <EnTetePage
         titre={titre}
         lede={description}
-        mailles={[{ libelle: 'Administration', href: '/administration' }, { libelle: titre }]}
+        mailles={[
+          { libelle: "Administration", href: "/administration" },
+          { libelle: titre },
+        ]}
         actions={
           creationPossible && edition === null ? (
-            <Button size="sm" onClick={() => setEdition({ id: '', valeurs: valeursVides })}>
+            <Button
+              onClick={() => setEdition({ id: "", valeurs: valeursVides })}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
               {libelleCreation}
             </Button>
           ) : null
@@ -138,13 +183,41 @@ export function EditeurReferentiel({
       />
 
       {edition !== null && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-h3">
-              {edition.id === '' ? libelleCreation : 'Modifier'}
-            </CardTitle>
+        <Card className="border-primary-200 shadow-lg shadow-secondary-900/5">
+          <CardHeader className="border-b border-primary-100 bg-gradient-to-r from-primary-50 to-white py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-primary-700 ring-1 ring-primary-100">
+                  {edition.id === "" ? (
+                    <Plus className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Pencil className="h-4 w-4" aria-hidden />
+                  )}
+                </span>
+                <div>
+                  <CardTitle className="text-h3">
+                    {edition.id === ""
+                      ? libelleCreation
+                      : "Modifier une entrée"}
+                  </CardTitle>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Les modifications sont appliquées immédiatement aux écrans
+                    concernés.
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => setEdition(null)}
+                aria-label="Fermer le formulaire"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-5">
             <form action={envoyer} className="space-y-4">
               <input type="hidden" name="id" value={edition.id} />
 
@@ -177,12 +250,16 @@ export function EditeurReferentiel({
                 ))}
               </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={enCours}>
-                  {enCours ? 'Enregistrement…' : 'Enregistrer'}
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setEdition(null)}>
+              <div className="flex justify-end gap-2 border-t border-border pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEdition(null)}
+                >
                   Annuler
+                </Button>
+                <Button type="submit" disabled={enCours}>
+                  {enCours ? "Enregistrement…" : "Enregistrer"}
                 </Button>
               </div>
             </form>
@@ -190,45 +267,70 @@ export function EditeurReferentiel({
         </Card>
       )}
 
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/70 bg-secondary-50/60 px-4 py-3 sm:px-5">
+          <div>
+            <h2 className="font-semibold text-secondary-900">
+              Liste des entrées
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {lignes.length} entrée{lignes.length > 1 ? "s" : ""} configurée
+              {lignes.length > 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
         <CardContent className="p-0">
           {lignes.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">{messageVide}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-secondary-50/70">
                   <tr className="border-b border-border text-left">
                     {colonnes.map((colonne) => (
-                      <th key={colonne} className="px-4 py-2 font-medium text-muted-foreground">
+                      <th
+                        key={colonne}
+                        className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-secondary-500"
+                      >
                         {colonne}
                       </th>
                     ))}
-                    <th className="px-4 py-2" />
+                    <th className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-secondary-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {lignes.map((ligne, index) => {
-                    const groupe = ligne.groupe ?? ''
-                    const memeGroupe = lignes.filter((l) => (l.groupe ?? '') === groupe)
-                    const rang = memeGroupe.indexOf(ligne)
-                    const nom = ligne.cellules.find((c) => typeof c === 'string') ?? `ligne ${index + 1}`
+                    const groupe = ligne.groupe ?? "";
+                    const memeGroupe = lignes.filter(
+                      (l) => (l.groupe ?? "") === groupe,
+                    );
+                    const rang = memeGroupe.indexOf(ligne);
+                    const nom =
+                      ligne.cellules.find((c) => typeof c === "string") ??
+                      `ligne ${index + 1}`;
 
                     return (
-                      <tr key={ligne.id} className="border-b border-border/50">
+                      <tr
+                        key={ligne.id}
+                        className="border-b border-border/50 transition-colors hover:bg-primary-50/35"
+                      >
                         {ligne.cellules.map((cellule, colonne) => (
                           <td
                             key={colonnes[colonne] ?? colonne}
-                            className="px-4 py-2 text-secondary-800"
+                            className="px-4 py-3.5 text-secondary-800"
                           >
-                            {typeof cellule === 'string' ? (
+                            {typeof cellule === "string" ? (
                               cellule
                             ) : (
-                              <Badge variant={cellule.variant ?? 'secondary'}>{cellule.badge}</Badge>
+                              <Badge variant={cellule.variant ?? "secondary"}>
+                                {cellule.badge}
+                              </Badge>
                             )}
                           </td>
                         ))}
-                        <td className="px-4 py-2">
+                        <td className="px-5 py-3.5">
                           <div className="flex items-center justify-end gap-1">
                             {actionDeplacer && (
                               <>
@@ -244,32 +346,52 @@ export function EditeurReferentiel({
                                   id={ligne.id}
                                   sens="descendre"
                                   nom={String(nom)}
-                                  inactif={rang === memeGroupe.length - 1 || rangEnCours}
+                                  inactif={
+                                    rang === memeGroupe.length - 1 ||
+                                    rangEnCours
+                                  }
                                 />
                               </>
                             )}
 
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={() => setEdition({ id: ligne.id, valeurs: ligne.valeurs })}
+                              variant="outline"
+                              onClick={() =>
+                                setEdition({
+                                  id: ligne.id,
+                                  valeurs: ligne.valeurs,
+                                })
+                              }
                             >
+                              <Pencil className="h-3.5 w-3.5" aria-hidden />
                               Modifier
                             </Button>
 
                             {actionSupprimer &&
                               (aConfirmer === ligne.id ? (
                                 /* Deux temps : effacer est irréversible, un clic isolé ne suffit pas. */
-                                <form action={envoyerSuppression} className="flex items-center gap-1">
-                                  <input type="hidden" name="id" value={ligne.id} />
-                                  <span className="text-caption text-muted-foreground">Confirmer ?</span>
+                                <form
+                                  action={envoyerSuppression}
+                                  className="flex items-center gap-1"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="id"
+                                    value={ligne.id}
+                                  />
+                                  <span className="text-caption text-muted-foreground">
+                                    Confirmer ?
+                                  </span>
                                   <Button
                                     type="submit"
                                     size="sm"
                                     variant="destructive"
                                     disabled={suppressionEnCours}
                                   >
-                                    {suppressionEnCours ? 'Suppression…' : 'Oui, supprimer'}
+                                    {suppressionEnCours
+                                      ? "Suppression…"
+                                      : "Oui, supprimer"}
                                   </Button>
                                   <Button
                                     type="button"
@@ -287,13 +409,14 @@ export function EditeurReferentiel({
                                   className="text-destructive hover:bg-destructive/10"
                                   onClick={() => setAConfirmer(ligne.id)}
                                 >
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
                                   Supprimer
                                 </Button>
                               ))}
                           </div>
                         </td>
                       </tr>
-                    )
+                    );
                   })}
                 </tbody>
               </table>
@@ -304,13 +427,13 @@ export function EditeurReferentiel({
 
       <p className="text-caption text-muted-foreground">
         {actionSupprimer
-          ? 'Une entrée citée par un dossier ne peut pas être supprimée : désactivez-la pour la retirer des formulaires.'
-          : 'Aucune suppression n’est proposée : utilisez la désactivation.'}
+          ? "Une entrée citée par un dossier ne peut pas être supprimée : désactivez-la pour la retirer des formulaires."
+          : "Aucune suppression n’est proposée : utilisez la désactivation."}
         {actionDeplacer &&
-          ' L’ordre est alphabétique tant que les flèches ne sont pas utilisées.'}
+          " L’ordre est alphabétique tant que les flèches ne sont pas utilisées."}
       </p>
     </div>
-  )
+  );
 }
 
 /**
@@ -327,11 +450,11 @@ function BoutonRang({
   nom,
   inactif,
 }: {
-  envoyer: (donnees: FormData) => void
-  id: string
-  sens: 'monter' | 'descendre'
-  nom: string
-  inactif: boolean
+  envoyer: (donnees: FormData) => void;
+  id: string;
+  sens: "monter" | "descendre";
+  nom: string;
+  inactif: boolean;
 }) {
   return (
     <form action={envoyer} className="contents">
@@ -342,52 +465,81 @@ function BoutonRang({
         size="sm"
         variant="ghost"
         disabled={inactif}
-        aria-label={`${sens === 'monter' ? 'Monter' : 'Descendre'} ${nom}`}
-        title={sens === 'monter' ? 'Monter' : 'Descendre'}
+        aria-label={`${sens === "monter" ? "Monter" : "Descendre"} ${nom}`}
+        title={sens === "monter" ? "Monter" : "Descendre"}
       >
-        {sens === 'monter' ? '↑' : '↓'}
+        {sens === "monter" ? (
+          <ArrowUp className="h-4 w-4" aria-hidden />
+        ) : (
+          <ArrowDown className="h-4 w-4" aria-hidden />
+        )}
       </Button>
     </form>
-  )
+  );
 }
 
-function Champ({ champ, valeur }: { champ: ChampReferentiel; valeur: string | boolean | undefined }) {
-  if (champ.type === 'booleen') {
+function Champ({
+  champ,
+  valeur,
+}: {
+  champ: ChampReferentiel;
+  valeur: string | boolean | undefined;
+}) {
+  if (champ.type === "booleen") {
     return (
       <div className="flex items-end">
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name={champ.nom} defaultChecked={valeur === true} value="1" />
+          <input
+            type="checkbox"
+            name={champ.nom}
+            defaultChecked={valeur === true}
+            value="1"
+          />
           {champ.libelle}
         </label>
       </div>
-    )
+    );
   }
 
   const commun = {
     id: champ.nom,
     name: champ.nom,
     required: champ.requis,
-    defaultValue: typeof valeur === 'string' ? valeur : '',
-  }
+    defaultValue: typeof valeur === "string" ? valeur : "",
+  };
 
   return (
-    <div className={champ.type === 'zone' ? 'sm:col-span-2' : undefined}>
+    <div className={champ.type === "zone" ? "sm:col-span-2" : undefined}>
       <Label htmlFor={champ.nom} className="text-caption text-muted-foreground">
         {champ.libelle}
-        {champ.requis && ' *'}
+        {champ.requis && " *"}
       </Label>
 
-      {champ.type === 'texte' && <Input {...commun} maxLength={champ.max} className="mt-1" />}
-
-      {champ.type === 'zone' && <textarea {...commun} rows={4} maxLength={champ.max} className={champCss} />}
-
-      {champ.type === 'nombre' && (
-        <input {...commun} type="number" min={champ.min ?? 0} className={champCss} />
+      {champ.type === "texte" && (
+        <Input {...commun} maxLength={champ.max} className="mt-1" />
       )}
 
-      {champ.type === 'liste' && (
+      {champ.type === "zone" && (
+        <textarea
+          {...commun}
+          rows={4}
+          maxLength={champ.max}
+          className={champCss}
+        />
+      )}
+
+      {champ.type === "nombre" && (
+        <input
+          {...commun}
+          type="number"
+          min={champ.min ?? 0}
+          className={champCss}
+        />
+      )}
+
+      {champ.type === "liste" && (
         <select {...commun} className={champCss}>
-          <option value="">{champ.vide ?? '— Sélectionner —'}</option>
+          <option value="">{champ.vide ?? "— Sélectionner —"}</option>
           {champ.options.map((o) => (
             <option key={o.valeur} value={o.valeur}>
               {o.libelle}
@@ -396,9 +548,9 @@ function Champ({ champ, valeur }: { champ: ChampReferentiel; valeur: string | bo
         </select>
       )}
 
-      {champ.type === 'zone' && champ.aide && (
+      {champ.type === "zone" && champ.aide && (
         <p className="mt-1 text-caption text-muted-foreground">{champ.aide}</p>
       )}
     </div>
-  )
+  );
 }

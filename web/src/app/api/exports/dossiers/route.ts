@@ -1,11 +1,12 @@
-import type { NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { utilisateurCourant } from '@/server/auth'
-import { peutExporter, peutExporterNominatif } from '@/server/authz'
-import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
-import { lignesExport } from '@/server/services/reporting/export'
-import { classeurDossiers } from '@/server/services/reporting/classeur'
-import { rapportPdf } from '@/server/services/reporting/document-pdf'
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { utilisateurCourant } from "@/server/auth";
+import { peutExporter, peutExporterNominatif } from "@/server/authz";
+import { filtreDepuisParametres } from "@/server/services/reporting/filtre";
+import { lignesExport } from "@/server/services/reporting/export";
+import { classeurDossiers } from "@/server/services/reporting/classeur";
+import { rapportPdf } from "@/server/services/reporting/document-pdf";
+import { adresseClient } from "@/lib/adresse-client";
 
 /**
  * EX-REP-04/06 : téléchargement du rapport des dossiers, au format Excel ou PDF.
@@ -23,31 +24,33 @@ import { rapportPdf } from '@/server/services/reporting/document-pdf'
  */
 
 // Génération de fichiers : exceljs et @react-pdf/renderer exigent l'exécution Node.
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const TYPE_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const TYPE_XLSX =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 export async function GET(requete: NextRequest): Promise<Response> {
-  const utilisateur = await utilisateurCourant()
+  const utilisateur = await utilisateurCourant();
 
   if (!utilisateur) {
-    return new Response('Authentification requise.', { status: 401 })
+    return new Response("Authentification requise.", { status: 401 });
   }
 
   if (!peutExporter(utilisateur)) {
-    return new Response('Export non autorisé.', { status: 403 })
+    return new Response("Export non autorisé.", { status: 403 });
   }
 
-  const parametres = Object.fromEntries(requete.nextUrl.searchParams)
-  const format = parametres.format === 'pdf' ? 'pdf' : 'xlsx'
+  const parametres = Object.fromEntries(requete.nextUrl.searchParams);
+  const format = parametres.format === "pdf" ? "pdf" : "xlsx";
 
-  const demandeNominatif = parametres.nominatif === '1'
-  const inclureNominatif = demandeNominatif && peutExporterNominatif(utilisateur)
+  const demandeNominatif = parametres.nominatif === "1";
+  const inclureNominatif =
+    demandeNominatif && peutExporterNominatif(utilisateur);
 
   // Même plafond que le tableau de bord : un export ne doit pas ouvrir ce que l'écran ferme.
-  const filtre = filtreDepuisParametres(parametres, utilisateur)
-  const lignes = await lignesExport(filtre, inclureNominatif)
+  const filtre = filtreDepuisParametres(parametres, utilisateur);
+  const lignes = await lignesExport(filtre, inclureNominatif);
 
   // Un export de données nominatives sort des données personnelles
   // du système sans laisser aucune trace côté baseline. Le DPO doit pouvoir savoir qui a extrait
@@ -56,45 +59,41 @@ export async function GET(requete: NextRequest): Promise<Response> {
     await prisma.audit_logs.create({
       data: {
         user_id: utilisateur.id,
-        action: 'rapport.export_nominatif',
+        action: "rapport.export_nominatif",
         // Tous les paramètres reçus, et non le seul filtre : pour le DPO, la question est
         // « qu'est-ce qui a été demandé », y compris ce qui a été refusé.
         new_values: { format, nb_lignes: lignes.length, parametres },
-        ip_address: adresseIp(requete),
+        ip_address: adresseClient(requete.headers) ?? "inconnue",
         created_at: new Date(),
       },
-    })
+    });
   }
 
-  const horodatage = new Date().toISOString().slice(0, 10)
+  const horodatage = new Date().toISOString().slice(0, 10);
 
-  if (format === 'pdf') {
-    const pdf = await rapportPdf(lignes, inclureNominatif)
+  if (format === "pdf") {
+    const pdf = await rapportPdf(lignes, inclureNominatif);
 
-    return fichier(pdf, 'application/pdf', `rapport-dossiers-${horodatage}.pdf`)
+    return fichier(
+      pdf,
+      "application/pdf",
+      `rapport-dossiers-${horodatage}.pdf`,
+    );
   }
 
-  const classeur = await classeurDossiers(lignes, inclureNominatif)
+  const classeur = await classeurDossiers(lignes, inclureNominatif);
 
-  return fichier(classeur, TYPE_XLSX, `rapport-dossiers-${horodatage}.xlsx`)
+  return fichier(classeur, TYPE_XLSX, `rapport-dossiers-${horodatage}.xlsx`);
 }
 
 function fichier(contenu: Buffer, type: string, nom: string): Response {
   return new Response(new Uint8Array(contenu), {
     headers: {
-      'Content-Type': type,
-      'Content-Disposition': `attachment; filename="${nom}"`,
-      'Content-Length': String(contenu.length),
+      "Content-Type": type,
+      "Content-Disposition": `attachment; filename="${nom}"`,
+      "Content-Length": String(contenu.length),
       // Un rapport peut contenir des données nominatives : jamais de mise en cache partagée.
-      'Cache-Control': 'no-store, private',
+      "Cache-Control": "no-store, private",
     },
-  })
-}
-
-function adresseIp(requete: NextRequest): string {
-  return (
-    requete.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    requete.headers.get('x-real-ip') ??
-    'inconnue'
-  )
+  });
 }

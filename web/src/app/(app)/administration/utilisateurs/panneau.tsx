@@ -1,35 +1,49 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { BoutonSupprimer } from '../bouton-supprimer'
-import { actionSupprimerCompte } from '../suppressions-actions'
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useActionState, useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  Mail,
+  Pencil,
+  Plus,
+  Search,
+  UserCheck,
+  UsersRound,
+  UserX,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BoutonSupprimer } from "../bouton-supprimer";
+import { actionSupprimerCompte } from "../suppressions-actions";
 import {
   actionEnregistrerCompte,
   actionRegenererMotDePasse,
   type EtatCompte,
-} from './actions'
-import { useRetourEnToast } from '@/lib/retour-operation'
+} from "./actions";
+import { useRetourEnToast } from "@/lib/retour-operation";
 
 export type CompteVue = {
-  id: string
-  name: string
-  email: string
-  matricule: string
-  poste: string
-  actif: boolean
-  directionId: string
-  siteId: string
-  responsableId: string
-  roles: string[]
+  id: string;
+  name: string;
+  email: string;
+  matricule: string;
+  poste: string;
+  actif: boolean;
+  directionId: string;
+  siteId: string;
+  responsableId: string;
+  roles: string[];
   /**
    * Ce que ce compte voit, en clair — les types de déclaration ouverts par ses RÔLES.
    *
@@ -37,11 +51,11 @@ export type CompteVue = {
    * `/administration/habilitations`. Cette colonne reste en lecture, parce que c'est en regardant
    * un compte qu'on se demande ce qu'il voit — mais le geste, lui, a changé de place.
    */
-  parcours: string[]
-  tousLesParcours: boolean
+  parcours: string[];
+  tousLesParcours: boolean;
   /** Rattachement lisible, `null` s'il n'est pas renseigné. */
-  site: string | null
-  direction: string | null
+  site: string | null;
+  direction: string | null;
   /**
    * Ce compte porte un rôle cloisonné par site sans en avoir un.
    *
@@ -49,18 +63,18 @@ export type CompteVue = {
    * pour empêcher. Le signaler ici vaut mieux que de le découvrir en s'étonnant du nombre de
    * dossiers affichés.
    */
-  siteManquant: boolean
+  siteManquant: boolean;
   /** Site du compte et site de sa direction se contredisent : l'un des deux est faux. */
-  rattachementIncoherent: boolean
-}
+  rattachementIncoherent: boolean;
+};
 
-type Option = { id: string; libelle: string }
+type Option = { id: string; libelle: string };
 
 /** Un rôle proposé à l'attribution : son identifiant technique, son nom lisible, son activation. */
 export type RoleOption = {
-  nom: string
-  libelle: string
-  actif: boolean
+  nom: string;
+  libelle: string;
+  actif: boolean;
   /**
    * Les parcours que ce rôle permet de confier.
    *
@@ -69,14 +83,25 @@ export type RoleOption = {
    * types de grief qu'on peut alors lui confier. Un calcul côté serveur ne connaîtrait que les
    * rôles déjà enregistrés, et l'administrateur devrait enregistrer deux fois.
    */
-  parcours: string[]
-}
+  parcours: string[];
+};
 
 /** Un type de déclaration proposé à l'attribution. */
-export type ParcoursOption = { code: string; libelle: string }
+export type ParcoursOption = { code: string; libelle: string };
 
-const ETAT: EtatCompte = {}
-const champ = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
+const ETAT: EtatCompte = {};
+const champ =
+  "mt-1.5 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 focus-visible:outline-none";
+
+function initiales(nom: string): string {
+  return nom
+    .trim()
+    .split(/[\s-]+/)
+    .slice(0, 2)
+    .map((mot) => mot[0])
+    .join("")
+    .toUpperCase();
+}
 
 export function PanneauComptes({
   comptes,
@@ -86,44 +111,144 @@ export function PanneauComptes({
   sites,
   recherche,
 }: {
-  comptes: CompteVue[]
-  roles: RoleOption[]
-  parcours: ParcoursOption[]
-  directions: Option[]
-  sites: Option[]
-  recherche: string
+  comptes: CompteVue[];
+  roles: RoleOption[];
+  parcours: ParcoursOption[];
+  directions: Option[];
+  sites: Option[];
+  recherche: string;
 }) {
-  const router = useRouter()
-  const params = useSearchParams()
+  const router = useRouter();
+  const params = useSearchParams();
 
   // Les comptes portent des identifiants techniques ; le tableau affiche des noms.
-  const libelleDuRole = new Map(roles.map((r) => [r.nom, r.libelle]))
-  const [edition, setEdition] = useState<CompteVue | null>(null)
-  const [creation, setCreation] = useState(false)
+  const libelleDuRole = new Map(roles.map((r) => [r.nom, r.libelle]));
+  const [edition, setEdition] = useState<CompteVue | null>(null);
+  const [creation, setCreation] = useState(false);
+  const actifs = comptes.filter((compte) => compte.actif).length;
+  const desactives = comptes.length - actifs;
+  const alertes = comptes.filter(
+    (compte) => compte.siteManquant || compte.rattachementIncoherent,
+  ).length;
 
   function chercher(valeur: string) {
-    const suivants = new URLSearchParams(params.toString())
+    const suivants = new URLSearchParams(params.toString());
 
-    if (valeur === '') suivants.delete('q')
-    else suivants.set('q', valeur)
+    if (valeur === "") suivants.delete("q");
+    else suivants.set("q", valeur);
 
-    router.push(`/administration/utilisateurs?${suivants.toString()}`)
+    router.push(`/administration/utilisateurs?${suivants.toString()}`);
+  }
+
+  if (creation) {
+    return (
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Créer un utilisateur"
+          lede="Renseignez son identité, son rattachement puis les accès nécessaires à sa mission."
+          mailles={[
+            { libelle: "Administration", href: "/administration" },
+            { libelle: "Utilisateurs", href: "/administration/utilisateurs" },
+            { libelle: "Nouveau compte" },
+          ]}
+          actions={
+            <Button
+              variant="outline"
+              onClick={() => setCreation(false)}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+              Retour aux utilisateurs
+            </Button>
+          }
+        />
+
+        <ol
+          className="grid gap-2 sm:grid-cols-3"
+          aria-label="Étapes de création du compte"
+        >
+          {[
+            ["1", "Informations", "Identité professionnelle"],
+            ["2", "Organisation", "Site et responsable"],
+            ["3", "Accès", "Rôles et visibilité"],
+          ].map(([numero, titre, aide]) => (
+            <li
+              key={numero}
+              className="flex items-center gap-3 rounded-xl border border-primary-100 bg-primary-50/55 px-4 py-3"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-700 text-xs font-bold text-white">
+                {numero}
+              </span>
+              <span>
+                <span className="block text-xs font-semibold text-secondary-900">
+                  {titre}
+                </span>
+                <span className="block text-[11px] text-muted-foreground">
+                  {aide}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <div className="mx-auto w-full max-w-5xl">
+          <FormulaireCompte
+            key="creation"
+            compte={null}
+            roles={roles}
+            parcours={parcours}
+            directions={directions}
+            sites={sites}
+            comptes={comptes}
+            onFermer={() => setCreation(false)}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <EnTetePage
-        titre="Comptes"
-        lede="Un compte ne se supprime pas : il se désactive, et l’accès est coupé aussitôt."
-        mailles={[{ libelle: 'Administration', href: '/administration' }, { libelle: 'Comptes' }]}
+        titre="Utilisateurs"
+        lede="Gérez les accès, les rôles et le périmètre organisationnel des collaborateurs."
+        mailles={[
+          { libelle: "Administration", href: "/administration" },
+          { libelle: "Comptes" },
+        ]}
         actions={
           !creation && edition === null ? (
-            <Button size="sm" onClick={() => setCreation(true)}>
-              Créer un compte
+            <Button onClick={() => setCreation(true)} className="gap-2">
+              <Plus className="h-4 w-4" aria-hidden />
+              Créer un utilisateur
             </Button>
           ) : null
         }
       />
+
+      <section
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        aria-label="Synthèse des utilisateurs"
+      >
+        <Indicateur
+          icone={UsersRound}
+          libelle="Affichés"
+          valeur={comptes.length}
+        />
+        <Indicateur
+          icone={UserCheck}
+          libelle="Actifs"
+          valeur={actifs}
+          ton="succes"
+        />
+        <Indicateur icone={UserX} libelle="Désactivés" valeur={desactives} />
+        <Indicateur
+          icone={AlertTriangle}
+          libelle="À vérifier"
+          valeur={alertes}
+          ton={alertes > 0 ? "alerte" : "neutre"}
+        />
+      </section>
 
       {(creation || edition !== null) && (
         /*
@@ -140,7 +265,7 @@ export function PanneauComptes({
          * affiché ne peut plus survivre à un changement de compte.
          */
         <FormulaireCompte
-          key={edition?.id ?? 'creation'}
+          key={edition?.id ?? "creation"}
           compte={edition}
           roles={roles}
           parcours={parcours}
@@ -148,72 +273,274 @@ export function PanneauComptes({
           sites={sites}
           comptes={comptes}
           onFermer={() => {
-            setCreation(false)
-            setEdition(null)
+            setCreation(false);
+            setEdition(null);
           }}
         />
       )}
 
-      <Card className="p-4">
-        <Label htmlFor="q" className="text-caption text-muted-foreground">
-          Rechercher
-        </Label>
-        <Input
-          id="q"
-          defaultValue={recherche}
-          placeholder="Nom ou adresse e-mail"
-          className="mt-1 max-w-sm"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') chercher((e.target as HTMLInputElement).value.trim())
-          }}
-        />
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="w-full max-w-xl">
+            <Label
+              htmlFor="q"
+              className="text-xs font-semibold text-secondary-700"
+            >
+              Rechercher un utilisateur
+            </Label>
+            <div className="relative mt-1.5">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-secondary-400"
+                aria-hidden
+              />
+              <Input
+                id="q"
+                defaultValue={recherche}
+                placeholder="Nom, adresse e-mail ou matricule…"
+                className="h-10 pl-9 pr-10"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter")
+                    chercher((e.target as HTMLInputElement).value.trim());
+                }}
+              />
+              {recherche && (
+                <button
+                  type="button"
+                  onClick={() => chercher("")}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-secondary-400 hover:bg-secondary-100 hover:text-secondary-700"
+                  aria-label="Effacer la recherche"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="shrink-0 text-xs text-muted-foreground">
+            <span className="font-semibold text-secondary-800">
+              {comptes.length}
+            </span>{" "}
+            résultat{comptes.length > 1 ? "s" : ""}
+          </p>
+        </div>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border/70 bg-secondary-50/60 px-4 py-3 sm:px-5">
+          <div>
+            <h2 className="font-semibold text-secondary-900">
+              Annuaire des utilisateurs
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Sélectionnez un compte pour modifier ses accès.
+            </p>
+          </div>
+        </div>
         <CardContent className="p-0">
           {comptes.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">Aucun compte ne correspond.</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              Aucun compte ne correspond.
+            </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Nom</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">E-mail</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Rôles</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Rattachement</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">État</th>
-                    <th className="px-4 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {comptes.map((compte) => (
-                    <tr key={compte.id} className="border-b border-border/50">
-                      <td className="px-4 py-2 text-secondary-900">{compte.name}</td>
-                      <td className="px-4 py-2 text-secondary-800">{compte.email}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {compte.roles.length === 0 ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : (
-                            compte.roles.map((role) => (
-                              <Badge key={role} variant="secondary" className="font-normal">
-                                {libelleDuRole.get(role) ?? role}
-                              </Badge>
-                            ))
-                          )}
-                          {compte.siteManquant && (
-                            <Badge
-                              variant="destructive"
-                              className="font-normal"
-                              title="Ce rôle est habilité par site, mais aucun site n’est renseigné : le compte voit tous les dossiers de son parcours."
-                            >
-                              Site manquant
-                            </Badge>
-                          )}
+            <>
+              <ul
+                className="divide-y divide-border md:hidden"
+                aria-label="Liste des comptes"
+              >
+                {comptes.map((compte) => (
+                  <li
+                    key={compte.id}
+                    className="space-y-4 p-4 transition-colors hover:bg-secondary-50/50"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-xs font-bold text-primary-800 ring-1 ring-primary-100">
+                          {initiales(compte.name)}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-secondary-900">
+                            {compte.name}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {compte.email}
+                          </p>
                         </div>
+                      </div>
+                      <Badge variant={compte.actif ? "default" : "secondary"}>
+                        {compte.actif ? "Actif" : "Désactivé"}
+                      </Badge>
+                    </div>
 
-                        {/*
+                    <div>
+                      <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+                        Rôles et périmètre
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {compte.roles.length === 0 ? (
+                          <span className="text-sm text-muted-foreground">
+                            Aucun rôle
+                          </span>
+                        ) : (
+                          compte.roles.map((role) => (
+                            <Badge
+                              key={role}
+                              variant="secondary"
+                              className="font-normal"
+                            >
+                              {libelleDuRole.get(role) ?? role}
+                            </Badge>
+                          ))
+                        )}
+                        {compte.siteManquant && (
+                          <Badge variant="destructive" className="font-normal">
+                            Site manquant
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-caption text-muted-foreground">
+                        {compte.parcours.length === 0
+                          ? "Ne voit aucun dossier"
+                          : compte.tousLesParcours
+                            ? "Tous les types de déclaration"
+                            : compte.parcours.join(" · ")}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+                        Rattachement
+                      </p>
+                      <p className="mt-1 text-sm text-secondary-900">
+                        {compte.site ?? "Aucun site"}
+                        {compte.direction && (
+                          <span className="block text-caption text-muted-foreground">
+                            {compte.direction}
+                          </span>
+                        )}
+                      </p>
+                      {compte.rattachementIncoherent && (
+                        <p className="mt-1 text-caption font-medium text-destructive">
+                          Site et direction se contredisent
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setCreation(false);
+                          setEdition(compte);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden />
+                        Modifier
+                      </Button>
+                      <BoutonSupprimer
+                        id={compte.id}
+                        nom={compte.name}
+                        action={actionSupprimerCompte}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[860px] table-fixed text-sm">
+                  <colgroup>
+                    <col className="w-[28%]" />
+                    <col className="w-[32%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[18%]" />
+                  </colgroup>
+                  <thead className="bg-secondary-50/70">
+                    <tr className="border-b border-border text-left">
+                      <th
+                        scope="col"
+                        className="px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-secondary-500"
+                      >
+                        Utilisateur
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-secondary-500"
+                      >
+                        Rôles et accès
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-secondary-500"
+                      >
+                        Rattachement
+                      </th>
+                      <th
+                        scope="col"
+                        className="px-5 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-secondary-500"
+                      >
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comptes.map((compte) => (
+                      <tr
+                        key={compte.id}
+                        className="border-b border-border/50 transition-colors hover:bg-primary-50/35"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-[11px] font-bold text-primary-800 ring-1 ring-primary-100">
+                              {initiales(compte.name)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate font-semibold text-secondary-900">
+                                  {compte.name}
+                                </p>
+                                <Badge
+                                  variant={
+                                    compte.actif ? "default" : "secondary"
+                                  }
+                                  className="shrink-0 text-[10px]"
+                                >
+                                  {compte.actif ? "Actif" : "Désactivé"}
+                                </Badge>
+                              </div>
+                              <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                                <Mail className="h-3 w-3" aria-hidden />
+                                {compte.email}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="flex flex-wrap gap-1">
+                            {compte.roles.length === 0 ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              compte.roles.map((role) => (
+                                <Badge
+                                  key={role}
+                                  variant="secondary"
+                                  className="font-normal"
+                                >
+                                  {libelleDuRole.get(role) ?? role}
+                                </Badge>
+                              ))
+                            )}
+                            {compte.siteManquant && (
+                              <Badge
+                                variant="destructive"
+                                className="font-normal"
+                                title="Ce rôle est habilité par site, mais aucun site n’est renseigné : le compte voit tous les dossiers de son parcours."
+                              >
+                                Site manquant
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/*
                           CE QUE LA PERSONNE VOIT, et non plus seulement les rôles qu'elle porte.
 
                           C'est la question qu'on se pose devant un compte, et la réponse ne se lit
@@ -226,55 +553,55 @@ export function PanneauComptes({
                           compte censé traiter des déclarations, c'est la cause qu'on cherchera en
                           s'étonnant d'un écran vide, et elle se règle sur le rôle.
                         */}
-                        <p className="mt-1 text-caption text-muted-foreground">
-                          {compte.parcours.length === 0
-                            ? 'Ne voit aucun dossier'
-                            : compte.tousLesParcours
-                              ? 'Tous les types de déclaration'
-                              : compte.parcours.join(' · ')}
-                        </p>
-                      </td>
-                      <td className="px-4 py-2">
-                        {compte.site === null && compte.direction === null ? (
-                          <span className="text-muted-foreground">—</span>
-                        ) : (
-                          <div className="text-sm">
-                            <span className="text-secondary-900">{compte.site ?? 'Aucun site'}</span>
-                            {compte.direction && (
-                              <span className="block text-caption text-muted-foreground">
-                                {compte.direction}
+                          <p className="mt-1 text-caption text-muted-foreground">
+                            {compte.parcours.length === 0
+                              ? "Ne voit aucun dossier"
+                              : compte.tousLesParcours
+                                ? "Tous les types de déclaration"
+                                : compte.parcours.join(" · ")}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {compte.site === null && compte.direction === null ? (
+                            <span className="text-xs text-muted-foreground">
+                              Non renseigné
+                            </span>
+                          ) : (
+                            <div className="text-sm">
+                              <span className="text-secondary-900">
+                                {compte.site ?? "Aucun site"}
                               </span>
-                            )}
-                            {compte.rattachementIncoherent && (
-                              <span
-                                className="mt-0.5 block text-caption font-medium text-destructive"
-                                title="La direction de ce compte relève d’un autre site que celui qui lui est attribué."
-                              >
-                                Site et direction se contredisent
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        <Badge variant={compte.actif ? 'default' : 'secondary'}>
-                          {compte.actif ? 'Actif' : 'Désactivé'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex items-start justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setCreation(false)
-                              setEdition(compte)
-                            }}
-                          >
-                            Modifier
-                          </Button>
+                              {compte.direction && (
+                                <span className="block text-caption text-muted-foreground">
+                                  {compte.direction}
+                                </span>
+                              )}
+                              {compte.rattachementIncoherent && (
+                                <span
+                                  className="mt-0.5 block text-caption font-medium text-destructive"
+                                  title="La direction de ce compte relève d’un autre site que celui qui lui est attribué."
+                                >
+                                  Site et direction se contredisent
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="flex flex-col items-end gap-2 xl:flex-row xl:items-start xl:justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setCreation(false);
+                                setEdition(compte);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden />
+                              Modifier
+                            </Button>
 
-                          {/*
+                            {/*
                             ⚠️ Refusé dès que le compte a laissé une trace — une connexion suffit,
                             elle est journalisée. Le cas visé est le compte créé par erreur : une
                             adresse mal saisie, un doublon, un essai.
@@ -284,23 +611,63 @@ export function PanneauComptes({
                             signalement, pouvoir dire qui a traité quel dossier n'est pas une
                             commodité : c'est ce qui le rend vérifiable.
                           */}
-                          <BoutonSupprimer
-                            id={compte.id}
-                            nom={compte.name}
-                            action={actionSupprimerCompte}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            <BoutonSupprimer
+                              id={compte.id}
+                              nom={compte.name}
+                              action={actionSupprimerCompte}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
+}
+
+function Indicateur({
+  icone: Icone,
+  libelle,
+  valeur,
+  ton = "neutre",
+}: {
+  icone: LucideIcon;
+  libelle: string;
+  valeur: number;
+  ton?: "neutre" | "succes" | "alerte";
+}) {
+  const styles =
+    ton === "succes"
+      ? "bg-primary-50 text-primary-700 ring-primary-100"
+      : ton === "alerte"
+        ? "bg-amber-50 text-amber-700 ring-amber-100"
+        : "bg-secondary-50 text-secondary-600 ring-secondary-100";
+
+  return (
+    <Card className="gap-0 p-3.5 sm:p-4">
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${styles}`}
+        >
+          <Icone className="h-4 w-4" aria-hidden />
+        </span>
+        <div>
+          <p className="text-xl font-bold tabular-nums text-secondary-900">
+            {valeur}
+          </p>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            {libelle}
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function FormulaireCompte({
@@ -312,16 +679,32 @@ function FormulaireCompte({
   comptes,
   onFermer,
 }: {
-  compte: CompteVue | null
-  roles: RoleOption[]
-  parcours: ParcoursOption[]
-  directions: Option[]
-  sites: Option[]
-  comptes: CompteVue[]
-  onFermer: () => void
+  compte: CompteVue | null;
+  roles: RoleOption[];
+  parcours: ParcoursOption[];
+  directions: Option[];
+  sites: Option[];
+  comptes: CompteVue[];
+  onFermer: () => void;
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionEnregistrerCompte, ETAT)
-  useRetourEnToast(etat)
+  const [etat, envoyer, enCours] = useActionState(
+    actionEnregistrerCompte,
+    ETAT,
+  );
+  useRetourEnToast(etat);
+  const router = useRouter();
+  const etatTraite = useRef<EtatCompte | null>(null);
+
+  useEffect(() => {
+    if (!etat.succes || etatTraite.current === etat) return;
+    etatTraite.current = etat;
+
+    router.refresh();
+
+    // Un secret affiché une seule fois doit rester à l'écran jusqu'à ce que l'administrateur
+    // l'ait copié. Dans les autres cas, revenir à la liste montre immédiatement le résultat.
+    if (!etat.motDePasseInitial) onFermer();
+  }, [etat, onFermer, router]);
 
   /*
     Rattachement contrôlé : direction OU site, l'un excluant l'autre à l'écran.
@@ -331,13 +714,13 @@ function FormulaireCompte({
     porte déjà son site. Le site est donc vidé à l'affichage, et l'enregistrement le confirmera
     — rien n'est écrasé tant qu'on n'enregistre pas.
   */
-  const [directionId, setDirectionId] = useState(compte?.directionId ?? '')
+  const [directionId, setDirectionId] = useState(compte?.directionId ?? "");
   const [siteId, setSiteId] = useState(
-    compte?.directionId ? '' : (compte?.siteId ?? '')
-  )
+    compte?.directionId ? "" : (compte?.siteId ?? ""),
+  );
 
   // Un compte ne peut pas être son propre responsable hiérarchique.
-  const responsables = comptes.filter((c) => c.id !== compte?.id)
+  const responsables = comptes.filter((c) => c.id !== compte?.id);
 
   /*
     Les rôles cochés, suivis en état — le seul champ du formulaire qui le soit.
@@ -347,22 +730,51 @@ function FormulaireCompte({
     parcours attribuables juste en dessous. Cocher « Correspondant MGP » doit faire apparaître les
     trois types de grief tout de suite, sans passer par un enregistrement intermédiaire.
   */
-  const [rolesCoches, setRolesCoches] = useState<Set<string>>(new Set(compte?.roles ?? []))
+  const [rolesCoches, setRolesCoches] = useState<Set<string>>(
+    new Set(compte?.roles ?? []),
+  );
 
-  const parcoursParRole = new Map(roles.map((r) => [r.nom, r.parcours]))
-  const attribuables = new Set<string>()
+  const parcoursParRole = new Map(roles.map((r) => [r.nom, r.parcours]));
+  const attribuables = new Set<string>();
   for (const role of rolesCoches) {
-    for (const code of parcoursParRole.get(role) ?? []) attribuables.add(code)
+    for (const code of parcoursParRole.get(role) ?? []) attribuables.add(code);
   }
 
-  const proposes = parcours.filter((p) => attribuables.has(p.code))
+  const proposes = parcours.filter((p) => attribuables.has(p.code));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-h3">{compte ? 'Modifier le compte' : 'Créer un compte'}</CardTitle>
+    <Card className="border-primary-200 shadow-lg shadow-secondary-900/5">
+      <CardHeader className="border-b border-primary-100 bg-gradient-to-r from-primary-50 to-white py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary-700 shadow-xs ring-1 ring-primary-100">
+              {compte ? (
+                <Pencil className="h-5 w-5" aria-hidden />
+              ) : (
+                <Plus className="h-5 w-5" aria-hidden />
+              )}
+            </span>
+            <div>
+              <CardTitle className="text-h3">
+                {compte ? `Modifier ${compte.name}` : "Créer un utilisateur"}
+              </CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Identité, rattachement et droits d’accès
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onFermer}
+            aria-label="Fermer le formulaire"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         {/*
           Ce que l'administrateur doit savoir après une création, selon la voie empruntée.
 
@@ -374,20 +786,28 @@ function FormulaireCompte({
           fois, et l'écran doit dire clairement qu'aucun courriel n'est parti.
         */}
         {etat.parInvitation && (
-          <Alert className="mb-4" variant={etat.courriel === 'echec' ? 'destructive' : undefined}>
+          <Alert
+            className="mb-4"
+            variant={etat.courriel === "echec" ? "destructive" : undefined}
+          >
             <AlertDescription>
-              {etat.courriel === 'expedie' ? (
+              {etat.courriel === "expedie" ? (
                 <>
-                  <p className="font-medium">Un lien de première connexion a été envoyé.</p>
+                  <p className="font-medium">
+                    Un lien de première connexion a été envoyé.
+                  </p>
                   <p className="mt-1 text-caption">
-                    La personne choisira son mot de passe. Le lien vaut 72 heures, une seule fois.
+                    La personne choisira son mot de passe. Le lien vaut 72
+                    heures, une seule fois.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="font-medium">L’envoi du lien a échoué.</p>
                   <p className="mt-1 text-caption">
-                    Le compte est créé et le mot de passe ci-dessous lui a été attribué : transmettez-le par un canal sûr. Diagnostic : <code>npm run tester-email</code>.
+                    Le compte est créé et le mot de passe ci-dessous lui a été
+                    attribué : transmettez-le par un canal sûr. Diagnostic :{" "}
+                    <code>npm run tester-email</code>.
                   </p>
                 </>
               )}
@@ -399,7 +819,9 @@ function FormulaireCompte({
           <Alert className="mb-4">
             <AlertDescription>
               <p className="font-medium">Mot de passe initial : </p>
-              <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
+              <p className="mt-1 font-mono text-base">
+                {etat.motDePasseInitial}
+              </p>
 
               {/*
                 Le motif est dit UNE fois, et au bon endroit.
@@ -408,60 +830,106 @@ function FormulaireCompte({
                 e-mail n'a été envoyé » ferait lire deux diagnostics différents pour un seul
                 incident. Le message ci-dessous ne vaut donc que pour l'absence de messagerie.
               */}
-              {etat.courriel === 'echec' ? (
+              {etat.courriel === "echec" ? (
                 <p className="mt-2 text-caption">
-                  À remettre en main propre. La personne le changera à sa première connexion.
+                  À remettre en main propre. La personne le changera à sa
+                  première connexion.
                 </p>
               ) : (
                 <p className="mt-2 text-caption text-amber-700">
-                  <span className="font-medium">Aucun e-mail n’a été envoyé.</span> La messagerie n’est pas configurée (<code>MAIL_HOST</code>, <code>MAIL_FROM</code>).
-                  Transmettez ce mot de passe par un canal sûr.
+                  <span className="font-medium">
+                    Aucun e-mail n’a été envoyé.
+                  </span>{" "}
+                  La messagerie n’est pas configurée (<code>MAIL_HOST</code>,{" "}
+                  <code>MAIL_FROM</code>). Transmettez ce mot de passe par un
+                  canal sûr.
                 </p>
               )}
             </AlertDescription>
           </Alert>
         )}
 
-        <form action={envoyer} className="space-y-4">
-          <input type="hidden" name="id" value={compte?.id ?? ''} />
+        <form action={envoyer} className="space-y-6">
+          <input type="hidden" name="id" value={compte?.id ?? ""} />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="name" className="text-caption text-muted-foreground">
-                Nom *
-              </Label>
-              <Input id="name" name="name" required defaultValue={compte?.name ?? ''} className="mt-1" />
+          <section className="rounded-xl border border-border/70 p-4 sm:p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-primary-700" aria-hidden />
+              <h3 className="text-sm font-semibold text-secondary-900">
+                Identité et rattachement
+              </h3>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label
+                  htmlFor="name"
+                  className="text-caption text-muted-foreground"
+                >
+                  Nom *
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  required
+                  defaultValue={compte?.name ?? ""}
+                  className="mt-1"
+                />
+                {!compte && (
+                  <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+                    L’invitation de première connexion sera envoyée à cette
+                    adresse si la messagerie est configurée.
+                  </p>
+                )}
+              </div>
 
-            <div>
-              <Label htmlFor="email" className="text-caption text-muted-foreground">
-                Adresse e-mail *
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                required
-                defaultValue={compte?.email ?? ''}
-                className="mt-1"
-              />
-            </div>
+              <div>
+                <Label
+                  htmlFor="email"
+                  className="text-caption text-muted-foreground"
+                >
+                  Adresse e-mail *
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  defaultValue={compte?.email ?? ""}
+                  className="mt-1"
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="matricule" className="text-caption text-muted-foreground">
-                Matricule
-              </Label>
-              <Input id="matricule" name="matricule" defaultValue={compte?.matricule ?? ''} className="mt-1" />
-            </div>
+              <div>
+                <Label
+                  htmlFor="matricule"
+                  className="text-caption text-muted-foreground"
+                >
+                  Matricule
+                </Label>
+                <Input
+                  id="matricule"
+                  name="matricule"
+                  defaultValue={compte?.matricule ?? ""}
+                  className="mt-1"
+                />
+              </div>
 
-            <div>
-              <Label htmlFor="poste" className="text-caption text-muted-foreground">
-                Poste
-              </Label>
-              <Input id="poste" name="poste" defaultValue={compte?.poste ?? ''} className="mt-1" />
-            </div>
+              <div>
+                <Label
+                  htmlFor="poste"
+                  className="text-caption text-muted-foreground"
+                >
+                  Poste
+                </Label>
+                <Input
+                  id="poste"
+                  name="poste"
+                  defaultValue={compte?.poste ?? ""}
+                  className="mt-1"
+                />
+              </div>
 
-            {/*
+              {/*
               RATTACHEMENT : une direction OU un site, jamais les deux.
 
               C'est lui qui décide ce que le compte reçoit — les affectations suivent désormais le
@@ -473,100 +941,121 @@ function FormulaireCompte({
               (`directions.site_id`), et `chargerUtilisateurAutorise()` l'en déduit. Choisir une
               direction ne perd donc aucun cloisonnement — il le resserre.
             */}
-            <div>
-              <Label htmlFor="directionId" className="text-caption text-muted-foreground">
-                Direction
-              </Label>
-              <select
-                id="directionId"
-                name="directionId"
-                value={directionId}
-                onChange={(e) => {
-                  setDirectionId(e.target.value)
-                  if (e.target.value !== '') setSiteId('')
-                }}
-                disabled={siteId !== ''}
-                className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <option value="">—</option>
-                {directions.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.libelle}
-                  </option>
-                ))}
-              </select>
-              {siteId !== '' && (
+              <div>
+                <Label
+                  htmlFor="directionId"
+                  className="text-caption text-muted-foreground"
+                >
+                  Direction
+                </Label>
+                <select
+                  id="directionId"
+                  name="directionId"
+                  value={directionId}
+                  onChange={(e) => {
+                    setDirectionId(e.target.value);
+                    if (e.target.value !== "") setSiteId("");
+                  }}
+                  disabled={siteId !== ""}
+                  className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <option value="">—</option>
+                  {directions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.libelle}
+                    </option>
+                  ))}
+                </select>
+                {siteId !== "" && (
+                  <p className="mt-1 text-caption text-muted-foreground">
+                    Un site est déjà choisi. Videz-le pour rattacher à une
+                    direction.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label
+                  htmlFor="siteId"
+                  className="text-caption text-muted-foreground"
+                >
+                  Site
+                </Label>
+                <select
+                  id="siteId"
+                  name="siteId"
+                  value={siteId}
+                  onChange={(e) => {
+                    setSiteId(e.target.value);
+                    if (e.target.value !== "") setDirectionId("");
+                  }}
+                  disabled={directionId !== ""}
+                  className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <option value="">—</option>
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.libelle}
+                    </option>
+                  ))}
+                </select>
+                {directionId !== "" && (
+                  <p className="mt-1 text-caption text-muted-foreground">
+                    Déduit de la direction choisie — inutile de le renseigner.
+                  </p>
+                )}
+              </div>
+
+              <div className="sm:col-span-2">
+                <Label
+                  htmlFor="responsableHierarchiqueId"
+                  className="text-caption text-muted-foreground"
+                >
+                  Responsable hiérarchique
+                </Label>
+                <select
+                  id="responsableHierarchiqueId"
+                  name="responsableHierarchiqueId"
+                  defaultValue={compte?.responsableId ?? ""}
+                  className={champ}
+                >
+                  <option value="">—</option>
+                  {responsables.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
                 <p className="mt-1 text-caption text-muted-foreground">
-                  Un site est déjà choisi. Videz-le pour rattacher à une direction.
+                  Destinataire des escalades de retard sur les dossiers de ce
+                  compte.
                 </p>
-              )}
+              </div>
             </div>
+          </section>
 
-            <div>
-              <Label htmlFor="siteId" className="text-caption text-muted-foreground">
-                Site
-              </Label>
-              <select
-                id="siteId"
-                name="siteId"
-                value={siteId}
-                onChange={(e) => {
-                  setSiteId(e.target.value)
-                  if (e.target.value !== '') setDirectionId('')
-                }}
-                disabled={directionId !== ''}
-                className={`${champ} disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                <option value="">—</option>
-                {sites.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.libelle}
-                  </option>
-                ))}
-              </select>
-              {directionId !== '' && (
-                <p className="mt-1 text-caption text-muted-foreground">
-                  Déduit de la direction choisie — inutile de le renseigner.
-                </p>
-              )}
-            </div>
-
-            <div className="sm:col-span-2">
-              <Label htmlFor="responsableHierarchiqueId" className="text-caption text-muted-foreground">
-                Responsable hiérarchique
-              </Label>
-              <select
-                id="responsableHierarchiqueId"
-                name="responsableHierarchiqueId"
-                defaultValue={compte?.responsableId ?? ''}
-                className={champ}
-              >
-                <option value="">—</option>
-                {responsables.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-caption text-muted-foreground">
-                Destinataire des escalades de retard sur les dossiers de ce compte.
-              </p>
-            </div>
-          </div>
-
-          <fieldset>
-            <legend className="text-caption text-muted-foreground">Rôles</legend>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <fieldset className="rounded-xl border border-border/70 p-4 sm:p-5">
+            <legend className="px-2 text-sm font-semibold text-secondary-900">
+              Rôles attribués
+            </legend>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Les rôles déterminent les actions autorisées et les types de
+              déclaration visibles.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {roles.map((role) => {
-                const detenu = compte?.roles.includes(role.nom) ?? false
+                const detenu = compte?.roles.includes(role.nom) ?? false;
 
                 // Un rôle désactivé reste affiché s'il est déjà porté : le décocher doit être une
                 // décision, pas la conséquence d'un enregistrement où l'on venait corriger un
                 // numéro de téléphone.
-                if (!role.actif && !detenu) return null
+                if (!role.actif && !detenu) return null;
 
                 return (
-                  <label key={role.nom} className="flex items-start gap-2 text-sm">
+                  <label
+                    key={role.nom}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 text-sm transition-colors hover:bg-secondary-50 has-[:checked]:border-primary-200 has-[:checked]:bg-primary-50/60"
+                  >
                     <input
                       type="checkbox"
                       name="roles"
@@ -574,19 +1063,21 @@ function FormulaireCompte({
                       defaultChecked={detenu}
                       onChange={(e) =>
                         setRolesCoches((avant) => {
-                          const apres = new Set(avant)
-                          if (e.target.checked) apres.add(role.nom)
-                          else apres.delete(role.nom)
-                          return apres
+                          const apres = new Set(avant);
+                          if (e.target.checked) apres.add(role.nom);
+                          else apres.delete(role.nom);
+                          return apres;
                         })
                       }
-                      className="mt-1"
+                      className="mt-0.5 h-4 w-4 accent-primary"
                     />
                     <span className="min-w-0">
                       <span className="block text-secondary-900">
                         {role.libelle}
                         {!role.actif && (
-                          <span className="ml-1.5 text-caption text-destructive">désactivé</span>
+                          <span className="ml-1.5 text-caption text-destructive">
+                            désactivé
+                          </span>
                         )}
                       </span>
                       <span className="block font-mono text-[11px] text-muted-foreground">
@@ -594,7 +1085,7 @@ function FormulaireCompte({
                       </span>
                     </span>
                   </label>
-                )
+                );
               })}
             </div>
           </fieldset>
@@ -611,21 +1102,25 @@ function FormulaireCompte({
             rôles cochés juste au-dessus. On la lit au moment où l'on coche, sans avoir à ouvrir
             un second écran pour deviner le résultat.
           */}
-          <fieldset>
-            <legend className="text-caption text-muted-foreground">
+          <fieldset className="rounded-xl border border-secondary-100 bg-secondary-50/55 p-4 sm:p-5">
+            <legend className="px-2 text-sm font-semibold text-secondary-900">
               Ce que ce compte verra
             </legend>
 
             {proposes.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
                 {rolesCoches.size === 0
-                  ? 'Cochez un rôle : les types de déclaration qu’il ouvre apparaîtront ici.'
-                  : 'Aucun des rôles cochés n’ouvre de type de déclaration. Ce compte ne verra aucun dossier.'}
+                  ? "Cochez un rôle : les types de déclaration qu’il ouvre apparaîtront ici."
+                  : "Aucun des rôles cochés n’ouvre de type de déclaration. Ce compte ne verra aucun dossier."}
               </p>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
                 {proposes.map((p) => (
-                  <Badge key={p.code} variant="secondary" className="font-normal">
+                  <Badge
+                    key={p.code}
+                    variant="secondary"
+                    className="font-normal"
+                  >
                     {p.libelle}
                   </Badge>
                 ))}
@@ -633,7 +1128,7 @@ function FormulaireCompte({
             )}
 
             <p className="mt-2 text-caption text-muted-foreground">
-              Pour changer les types qu’un rôle ouvre, allez dans les{' '}
+              Pour changer les types qu’un rôle ouvre, allez dans les{" "}
               <Link
                 href="/administration/habilitations"
                 className="text-primary-700 underline underline-offset-2"
@@ -644,18 +1139,36 @@ function FormulaireCompte({
             </p>
           </fieldset>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="actif" value="1" defaultChecked={compte?.actif ?? true} />
-            Compte actif
+          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border/70 p-4 text-sm transition-colors hover:bg-secondary-50">
+            <span>
+              <span className="block font-semibold text-secondary-900">
+                Compte actif
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Un compte désactivé ne peut plus se connecter immédiatement.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              name="actif"
+              value="1"
+              defaultChecked={compte?.actif ?? true}
+              className="h-5 w-5 accent-primary"
+            />
           </label>
 
-
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={enCours}>
-              {enCours ? 'Enregistrement…' : 'Enregistrer'}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="ghost" onClick={onFermer}>
+              Annuler
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={onFermer}>
-              Fermer
+            <Button type="submit" disabled={enCours}>
+              {enCours
+                ? compte
+                  ? "Enregistrement…"
+                  : "Création du compte…"
+                : compte
+                  ? "Enregistrer les modifications"
+                  : "Créer le compte"}
             </Button>
           </div>
         </form>
@@ -663,7 +1176,7 @@ function FormulaireCompte({
         {compte && <RegenerationMotDePasse compte={compte} />}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 /**
@@ -672,16 +1185,22 @@ function FormulaireCompte({
  * e-mail qui n'est pas branché.
  */
 function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
-  const [etat, envoyer, enCours] = useActionState(actionRegenererMotDePasse, ETAT)
-  useRetourEnToast(etat)
+  const [etat, envoyer, enCours] = useActionState(
+    actionRegenererMotDePasse,
+    ETAT,
+  );
+  useRetourEnToast(etat);
 
   return (
-    <form action={envoyer} className="mt-6 space-y-2 border-t border-border pt-4">
+    <form
+      action={envoyer}
+      className="mt-6 space-y-2 border-t border-border pt-4"
+    >
       <input type="hidden" name="id" value={compte.id} />
 
       <p className="text-caption text-muted-foreground">
-        Si {compte.name} a perdu son mot de passe, attribuez-lui-en un nouveau. Il ne s’affichera
-        qu’une fois — transmettez-le par un canal sûr.
+        Si {compte.name} a perdu son mot de passe, attribuez-lui-en un nouveau.
+        Il ne s’affichera qu’une fois — transmettez-le par un canal sûr.
       </p>
 
       {etat.motDePasseInitial && (
@@ -693,10 +1212,9 @@ function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
         </Alert>
       )}
 
-
       <Button type="submit" size="sm" variant="outline" disabled={enCours}>
-        {enCours ? 'Attribution…' : 'Réattribuer un mot de passe'}
+        {enCours ? "Attribution…" : "Réattribuer un mot de passe"}
       </Button>
     </form>
-  )
+  );
 }

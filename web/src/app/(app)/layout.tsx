@@ -1,97 +1,113 @@
-import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { exigerUtilisateur } from '@/server/auth'
-import { LIBELLES_ROLE } from '@/server/authz'
-import { BarreLaterale } from '@/components/layout/barre-laterale'
-import { EnTete } from '@/components/layout/en-tete'
-import { navigationPour } from '@/components/layout/navigation'
-import { prisma } from '@/lib/prisma'
-import { nombreNonLues, notificationsRecentes } from '@/server/services/notification/boite'
-import { seDeconnecter } from './actions'
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { exigerUtilisateur } from "@/server/auth";
+import { LIBELLES_ROLE } from "@/server/authz";
+import { BarreLaterale } from "@/components/layout/barre-laterale";
+import { EnTete } from "@/components/layout/en-tete";
+import { navigationPour } from "@/components/layout/navigation";
+import { LogoProduit } from "@/components/ui/logo-produit";
+import { prisma } from "@/lib/prisma";
+import {
+  nombreNonLues,
+  notificationsRecentes,
+} from "@/server/services/notification/boite";
+import { seDeconnecter } from "./actions";
 
-/**
- * Coquille du back-office. `exigerUtilisateur()` protège ici l'ensemble du groupe de routes,
- * mais chaque page conserve SA propre vérification de permission : ce layout garantit
- * l'authentification, jamais l'autorisation fine.
- *
- * La coquille ne se recompose pas d'une page à l'autre — c'est ce qui rend la navigation
- * instantanée : seule la zone `main` est remplacée, et un `loading.tsx` en tient la place le
- * temps de la lecture en base.
- */
-export default async function LayoutApplication({ children }: LayoutProps<'/'>) {
-  const utilisateur = await exigerUtilisateur()
+export default async function LayoutApplication({
+  children,
+}: LayoutProps<"/">) {
+  const utilisateur = await exigerUtilisateur();
 
-  /**
-   * Un mot de passe fixé par un tiers barre l'accès au back-office jusqu'à son remplacement.
-   *
-   * Le contrôle est ici, dans la coquille, et non page par page : une seule vérification couvre
-   * tout le groupe, et aucun écran ne peut être oublié. `/mot-de-passe` vit délibérément HORS de
-   * ce groupe — sous cette coquille, il se redirigerait vers lui-même.
-   */
   if (utilisateur.doitChangerMotDePasse) {
-    redirect('/mot-de-passe')
+    redirect("/mot-de-passe");
   }
 
-  const sections = navigationPour(utilisateur)
+  const sections = navigationPour(utilisateur);
 
   const [profil, notifications, nonLues, libellesRoles] = await Promise.all([
-    prisma.users.findUnique({ where: { id: utilisateur.id }, select: { name: true } }),
+    prisma.users.findUnique({
+      where: { id: utilisateur.id },
+      select: { name: true },
+    }),
     notificationsRecentes(utilisateur.id),
     nombreNonLues(utilisateur.id),
-    // Les libellés viennent de la base, où ils sont administrables : renommer un rôle dans
-    // `/administration/habilitations` doit se voir ici sans redéploiement.
     prisma.roles.findMany({
       where: { name: { in: [...utilisateur.roles] } },
       select: { name: true, libelle: true },
     }),
-  ])
+  ]);
 
-  const libelleDuRole = new Map(libellesRoles.map((r) => [r.name, r.libelle]))
+  const libelleDuRole = new Map(libellesRoles.map((r) => [r.name, r.libelle]));
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
-      <aside className="hidden w-60 shrink-0 border-r border-sidebar-border bg-sidebar lg:block">
+    <div className="app-shell flex min-h-screen flex-col bg-background lg:flex-row">
+      <a
+        href="#contenu-principal"
+        className="fixed left-4 top-3 z-50 -translate-y-20 rounded-lg bg-secondary-900 px-4 py-2 text-sm font-semibold text-white shadow-xl transition-transform focus:translate-y-0"
+      >
+        Aller au contenu
+      </a>
+      {/* Barre latérale desktop */}
+      <aside className="hidden w-[16.5rem] shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
         <div className="sticky top-0 flex h-screen flex-col">
-          <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
+          {/* En-tête marque SODECI */}
+          <div className="flex h-18 shrink-0 items-center border-b border-sidebar-border px-5">
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 rounded-md transition-opacity hover:opacity-80"
+              className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-[10px] font-bold text-primary-foreground">
-                EI
-              </span>
-              <span className="text-label uppercase tracking-wide text-secondary-500">
-                Digitalisation EI / MGP
-              </span>
+              <LogoProduit />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold tracking-tight text-secondary-900 leading-tight">
+                  SODECI
+                </span>
+                <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
+                  Écoute &amp; intégrité
+                </span>
+              </div>
             </Link>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Navigation avec défilement fluide */}
+          <div className="min-h-0 flex-1 overflow-y-auto py-4">
             <BarreLaterale sections={sections} />
+          </div>
+
+          {/* Pied de barre latérale institutionnel */}
+          <div className="border-t border-sidebar-border p-4">
+            <div className="flex items-center gap-2 rounded-xl border border-primary-100 bg-primary-50/70 px-3 py-2.5 text-[11px] text-secondary-700">
+              <span
+                className="h-2 w-2 rounded-full bg-primary-600"
+                aria-hidden
+              />
+              <span className="font-medium">Session sécurisée</span>
+            </div>
           </div>
         </div>
       </aside>
 
+      {/* Contenu principal */}
       <div className="flex min-w-0 flex-1 flex-col">
         <EnTete
-          nom={profil?.name ?? ''}
-          // Les identifiants techniques restent côté serveur : la barre affiche « Administrateur
-          // digital », pas `administrateur_digital`. Le catalogue du code sert de repli si le
-          // rôle manque en base.
+          nom={profil?.name ?? ""}
           roles={utilisateur.roles.map(
-            (role) => libelleDuRole.get(role) ?? LIBELLES_ROLE[role] ?? role
+            (role) => libelleDuRole.get(role) ?? LIBELLES_ROLE[role] ?? role,
           )}
           sections={sections}
           actionDeconnexion={seDeconnecter}
           notifications={notifications}
           nonLues={nonLues}
         />
-        <main className="flex-1 bg-muted/40">
-          {/* Largeur bornée : au-delà, une ligne de texte traverse tout l'écran et l'œil perd la
-              ligne suivante. Les tableaux larges défilent dans leur propre conteneur. */}
-          <div className="mx-auto max-w-[1600px] p-4 lg:p-6">{children}</div>
+        <main
+          id="contenu-principal"
+          tabIndex={-1}
+          className="flex-1 outline-none"
+        >
+          <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8 xl:px-10 xl:py-9">
+            {children}
+          </div>
         </main>
       </div>
     </div>
-  )
+  );
 }

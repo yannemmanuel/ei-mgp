@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { prisma } from '@/lib/prisma'
-import { utilisateurAvecRoles } from '@/server/authz/__tests__/aide'
-import { parcoursAutorises } from '@/server/authz'
-import { listerInvestigations, referentielsInvestigations } from '../liste'
+import { describe, expect, it } from "vitest";
+import { prisma } from "@/lib/prisma";
+import { utilisateurAvecRoles } from "@/server/authz/__tests__/aide";
+import { parcoursAutorises } from "@/server/authz";
+import { listerInvestigations, referentielsInvestigations } from "../liste";
 
 /**
  * Vue transverse des investigations.
@@ -16,89 +16,117 @@ import { listerInvestigations, referentielsInvestigations } from '../liste'
 /** Parcours réel de chaque investigation, lu sans aucun filtre d'autorisation. */
 async function parcoursParInvestigation(): Promise<Map<string, string>> {
   const toutes = await prisma.investigations.findMany({
-    select: { id: true, dossiers: { select: { parcours: { select: { code: true } } } } },
-  })
+    select: {
+      id: true,
+      dossiers: { select: { parcours: { select: { code: true } } } },
+    },
+  });
 
-  return new Map(toutes.map((i) => [i.id, i.dossiers.parcours.code]))
+  return new Map(toutes.map((i) => [i.id, i.dossiers.parcours.code]));
 }
 
-describe('Cloisonnement par parcours', () => {
-  it('ne renvoie que les investigations des parcours ouverts au rôle', async () => {
-    const reference = await parcoursParInvestigation()
+describe("Cloisonnement par parcours", () => {
+  it("ne renvoie que les investigations des parcours ouverts au rôle", async () => {
+    const reference = await parcoursParInvestigation();
 
     // Un rôle par périmètre : restreint à un parcours, restreint à trois, transverse, et aucun.
-    for (const roles of [['rqse'], ['correspondant_mgp'], ['service_mgp'], ['administrateur_digital']] as const) {
-      const utilisateur = utilisateurAvecRoles(...roles)
-      const autorises = parcoursAutorises(utilisateur)
+    for (const roles of [
+      ["rqse"],
+      ["correspondant_mgp"],
+      ["service_mgp"],
+      ["administrateur_digital"],
+    ] as const) {
+      const utilisateur = utilisateurAvecRoles(...roles);
+      const autorises = parcoursAutorises(utilisateur);
 
-      const { investigations } = await listerInvestigations(utilisateur, {}, 1)
+      const { investigations } = await listerInvestigations(utilisateur, {}, 1);
 
       for (const investigation of investigations) {
         expect(
           autorises,
-          `${roles[0]} ne devrait pas voir l’investigation ${investigation.id}`
-        ).toContain(reference.get(investigation.id))
+          `${roles[0]} ne devrait pas voir l’investigation ${investigation.id}`,
+        ).toContain(reference.get(investigation.id));
       }
 
       // Et symétriquement : rien de ce qui est autorisé ne manque à l'appel.
       const attendues = [...reference.entries()]
-        .filter(([, parcours]) => (autorises as readonly string[]).includes(parcours))
-        .map(([id]) => id)
+        .filter(([, parcours]) =>
+          (autorises as readonly string[]).includes(parcours),
+        )
+        .map(([id]) => id);
 
-      expect(investigations.length).toBe(Math.min(attendues.length, 20))
+      expect(investigations.length).toBe(Math.min(attendues.length, 20));
     }
-  })
+  });
 
-  it('ne montre RIEN à un rôle sans parcours', async () => {
+  it("ne montre RIEN à un rôle sans parcours", async () => {
     // `administrateur_digital` administre les comptes (DT-02) et n'a accès à aucun dossier : la liste doit
     // être vide, jamais complète par retombée d'une branche oubliée.
     const { investigations, total } = await listerInvestigations(
-      utilisateurAvecRoles('administrateur_digital'),
+      utilisateurAvecRoles("administrateur_digital"),
       {},
-      1
-    )
+      1,
+    );
 
-    expect(investigations).toEqual([])
-    expect(total).toBe(0)
-  })
-})
+    expect(investigations).toEqual([]);
+    expect(total).toBe(0);
+  });
+});
 
-describe('Filtres', () => {
-  it('restreint aux fiches du compte quand « les miennes » est actif', async () => {
-    const utilisateur = utilisateurAvecRoles('service_mgp')
-    const { investigations } = await listerInvestigations(utilisateur, { miennes: true }, 1)
+describe("Filtres", () => {
+  it("restreint aux fiches du compte quand « les miennes » est actif", async () => {
+    const utilisateur = utilisateurAvecRoles("service_mgp");
+    const { investigations } = await listerInvestigations(
+      utilisateur,
+      { miennes: true },
+      1,
+    );
 
     for (const investigation of investigations) {
       const enqueteur = await prisma.investigations.findUniqueOrThrow({
         where: { id: investigation.id },
         select: { enqueteur_id: true },
-      })
+      });
 
-      expect(enqueteur.enqueteur_id).toBe(utilisateur.id)
+      expect(enqueteur.enqueteur_id).toBe(utilisateur.id);
     }
-  })
+  });
 
-  it('filtre sur le statut du DOSSIER — le seul qui subsiste', async () => {
-    const utilisateur = utilisateurAvecRoles('service_mgp')
-    const { statutsDossier } = await referentielsInvestigations()
+  it("filtre sur le statut du DOSSIER — le seul qui subsiste", async () => {
+    const utilisateur = utilisateurAvecRoles("service_mgp");
+    const { statutsDossier } = await referentielsInvestigations(utilisateur);
+    const { total: nombreInvestigations } = await listerInvestigations(
+      utilisateur,
+      {},
+      1,
+    );
 
-    expect(statutsDossier.length, 'aucun statut proposé : le cas ne prouverait rien').toBeGreaterThan(0)
+    // Cette suite confronte la base installée sans y écrire : une base vierge est un état valide.
+    if (nombreInvestigations === 0) {
+      expect(statutsDossier).toEqual([]);
+      return;
+    }
+
+    expect(
+      statutsDossier.length,
+      "aucun statut proposé : le cas ne prouverait rien",
+    ).toBeGreaterThan(0);
 
     for (const statut of statutsDossier) {
       const { investigations } = await listerInvestigations(
         utilisateur,
         { statutDossierId: String(statut.id) },
-        1
-      )
+        1,
+      );
 
       for (const investigation of investigations) {
         expect(
           investigation.dossiers.statuts_dossier.libelle_interne,
-          `${investigation.dossiers.reference} ne devrait pas figurer sous « ${statut.libelle_interne} »`
-        ).toBe(statut.libelle_interne)
+          `${investigation.dossiers.reference} ne devrait pas figurer sous « ${statut.libelle_interne} »`,
+        ).toBe(statut.libelle_interne);
       }
     }
-  })
+  });
 
   /**
    * Les deux filtres portent sur la même relation `dossiers`.
@@ -107,56 +135,79 @@ describe('Filtres', () => {
    * sans liste vide : juste des lignes en trop, que personne ne recompte. C'est la forme de
    * défaut la plus difficile à voir à l'écran.
    */
-  it('cumule le filtre de parcours et celui du statut du dossier', async () => {
-    const utilisateur = utilisateurAvecRoles('service_mgp')
-    const { parcours, statutsDossier } = await referentielsInvestigations()
+  it("cumule le filtre de parcours et celui du statut du dossier", async () => {
+    const utilisateur = utilisateurAvecRoles("service_mgp");
+    const { parcours, statutsDossier } =
+      await referentielsInvestigations(utilisateur);
 
     for (const p of parcours) {
       for (const s of statutsDossier) {
         const { investigations } = await listerInvestigations(
           utilisateur,
           { parcoursId: String(p.id), statutDossierId: String(s.id) },
-          1
-        )
+          1,
+        );
 
         for (const investigation of investigations) {
           const reel = await prisma.investigations.findUniqueOrThrow({
             where: { id: investigation.id },
-            select: { dossiers: { select: { parcours_id: true, statut_id: true } } },
-          })
+            select: {
+              dossiers: { select: { parcours_id: true, statut_id: true } },
+            },
+          });
 
-          expect(reel.dossiers.parcours_id, 'le filtre de parcours a été écrasé').toBe(p.id)
-          expect(reel.dossiers.statut_id, 'le filtre de statut a été écrasé').toBe(s.id)
+          expect(
+            reel.dossiers.parcours_id,
+            "le filtre de parcours a été écrasé",
+          ).toBe(p.id);
+          expect(
+            reel.dossiers.statut_id,
+            "le filtre de statut a été écrasé",
+          ).toBe(s.id);
         }
       }
     }
-  })
-})
+  });
+});
 
-describe('Référentiels de filtre', () => {
-  it('ne propose que des enquêteurs ayant réellement mené une investigation', async () => {
-    const { enqueteurs } = await referentielsInvestigations()
+describe("Référentiels de filtre", () => {
+  it("ne révèle aucun enquêteur ni statut à un rôle sans accès aux dossiers", async () => {
+    const referentiels = await referentielsInvestigations(
+      utilisateurAvecRoles("administrateur_digital"),
+    );
+
+    expect(referentiels.parcours).toEqual([]);
+    expect(referentiels.enqueteurs).toEqual([]);
+    expect(referentiels.statutsDossier).toEqual([]);
+  });
+
+  it("ne propose que des enquêteurs ayant réellement mené une investigation", async () => {
+    const { enqueteurs } = await referentielsInvestigations(
+      utilisateurAvecRoles("service_mgp"),
+    );
     const menees = await prisma.investigations.findMany({
-      distinct: ['enqueteur_id'],
+      distinct: ["enqueteur_id"],
       select: { enqueteur_id: true },
-    })
+    });
 
     // Proposer les comptes actifs au complet donnerait une liste déroulante dont la quasi-totalité
     // des entrées ne ramènerait rien.
-    expect(enqueteurs.length).toBe(menees.length)
-  })
+    expect(enqueteurs.length).toBe(menees.length);
+  });
 
-  it('ne propose que des statuts de dossier réellement portés par une fiche', async () => {
-    const { statutsDossier } = await referentielsInvestigations()
+  it("ne propose que des statuts de dossier réellement portés par une fiche", async () => {
+    const { statutsDossier } = await referentielsInvestigations(
+      utilisateurAvecRoles("service_mgp"),
+    );
     const portes = await prisma.dossiers.findMany({
       where: { investigations: { some: {} } },
-      distinct: ['statut_id'],
+      distinct: ["statut_id"],
       select: { statut_id: true },
-    })
+    });
 
     // Même raison que pour les enquêteurs : sur dix statuts, huit ne ramèneraient rien.
     expect(statutsDossier.map((s) => s.id).sort()).toEqual(
-      portes.map((d) => d.statut_id).sort()
-    )
-  })
-})
+      portes.map((d) => d.statut_id).sort(),
+    );
+  });
+});

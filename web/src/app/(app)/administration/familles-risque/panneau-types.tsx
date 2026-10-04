@@ -1,24 +1,27 @@
-'use client'
+"use client";
 
-import { useActionState, useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EtiquetteStatut } from '@/components/ui/etiquette-statut'
-import { actionModifierTypesQualifiants, type EtatFamilles } from './actions'
-import { useRetourEnToast } from '@/lib/retour-operation'
+import { useActionState, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EtiquetteStatut } from "@/components/ui/etiquette-statut";
+import { actionModifierTypesQualifiants, type EtatFamilles } from "./actions";
+import {
+  useActualiserApresSucces,
+  useRetourEnToast,
+} from "@/lib/retour-operation";
 
 export type TypeVue = {
-  code: string
-  libelle: string
-  actif: boolean
-  qualifieLaFamille: boolean
-  dossiersQualifies: number
+  code: string;
+  libelle: string;
+  actif: boolean;
+  qualifieLaFamille: boolean;
+  dossiersQualifies: number;
   /** Familles que CE type propose réellement : les siennes, plus celles de « tous les types ». */
-  famillesProposees: number
-}
+  famillesProposees: number;
+};
 
-const ETAT: EtatFamilles = {}
+const ETAT: EtatFamilles = {};
 
 /**
  * Où la famille de risque est DEMANDÉE — type de déclaration par type de déclaration.
@@ -29,16 +32,22 @@ const ETAT: EtatFamilles = {}
  * déploiement.
  */
 export function PanneauTypes({ types }: { types: TypeVue[] }) {
-  const [etat, envoyer, enCours] = useActionState(actionModifierTypesQualifiants, ETAT)
-  useRetourEnToast(etat)
+  const [etat, envoyer, enCours] = useActionState(
+    actionModifierTypesQualifiants,
+    ETAT,
+  );
+  useRetourEnToast(etat);
+  useActualiserApresSucces(etat);
   const [coches, setCoches] = useState<string[]>(() =>
-    types.filter((t) => t.qualifieLaFamille).map((t) => t.code)
-  )
+    types.filter((t) => t.qualifieLaFamille).map((t) => t.code),
+  );
 
   function basculer(code: string, actif: boolean) {
     setCoches((actuels) =>
-      actif ? [...new Set([...actuels, code])] : actuels.filter((c) => c !== code)
-    )
+      actif
+        ? [...new Set([...actuels, code])]
+        : actuels.filter((c) => c !== code),
+    );
   }
 
   /*
@@ -49,8 +58,13 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
     hésite à décocher de peur de perdre la donnée, ou on décoche en croyant l'effacer.
   */
   const conserves = types
-    .filter((t) => t.qualifieLaFamille && !coches.includes(t.code) && t.dossiersQualifies > 0)
-    .reduce((somme, t) => somme + t.dossiersQualifies, 0)
+    .filter(
+      (t) =>
+        t.qualifieLaFamille &&
+        !coches.includes(t.code) &&
+        t.dossiersQualifies > 0,
+    )
+    .reduce((somme, t) => somme + t.dossiersQualifies, 0);
 
   /*
     Les types qu'on s'apprête à cocher — ou qui le sont déjà — sans qu'aucune famille ne leur soit
@@ -58,8 +72,8 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
     au moment où l'on coche, et non après l'enregistrement.
   */
   const typesSansFamille = types.filter(
-    (t) => coches.includes(t.code) && t.famillesProposees === 0
-  )
+    (t) => coches.includes(t.code) && t.famillesProposees === 0,
+  );
 
   return (
     <Card>
@@ -69,14 +83,14 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
       <CardContent>
         <form action={envoyer} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Sur les types cochés, les traitants qualifient une famille de risque depuis la fiche du
-            dossier. Sur les autres, la carte n’apparaît pas.
+            Sur les types cochés, les traitants qualifient une famille de risque
+            depuis la fiche du dossier. Sur les autres, la carte n’apparaît pas.
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
             {types.map((type) => {
-              const id = `type-${type.code}`
-              const actif = coches.includes(type.code)
+              const id = `type-${type.code}`;
+              const actif = coches.includes(type.code);
 
               return (
                 <label
@@ -90,14 +104,18 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
                     type="checkbox"
                     value={type.code}
                     checked={actif}
-                    onChange={(evenement) => basculer(type.code, evenement.target.checked)}
+                    onChange={(evenement) =>
+                      basculer(type.code, evenement.target.checked)
+                    }
                     className="mt-0.5 h-4 w-4 shrink-0 accent-primary-700"
                   />
                   <span className="min-w-0 text-sm text-secondary-900">
                     <span className="flex flex-wrap items-center gap-2">
                       {type.libelle}
                       {!type.actif && (
-                        <EtiquetteStatut ton="alerte">Type désactivé</EtiquetteStatut>
+                        <EtiquetteStatut ton="alerte">
+                          Type désactivé
+                        </EtiquetteStatut>
                       )}
                     </span>
                     <span className="mt-1 block text-caption text-muted-foreground">
@@ -108,25 +126,26 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
                         rend cette situation visible ici, ligne par ligne.
                       */}
                       {type.famillesProposees === 0
-                        ? 'Aucune famille ne lui est proposée.'
-                        : `${type.famillesProposees} famille${type.famillesProposees > 1 ? 's' : ''} proposée${type.famillesProposees > 1 ? 's' : ''}.`}{' '}
+                        ? "Aucune famille ne lui est proposée."
+                        : `${type.famillesProposees} famille${type.famillesProposees > 1 ? "s" : ""} proposée${type.famillesProposees > 1 ? "s" : ""}.`}{" "}
                       {type.dossiersQualifies === 0
-                        ? 'Aucun dossier n’en porte pour l’instant.'
-                        : `${type.dossiersQualifies} dossier${type.dossiersQualifies > 1 ? 's' : ''} en porte${type.dossiersQualifies > 1 ? 'nt' : ''} déjà une.`}
+                        ? "Aucun dossier n’en porte pour l’instant."
+                        : `${type.dossiersQualifies} dossier${type.dossiersQualifies > 1 ? "s" : ""} en porte${type.dossiersQualifies > 1 ? "nt" : ""} déjà une.`}
                     </span>
                   </span>
                 </label>
-              )
+              );
             })}
           </div>
 
           {conserves > 0 && (
             <Alert role="status">
               <AlertDescription>
-                {conserves} dossier{conserves > 1 ? 's' : ''} porte{conserves > 1 ? 'nt' : ''} déjà
-                une famille sur un type que vous décochez.{' '}
-                {conserves > 1 ? 'Ils la gardent' : 'Il la garde'} : décocher retire la question des
-                fiches à venir, sans rien effacer.
+                {conserves} dossier{conserves > 1 ? "s" : ""} porte
+                {conserves > 1 ? "nt" : ""} déjà une famille sur un type que
+                vous décochez.{" "}
+                {conserves > 1 ? "Ils la gardent" : "Il la garde"} : décocher
+                retire la question des fiches à venir, sans rien effacer.
               </AlertDescription>
             </Alert>
           )}
@@ -146,9 +165,9 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
               <AlertDescription>
                 {typesSansFamille.length === 1
                   ? `« ${typesSansFamille[0].libelle} » demande une famille de risque, mais aucune ne lui est proposée : ses traitants n’auraient rien à choisir.`
-                  : `Ces types demandent une famille sans qu’aucune ne leur soit proposée : ${typesSansFamille.map((t) => t.libelle).join(', ')}.`}{' '}
-                Ajoutez-en une ci-dessus, en la réservant au type ou en la laissant sur « Tous les
-                types ».
+                  : `Ces types demandent une famille sans qu’aucune ne leur soit proposée : ${typesSansFamille.map((t) => t.libelle).join(", ")}.`}{" "}
+                Ajoutez-en une ci-dessus, en la réservant au type ou en la
+                laissant sur « Tous les types ».
               </AlertDescription>
             </Alert>
           )}
@@ -156,19 +175,17 @@ export function PanneauTypes({ types }: { types: TypeVue[] }) {
           {coches.length === 0 && (
             <Alert role="status">
               <AlertDescription>
-                Aucun type coché : plus personne ne qualifiera de famille, et la répartition
-                disparaîtra du tableau de bord.
+                Aucun type coché : plus personne ne qualifiera de famille, et la
+                répartition disparaîtra du tableau de bord.
               </AlertDescription>
             </Alert>
           )}
 
-
-
           <Button type="submit" size="sm" disabled={enCours}>
-            {enCours ? 'Enregistrement…' : 'Enregistrer'}
+            {enCours ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -316,6 +316,7 @@ export function FormulaireDeclaration({
     <form
       ref={formulaireRef}
       action={action}
+      aria-busy={enCours || reduction === 'en-cours'}
       /*
        * `noValidate` : la validation native est remplacée, pas supprimée. Les étapes restant
        * toutes montées, le navigateur bloquerait l'envoi sur un champ masqué qu'il ne peut pas
@@ -348,6 +349,12 @@ export function FormulaireDeclaration({
             name="canalRelais"
             required
             defaultValue=""
+            aria-invalid={etat.erreurs?.canalRelais ? true : undefined}
+            aria-describedby={
+              etat.erreurs?.canalRelais
+                ? 'canalRelais-aide canalRelais-erreur'
+                : 'canalRelais-aide'
+            }
             className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           >
             <option value="">— Sélectionner —</option>
@@ -358,9 +365,9 @@ export function FormulaireDeclaration({
             ))}
           </select>
           {etat.erreurs?.canalRelais && (
-            <p className="mt-1 text-sm text-destructive">{etat.erreurs.canalRelais}</p>
+            <Erreur id="canalRelais-erreur" message={etat.erreurs.canalRelais} />
           )}
-          <p className="mt-2 text-caption text-muted-foreground">
+          <p id="canalRelais-aide" className="mt-2 text-caption text-muted-foreground">
             Vous êtes enregistré comme la personne qui saisit, jamais comme le déclarant.
           </p>
         </div>
@@ -509,14 +516,20 @@ export function FormulaireDeclaration({
             <textarea
               id="description"
               name="description"
-              rows={5}
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <p className="text-caption text-muted-foreground">
+            rows={5}
+            required
+            aria-invalid={erreur('description') ? true : undefined}
+            aria-describedby={
+              erreur('description') ? 'description-aide description-erreur' : 'description-aide'
+            }
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+            <p id="description-aide" className="text-caption text-muted-foreground">
               Décrivez les faits aussi longuement que nécessaire.
             </p>
-            {erreur('description') && <Erreur message={erreur('description')!} />}
+            {erreur('description') && (
+              <Erreur id="description-erreur" message={erreur('description')!} />
+            )}
           </div>
 
           {champsDe(3).map((champ) => (
@@ -550,6 +563,16 @@ export function FormulaireDeclaration({
             type="file"
             multiple
             accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf"
+            aria-invalid={erreur('fichiers') ? true : undefined}
+            aria-describedby={
+              [
+                'fichiers-aide',
+                reduction === 'en-cours' ? 'fichiers-etat' : '',
+                erreur('fichiers') ? 'fichiers-erreur' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')
+            }
             /*
              * Le lot est pesé dans le navigateur, APRÈS la réduction : sinon il n'est refusé
              * qu'une fois tous les octets transmis, et le plafond de transport de la Server
@@ -560,16 +583,18 @@ export function FormulaireDeclaration({
              */
             onChange={(e) => reduirePuisVerifier(e.currentTarget)}
           />
-          <p className="text-caption text-muted-foreground">
+          <p id="fichiers-aide" className="text-caption text-muted-foreground">
             {MAX_FICHIERS} fichiers maximum, {MAX_MEGAOCTETS_TOTAL} Mo au total. Images, vidéos ou
             PDF. Les photos sont réduites automatiquement avant l’envoi.
           </p>
           {reduction === 'en-cours' && (
-            <p role="status" className="text-caption text-muted-foreground">
+            <p id="fichiers-etat" role="status" className="text-caption text-muted-foreground">
               Réduction des images en cours…
             </p>
           )}
-          {erreur('fichiers') && <Erreur message={erreur('fichiers')!} />}
+          {erreur('fichiers') && (
+            <Erreur id="fichiers-erreur" message={erreur('fichiers')!} />
+          )}
         </div>
       </div>
 
@@ -635,9 +660,9 @@ export function FormulaireDeclaration({
   )
 }
 
-function Erreur({ message }: { message: string }) {
+function Erreur({ message, id }: { message: string; id?: string }) {
   return (
-    <p role="alert" className="text-caption text-destructive">
+    <p id={id} role="alert" className="text-caption text-destructive">
       {message}
     </p>
   )
@@ -659,8 +684,14 @@ function ChampTexte({
       <Label htmlFor={nom}>
         {libelle} {obligatoire && <span className="text-destructive">*</span>}
       </Label>
-      <Input id={nom} name={nom} required={obligatoire} />
-      {erreur && <Erreur message={erreur} />}
+      <Input
+        id={nom}
+        name={nom}
+        required={obligatoire}
+        aria-invalid={erreur ? true : undefined}
+        aria-describedby={erreur ? `${nom}-erreur` : undefined}
+      />
+      {erreur && <Erreur id={`${nom}-erreur`} message={erreur} />}
     </div>
   )
 }
@@ -697,6 +728,11 @@ function ChampSelect({
         required={obligatoire}
         disabled={desactive}
         value={valeur}
+        aria-invalid={erreur ? true : undefined}
+        aria-describedby={
+          [aide ? `${nom}-aide` : '', erreur ? `${nom}-erreur` : ''].filter(Boolean).join(' ') ||
+          undefined
+        }
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
@@ -707,8 +743,12 @@ function ChampSelect({
           </option>
         ))}
       </select>
-      {aide && <p className="text-caption text-muted-foreground">{aide}</p>}
-      {erreur && <Erreur message={erreur} />}
+      {aide && (
+        <p id={`${nom}-aide`} className="text-caption text-muted-foreground">
+          {aide}
+        </p>
+      )}
+      {erreur && <Erreur id={`${nom}-erreur`} message={erreur} />}
     </div>
   )
 }
@@ -757,10 +797,17 @@ function ChampFormulaire({
       <div className="space-y-1.5">
         <label className="flex items-start gap-3">
           <input
+            id={champ.nom}
             type="checkbox"
             name={champ.nom}
             className="mt-0.5"
             required={obligatoire}
+            aria-invalid={erreur ? true : undefined}
+            aria-describedby={
+              [champ.aide ? `${champ.nom}-aide` : '', erreur ? `${champ.nom}-erreur` : '']
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
             // Remontée seulement quand un autre champ en dépend : ailleurs, le formulaire reste
             // non contrôlé, et c'est ce qui préserve les saisies entre les étapes.
             onChange={
@@ -771,10 +818,17 @@ function ChampFormulaire({
             <span className="block text-sm text-secondary-900">
               {champ.libelle} {obligatoire && <span className="text-destructive">*</span>}
             </span>
-            {champ.aide && <span className="block text-caption text-muted-foreground">{champ.aide}</span>}
+            {champ.aide && (
+              <span
+                id={`${champ.nom}-aide`}
+                className="block text-caption text-muted-foreground"
+              >
+                {champ.aide}
+              </span>
+            )}
           </span>
         </label>
-        {erreur && <Erreur message={erreur} />}
+        {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
       </div>
     )
   }
@@ -831,10 +885,20 @@ function ChampFormulaire({
           name={champ.nom}
           rows={3}
           required={obligatoire}
+          aria-invalid={erreur ? true : undefined}
+          aria-describedby={
+            [champ.aide ? `${champ.nom}-aide` : '', erreur ? `${champ.nom}-erreur` : '']
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
-        {champ.aide && <p className="text-caption text-muted-foreground">{champ.aide}</p>}
-        {erreur && <Erreur message={erreur} />}
+        {champ.aide && (
+          <p id={`${champ.nom}-aide`} className="text-caption text-muted-foreground">
+            {champ.aide}
+          </p>
+        )}
+        {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
       </div>
     )
   }
@@ -857,9 +921,24 @@ function ChampFormulaire({
       <Label htmlFor={champ.nom}>
         {champ.libelle} {obligatoire && <span className="text-destructive">*</span>}
       </Label>
-      <Input id={champ.nom} name={champ.nom} type={typeHtml} required={obligatoire} />
-      {champ.aide && <p className="text-caption text-muted-foreground">{champ.aide}</p>}
-      {erreur && <Erreur message={erreur} />}
+      <Input
+        id={champ.nom}
+        name={champ.nom}
+        type={typeHtml}
+        required={obligatoire}
+        aria-invalid={erreur ? true : undefined}
+        aria-describedby={
+          [champ.aide ? `${champ.nom}-aide` : '', erreur ? `${champ.nom}-erreur` : '']
+            .filter(Boolean)
+            .join(' ') || undefined
+        }
+      />
+      {champ.aide && (
+        <p id={`${champ.nom}-aide`} className="text-caption text-muted-foreground">
+          {champ.aide}
+        </p>
+      )}
+      {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
     </div>
   )
 }

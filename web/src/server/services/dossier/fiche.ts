@@ -1,8 +1,8 @@
-import { prisma } from '@/lib/prisma'
-import { peutVoirDossier, type UtilisateurAutorise } from '@/server/authz'
-import type { ParcoursCode } from '@/server/authz'
-import type { StatutCode } from './statuts'
-import { MODELES } from '@/server/modeles'
+import { prisma } from "@/lib/prisma";
+import { peutVoirDossier, type UtilisateurAutorise } from "@/server/authz";
+import type { ParcoursCode } from "@/server/authz";
+import type { StatutCode } from "./statuts";
+import { MODELES } from "@/server/modeles";
 
 /**
  * Chargement d'une fiche dossier
@@ -21,12 +21,12 @@ import { MODELES } from '@/server/modeles'
  * autre rôle créé pour la même raison voyait les identités, et rien ne le disait.
  */
 export function peutVoirIdentite(u: UtilisateurAutorise): boolean {
-  return u.voitIdentiteDeclarant
+  return u.voitIdentiteDeclarant;
 }
 
 export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
-  const dossier = await prisma.dossiers.findUnique({
-    where: { id: dossierId },
+  const dossier = await prisma.dossiers.findFirst({
+    where: { id: dossierId, archive_le: null },
     select: {
       id: true,
       reference: true,
@@ -75,10 +75,16 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       // Les deux rattachements, nommés. `directions` est celui des FAITS — c'est de lui que
       // découle le site ; l'autre est celui du déclarant quand il n'est pas la personne concernée.
       directions: { select: { libelle: true } },
-      directions_dossiers_direction_declarant_idTodirections: { select: { libelle: true } },
+      directions_dossiers_direction_declarant_idTodirections: {
+        select: { libelle: true },
+      },
       categories: { select: { libelle: true } },
-      niveaux_gravite: { select: { libelle: true, niveau: true, couleur: true } },
-      statuts_dossier: { select: { id: true, code: true, libelle_interne: true } },
+      niveaux_gravite: {
+        select: { libelle: true, niveau: true, couleur: true },
+      },
+      statuts_dossier: {
+        select: { id: true, code: true, libelle_interne: true },
+      },
       declaration_identites: true,
       // Affectation du LECTEUR, chargée dans la même requête : `dossiers.view.own` en dépend, et
       // un aller-retour de plus par consultation de fiche ne se justifierait pas.
@@ -91,9 +97,9 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       // (cf. MIGRATION_PLAN.md, risque 3). Elles se chargent séparément, par
       // `piecesJointesDossier()`.
     },
-  })
+  });
 
-  if (!dossier) return null
+  if (!dossier) return null;
 
   const autorise = peutVoirDossier(u, {
     parcoursCode: dossier.parcours.code as ParcoursCode,
@@ -103,9 +109,9 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
     siteId: dossier.site_id,
     directionId: dossier.direction_id,
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
-  })
+  });
 
-  if (!autorise) return null
+  if (!autorise) return null;
 
   return {
     ...dossier,
@@ -113,9 +119,11 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
     estAffecteAuLecteur: dossier.dossier_affectations.length > 0,
     // L'identité est retirée de l'objet retourné, pas seulement masquée à l'affichage : ce qui
     // n'est pas envoyé au composant ne peut pas fuiter par inadvertance.
-    declaration_identites: peutVoirIdentite(u) ? dossier.declaration_identites : null,
+    declaration_identites: peutVoirIdentite(u)
+      ? dossier.declaration_identites
+      : null,
     identiteMasquee: !peutVoirIdentite(u) && !dossier.is_anonymous,
-  }
+  };
 }
 
 /** Frise chronologique du dossier (RG-04). */
@@ -124,7 +132,7 @@ export async function historiqueDossier(dossierId: string) {
     where: { dossier_id: dossierId },
     // Tri par `id` : `created_at` est en timestamp(0), donc à la seconde près — plusieurs
     // transitions de la même seconde seraient départagées arbitrairement.
-    orderBy: { id: 'desc' },
+    orderBy: { id: "desc" },
     select: {
       id: true,
       commentaire: true,
@@ -134,7 +142,7 @@ export async function historiqueDossier(dossierId: string) {
         select: { libelle_interne: true },
       },
     },
-  })
+  });
 }
 
 export async function affectationsActives(dossierId: string) {
@@ -144,15 +152,22 @@ export async function affectationsActives(dossierId: string) {
       id: true,
       motif: true,
       affecte_le: true,
-      users_dossier_affectations_user_idTousers: { select: { id: true, name: true } },
+      users_dossier_affectations_user_idTousers: {
+        select: { id: true, name: true },
+      },
     },
-  })
+  });
 }
 
 export async function piecesJointesDossier(dossierId: string) {
   return prisma.pieces_jointes.findMany({
     where: { attachable_type: MODELES.dossier, attachable_id: dossierId },
-    orderBy: { created_at: 'asc' },
-    select: { id: true, nom_original: true, taille_octets: true, mime_type: true },
-  })
+    orderBy: { created_at: "asc" },
+    select: {
+      id: true,
+      nom_original: true,
+      taille_octets: true,
+      mime_type: true,
+    },
+  });
 }

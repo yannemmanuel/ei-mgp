@@ -87,17 +87,66 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
           {journal.lignes.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">Aucune entrée.</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <ul className="divide-y divide-border md:hidden" aria-label="Entrées du journal d’audit">
+              {journal.lignes.map((ligne) => (
+                <li key={ligne.id} className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-medium text-secondary-800">
+                        {horodatage(ligne.horodatage)}
+                      </p>
+                      <p className="mt-0.5 text-caption text-muted-foreground">
+                        {ligne.acteur ?? 'Système'}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="font-normal">
+                      {libelleAction(ligne.action)}
+                    </Badge>
+                  </div>
+
+                  <dl className="space-y-2 text-xs">
+                    <div>
+                      <dt className="text-muted-foreground">Objet</dt>
+                      <dd className="mt-0.5 text-secondary-800">
+                        {ligne.auditableType ? libelleObjet(ligne.auditableType) : '—'}
+                        {ligne.auditableId && (
+                          <span className="ml-1 font-mono text-caption text-muted-foreground">
+                            {ligne.auditableId}
+                          </span>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Changement</dt>
+                      <dd className="mt-1">
+                        <Changement anciennes={ligne.anciennes} nouvelles={ligne.nouvelles} />
+                      </dd>
+                    </div>
+                    {voitAdresseIp && (
+                      <div>
+                        <dt className="text-muted-foreground">Origine</dt>
+                        <dd className="mt-0.5 font-mono text-caption text-secondary-800">
+                          {ligne.adresseIp ?? '—'}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Horodatage</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Action</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Acteur</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Objet</th>
-                    <th className="px-4 py-2 font-medium text-muted-foreground">Changement</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Horodatage</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Action</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Acteur</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Objet</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Changement</th>
                     {voitAdresseIp && (
-                      <th className="px-4 py-2 font-medium text-muted-foreground">Origine</th>
+                      <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Origine</th>
                     )}
                   </tr>
                 </thead>
@@ -132,6 +181,7 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

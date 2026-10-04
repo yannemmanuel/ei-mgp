@@ -1,12 +1,12 @@
-import { redirect } from 'next/navigation'
-import type { Permission } from '@/server/authz'
+import { redirect } from "next/navigation";
+import type { Permission } from "@/server/authz";
 import {
   aPermission,
   aUnePermissionParmi,
   chargerUtilisateurAutorise,
   type UtilisateurAutorise,
-} from '@/server/authz'
-import { auth } from './config'
+} from "@/server/authz";
+import { auth } from "./config";
 
 /**
  * Pont entre la session Auth.js et la couche d'autorisation.
@@ -28,40 +28,62 @@ export class ErreurAutorisation extends Error {
     super(
       permission
         ? `Autorisation refusée : permission « ${permission} » requise.`
-        : 'Autorisation refusée.'
-    )
-    this.name = 'ErreurAutorisation'
+        : "Autorisation refusée.",
+    );
+    this.name = "ErreurAutorisation";
   }
 }
 
 export async function utilisateurCourant(): Promise<UtilisateurAutorise | null> {
-  const session = await auth()
-  const id = session?.user?.id
+  const session = await auth();
+  const id = session?.user?.id;
 
   if (!id) {
-    return null
+    return null;
   }
 
-  const utilisateur = await chargerUtilisateurAutorise(BigInt(id))
+  const utilisateur = await chargerUtilisateurAutorise(BigInt(id));
 
   // Le compte a pu être supprimé ou désactivé depuis l'émission du jeton : les droits étant
   // relus en base à chaque appel, la révocation est immédiate.
   if (!utilisateur?.actif) {
-    return null
+    return null;
   }
 
-  return utilisateur
+  return utilisateur;
 }
 
-/** Redirige vers /login si aucun utilisateur actif n'est authentifié. */
-export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
-  const utilisateur = await utilisateurCourant()
+/**
+ * Garde d'authentification brute.
+ *
+ * Réservée au changement du mot de passe temporaire : toutes les opérations métier doivent
+ * utiliser `exigerUtilisateur()`, qui impose aussi que ce changement ait été effectué.
+ */
+export async function exigerUtilisateurAuthentifie(): Promise<UtilisateurAutorise> {
+  const utilisateur = await utilisateurCourant();
 
   if (!utilisateur) {
-    redirect('/login')
+    redirect("/login");
   }
 
-  return utilisateur
+  return utilisateur;
+}
+
+/**
+ * Exige un compte actif ET pleinement initialisé.
+ *
+ * Le layout redirige déjà l'interface, mais une Server Action est une route autonome : sans cette
+ * garde, un compte encore muni de son mot de passe temporaire pouvait appeler directement une
+ * mutation métier sans passer par l'écran obligatoire.
+ */
+export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
+  const utilisateur = await exigerUtilisateurAuthentifie();
+
+  if (utilisateur.doitChangerMotDePasse) {
+    redirect("/mot-de-passe");
+  }
+
+  return utilisateur;
 }
 
 /**
@@ -77,8 +99,10 @@ export async function exigerUtilisateur(): Promise<UtilisateurAutorise> {
  * vers une page de refus explicite. L'accès est bloqué de la même façon ; seule la présentation
  * diffère.
  */
-export async function exigerPermission(permission: Permission): Promise<UtilisateurAutorise> {
-  const utilisateur = await exigerUtilisateur()
+export async function exigerPermission(
+  permission: Permission,
+): Promise<UtilisateurAutorise> {
+  const utilisateur = await exigerUtilisateur();
 
   if (!aPermission(utilisateur, permission)) {
     /**
@@ -92,10 +116,10 @@ export async function exigerPermission(permission: Permission): Promise<Utilisat
      * donnée. La page valide le paramètre contre le catalogue fermé avant d'en afficher quoi que
      * ce soit.
      */
-    redirect(`/acces-refuse?droit=${encodeURIComponent(permission)}`)
+    redirect(`/acces-refuse?droit=${encodeURIComponent(permission)}`);
   }
 
-  return utilisateur
+  return utilisateur;
 }
 
 /**
@@ -111,13 +135,13 @@ export async function exigerPermission(permission: Permission): Promise<Utilisat
  * le cas le plus courant. Les énumérer tous ne dirait pas mieux ce qu'il faut demander.
  */
 export async function exigerUnePermissionParmi(
-  permissions: readonly Permission[]
+  permissions: readonly Permission[],
 ): Promise<UtilisateurAutorise> {
-  const utilisateur = await exigerUtilisateur()
+  const utilisateur = await exigerUtilisateur();
 
   if (!aUnePermissionParmi(utilisateur, permissions)) {
-    redirect(`/acces-refuse?droit=${encodeURIComponent(permissions[0])}`)
+    redirect(`/acces-refuse?droit=${encodeURIComponent(permissions[0])}`);
   }
 
-  return utilisateur
+  return utilisateur;
 }

@@ -298,7 +298,7 @@ describe('Filtres (EX-GES-01)', () => {
       qu'il n'ouvre pas.
     */
     const u = utilisateurAvecRoles('charge_securite')
-    const { dossiers } = await listerDossiers(u, { assigneAMoi: true }, 1)
+    const { dossiers } = await listerDossiers(u, { aMoiDAgir: true }, 1)
 
     for (const d of dossiers) {
       expect(
@@ -310,7 +310,7 @@ describe('Filtres (EX-GES-01)', () => {
     // Un rôle qui n'ouvre aucun type ne répond de rien, quoi qu'il arrive.
     const sansType = { ...utilisateurAvecRoles('charge_securite'), parcours: [] }
 
-    expect((await listerDossiers(sansType, { assigneAMoi: true }, 1)).dossiers).toHaveLength(0)
+    expect((await listerDossiers(sansType, { aMoiDAgir: true }, 1)).dossiers).toHaveLength(0)
   })
 })
 

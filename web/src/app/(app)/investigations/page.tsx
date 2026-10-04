@@ -1,10 +1,13 @@
-import type { Metadata } from 'next'
-import Link from 'next/link'
-import { redirect } from 'next/navigation'
-import { ClipboardCheck } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { EtatVide } from '@/components/ui/etat-vide'
-import { EtiquetteStatut, type TonStatut } from '@/components/ui/etiquette-statut'
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ClipboardCheck } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { EtatVide } from "@/components/ui/etat-vide";
+import {
+  EtiquetteStatut,
+  type TonStatut,
+} from "@/components/ui/etiquette-statut";
 import {
   Table,
   TableBody,
@@ -12,21 +15,25 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { BarreFiltres, type ChampFiltre } from '@/components/layout/barre-filtres'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import { Pagination } from '@/components/layout/pagination'
-import { exigerUtilisateur } from '@/server/auth'
-import { peutVoirListeInvestigations } from '@/server/authz'
+} from "@/components/ui/table";
+import {
+  BarreFiltres,
+  type ChampFiltre,
+} from "@/components/layout/barre-filtres";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import { Pagination } from "@/components/layout/pagination";
+import { exigerUtilisateur } from "@/server/auth";
+import { peutVoirListeInvestigations } from "@/server/authz";
 import {
   listerInvestigations,
   referentielsInvestigations,
-} from '@/server/services/investigation/liste'
+} from "@/server/services/investigation/liste";
 
-export const metadata: Metadata = { title: 'Investigations' }
-export const dynamic = 'force-dynamic'
+export const metadata: Metadata = { title: "Investigations" };
+export const dynamic = "force-dynamic";
 
-const dateFr = (d: Date) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short' }).format(d)
+const dateFr = (d: Date) =>
+  new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" }).format(d);
 
 /**
  * Où en est le DOSSIER — le seul statut que porte désormais une investigation.
@@ -40,14 +47,14 @@ const dateFr = (d: Date) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short
  * lire — le ton neutre distingue d'un coup d'œil ce qui est encore ouvert de ce qui ne l'est plus.
  */
 const TONS_DOSSIER: Record<string, TonStatut> = {
-  en_investigation: 'encours',
-  en_attente_information: 'attention',
-  action_corrective_en_cours: 'attention',
-  reouvert: 'attention',
-  resolu: 'succes',
-  cloture: 'neutre',
-  rejete: 'neutre',
-}
+  en_investigation: "encours",
+  en_attente_information: "attention",
+  action_corrective_en_cours: "attention",
+  reouvert: "attention",
+  resolu: "succes",
+  cloture: "neutre",
+  rejete: "neutre",
+};
 
 /**
  * Vue transverse des investigations.
@@ -58,102 +65,174 @@ const TONS_DOSSIER: Record<string, TonStatut> = {
  */
 export default async function PageInvestigations({
   searchParams,
-}: PageProps<'/investigations'>) {
-  const utilisateur = await exigerUtilisateur()
+}: PageProps<"/investigations">) {
+  const utilisateur = await exigerUtilisateur();
 
   // Vérification serveur, indépendante du masquage du lien dans la navigation.
   if (!peutVoirListeInvestigations(utilisateur)) {
-    redirect('/acces-refuse?droit=investigations.view')
+    redirect("/acces-refuse?droit=investigations.view");
   }
 
-  const params = await searchParams
+  const params = await searchParams;
   const lire = (cle: string) => {
-    const v = params[cle]
-    return typeof v === 'string' && v !== '' ? v : undefined
-  }
+    const v = params[cle];
+    return typeof v === "string" && v !== "" ? v : undefined;
+  };
 
   const filtres = {
-    statutDossierId: lire('statutDossierId'),
-    enqueteurId: lire('enqueteurId'),
-    parcoursId: lire('parcoursId'),
-    periodeDebut: lire('periodeDebut'),
-    periodeFin: lire('periodeFin'),
-    miennes: lire('miennes') === '1',
-  }
+    statutDossierId: lire("statutDossierId"),
+    enqueteurId: lire("enqueteurId"),
+    parcoursId: lire("parcoursId"),
+    periodeDebut: lire("periodeDebut"),
+    periodeFin: lire("periodeFin"),
+    miennes: lire("miennes") === "1",
+  };
 
-  const pageDemandee = Number(lire('page') ?? '1')
+  const pageDemandee = Number(lire("page") ?? "1");
   const [resultat, referentiels] = await Promise.all([
     listerInvestigations(
       utilisateur,
       filtres,
-      Number.isFinite(pageDemandee) && pageDemandee > 0 ? pageDemandee : 1
+      Number.isFinite(pageDemandee) && pageDemandee > 0 ? pageDemandee : 1,
     ),
-    referentielsInvestigations(),
-  ])
+    referentielsInvestigations(utilisateur),
+  ]);
 
   const champs: ChampFiltre[] = [
     {
-      type: 'select',
-      cle: 'statutDossierId',
-      libelle: 'Où en est le dossier',
-      tous: 'Peu importe',
+      type: "select",
+      cle: "statutDossierId",
+      libelle: "Où en est le dossier",
+      tous: "Peu importe",
       options: referentiels.statutsDossier.map((s) => ({
         valeur: String(s.id),
         libelle: s.libelle_interne,
       })),
     },
     {
-      type: 'select',
-      cle: 'parcoursId',
-      libelle: 'Parcours',
-      tous: 'Tous',
-      options: referentiels.parcours.map((p) => ({ valeur: String(p.id), libelle: p.libelle })),
+      type: "select",
+      cle: "parcoursId",
+      libelle: "Parcours",
+      tous: "Tous",
+      options: referentiels.parcours.map((p) => ({
+        valeur: String(p.id),
+        libelle: p.libelle,
+      })),
     },
     {
-      type: 'select',
-      cle: 'enqueteurId',
-      libelle: 'Enquêteur',
-      tous: 'Tous',
-      options: referentiels.enqueteurs.map((u) => ({ valeur: String(u.id), libelle: u.name })),
+      type: "select",
+      cle: "enqueteurId",
+      libelle: "Enquêteur",
+      tous: "Tous",
+      options: referentiels.enqueteurs.map((u) => ({
+        valeur: String(u.id),
+        libelle: u.name,
+      })),
     },
-    { type: 'date', cle: 'periodeDebut', libelle: 'Ouverte à partir du' },
-    { type: 'date', cle: 'periodeFin', libelle: 'Jusqu’au' },
-  ]
+    { type: "date", cle: "periodeDebut", libelle: "Ouverte à partir du" },
+    { type: "date", cle: "periodeFin", libelle: "Jusqu’au" },
+  ];
 
-  const filtree = champs.some((c) => filtres[c.cle as keyof typeof filtres]) || filtres.miennes
+  const filtree =
+    champs.some((c) => filtres[c.cle as keyof typeof filtres]) ||
+    filtres.miennes;
 
   return (
     <div className="space-y-5">
       <EnTetePage
         titre="Investigations"
         lede="Toutes les fiches ouvertes à ce jour, y compris sur des dossiers qui ont depuis avancé."
-        compteur={`${resultat.total} ${resultat.total > 1 ? 'fiches' : 'fiche'}`}
+        compteur={`${resultat.total} ${resultat.total > 1 ? "fiches" : "fiche"}`}
       />
 
       <BarreFiltres
         base="/investigations"
         champs={champs}
-        valeurs={{ ...filtres, miennes: filtres.miennes ? '1' : undefined }}
-        bascule={{ cle: 'miennes', libelleTous: 'Toutes', libelleMiens: 'Les miennes' }}
+        valeurs={{ ...filtres, miennes: filtres.miennes ? "1" : undefined }}
+        bascule={{
+          cle: "miennes",
+          libelleTous: "Toutes",
+          libelleMiens: "Les miennes",
+        }}
       />
 
-      <Card className="overflow-hidden p-0">
-        {resultat.investigations.length === 0 ? (
+      {resultat.investigations.length === 0 ? (
+        <Card className="overflow-hidden p-0">
           <EtatVide
             icone={ClipboardCheck}
             titre={
               filtree
-                ? 'Aucune investigation ne correspond à ces critères.'
-                : 'Aucune investigation ouverte.'
+                ? "Aucune investigation ne correspond à ces critères."
+                : "Aucune investigation ouverte."
             }
             description={
               filtree
-                ? 'Retirez un filtre pour élargir la recherche.'
-                : 'Une fiche s’ouvre depuis un dossier passé en investigation.'
+                ? "Retirez un filtre pour élargir la recherche."
+                : "Une fiche s’ouvre depuis un dossier passé en investigation."
             }
           />
-        ) : (
-          <div className="overflow-x-auto">
+        </Card>
+      ) : (
+        <>
+          <ul
+            className="space-y-3 md:hidden"
+            aria-label="Liste des investigations"
+          >
+            {resultat.investigations.map((investigation) => (
+              <li key={investigation.id}>
+                <Link
+                  href={`/dossiers/${investigation.dossiers.id}#investigations`}
+                  className="block rounded-2xl border border-border/80 bg-card p-4 shadow-xs transition-colors hover:border-primary-300 hover:bg-primary-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold text-primary-700">
+                        {investigation.dossiers.reference}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-medium text-secondary-900">
+                        {investigation.dossiers.categories.libelle}
+                      </p>
+                    </div>
+                    <EtiquetteStatut
+                      ton={
+                        TONS_DOSSIER[
+                          investigation.dossiers.statuts_dossier.code
+                        ] ?? "neutre"
+                      }
+                    >
+                      {investigation.dossiers.statuts_dossier.libelle_interne}
+                    </EtiquetteStatut>
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-xs">
+                    <div>
+                      <dt className="text-muted-foreground">Enquêteur</dt>
+                      <dd className="mt-0.5 truncate font-medium text-secondary-800">
+                        {
+                          investigation.users_investigations_enqueteur_idTousers
+                            .name
+                        }
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Ouverte le</dt>
+                      <dd className="mt-0.5 font-medium text-secondary-800">
+                        {dateFr(investigation.date_ouverture)}
+                      </dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-muted-foreground">Parcours</dt>
+                      <dd className="mt-0.5 truncate font-medium text-secondary-800">
+                        {investigation.dossiers.parcours.libelle}
+                      </dd>
+                    </div>
+                  </dl>
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <Card className="hidden overflow-hidden p-0 md:flex">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -189,26 +268,36 @@ export default async function PageInvestigations({
                         {investigation.dossiers.categories.libelle}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {investigation.users_investigations_enqueteur_idTousers.name}
+                        {
+                          investigation.users_investigations_enqueteur_idTousers
+                            .name
+                        }
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {dateFr(investigation.date_ouverture)}
                       </TableCell>
                       <TableCell>
                         <EtiquetteStatut
-                          ton={TONS_DOSSIER[investigation.dossiers.statuts_dossier.code] ?? 'neutre'}
+                          ton={
+                            TONS_DOSSIER[
+                              investigation.dossiers.statuts_dossier.code
+                            ] ?? "neutre"
+                          }
                         >
-                          {investigation.dossiers.statuts_dossier.libelle_interne}
+                          {
+                            investigation.dossiers.statuts_dossier
+                              .libelle_interne
+                          }
                         </EtiquetteStatut>
                       </TableCell>
                     </TableRow>
-                  )
+                  );
                 })}
               </TableBody>
             </Table>
-          </div>
-        )}
-      </Card>
+          </Card>
+        </>
+      )}
 
       <Pagination
         base="/investigations"
@@ -216,8 +305,8 @@ export default async function PageInvestigations({
         page={resultat.page}
         pages={resultat.pages}
         total={resultat.total}
-        unite={resultat.total > 1 ? 'fiches' : 'fiche'}
+        unite={resultat.total > 1 ? "fiches" : "fiche"}
       />
     </div>
-  )
+  );
 }

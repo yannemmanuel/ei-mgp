@@ -1,47 +1,51 @@
-'use client'
+"use client";
 
-import { useActionState, useState } from 'react'
-import { BoutonSupprimer } from '../bouton-supprimer'
+import { useActionState, useState } from "react";
+import { BoutonSupprimer } from "../bouton-supprimer";
 import {
   actionSupprimerDirection,
   actionSupprimerSite,
-} from '../suppressions-actions'
-import { Building2, MapPin } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useRetourEnToast } from '@/lib/retour-operation'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { EnTetePage } from '@/components/layout/en-tete-page'
-import type { EtatFormulaire } from '../editeur-referentiel'
+} from "../suppressions-actions";
+import { Building2, MapPin } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  useActualiserApresSucces,
+  useRetourEnToast,
+} from "@/lib/retour-operation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EnTetePage } from "@/components/layout/en-tete-page";
+import type { EtatFormulaire } from "../editeur-referentiel";
 import {
   actionEnregistrerDirection,
   actionEnregistrerSite,
   actionRattacherDirection,
-} from '../actions'
+} from "../actions";
 
 export type DirectionVue = {
-  id: string
-  code: string
-  libelle: string
-  actif: boolean
-  siteId: string | null
+  id: string;
+  code: string;
+  libelle: string;
+  actif: boolean;
+  siteId: string | null;
   /** Comptes rattachés à cette direction — un détachement les concerne. */
-  comptes: number
-}
+  comptes: number;
+};
 
 export type SiteVue = {
-  id: string
-  code: string
-  libelle: string
-  actif: boolean
-  comptes: number
-}
+  id: string;
+  code: string;
+  libelle: string;
+  actif: boolean;
+  comptes: number;
+};
 
-const ETAT: EtatFormulaire = {}
-const champ = 'mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
+const ETAT: EtatFormulaire = {};
+const champ =
+  "mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm";
 
 /**
  * Sites et directions, dans un seul écran.
@@ -62,20 +66,21 @@ export function PanneauOrganisation({
   sites,
   directions,
 }: {
-  sites: SiteVue[]
-  directions: DirectionVue[]
+  sites: SiteVue[];
+  directions: DirectionVue[];
 }) {
-  const [creation, setCreation] = useState<'site' | 'direction' | null>(null)
-  const [siteEnEdition, setSiteEnEdition] = useState<SiteVue | null>(null)
-  const [directionEnEdition, setDirectionEnEdition] = useState<DirectionVue | null>(null)
+  const [creation, setCreation] = useState<"site" | "direction" | null>(null);
+  const [siteEnEdition, setSiteEnEdition] = useState<SiteVue | null>(null);
+  const [directionEnEdition, setDirectionEnEdition] =
+    useState<DirectionVue | null>(null);
 
-  const orphelines = directions.filter((d) => d.siteId === null && d.actif)
-  const sitesActifs = sites.filter((s) => s.actif)
+  const orphelines = directions.filter((d) => d.siteId === null && d.actif);
+  const sitesActifs = sites.filter((s) => s.actif);
 
   function fermer() {
-    setCreation(null)
-    setSiteEnEdition(null)
-    setDirectionEnEdition(null)
+    setCreation(null);
+    setSiteEnEdition(null);
+    setDirectionEnEdition(null);
   }
 
   return (
@@ -84,17 +89,23 @@ export function PanneauOrganisation({
         titre="Sites et directions"
         lede="C’est la direction d’un dossier qui détermine son site, donc qui le recevra."
         mailles={[
-          { libelle: 'Administration', href: '/administration' },
-          { libelle: 'Sites et directions' },
+          { libelle: "Administration", href: "/administration" },
+          { libelle: "Sites et directions" },
         ]}
         compteur={`${sites.length} sites · ${directions.length} directions`}
         actions={
-          creation === null && siteEnEdition === null && directionEnEdition === null ? (
+          creation === null &&
+          siteEnEdition === null &&
+          directionEnEdition === null ? (
             <>
-              <Button size="sm" variant="outline" onClick={() => setCreation('site')}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCreation("site")}
+              >
                 Ajouter un site
               </Button>
-              <Button size="sm" onClick={() => setCreation('direction')}>
+              <Button size="sm" onClick={() => setCreation("direction")}>
                 Ajouter une direction
               </Button>
             </>
@@ -102,7 +113,7 @@ export function PanneauOrganisation({
         }
       />
 
-      {creation === 'site' && <FormulaireSite onFermer={fermer} />}
+      {creation === "site" && <FormulaireSite onFermer={fermer} />}
       {/*
         `key` : même raison qu'au panneau des comptes (`utilisateurs/panneau.tsx`).
 
@@ -112,9 +123,15 @@ export function PanneauOrganisation({
         précédent, et enregistrer écrivait les valeurs de l'un SUR l'autre.
       */}
       {siteEnEdition && (
-        <FormulaireSite key={siteEnEdition.id} site={siteEnEdition} onFermer={fermer} />
+        <FormulaireSite
+          key={siteEnEdition.id}
+          site={siteEnEdition}
+          onFermer={fermer}
+        />
       )}
-      {creation === 'direction' && <FormulaireDirection sites={sitesActifs} onFermer={fermer} />}
+      {creation === "direction" && (
+        <FormulaireDirection sites={sitesActifs} onFermer={fermer} />
+      )}
       {directionEnEdition && (
         <FormulaireDirection
           key={directionEnEdition.id}
@@ -130,10 +147,11 @@ export function PanneauOrganisation({
             <p className="font-medium">
               {orphelines.length > 1
                 ? `${orphelines.length} directions ne relèvent d’aucun site.`
-                : '1 direction ne relève d’aucun site.'}
+                : "1 direction ne relève d’aucun site."}
             </p>
             <p className="mt-1 text-caption">
-              Les déclarations qui les visent ne seront vues que des rôles transverses.
+              Les déclarations qui les visent ne seront vues que des rôles
+              transverses.
             </p>
           </AlertDescription>
         </Alert>
@@ -146,22 +164,26 @@ export function PanneauOrganisation({
           directions={directions.filter((d) => d.siteId === site.id)}
           sites={sitesActifs}
           onModifier={() => {
-            fermer()
-            setSiteEnEdition(site)
+            fermer();
+            setSiteEnEdition(site);
           }}
           onModifierDirection={(direction) => {
-            fermer()
-            setDirectionEnEdition(direction)
+            fermer();
+            setDirectionEnEdition(direction);
           }}
         />
       ))}
 
-      <Card className={orphelines.length > 0 ? 'border-destructive/40' : undefined}>
+      <Card
+        className={orphelines.length > 0 ? "border-destructive/40" : undefined}
+      >
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-secondary-400" aria-hidden />
             <p className="text-h3 text-secondary-900">Sans site</p>
-            <Badge variant={orphelines.length > 0 ? 'destructive' : 'secondary'}>
+            <Badge
+              variant={orphelines.length > 0 ? "destructive" : "secondary"}
+            >
               {directions.filter((d) => d.siteId === null).length}
             </Badge>
           </div>
@@ -172,14 +194,14 @@ export function PanneauOrganisation({
             siteCourant={null}
             messageVide="Toutes les directions sont rattachées."
             onModifier={(direction) => {
-              fermer()
-              setDirectionEnEdition(direction)
+              fermer();
+              setDirectionEnEdition(direction);
             }}
           />
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 function BlocSite({
@@ -189,40 +211,48 @@ function BlocSite({
   onModifier,
   onModifierDirection,
 }: {
-  site: SiteVue
-  directions: DirectionVue[]
-  sites: SiteVue[]
-  onModifier: () => void
-  onModifierDirection: (direction: DirectionVue) => void
+  site: SiteVue;
+  directions: DirectionVue[];
+  sites: SiteVue[];
+  onModifier: () => void;
+  onModifierDirection: (direction: DirectionVue) => void;
 }) {
   return (
-    <Card className={site.actif ? undefined : 'border-dashed bg-muted/30'}>
+    <Card className={site.actif ? undefined : "border-dashed bg-muted/30"}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Building2 className="h-4 w-4 text-secondary-400" aria-hidden />
-              <p className={`text-h3 ${site.actif ? 'text-secondary-900' : 'text-secondary-500'}`}>
+              <p
+                className={`text-h3 ${site.actif ? "text-secondary-900" : "text-secondary-500"}`}
+              >
                 {site.libelle}
               </p>
               {!site.actif && <Badge variant="destructive">Désactivé</Badge>}
             </div>
-            <p className="mt-0.5 font-mono text-caption text-muted-foreground">{site.code}</p>
+            <p className="mt-0.5 font-mono text-caption text-muted-foreground">
+              {site.code}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">
-              {directions.length} direction{directions.length > 1 ? 's' : ''}
+              {directions.length} direction{directions.length > 1 ? "s" : ""}
             </Badge>
             <Badge variant="secondary">
-              {site.comptes} compte{site.comptes > 1 ? 's' : ''}
+              {site.comptes} compte{site.comptes > 1 ? "s" : ""}
             </Badge>
             <Button size="sm" variant="outline" onClick={onModifier}>
               Modifier
             </Button>
             {/* Refusé tant qu'une direction, un dossier ou un compte s'y rattache — le message le
                 dit, et renvoie vers la désactivation. */}
-            <BoutonSupprimer id={site.id} nom={site.libelle} action={actionSupprimerSite} />
+            <BoutonSupprimer
+              id={site.id}
+              nom={site.libelle}
+              action={actionSupprimerSite}
+            />
           </div>
         </div>
 
@@ -235,7 +265,7 @@ function BlocSite({
         />
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function ListeDirections({
@@ -245,44 +275,57 @@ function ListeDirections({
   messageVide,
   onModifier,
 }: {
-  directions: DirectionVue[]
-  sites: SiteVue[]
-  siteCourant: string | null
-  messageVide: string
-  onModifier: (direction: DirectionVue) => void
+  directions: DirectionVue[];
+  sites: SiteVue[];
+  siteCourant: string | null;
+  messageVide: string;
+  onModifier: (direction: DirectionVue) => void;
 }) {
   if (directions.length === 0) {
-    return <p className="mt-3 text-sm text-muted-foreground">{messageVide}</p>
+    return <p className="mt-3 text-sm text-muted-foreground">{messageVide}</p>;
   }
 
   return (
     <ul className="mt-3 divide-y divide-border">
       {directions.map((direction) => (
-        <li key={direction.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+        <li
+          key={direction.id}
+          className="flex flex-wrap items-center justify-between gap-3 py-2"
+        >
           <div className="min-w-0">
             <p
               className={`text-sm font-medium ${
-                direction.actif ? 'text-secondary-900' : 'text-secondary-500'
+                direction.actif ? "text-secondary-900" : "text-secondary-500"
               }`}
             >
               {direction.libelle}
               {!direction.actif && (
-                <span className="ml-2 text-caption font-normal text-destructive">désactivée</span>
+                <span className="ml-2 text-caption font-normal text-destructive">
+                  désactivée
+                </span>
               )}
             </p>
             <p className="font-mono text-caption text-muted-foreground">
               {direction.code}
               {direction.comptes > 0 && (
                 <span className="ml-2 font-sans">
-                  · {direction.comptes} compte{direction.comptes > 1 ? 's' : ''}
+                  · {direction.comptes} compte{direction.comptes > 1 ? "s" : ""}
                 </span>
               )}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <DeplacerDirection direction={direction} sites={sites} siteCourant={siteCourant} />
-            <Button size="sm" variant="ghost" onClick={() => onModifier(direction)}>
+            <DeplacerDirection
+              direction={direction}
+              sites={sites}
+              siteCourant={siteCourant}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onModifier(direction)}
+            >
               Modifier
             </Button>
             {/* Refusé tant qu'un dossier, un poste ou un compte la cite — y compris comme
@@ -296,7 +339,7 @@ function ListeDirections({
         </li>
       ))}
     </ul>
-  )
+  );
 }
 
 /** Le geste d'affectation : une liste déroulante qui soumet d'elle-même, sans formulaire à ouvrir. */
@@ -305,11 +348,14 @@ function DeplacerDirection({
   sites,
   siteCourant,
 }: {
-  direction: DirectionVue
-  sites: SiteVue[]
-  siteCourant: string | null
+  direction: DirectionVue;
+  sites: SiteVue[];
+  siteCourant: string | null;
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionRattacherDirection, ETAT)
+  const [etat, envoyer, enCours] = useActionState(
+    actionRattacherDirection,
+    ETAT,
+  );
 
   return (
     <form action={envoyer} className="flex items-center gap-2">
@@ -320,7 +366,7 @@ function DeplacerDirection({
       <select
         id={`site-${direction.id}`}
         name="siteId"
-        defaultValue={siteCourant ?? ''}
+        defaultValue={siteCourant ?? ""}
         disabled={enCours}
         className="rounded-md border border-input bg-background px-2 py-1 text-sm"
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
@@ -332,13 +378,21 @@ function DeplacerDirection({
           </option>
         ))}
       </select>
-      {etat.erreur && <span className="text-caption text-destructive">{etat.erreur}</span>}
+      {etat.erreur && (
+        <span className="text-caption text-destructive">{etat.erreur}</span>
+      )}
     </form>
-  )
+  );
 }
 
-function FormulaireSite({ site, onFermer }: { site?: SiteVue; onFermer: () => void }) {
-  const [etat, envoyer, enCours] = useActionState(actionEnregistrerSite, ETAT)
+function FormulaireSite({
+  site,
+  onFermer,
+}: {
+  site?: SiteVue;
+  onFermer: () => void;
+}) {
+  const [etat, envoyer, enCours] = useActionState(actionEnregistrerSite, ETAT);
 
   return (
     <Card>
@@ -347,26 +401,51 @@ function FormulaireSite({ site, onFermer }: { site?: SiteVue; onFermer: () => vo
           {site && <input type="hidden" name="id" value={site.id} />}
 
           <p className="text-h3 text-secondary-900">
-            {site ? `Modifier « ${site.libelle} »` : 'Nouveau site'}
+            {site ? `Modifier « ${site.libelle} »` : "Nouveau site"}
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor="code-site" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="code-site"
+                className="text-caption text-muted-foreground"
+              >
                 Code
               </Label>
-              <Input id="code-site" name="code" defaultValue={site?.code ?? ''} required maxLength={100} className="mt-1" />
+              <Input
+                id="code-site"
+                name="code"
+                defaultValue={site?.code ?? ""}
+                required
+                maxLength={100}
+                className="mt-1"
+              />
             </div>
             <div>
-              <Label htmlFor="libelle-site" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="libelle-site"
+                className="text-caption text-muted-foreground"
+              >
                 Libellé
               </Label>
-              <Input id="libelle-site" name="libelle" defaultValue={site?.libelle ?? ''} required maxLength={255} className="mt-1" />
+              <Input
+                id="libelle-site"
+                name="libelle"
+                defaultValue={site?.libelle ?? ""}
+                required
+                maxLength={255}
+                className="mt-1"
+              />
             </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="actif" value="1" defaultChecked={site?.actif ?? true} />
+            <input
+              type="checkbox"
+              name="actif"
+              value="1"
+              defaultChecked={site?.actif ?? true}
+            />
             Actif
           </label>
 
@@ -374,16 +453,21 @@ function FormulaireSite({ site, onFermer }: { site?: SiteVue; onFermer: () => vo
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" disabled={enCours}>
-              {enCours ? 'Enregistrement…' : 'Enregistrer'}
+              {enCours ? "Enregistrement…" : "Enregistrer"}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={onFermer}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onFermer}
+            >
               Annuler
             </Button>
           </div>
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function FormulaireDirection({
@@ -391,11 +475,14 @@ function FormulaireDirection({
   sites,
   onFermer,
 }: {
-  direction?: DirectionVue
-  sites: SiteVue[]
-  onFermer: () => void
+  direction?: DirectionVue;
+  sites: SiteVue[];
+  onFermer: () => void;
 }) {
-  const [etat, envoyer, enCours] = useActionState(actionEnregistrerDirection, ETAT)
+  const [etat, envoyer, enCours] = useActionState(
+    actionEnregistrerDirection,
+    ETAT,
+  );
 
   return (
     <Card>
@@ -404,30 +491,55 @@ function FormulaireDirection({
           {direction && <input type="hidden" name="id" value={direction.id} />}
 
           <p className="text-h3 text-secondary-900">
-            {direction ? `Modifier « ${direction.libelle} »` : 'Nouvelle direction'}
+            {direction
+              ? `Modifier « ${direction.libelle} »`
+              : "Nouvelle direction"}
           </p>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor="code-direction" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="code-direction"
+                className="text-caption text-muted-foreground"
+              >
                 Code
               </Label>
-              <Input id="code-direction" name="code" defaultValue={direction?.code ?? ''} required maxLength={100} className="mt-1" />
+              <Input
+                id="code-direction"
+                name="code"
+                defaultValue={direction?.code ?? ""}
+                required
+                maxLength={100}
+                className="mt-1"
+              />
             </div>
             <div>
-              <Label htmlFor="libelle-direction" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="libelle-direction"
+                className="text-caption text-muted-foreground"
+              >
                 Libellé
               </Label>
-              <Input id="libelle-direction" name="libelle" defaultValue={direction?.libelle ?? ''} required maxLength={255} className="mt-1" />
+              <Input
+                id="libelle-direction"
+                name="libelle"
+                defaultValue={direction?.libelle ?? ""}
+                required
+                maxLength={255}
+                className="mt-1"
+              />
             </div>
             <div>
-              <Label htmlFor="site-direction" className="text-caption text-muted-foreground">
+              <Label
+                htmlFor="site-direction"
+                className="text-caption text-muted-foreground"
+              >
                 Site
               </Label>
               <select
                 id="site-direction"
                 name="siteId"
-                defaultValue={direction?.siteId ?? ''}
+                defaultValue={direction?.siteId ?? ""}
                 className={champ}
               >
                 <option value="">— Aucun —</option>
@@ -441,7 +553,12 @@ function FormulaireDirection({
           </div>
 
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="actif" value="1" defaultChecked={direction?.actif ?? true} />
+            <input
+              type="checkbox"
+              name="actif"
+              value="1"
+              defaultChecked={direction?.actif ?? true}
+            />
             Active
           </label>
 
@@ -449,16 +566,21 @@ function FormulaireDirection({
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" size="sm" disabled={enCours}>
-              {enCours ? 'Enregistrement…' : 'Enregistrer'}
+              {enCours ? "Enregistrement…" : "Enregistrer"}
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={onFermer}>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onFermer}
+            >
               Annuler
             </Button>
           </div>
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 /**
@@ -469,6 +591,7 @@ function FormulaireDirection({
  * qu'un composant se place là où l'ancien encart se trouvait — le point d'appel reste lisible.
  */
 function AnnonceRetour({ etat }: { etat: EtatFormulaire }) {
-  useRetourEnToast(etat)
-  return null
+  useRetourEnToast(etat);
+  useActualiserApresSucces(etat);
+  return null;
 }

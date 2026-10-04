@@ -15,6 +15,7 @@ const dateFr = (iso: string) =>
 
 export function FormulaireSuivi() {
   const [etat, action, enCours] = useActionState(rechercherDossier, ETAT_INITIAL)
+  const erreurId = etat.erreur ? 'suivi-erreur' : undefined
   useRetourEnToast(etat)
 
   if (etat.dossier) {
@@ -66,10 +67,18 @@ export function FormulaireSuivi() {
   }
 
   return (
-    <form action={action} className="mt-8 space-y-4">
+    <form action={action} aria-busy={enCours} className="mt-8 space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="reference">Numéro de référence</Label>
-        <Input id="reference" name="reference" placeholder="EI-2026-000001" required autoComplete="off" />
+        <Input
+          id="reference"
+          name="reference"
+          placeholder="EI-2026-000001"
+          required
+          autoComplete="off"
+          aria-invalid={etat.erreur ? true : undefined}
+          aria-describedby={erreurId}
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -82,9 +91,16 @@ export function FormulaireSuivi() {
           placeholder="000000"
           required
           autoComplete="off"
+          aria-invalid={etat.erreur ? true : undefined}
+          aria-describedby={erreurId}
         />
       </div>
 
+      {etat.erreur && (
+        <p id="suivi-erreur" role="alert" className="text-sm text-destructive">
+          {etat.erreur}
+        </p>
+      )}
 
       <Button type="submit" disabled={enCours} className="w-full">
         {enCours ? 'Recherche…' : 'Consulter mon dossier'}

@@ -24,27 +24,28 @@
  * importé de partout, y compris par `authz`, sans y traîner la moitié du serveur.
  */
 export const MODELES = {
-  actionCorrective: 'action_corrective',
-  canalCaptage: 'canal_captage',
-  categorie: 'categorie',
-  direction: 'direction',
-  dossier: 'dossier',
-  dossierAffectation: 'dossier_affectation',
-  familleRisque: 'famille_risque',
-  investigation: 'investigation',
-  lieu: 'lieu',
-  message: 'message',
-  niveauGravite: 'niveau_gravite',
-  notificationTemplate: 'notification_template',
-  parcours: 'parcours',
-  pieceJointe: 'piece_jointe',
-  poste: 'poste',
-  qrCode: 'qr_code',
-  role: 'role',
-  site: 'site',
-  slaDelai: 'sla_delai',
-  statutDossier: 'statut_dossier',
-  trancheAnciennete: 'tranche_anciennete',
+  actionCorrective: "action_corrective",
+  canalCaptage: "canal_captage",
+  categorie: "categorie",
+  direction: "direction",
+  dossier: "dossier",
+  dossierAffectation: "dossier_affectation",
+  familleRisque: "famille_risque",
+  investigation: "investigation",
+  lieu: "lieu",
+  message: "message",
+  niveauGravite: "niveau_gravite",
+  notificationTemplate: "notification_template",
+  parametreApplication: "parametre_application",
+  parcours: "parcours",
+  pieceJointe: "piece_jointe",
+  poste: "poste",
+  qrCode: "qr_code",
+  role: "role",
+  site: "site",
+  slaDelai: "sla_delai",
+  statutDossier: "statut_dossier",
+  trancheAnciennete: "tranche_anciennete",
   /*
     ⚠️ CLÉ EN FRANÇAIS, VALEUR EN ANGLAIS — et l'écart est le seul de la table.
 
@@ -55,9 +56,9 @@ export const MODELES = {
     valeur rouvrirait l'écart qu'elle ferme, et obligerait à réécrire 134 lignes de journal pour
     un gain purement cosmétique.
   */
-  utilisateur: 'user',
-  ville: 'ville',
-} as const
+  utilisateur: "user",
+  ville: "ville",
+} as const;
 
 /** Ce qu'une colonne de type polymorphe peut légitimement contenir. */
-export type ModeleAudite = (typeof MODELES)[keyof typeof MODELES]
+export type ModeleAudite = (typeof MODELES)[keyof typeof MODELES];

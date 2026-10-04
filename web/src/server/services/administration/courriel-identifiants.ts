@@ -1,6 +1,7 @@
-import { configurationSmtp, transportEmail } from '../notification/transport'
-import { MODELES, journaliser } from '../audit/journal'
-import { VALIDITE_HEURES } from './invitation'
+import { configurationSmtp, transportEmail } from "../notification/transport";
+import { MODELES, journaliser } from "../audit/journal";
+import { VALIDITE_HEURES } from "./invitation";
+import { originePublique } from "@/server/origine-publique";
 
 /**
  * Remise de l'accès par e-mail, à la création d'un compte.
@@ -22,7 +23,7 @@ import { VALIDITE_HEURES } from './invitation'
 
 export type ResultatEnvoiIdentifiants =
   /** Le message est parti. */
-  | { readonly etat: 'expedie' }
+  | { readonly etat: "expedie" }
   /**
    * Aucun SMTP configuré : rien n'a été envoyé, DÉLIBÉRÉMENT.
    *
@@ -31,9 +32,9 @@ export type ResultatEnvoiIdentifiants =
    * resté valable trois jours pour quiconque y a accès. On préfère ne pas expédier et le dire :
    * l'appelant bascule alors sur un mot de passe remis en main propre.
    */
-  | { readonly etat: 'sans_transport' }
+  | { readonly etat: "sans_transport" }
   /** Le SMTP a refusé ou n'a pas répondu. Le compte, lui, existe bel et bien. */
-  | { readonly etat: 'echec'; readonly raison: string }
+  | { readonly etat: "echec"; readonly raison: string };
 
 /**
  * Chemin de la page de connexion.
@@ -44,14 +45,14 @@ export type ResultatEnvoiIdentifiants =
  * mort dans le seul message que reçoit un nouvel arrivant serait une première impression
  * difficile à rattraper.
  */
-export const CHEMIN_CONNEXION = '/login'
+export const CHEMIN_CONNEXION = "/login";
 
 function racine(): string {
-  return (process.env.AUTH_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  return originePublique();
 }
 
 function urlConnexion(): string {
-  return `${racine()}${CHEMIN_CONNEXION}`
+  return `${racine()}${CHEMIN_CONNEXION}`;
 }
 
 /** L'adresse du lien d'invitation. Le jeton est dans le CHEMIN, jamais en paramètre de requête. */
@@ -64,7 +65,7 @@ export function urlInvitation(jeton: string): string {
     chemin n'échappe pas à tout cela, mais il évite la classe d'incidents la plus courante — un
     jeton recopié en clair dans une ligne de log par le seul fait d'avoir été visité.
   */
-  return `${racine()}/premiere-connexion/${jeton}`
+  return `${racine()}/premiere-connexion/${jeton}`;
 }
 
 function corps(params: { nom: string; email: string; jeton: string }): string {
@@ -72,23 +73,23 @@ function corps(params: { nom: string; email: string; jeton: string }): string {
   // reste lisible dans n'importe quel client, y compris en consultation mobile dégradée.
   return [
     `Bonjour ${params.nom},`,
-    '',
-    'Un compte vient de vous être ouvert sur la plateforme de gestion des plaintes et',
-    'des évènements indésirables.',
-    '',
+    "",
+    "Un compte vient de vous être ouvert sur la plateforme de gestion des plaintes et",
+    "des évènements indésirables.",
+    "",
     `Votre identifiant : ${params.email}`,
-    '',
-    'Pour choisir votre mot de passe, ouvrez ce lien :',
+    "",
+    "Pour choisir votre mot de passe, ouvrez ce lien :",
     urlInvitation(params.jeton),
-    '',
+    "",
     `Il est valable ${VALIDITE_HEURES} heures et ne fonctionnera qu’une fois. Passé ce délai,`,
-    'demandez-en un nouveau à votre administrateur.',
-    '',
+    "demandez-en un nouveau à votre administrateur.",
+    "",
     `Vous vous connecterez ensuite ici : ${urlConnexion()}`,
-    '',
-    'Si vous n’attendiez pas ce message, signalez-le à votre administrateur : quelqu’un a',
-    'ouvert un compte à votre nom.',
-  ].join('\n')
+    "",
+    "Si vous n’attendiez pas ce message, signalez-le à votre administrateur : quelqu’un a",
+    "ouvert un compte à votre nom.",
+  ].join("\n");
 }
 
 /**
@@ -100,31 +101,31 @@ function corps(params: { nom: string; email: string; jeton: string }): string {
  * d'adresse. L'échec est donc RENDU, pas lancé, et l'écran le dit.
  */
 export async function envoyerIdentifiants(params: {
-  utilisateurId: bigint
-  acteurId: bigint
-  nom: string
-  email: string
+  utilisateurId: bigint;
+  acteurId: bigint;
+  nom: string;
+  email: string;
   /** Jeton d'invitation en clair. Il n'existe sous cette forme que le temps de cet envoi. */
-  jeton: string
+  jeton: string;
 }): Promise<ResultatEnvoiIdentifiants> {
   if (configurationSmtp() === null) {
-    return { etat: 'sans_transport' }
+    return { etat: "sans_transport" };
   }
 
   try {
     await transportEmail().envoyer({
       destinataire: params.email,
-      objet: 'Votre accès à la plateforme EI / MGP',
+      objet: "Votre accès à la plateforme EI / MGP",
       corps: corps(params),
-    })
+    });
   } catch (erreur) {
     // La raison est tracée côté serveur pour le diagnostic, jamais le contenu du message.
-    console.error('Envoi du lien d’accès en échec', erreur)
+    console.error("Envoi du lien d’accès en échec", erreur);
 
     return {
-      etat: 'echec',
-      raison: erreur instanceof Error ? erreur.message : 'cause inconnue',
-    }
+      etat: "echec",
+      raison: erreur instanceof Error ? erreur.message : "cause inconnue",
+    };
   }
 
   /*
@@ -135,12 +136,12 @@ export async function envoyerIdentifiants(params: {
     quoi se connecter, et quand », ce qui n'exige à aucun moment de connaître le secret lui-même.
   */
   await journaliser({
-    action: 'user.identifiants_envoyes',
+    action: "user.identifiants_envoyes",
     acteurId: params.acteurId,
     auditableType: MODELES.utilisateur,
     auditableId: String(params.utilisateurId),
     nouvelles: { email: params.email },
-  })
+  });
 
-  return { etat: 'expedie' }
+  return { etat: "expedie" };
 }

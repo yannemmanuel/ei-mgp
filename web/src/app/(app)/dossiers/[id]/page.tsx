@@ -1,10 +1,13 @@
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { EtiquetteStatut, type TonStatut } from '@/components/ui/etiquette-statut'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { prisma } from '@/lib/prisma'
-import { exigerUtilisateur } from '@/server/auth'
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import {
+  EtiquetteStatut,
+  type TonStatut,
+} from "@/components/ui/etiquette-statut";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { prisma } from "@/lib/prisma";
+import { exigerUtilisateur } from "@/server/auth";
 import {
   acteursDeLEtape,
   aPermission,
@@ -21,74 +24,91 @@ import {
   peutModifierAction,
   peutVerifierEfficacite,
   peutVoirAction,
-} from '@/server/authz'
+} from "@/server/authz";
 import {
   actionsDuDossier,
   investigationsRattachables,
-} from '@/server/services/action-corrective/action-corrective'
-import { investigationsDuDossier } from '@/server/services/investigation/investigation'
-import { marquerMessagesLus, messagesDuDossier } from '@/server/services/messagerie/messagerie'
+} from "@/server/services/action-corrective/action-corrective";
+import { investigationsDuDossier } from "@/server/services/investigation/investigation";
+import {
+  marquerMessagesLus,
+  messagesDuDossier,
+} from "@/server/services/messagerie/messagerie";
 import {
   affectationsActives,
   chargerFiche,
   historiqueDossier,
   piecesJointesDossier,
-} from '@/server/services/dossier/fiche'
-import { dateLimiteGlobale, joursRestants } from '@/server/services/dossier/delais'
-import { libelleValeur } from '@/server/services/declaration/parcours-config'
-import type { ParcoursCode } from '@/server/authz'
+} from "@/server/services/dossier/fiche";
+import {
+  dateLimiteGlobale,
+  joursRestants,
+} from "@/server/services/dossier/delais";
+import { libelleValeur } from "@/server/services/declaration/parcours-config";
+import type { ParcoursCode } from "@/server/authz";
 import {
   estEvenementIndesirable,
   personnesEnCharge,
   suiviEi,
-} from '@/server/services/dossier/suivi-ei'
-import { transitionsManuelles } from '@/server/services/dossier/workflow'
-import { FilAriane } from '@/components/layout/fil-ariane'
-import { SommaireDossier, type SectionDossier } from './sommaire'
-import { BlocSuiviEi } from './bloc-suivi-ei'
-import { PanneauActions } from './panneau-actions'
-import { PanneauInvestigations } from './panneau-investigations'
-import { PanneauActionsCorrectives } from './panneau-actions-correctives'
-import { PanneauMessagerie } from './panneau-messagerie'
-import { PanneauPiecesJointes } from './panneau-pieces-jointes'
-import { famillesRisqueProposees } from '@/server/services/dossier/famille-risque'
+} from "@/server/services/dossier/suivi-ei";
+import { transitionsManuelles } from "@/server/services/dossier/workflow";
+import { FilAriane } from "@/components/layout/fil-ariane";
+import { SommaireDossier, type SectionDossier } from "./sommaire";
+import { BlocSuiviEi } from "./bloc-suivi-ei";
+import { PanneauActions } from "./panneau-actions";
+import { PanneauInvestigations } from "./panneau-investigations";
+import { PanneauActionsCorrectives } from "./panneau-actions-correctives";
+import { PanneauMessagerie } from "./panneau-messagerie";
+import { PanneauPiecesJointes } from "./panneau-pieces-jointes";
+import { famillesRisqueProposees } from "@/server/services/dossier/famille-risque";
+import { lirePolitiqueSuppression } from "@/server/services/administration/politique-suppression";
+import { BoutonRetirer } from "./bouton-retirer";
 
-export const metadata: Metadata = { title: 'Dossier' }
+export const metadata: Metadata = { title: "Dossier" };
 
 const dateFr = (d: Date | null) =>
-  d ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(d) : '—'
+  d
+    ? new Intl.DateTimeFormat("fr-FR", {
+        dateStyle: "long",
+        timeStyle: "short",
+      }).format(d)
+    : "—";
 
 const dateCourteFr = (d: Date | null) =>
-  d ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(d) : '—'
+  d ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(d) : "—";
 
 /** Échelle de gravité 1-4 (CDC §11.1) : seul le palier haut passe en alerte. */
 function tonGravite(niveau: number): TonStatut {
-  if (niveau >= 4) return 'alerte'
-  if (niveau === 3) return 'attention'
-  return 'neutre'
+  if (niveau >= 4) return "alerte";
+  if (niveau === 3) return "attention";
+  return "neutre";
 }
 
-export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'>) {
-  const { id } = await params
-  const utilisateur = await exigerUtilisateur()
+export default async function PageDossier({
+  params,
+}: PageProps<"/dossiers/[id]">) {
+  const { id } = await params;
+  const utilisateur = await exigerUtilisateur();
 
-  const dossier = await chargerFiche(utilisateur, id)
+  const dossier = await chargerFiche(utilisateur, id);
 
   // `chargerFiche` renvoie `null` aussi bien pour un dossier inexistant que pour un dossier hors
   // périmètre : ne pas distinguer les deux, cette distinction révélerait son existence.
   if (!dossier) {
-    notFound()
+    notFound();
   }
 
   const pourPolicy = {
-    parcoursCode: dossier.parcours.code as Parameters<typeof peutChangerStatutDossier>[1]['parcoursCode'],
+    parcoursCode: dossier.parcours.code as Parameters<
+      typeof peutChangerStatutDossier
+    >[1]["parcoursCode"],
     statutCode: dossier.statutCode,
     isAnonymous: dossier.is_anonymous,
     declarantUserId: dossier.declarant_user_id,
     siteId: dossier.site_id,
     directionId: dossier.direction_id,
     estAffecteAuLecteur: dossier.estAffecteAuLecteur,
-  }
+  };
 
   const [
     historique,
@@ -113,19 +133,26 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     peutChangerStatutDossier(utilisateur, pourPolicy)
       ? transitionsManuelles(dossier.statutCode)
       : Promise.resolve([]),
-    joursRestants({ id, statutCode: dossier.statutCode, parcoursId: dossier.parcours.id }),
-    dateLimiteGlobale({ parcoursId: dossier.parcours.id, creeLe: dossier.created_at ?? new Date() }),
+    joursRestants({
+      id,
+      statutCode: dossier.statutCode,
+      parcoursId: dossier.parcours.id,
+    }),
+    dateLimiteGlobale({
+      parcoursId: dossier.parcours.id,
+      creeLe: dossier.created_at ?? new Date(),
+    }),
     investigationsDuDossier(id),
     actionsDuDossier(id),
     investigationsRattachables(id),
-    peutVoirMessagerie(utilisateur, { parcoursCode: pourPolicy.parcoursCode })
+    peutVoirMessagerie(utilisateur, pourPolicy)
       ? messagesDuDossier(id)
       : Promise.resolve([]),
     // Niveaux proposés à la qualification. Chargés sans condition : l'alternative serait une
     // seconde requête conditionnelle, pour six lignes.
     prisma.niveaux_gravite.findMany({
       where: { actif: true },
-      orderBy: { niveau: 'asc' },
+      orderBy: { niveau: "asc" },
       select: { id: true, libelle: true },
     }),
 
@@ -139,7 +166,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     famillesRisqueProposees(pourPolicy.parcoursCode),
     // Le suivi n'est chargé que pour le parcours qui l'affiche : deux requêtes épargnées sur
     // les trois quarts des fiches.
-    estEvenementIndesirable(pourPolicy.parcoursCode) ? suiviEi(id) : Promise.resolve(null),
+    estEvenementIndesirable(pourPolicy.parcoursCode)
+      ? suiviEi(id)
+      : Promise.resolve(null),
 
     /*
       ⚠️ QUI RÉPOND DE CE DOSSIER — pour les QUATRE types, désormais.
@@ -164,13 +193,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
       du compte — jamais sur cette liste, qui n'est qu'un message.
     */
     acteursDeLEtape(pourPolicy.parcoursCode, dossier.statutCode),
-  ])
+  ]);
 
   // Les policies s'evaluent ICI, cote serveur : le composant client ne recoit que des booleens
   // deja calcules, jamais de quoi les recalculer lui-meme.
-  const contexteParcours = { parcoursCode: pourPolicy.parcoursCode }
+  const contexteDossier = pourPolicy;
   const investigationsVues = peutVoirInvestigation(utilisateur, {
-    ...contexteParcours,
+    ...contexteDossier,
     enqueteurId: 0n,
   })
     ? investigations.map((i) => ({
@@ -183,20 +212,24 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
         recommandations: i.recommandations,
         enqueteur: i.users_investigations_enqueteur_idTousers.name,
         peutModifier: peutModifierInvestigation(utilisateur, {
-          ...contexteParcours,
+          ...contexteDossier,
           enqueteurId: i.enqueteur_id,
         }),
       }))
-    : []
+    : [];
 
   const droitsActions = {
-    creer: peutCreerAction(utilisateur, contexteParcours),
-    modifier: peutModifierAction(utilisateur, contexteParcours),
-    verifier: peutVerifierEfficacite(utilisateur, contexteParcours),
-    cloturer: peutCloturerAction(utilisateur, contexteParcours),
-  }
+    creer: peutCreerAction(utilisateur, contexteDossier),
+    modifier: peutModifierAction(utilisateur, contexteDossier),
+    verifier: peutVerifierEfficacite(utilisateur, contexteDossier),
+    cloturer: peutCloturerAction(utilisateur, contexteDossier),
+  };
 
-  const actionsVues = peutVoirAction(utilisateur, contexteParcours)
+  const politiqueSuppression = aPermission(utilisateur, "users.manage")
+    ? await lirePolitiqueSuppression()
+    : null;
+
+  const actionsVues = peutVoirAction(utilisateur, contexteDossier)
     ? actions.map((a) => ({
         id: a.id,
         intitule: a.intitule,
@@ -208,24 +241,28 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
         dateCloture: a.date_cloture?.toISOString() ?? null,
         // Saisi à la main depuis le 2026-09-18. Le repli sur le compte couvre les actions plus
         // anciennes, qui désignaient un utilisateur.
-        responsable: a.responsable_nom ?? a.users?.name ?? '—',
+        responsable: a.responsable_nom ?? a.users?.name ?? "—",
       }))
-    : []
+    : [];
 
   // Parité avec `MessagerieDossier::mount()` : ouvrir le dossier vaut lecture des messages du
   // déclarant. C'est une écriture pendant le rendu, assumée — la page est dynamique (elle lit la
   // session) et l'opération est idempotente : la relire ne change plus rien.
   if (messages.length > 0) {
-    await marquerMessagesLus(id, 'agent')
+    await marquerMessagesLus(id, "agent");
   }
 
   const messagesVus = messages.map((m) => ({
     id: m.id,
-    cote: m.expediteur_type === 'agent' ? ('agent' as const) : ('declarant' as const),
-    auteur: m.expediteur_type === 'agent' ? (m.users?.name ?? 'Agent') : 'Déclarant',
+    cote:
+      m.expediteur_type === "agent"
+        ? ("agent" as const)
+        : ("declarant" as const),
+    auteur:
+      m.expediteur_type === "agent" ? (m.users?.name ?? "Agent") : "Déclarant",
     corps: m.corps,
     envoyeLe: (m.created_at ?? new Date()).toISOString(),
-  }))
+  }));
 
   // Le sommaire ne liste que les sections réellement présentes : proposer « Identité du
   // déclarant » sur un dossier anonyme mènerait à une ancre vide.
@@ -247,33 +284,55 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
     Le masquage est ici, à l'AFFICHAGE, et non conditionné à ce que la capture a bien fait : une
     donnée qu'on s'est engagé à ne pas montrer ne doit pas dépendre de l'écran qui l'a saisie.
   */
-  const montrerLeDeclarant = !dossier.is_anonymous
+  const montrerLeDeclarant = !dossier.is_anonymous;
 
   const aUnRattachement =
     dossier.directions !== null ||
     dossier.poste !== null ||
     dossier.declarant_est_victime !== null ||
     (montrerLeDeclarant &&
-      (dossier.directions_dossiers_direction_declarant_idTodirections !== null ||
-        dossier.poste_declarant !== null))
+      (dossier.directions_dossiers_direction_declarant_idTodirections !==
+        null ||
+        dossier.poste_declarant !== null));
 
   const sections: SectionDossier[] = [
-    { id: 'description', libelle: 'Description' },
-    ...(aUnRattachement ? [{ id: 'rattachement', libelle: 'Rattachement' }] : []),
-    ...(dossier.declaration_identites ? [{ id: 'identite', libelle: 'Identité' }] : []),
-    { id: 'pieces-jointes', libelle: 'Pièces jointes', nombre: pieces.length },
-    { id: 'investigations', libelle: 'Investigations', nombre: investigationsVues.length },
-    { id: 'actions-correctives', libelle: 'Actions correctives', nombre: actionsVues.length },
-    ...(peutVoirMessagerie(utilisateur, contexteParcours)
-      ? [{ id: 'messagerie', libelle: 'Messagerie', nombre: messagesVus.length }]
+    { id: "description", libelle: "Description" },
+    ...(aUnRattachement
+      ? [{ id: "rattachement", libelle: "Rattachement" }]
       : []),
-    { id: 'historique', libelle: 'Historique', nombre: historique.length },
-  ]
+    ...(dossier.declaration_identites
+      ? [{ id: "identite", libelle: "Identité" }]
+      : []),
+    { id: "pieces-jointes", libelle: "Pièces jointes", nombre: pieces.length },
+    {
+      id: "investigations",
+      libelle: "Investigations",
+      nombre: investigationsVues.length,
+    },
+    {
+      id: "actions-correctives",
+      libelle: "Actions correctives",
+      nombre: actionsVues.length,
+    },
+    ...(peutVoirMessagerie(utilisateur, contexteDossier)
+      ? [
+          {
+            id: "messagerie",
+            libelle: "Messagerie",
+            nombre: messagesVus.length,
+          },
+        ]
+      : []),
+    { id: "historique", libelle: "Historique", nombre: historique.length },
+  ];
 
   return (
     <div className="space-y-5">
       <FilAriane
-        mailles={[{ libelle: 'Dossiers', href: '/dossiers' }, { libelle: dossier.reference }]}
+        mailles={[
+          { libelle: "Dossiers", href: "/dossiers" },
+          { libelle: dossier.reference },
+        ]}
       />
 
       {/* En-tête : ce qu'est ce dossier à gauche, où il en est à droite. L'ordre des étiquettes
@@ -287,12 +346,17 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 {dossier.reference}
               </span>
               {dossier.is_anonymous && (
-                <EtiquetteStatut ton="neutre">Déclarant anonyme</EtiquetteStatut>
+                <EtiquetteStatut ton="neutre">
+                  Déclarant anonyme
+                </EtiquetteStatut>
               )}
             </div>
-            <h1 className="mt-1 text-h1 text-secondary-900">{dossier.categories.libelle}</h1>
+            <h1 className="mt-1 text-h1 text-secondary-900">
+              {dossier.categories.libelle}
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {dossier.parcours.libelle} · reçu le {dateCourteFr(dossier.created_at)}
+              {dossier.parcours.libelle} · reçu le{" "}
+              {dateCourteFr(dossier.created_at)}
             </p>
           </div>
 
@@ -305,23 +369,36 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 Gravité : {dossier.niveaux_gravite.libelle}
               </EtiquetteStatut>
             ) : (
-              <EtiquetteStatut ton="attention">Gravité à qualifier</EtiquetteStatut>
+              <EtiquetteStatut ton="attention">
+                Gravité à qualifier
+              </EtiquetteStatut>
             )}
             {restants !== null && (
               <EtiquetteStatut
-                ton={restants < 0 ? 'alerte' : restants <= 3 ? 'attention' : 'neutre'}
+                ton={
+                  restants < 0
+                    ? "alerte"
+                    : restants <= 3
+                      ? "attention"
+                      : "neutre"
+                }
               >
                 {restants < 0
                   ? `En retard de ${Math.abs(restants)} j`
                   : restants === 0
-                    ? 'Échéance aujourd’hui'
+                    ? "Échéance aujourd’hui"
                     : `${restants} j avant échéance`}
               </EtiquetteStatut>
             )}
             {/* CDC §11.2 : enveloppe totale depuis la création (DT-23). Un dossier peut tenir
                 chacune de ses étapes et dépasser malgré tout ce délai d'ensemble. */}
             {limiteGlobale !== null && limiteGlobale < new Date() && (
-              <EtiquetteStatut ton="alerte">Délai global dépassé</EtiquetteStatut>
+              <EtiquetteStatut ton="alerte">
+                Délai global dépassé
+              </EtiquetteStatut>
+            )}
+            {politiqueSuppression?.autorisee && (
+              <BoutonRetirer dossierId={dossier.id} />
             )}
           </div>
         </div>
@@ -338,7 +415,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           // `dateCourteFr` rend « — » sur `null` : ici l'absence doit rester `null`, pour que
           // l'encadré taise la ligne au lieu d'annoncer « prochaine échéance le — ».
           prochaineEcheance={
-            suivi.prochaineEcheance ? dateCourteFr(suivi.prochaineEcheance) : null
+            suivi.prochaineEcheance
+              ? dateCourteFr(suivi.prochaineEcheance)
+              : null
           }
         />
       )}
@@ -355,12 +434,13 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 <CardTitle className="text-h3">Description</CardTitle>
               </CardHeader>
               <CardContent>
-                {dossier.description.trim() === '' ? (
+                {dossier.description.trim() === "" ? (
                   // La description est facultative depuis le 08/09/2026 : un dossier peut n'en
                   // porter aucune. Le dire explicitement évite de laisser croire à un défaut
                   // d'affichage — et oriente vers le seul endroit où l'obtenir.
                   <p className="text-sm text-muted-foreground">
-                    Aucune description n’a été saisie. La messagerie permet d’en demander une au déclarant.
+                    Aucune description n’a été saisie. La messagerie permet d’en
+                    demander une au déclarant.
                   </p>
                 ) : (
                   <p className="whitespace-pre-line text-sm text-secondary-700">
@@ -371,30 +451,41 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   {(
                     [
-                      ['Lieu', dossier.lieu],
+                      ["Lieu", dossier.lieu],
                       [
-                        'Date des faits',
-                        dossier.date_survenance ? dateCourteFr(dossier.date_survenance) : null,
+                        "Date des faits",
+                        dossier.date_survenance
+                          ? dateCourteFr(dossier.date_survenance)
+                          : null,
                       ],
                       // ⚠️ Traduit, et non plus rendu brut : la colonne porte « premiere_fois ».
                       [
-                        'Caractère répétitif',
+                        "Caractère répétitif",
                         libelleValeur(
                           dossier.parcours.code as ParcoursCode,
-                          'caractereRepetitif',
-                          dossier.caractere_repetitif
+                          "caractereRepetitif",
+                          dossier.caractere_repetitif,
                         ),
                       ],
-                      ['Précision de la catégorie', dossier.categorie_autre_precision],
+                      [
+                        "Précision de la catégorie",
+                        dossier.categorie_autre_precision,
+                      ],
                       /*
                         La FAMILLE DE RISQUE, à côté de la catégorie parce que c'est là qu'on la
                         cherche — mais elle ne vient pas du même endroit : la catégorie est le mot
                         du déclarant au dépôt, la famille la lecture du traitant après analyse.
                         Vide tant que personne ne l'a posée, et la ligne disparaît alors.
                       */
-                      ['Famille de risque', dossier.familles_risque?.libelle ?? null],
-                      ['Ville', dossier.ville],
-                      ['Précision de localisation', dossier.precision_localisation],
+                      [
+                        "Famille de risque",
+                        dossier.familles_risque?.libelle ?? null,
+                      ],
+                      ["Ville", dossier.ville],
+                      [
+                        "Précision de localisation",
+                        dossier.precision_localisation,
+                      ],
                       /*
                         L'entreprise et la qualité du plaignant ont CHANGÉ DE TABLE.
 
@@ -404,30 +495,40 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                         encore à l'ancien endroit. On lit donc les deux, la nouvelle d'abord.
                       */
                       [
-                        'Entreprise',
-                        dossier.entreprise ?? dossier.declaration_identites?.entreprise ?? null,
+                        "Entreprise",
+                        dossier.entreprise ??
+                          dossier.declaration_identites?.entreprise ??
+                          null,
                       ],
                       [
-                        'Qualité du plaignant',
+                        "Qualité du plaignant",
                         libelleValeur(
                           dossier.parcours.code as ParcoursCode,
-                          'statutPlaignant',
+                          "statutPlaignant",
                           dossier.statut_plaignant ??
                             dossier.declaration_identites?.statut_plaignant ??
-                            null
+                            null,
                         ),
                       ],
-                      ['Précision de la qualité', dossier.statut_plaignant_precision],
-                      ['Solution souhaitée', dossier.proposition_mesure_corrective],
-                      ['Attentes du déclarant', dossier.attentes_declarant],
+                      [
+                        "Précision de la qualité",
+                        dossier.statut_plaignant_precision,
+                      ],
+                      [
+                        "Solution souhaitée",
+                        dossier.proposition_mesure_corrective,
+                      ],
+                      ["Attentes du déclarant", dossier.attentes_declarant],
                     ] as const
                   ).map(([libelle, valeur]) =>
                     valeur ? (
                       <div key={libelle}>
-                        <dt className="text-caption text-muted-foreground">{libelle}</dt>
+                        <dt className="text-caption text-muted-foreground">
+                          {libelle}
+                        </dt>
                         <dd className="text-sm text-secondary-800">{valeur}</dd>
                       </div>
-                    ) : null
+                    ) : null,
                   )}
                 </dl>
               </CardContent>
@@ -461,23 +562,26 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                           passer des dizaines de dossiers pour des signalements de tiers.
                         */
                         [
-                          'Le déclarant est la personne concernée',
+                          "Le déclarant est la personne concernée",
                           dossier.declarant_est_victime === null
                             ? null
                             : dossier.declarant_est_victime
-                              ? 'Oui'
-                              : 'Non',
+                              ? "Oui"
+                              : "Non",
                         ],
-                        ['Direction de la victime', dossier.directions?.libelle ?? null],
                         [
-                          'Poste de la victime',
+                          "Direction de la victime",
+                          dossier.directions?.libelle ?? null,
+                        ],
+                        [
+                          "Poste de la victime",
                           // « Autre » seul n'apprend rien : c'est la précision qu'il faut lire.
                           dossier.poste_precision ?? dossier.poste,
                         ],
                         // Voir `montrerLeDeclarant` : rien du déclarant sur une déclaration
                         // anonyme, quelle que soit la donnée en base.
                         [
-                          'Direction du déclarant',
+                          "Direction du déclarant",
                           montrerLeDeclarant
                             ? (dossier
                                 .directions_dossiers_direction_declarant_idTodirections
@@ -485,19 +589,24 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                             : null,
                         ],
                         [
-                          'Poste du déclarant',
+                          "Poste du déclarant",
                           montrerLeDeclarant
-                            ? (dossier.poste_declarant_precision ?? dossier.poste_declarant)
+                            ? (dossier.poste_declarant_precision ??
+                              dossier.poste_declarant)
                             : null,
                         ],
                       ] as const
                     ).map(([libelle, valeur]) =>
                       valeur ? (
                         <div key={libelle}>
-                          <dt className="text-caption text-muted-foreground">{libelle}</dt>
-                          <dd className="text-sm text-secondary-800">{valeur}</dd>
+                          <dt className="text-caption text-muted-foreground">
+                            {libelle}
+                          </dt>
+                          <dd className="text-sm text-secondary-800">
+                            {valeur}
+                          </dd>
                         </div>
-                      ) : null
+                      ) : null,
                     )}
                   </dl>
                 </CardContent>
@@ -511,30 +620,36 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
             <section id="identite" className="scroll-mt-28">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-h3">Identité du déclarant</CardTitle>
+                  <CardTitle className="text-h3">
+                    Identité du déclarant
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <dl className="grid gap-3 sm:grid-cols-2">
                     {(
                       [
-                        ['nom_prenom', 'Nom et prénom'],
-                        ['matricule', 'Matricule'],
-                        ['entreprise', 'Entreprise'],
-                        ['fonction', 'Fonction'],
-                        ['localite', 'Localité'],
-                        ['statut_plaignant', 'Statut'],
-                        ['contact_email', 'E-mail'],
-                        ['contact_telephone', 'Téléphone'],
+                        ["nom_prenom", "Nom et prénom"],
+                        ["matricule", "Matricule"],
+                        ["entreprise", "Entreprise"],
+                        ["fonction", "Fonction"],
+                        ["localite", "Localité"],
+                        ["statut_plaignant", "Statut"],
+                        ["contact_email", "E-mail"],
+                        ["contact_telephone", "Téléphone"],
                       ] as const
                     ).map(([cle, libelle]) => {
-                      const valeur = dossier.declaration_identites?.[cle]
-                      if (!valeur) return null
+                      const valeur = dossier.declaration_identites?.[cle];
+                      if (!valeur) return null;
                       return (
                         <div key={cle}>
-                          <dt className="text-caption text-muted-foreground">{libelle}</dt>
-                          <dd className="text-sm text-secondary-800">{String(valeur)}</dd>
+                          <dt className="text-caption text-muted-foreground">
+                            {libelle}
+                          </dt>
+                          <dd className="text-sm text-secondary-800">
+                            {String(valeur)}
+                          </dd>
                         </div>
-                      )
+                      );
                     })}
                   </dl>
                 </CardContent>
@@ -545,7 +660,8 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
           {dossier.identiteMasquee && (
             <Alert>
               <AlertDescription>
-                Les données nominatives de ce dossier ne sont pas accessibles à votre rôle.
+                Les données nominatives de ce dossier ne sont pas accessibles à
+                votre rôle.
               </AlertDescription>
             </Alert>
           )}
@@ -566,10 +682,10 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               dossierId={id}
               investigations={investigationsVues}
               peutOuvrir={peutCreerInvestigation(utilisateur, {
-                ...contexteParcours,
+                ...contexteDossier,
                 enqueteurId: utilisateur.id,
               })}
-              dossierEnInvestigation={dossier.statutCode === 'en_investigation'}
+              dossierEnInvestigation={dossier.statutCode === "en_investigation"}
             />
           </section>
 
@@ -579,19 +695,21 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               actions={actionsVues}
               investigations={investigationsRattachables_.map((i) => ({
                 id: i.id,
-                libelle: `Investigation du ${new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(i.date_ouverture)}`,
+                libelle: `Investigation du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(i.date_ouverture)}`,
               }))}
               droits={droitsActions}
-              dossierEnActionCorrective={dossier.statutCode === 'action_corrective_en_cours'}
+              dossierEnActionCorrective={
+                dossier.statutCode === "action_corrective_en_cours"
+              }
             />
           </section>
 
-          {peutVoirMessagerie(utilisateur, contexteParcours) && (
+          {peutVoirMessagerie(utilisateur, contexteDossier) && (
             <section id="messagerie" className="scroll-mt-28">
               <PanneauMessagerie
                 dossierId={id}
                 messages={messagesVus}
-                peutEnvoyer={peutEnvoyerMessage(utilisateur, contexteParcours)}
+                peutEnvoyer={peutEnvoyerMessage(utilisateur, contexteDossier)}
               />
             </section>
           )}
@@ -618,12 +736,16 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                               .statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier
                               .libelle_interne
                           }
-                        </span>{' '}
-                        — {h.users?.name ?? 'Système'}
+                        </span>{" "}
+                        — {h.users?.name ?? "Système"}
                       </p>
-                      <p className="text-caption text-muted-foreground">{dateFr(h.created_at)}</p>
+                      <p className="text-caption text-muted-foreground">
+                        {dateFr(h.created_at)}
+                      </p>
                       {h.commentaire && (
-                        <p className="mt-1 text-caption text-secondary-600">{h.commentaire}</p>
+                        <p className="mt-1 text-caption text-secondary-600">
+                          {h.commentaire}
+                        </p>
                       )}
                     </li>
                   ))}
@@ -656,13 +778,19 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
                   }))
             }
             parRattachement={enCharge.length > 0 || affectations.length === 0}
-            transitions={transitions.map((t) => ({ code: t.code, libelle: t.libelle_interne }))}
+            transitions={transitions.map((t) => ({
+              code: t.code,
+              libelle: t.libelle_interne,
+            }))}
             acteursDeLEtape={acteursAttendus}
             // Proposée seulement tant qu'aucune gravité n'est posée : requalifier un dossier déjà
             // qualifié n'a pas été demandé, et rouvrirait la question du circuit accéléré.
             gravitesAQualifier={
               dossier.niveaux_gravite === null
-                ? gravitesActives.map((g) => ({ valeur: String(g.id), libelle: g.libelle }))
+                ? gravitesActives.map((g) => ({
+                    valeur: String(g.id),
+                    libelle: g.libelle,
+                  }))
                 : []
             }
             famillesRisque={famillesRisque.map((f) => ({
@@ -670,7 +798,9 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               libelle: f.libelle,
             }))}
             familleRisqueActuelle={
-              dossier.famille_risque_id === null ? '' : String(dossier.famille_risque_id)
+              dossier.famille_risque_id === null
+                ? ""
+                : String(dossier.famille_risque_id)
             }
             droits={{
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
@@ -678,12 +808,15 @@ export default async function PageDossier({ params }: PageProps<'/dossiers/[id]'
               reouvrir: peutReouvrirDossier(utilisateur, pourPolicy),
               // RG-11 : le blocage contentieux relève du seul DPO, indépendamment des droits
               // détenus sur le dossier lui-même.
-              gererContentieux: aPermission(utilisateur, 'rgpd.conservation.manage'),
+              gererContentieux: aPermission(
+                utilisateur,
+                "rgpd.conservation.manage",
+              ),
             }}
             contentieux={dossier.contentieux}
           />
         </div>
       </div>
     </div>
-  )
+  );
 }
