@@ -1,0 +1,15 @@
+# Copier vers /etc/ei-mgp/ei-mgp.env avec les droits 600.
+# Ne jamais versionner le fichier réel.
+DATABASE_URL="postgresql://UTILISATEUR:MOT_DE_PASSE@HOTE:5432/ei_mgp?sslmode=require"
+AUTH_SECRET="GENERER_32_OCTETS_MINIMUM"
+AUTH_URL="https://VOTRE_DOMAINE"
+AUTH_TRUST_HOST="true"
+TRUST_PROXY_HEADERS="true"
+TACHES_SECRET="GENERER_32_OCTETS_MINIMUM"
+BCRYPT_ROUNDS="12"
+
+RESEND_API_KEY="CLE_RESEND_REGENEREE"
+RESEND_FROM="Plateforme EI/MGP <notifications@VOTRE_DOMAINE>"
+
+STOCKAGE_MAGASIN="local"
+STOCKAGE_RACINE="/var/lib/ei-mgp/storage/private"

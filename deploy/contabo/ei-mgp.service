@@ -1,0 +1,30 @@
+[Unit]
+Description=Plateforme EI/MGP (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ei-mgp
+Group=ei-mgp
+WorkingDirectory=/opt/ei-mgp/current
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+EnvironmentFile=/etc/ei-mgp/ei-mgp.env
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=90
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# Durcissement compatible avec Next.js et le magasin local de pièces jointes.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ei-mgp/current/.next /var/lib/ei-mgp
+
+[Install]
+WantedBy=multi-user.target
