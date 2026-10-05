@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -89,7 +89,18 @@ export function FormulaireDeclaration({
   soumettre = soumettreDeclaration,
   canauxRelais = [],
 }: Props) {
-  const [etat, action, enCours] = useActionState(soumettre, ETAT_INITIAL)
+  const [fichiersSelectionnes, setFichiersSelectionnes] = useState<File[]>([])
+  const soumettreAvecFichiers = useCallback(
+    async (precedent: EtatSoumission, donnees: FormData) => {
+      donnees.delete('fichiers')
+      for (const fichier of fichiersSelectionnes) {
+        donnees.append('fichiers', fichier, fichier.name)
+      }
+      return soumettre(precedent, donnees)
+    },
+    [fichiersSelectionnes, soumettre]
+  )
+  const [etat, action, enCours] = useActionState(soumettreAvecFichiers, ETAT_INITIAL)
 
   /*
    * Seule l'erreur GÉNÉRALE part en notification ; les erreurs de champ restent sous le champ à
@@ -141,7 +152,6 @@ export function FormulaireDeclaration({
   const [envoiArme, setEnvoiArme] = useState(false)
   /** `en-cours` barre l'envoi : partir maintenant déposerait les fichiers d'origine. */
   const [reduction, setReduction] = useState<'inactive' | 'en-cours'>('inactive')
-  const [fichiersSelectionnes, setFichiersSelectionnes] = useState<File[]>([])
 
   /*
     RGI-03 : en anonymat, les champs d'identité ne sont pas rendus du tout — donc pas soumissibles.
@@ -336,22 +346,10 @@ export function FormulaireDeclaration({
       ? `${(octets / (1024 * 1024)).toFixed(1)} Mo`
       : `${Math.max(1, Math.round(octets / 1024))} Ko`
 
-  /**
-   * Le `FileList` natif est remplacé à chaque ouverture du sélecteur sur certains navigateurs,
-   * même lorsque l'interface a correctement cumulé les choix. La liste affichée est donc la
-   * source de vérité au moment de l'envoi : ce sont exactement ces fichiers qui sont ajoutés au
-   * `FormData`, dans leur ordre visible.
-   */
-  function envoyerAvecFichiers(donnees: FormData) {
-    donnees.delete('fichiers')
-    for (const fichier of fichiersSelectionnes) donnees.append('fichiers', fichier, fichier.name)
-    action(donnees)
-  }
-
   return (
     <form
       ref={formulaireRef}
-      action={envoyerAvecFichiers}
+      action={action}
       aria-busy={enCours || reduction === 'en-cours'}
       /*
        * `noValidate` : la validation native est remplacée, pas supprimée. Les étapes restant
