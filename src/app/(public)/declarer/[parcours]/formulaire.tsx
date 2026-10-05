@@ -294,26 +294,31 @@ export function FormulaireDeclaration({
    * L'ordre compte : peser avant refuserait des lots que la réduction aurait rendus acceptables.
    */
   async function reduirePuisVerifier(champ: HTMLInputElement) {
-    const choisis = Array.from(champ.files ?? [])
+    const nouveaux = Array.from(champ.files ?? [])
 
-    if (choisis.length === 0) {
-      champ.setCustomValidity('')
-      setFichiersSelectionnes([])
-      return
-    }
+    // Annuler la boîte de dialogue ne doit pas effacer les fichiers déjà retenus.
+    if (nouveaux.length === 0) return
 
     setReduction('en-cours')
 
+    let ajoutes: File[] = nouveaux
     try {
-      remplacerFichiers(champ, await compresserLot(choisis))
+      // Seuls les nouveaux fichiers sont compressés : retraiter les précédents à chaque ajout
+      // dégraderait plusieurs fois la même image.
+      ajoutes = await compresserLot(nouveaux)
     } finally {
       setReduction('inactive')
     }
 
-    // Ce qui est pesé est ce que contient le champ : si le remplacement n'a pas pu avoir lieu, ce
-    // sont les fichiers d'origine qui partiront, et ce sont eux qui doivent tenir dans les bornes.
-    champ.setCustomValidity(verifierLotSuperficiellement(Array.from(champ.files ?? [])) ?? '')
-    setFichiersSelectionnes(Array.from(champ.files ?? []))
+    const uniques = new Map<string, File>()
+    for (const fichier of [...fichiersSelectionnes, ...ajoutes]) {
+      uniques.set(`${fichier.name}:${fichier.size}:${fichier.lastModified}`, fichier)
+    }
+    const fusionnes = [...uniques.values()]
+
+    remplacerFichiers(champ, fusionnes)
+    champ.setCustomValidity(verifierLotSuperficiellement(fusionnes) ?? '')
+    setFichiersSelectionnes(fusionnes)
   }
 
   function retirerFichier(index: number) {
@@ -581,6 +586,7 @@ export function FormulaireDeclaration({
             name="fichiers"
             type="file"
             multiple
+            disabled={reduction === 'en-cours'}
             accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.mov,.pdf"
             aria-invalid={erreur('fichiers') ? true : undefined}
             aria-describedby={

@@ -336,6 +336,33 @@ describe('Le geste de trop', () => {
     expect(soumissions).toHaveLength(1)
   })
 
+  it('cumule les fichiers choisis successivement sans remplacer les précédents', async () => {
+    const { utilisateur } = afficher()
+    await remplirJusquAEtape3(utilisateur)
+    await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
+    await waitFor(() => expect(visible(screen.getByLabelText(/Pièces jointes/i))).toBe(true))
+
+    const champFichier = screen.getByLabelText(/Pièces jointes/i) as HTMLInputElement
+    await utilisateur.upload(
+      champFichier,
+      new File(['premier'], 'premier.pdf', { type: 'application/pdf' })
+    )
+    await screen.findByText('premier.pdf')
+
+    await utilisateur.upload(
+      champFichier,
+      new File(['second'], 'second.pdf', { type: 'application/pdf' })
+    )
+
+    expect(await screen.findByText('premier.pdf')).toBeDefined()
+    expect(await screen.findByText('second.pdf')).toBeDefined()
+    expect(screen.getByText(/2 fichiers prêts/i)).toBeDefined()
+
+    await utilisateur.click(screen.getByRole('button', { name: 'Retirer premier.pdf' }))
+    expect(screen.queryByText('premier.pdf')).toBeNull()
+    expect(screen.getByText('second.pdf')).toBeDefined()
+  })
+
   it('refuse d’envoyer un lot au-delà des bornes annoncées, sans transmettre les octets', async () => {
     // Le formulaire annonce « 10 fichiers maximum » : il doit le faire respecter AVANT l'envoi.
     // Sans ce contrôle, le lot part quand même et n'est refusé qu'une fois tous les octets
