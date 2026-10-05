@@ -337,7 +337,7 @@ describe('Le geste de trop', () => {
   })
 
   it('cumule les fichiers choisis successivement sans remplacer les précédents', async () => {
-    const { utilisateur } = afficher()
+    const { utilisateur, soumissions } = afficher()
     await remplirJusquAEtape3(utilisateur)
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
     await waitFor(() => expect(visible(screen.getByLabelText(/Pièces jointes/i))).toBe(true))
@@ -358,9 +358,18 @@ describe('Le geste de trop', () => {
     expect(await screen.findByText('second.pdf')).toBeDefined()
     expect(screen.getByText(/2 fichiers prêts/i)).toBeDefined()
 
-    await utilisateur.click(screen.getByRole('button', { name: 'Retirer premier.pdf' }))
-    expect(screen.queryByText('premier.pdf')).toBeNull()
-    expect(screen.getByText('second.pdf')).toBeDefined()
+    await utilisateur.upload(
+      champFichier,
+      new File(['troisieme'], 'troisieme.pdf', { type: 'application/pdf' })
+    )
+    await envoyer(utilisateur)
+    await waitFor(() => expect(soumissions).toHaveLength(1))
+
+    const transmis = soumissions[0]
+      .getAll('fichiers')
+      .filter((fichier): fichier is File => fichier instanceof File)
+      .map((fichier) => fichier.name)
+    expect(transmis).toEqual(['premier.pdf', 'second.pdf', 'troisieme.pdf'])
   })
 
   it('refuse d’envoyer un lot au-delà des bornes annoncées, sans transmettre les octets', async () => {

@@ -336,10 +336,22 @@ export function FormulaireDeclaration({
       ? `${(octets / (1024 * 1024)).toFixed(1)} Mo`
       : `${Math.max(1, Math.round(octets / 1024))} Ko`
 
+  /**
+   * Le `FileList` natif est remplacé à chaque ouverture du sélecteur sur certains navigateurs,
+   * même lorsque l'interface a correctement cumulé les choix. La liste affichée est donc la
+   * source de vérité au moment de l'envoi : ce sont exactement ces fichiers qui sont ajoutés au
+   * `FormData`, dans leur ordre visible.
+   */
+  function envoyerAvecFichiers(donnees: FormData) {
+    donnees.delete('fichiers')
+    for (const fichier of fichiersSelectionnes) donnees.append('fichiers', fichier, fichier.name)
+    action(donnees)
+  }
+
   return (
     <form
       ref={formulaireRef}
-      action={action}
+      action={envoyerAvecFichiers}
       aria-busy={enCours || reduction === 'en-cours'}
       /*
        * `noValidate` : la validation native est remplacée, pas supprimée. Les étapes restant
