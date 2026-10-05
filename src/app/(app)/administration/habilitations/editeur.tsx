@@ -1002,7 +1002,49 @@ function FormulaireEtapes({
         en emportant la page. Les libellés d’étape restent lisibles, c’est ce qui permet de savoir
         quelle ligne on coche.
       */}
-      <div className="overflow-x-auto rounded-md border border-border">
+      <div className="space-y-3 md:hidden">
+        {parcoursDisponibles.map((parcours) => {
+          const toutesCochees = etapesDisponibles.every((etape) =>
+            cochees.includes(cleEtape(parcours.code, etape.code)),
+          );
+
+          return (
+            <fieldset key={parcours.code} className="rounded-xl border border-border p-4">
+              <legend className="px-1 text-sm font-semibold text-secondary-900">
+                {parcours.libelle}
+              </legend>
+              {!ouverts.has(parcours.code) && (
+                <p className="mb-3 text-caption text-muted-foreground">Type non ouvert actuellement</p>
+              )}
+              <button
+                type="button"
+                onClick={() => basculerColonne(parcours.code, !toutesCochees)}
+                className="mb-3 min-h-11 rounded-lg px-2 text-sm font-medium text-primary-700 underline underline-offset-2"
+              >
+                {toutesCochees ? "Tout décocher" : "Tout cocher"}
+              </button>
+              <div className="space-y-2">
+                {etapesDisponibles.map((etape) => {
+                  const cle = cleEtape(parcours.code, etape.code);
+                  return (
+                    <label key={etape.code} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
+                      <span>{etape.libelle}</span>
+                      <input
+                        type="checkbox"
+                        checked={cochees.includes(cle)}
+                        onChange={(evenement) => basculer(cle, evenement.target.checked)}
+                        className="h-5 w-5 shrink-0 accent-primary-700"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-md border border-border md:block">
         <table className="w-full min-w-[34rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">

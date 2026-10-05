@@ -283,7 +283,89 @@ export function EditeurReferentiel({
           {lignes.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">{messageVide}</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <ul className="divide-y divide-border md:hidden" aria-label="Liste des entrées">
+                {lignes.map((ligne, index) => {
+                  const groupe = ligne.groupe ?? "";
+                  const memeGroupe = lignes.filter((l) => (l.groupe ?? "") === groupe);
+                  const rang = memeGroupe.indexOf(ligne);
+                  const nom =
+                    ligne.cellules.find((c) => typeof c === "string") ?? `ligne ${index + 1}`;
+
+                  return (
+                    <li key={ligne.id} className="space-y-4 p-4">
+                      <dl className="space-y-2.5">
+                        {ligne.cellules.map((cellule, colonne) => (
+                          <div key={colonnes[colonne] ?? colonne} className="grid grid-cols-[minmax(6rem,40%)_1fr] gap-3">
+                            <dt className="text-xs font-semibold text-muted-foreground">
+                              {colonnes[colonne] ?? `Champ ${colonne + 1}`}
+                            </dt>
+                            <dd className="min-w-0 break-words text-sm text-secondary-900">
+                              {typeof cellule === "string" ? (
+                                cellule
+                              ) : (
+                                <Badge variant={cellule.variant ?? "secondary"}>{cellule.badge}</Badge>
+                              )}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                        {actionDeplacer && (
+                          <>
+                            <BoutonRang
+                              envoyer={envoyerRang}
+                              id={ligne.id}
+                              sens="monter"
+                              nom={String(nom)}
+                              inactif={rang === 0 || rangEnCours}
+                            />
+                            <BoutonRang
+                              envoyer={envoyerRang}
+                              id={ligne.id}
+                              sens="descendre"
+                              nom={String(nom)}
+                              inactif={rang === memeGroupe.length - 1 || rangEnCours}
+                            />
+                          </>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setEdition({ id: ligne.id, valeurs: ligne.valeurs })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden />
+                          Modifier
+                        </Button>
+
+                        {actionSupprimer &&
+                          (aConfirmer === ligne.id ? (
+                            <form action={envoyerSuppression} className="flex w-full flex-wrap items-center gap-2 rounded-lg bg-destructive/5 p-2">
+                              <input type="hidden" name="id" value={ligne.id} />
+                              <span className="w-full text-caption text-muted-foreground">Confirmer la suppression ?</span>
+                              <Button type="submit" size="sm" variant="destructive" className="flex-1" disabled={suppressionEnCours}>
+                                {suppressionEnCours ? "Suppression…" : "Oui, supprimer"}
+                              </Button>
+                              <Button type="button" size="sm" variant="ghost" className="flex-1" onClick={() => setAConfirmer(null)}>
+                                Annuler
+                              </Button>
+                            </form>
+                          ) : (
+                            <Button size="sm" variant="ghost" className="flex-1 text-destructive hover:bg-destructive/10" onClick={() => setAConfirmer(ligne.id)}>
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              Supprimer
+                            </Button>
+                          ))}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-secondary-50/70">
                   <tr className="border-b border-border text-left">
@@ -421,6 +503,7 @@ export function EditeurReferentiel({
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>
