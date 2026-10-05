@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { transportEmail } from './transport'
+import { creerCourrielHtml } from './gabarit-courriel'
 import { MODELES } from '@/server/modeles'
+import { originePublique } from '@/server/origine-publique'
 
 /**
  * Envoi de notifications piloté par gabarit (Module 5, EX-NOT-01 à 05) — port de
@@ -167,7 +169,21 @@ async function expedier(
   corps: string
 ): Promise<boolean> {
   try {
-    await transportEmail().envoyer({ destinataire: adresse, objet, corps })
+    await transportEmail().envoyer({
+      destinataire: adresse,
+      objet,
+      corps,
+      html: creerCourrielHtml({
+        titre: objet,
+        preentete: corps.replace(/\s+/g, ' ').slice(0, 140),
+        texte: corps,
+        etiquette: 'Notification de dossier',
+        lienPied: {
+          libelle: 'Cliquez ici pour faire une déclaration',
+          url: `${originePublique()}/declarer`,
+        },
+      }),
+    })
   } catch (erreur) {
     console.error(
       `Envoi e-mail en échec (évènement « ${evenementCode} », dossier ${dossier.id})`,

@@ -2,6 +2,7 @@ import { configurationSmtp, transportEmail } from "../notification/transport";
 import { MODELES, journaliser } from "../audit/journal";
 import { VALIDITE_HEURES } from "./invitation";
 import { originePublique } from "@/server/origine-publique";
+import { creerCourrielHtml } from "../notification/gabarit-courriel";
 
 /**
  * Remise de l'accès par e-mail, à la création d'un compte.
@@ -129,6 +130,12 @@ export async function envoyerIdentifiants(params: {
   }
 
   try {
+    const invitation = urlInvitation(params.jeton);
+    const titre =
+      params.motif === "reattribution"
+        ? "Définissez votre nouveau mot de passe"
+        : "Bienvenue sur la plateforme EI / MGP";
+
     await transportEmail().envoyer({
       destinataire: params.email,
       objet:
@@ -136,6 +143,27 @@ export async function envoyerIdentifiants(params: {
           ? "Définissez votre nouveau mot de passe EI / MGP"
           : "Votre accès à la plateforme EI / MGP",
       corps: corps(params),
+      html: creerCourrielHtml({
+        titre,
+        preentete:
+          params.motif === "reattribution"
+            ? "Un lien sécurisé vous permet de choisir un nouveau mot de passe."
+            : "Votre compte est prêt : activez votre accès en choisissant votre mot de passe.",
+        etiquette: params.motif === "reattribution" ? "Sécurité du compte" : "Création de compte",
+        texte: [
+          `Bonjour ${params.nom},`,
+          params.motif === "reattribution"
+            ? "Un administrateur vous invite à choisir un nouveau mot de passe pour votre compte."
+            : "Votre compte EI / MGP a été créé. Vous pouvez maintenant activer votre accès.",
+          `Votre identifiant : ${params.email}`,
+          `Le lien est personnel, utilisable une seule fois et valable ${VALIDITE_HEURES} heures. S’il expire, contactez votre administrateur.`,
+        ].join("\n\n"),
+        action: { libelle: "Choisir mon mot de passe", url: invitation },
+        lienPied: {
+          libelle: "Cliquez ici pour faire une déclaration",
+          url: `${racine()}/declarer`,
+        },
+      }),
     });
   } catch (erreur) {
     // La raison est tracée côté serveur pour le diagnostic, jamais le contenu du message.

@@ -105,6 +105,9 @@ describe("Le message porte de quoi se connecter", () => {
     expect(message.corps, "le lien d’invitation manque").toContain(
       `/premiere-connexion/${JETON}`,
     );
+    expect(message.html).toContain("Bienvenue sur la plateforme EI / MGP");
+    expect(message.html).toContain("Choisir mon mot de passe");
+    expect(message.html).toContain(`/premiere-connexion/${JETON}`);
   });
 
   it("annonce la durée de validité et l’usage unique", async () => {
@@ -138,6 +141,8 @@ describe("Le message porte de quoi se connecter", () => {
     expect(message.corps).toContain("choisir votre nouveau mot de passe");
     expect(message.corps).toContain(`/premiere-connexion/${JETON}`);
     expect(message.corps.toLowerCase()).not.toContain("mot de passe provisoire");
+    expect(message.html).toContain("Sécurité du compte");
+    expect(message.html).toContain("Choisir mon mot de passe");
   });
 
   it("⚠️ le chemin de connexion suit celui d’Auth.js", async () => {
