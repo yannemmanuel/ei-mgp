@@ -52,7 +52,7 @@ export default function LayoutPublic({ children }: LayoutProps<"/">) {
             </div>
           </div>
 
-          <div className="mt-auto hidden pb-8 pt-24 lg:block">
+          <div className="hidden pb-8 pt-12 lg:block xl:pt-16">
             <p className="max-w-sm text-[2.5rem] font-semibold leading-[1.08] tracking-[-0.04em] text-secondary-900">
               Votre parole mérite une écoute sûre.
             </p>
