@@ -1889,7 +1889,7 @@
       "parcours_id": null,
       "canal": "outil",
       "objet": "Dossier {reference} affecté",
-      "corps": "Le dossier {reference} ({parcours}) vous a été affecté. Merci de le prendre en charge.",
+      "corps": "Le dossier {reference} ({parcours}) nécessite votre prise en charge.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -1910,7 +1910,7 @@
       "parcours_id": null,
       "canal": "email",
       "objet": "Dossier {reference} affecté",
-      "corps": "Le dossier {reference} ({parcours}) vous a été affecté. Merci de le prendre en charge.",
+      "corps": "Bonjour,\n\nUn dossier nécessite votre prise en charge.\n\nRéférence : {reference}\nType de déclaration : {parcours}\n\nAction attendue : consultez le dossier dans la plateforme EI / MGP et engagez son traitement dans les délais prévus.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -1952,7 +1952,7 @@
       "parcours_id": null,
       "canal": "email",
       "objet": "Mise à jour de votre déclaration {reference}",
-      "corps": "Le statut de votre déclaration {reference} a évolué : {statut}. Vous pouvez suivre son avancement via la page de suivi.",
+      "corps": "Bonjour,\n\nLe traitement de votre déclaration a évolué.\n\nRéférence : {reference}\nNouveau statut : {statut}\n\nVous pouvez consulter son avancement depuis la page de suivi, à l’aide des informations qui vous ont été remises lors de la déclaration.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -1973,7 +1973,7 @@
       "parcours_id": null,
       "canal": "outil",
       "objet": "Échéance proche : dossier {reference}",
-      "corps": "Le dossier {reference} ({parcours}) arrive à échéance dans {jours_restants} jour(s). Merci de le traiter avant cette date.",
+      "corps": "Le dossier {reference} ({parcours}) arrive à échéance dans {jours_restants} jour(s).",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -1994,49 +1994,7 @@
       "parcours_id": null,
       "canal": "email",
       "objet": "Échéance proche : dossier {reference}",
-      "corps": "Le dossier {reference} ({parcours}) arrive à échéance dans {jours_restants} jour(s). Merci de le traiter avant cette date.",
-      "actif": true,
-      "created_at": {
-        "__type": "date",
-        "valeur": "2026-09-07T10:07:36.000Z"
-      },
-      "updated_at": {
-        "__type": "date",
-        "valeur": "2026-09-07T10:07:36.000Z"
-      },
-      "destinataires_email_supplementaires": null
-    },
-    {
-      "id": {
-        "__type": "bigint",
-        "valeur": "52"
-      },
-      "evenement_code": "alerte_retard_n1",
-      "parcours_id": null,
-      "canal": "outil",
-      "objet": "Retard signalé : dossier {reference}",
-      "corps": "Le dossier {reference} ({parcours}), sous la responsabilité d'un de vos collaborateurs, a dépassé son délai de traitement.",
-      "actif": true,
-      "created_at": {
-        "__type": "date",
-        "valeur": "2026-09-07T10:07:36.000Z"
-      },
-      "updated_at": {
-        "__type": "date",
-        "valeur": "2026-09-07T10:07:36.000Z"
-      },
-      "destinataires_email_supplementaires": null
-    },
-    {
-      "id": {
-        "__type": "bigint",
-        "valeur": "53"
-      },
-      "evenement_code": "alerte_retard_n1",
-      "parcours_id": null,
-      "canal": "email",
-      "objet": "Retard signalé : dossier {reference}",
-      "corps": "Le dossier {reference} ({parcours}), sous la responsabilité d'un de vos collaborateurs, a dépassé son délai de traitement.",
+      "corps": "Bonjour,\n\nL’échéance de traitement d’un dossier approche.\n\nRéférence : {reference}\nType de déclaration : {parcours}\nDélai restant : {jours_restants} jour(s)\n\nAction attendue : vérifiez l’avancement du dossier et réalisez les actions nécessaires avant l’échéance.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2078,7 +2036,7 @@
       "parcours_id": null,
       "canal": "email",
       "objet": "Alerte retard : dossier {reference}",
-      "corps": "Le dossier {reference} ({parcours}) a dépassé son délai de traitement. Une action est requise.",
+      "corps": "Bonjour,\n\nUn dossier a dépassé son délai de traitement.\n\nRéférence : {reference}\nType de déclaration : {parcours}\n\nAction attendue : examinez la situation, identifiez le point de blocage et coordonnez les mesures nécessaires à la reprise du traitement.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2120,7 +2078,7 @@
       "parcours_id": null,
       "canal": "email",
       "objet": "Alerte direction : dossier {reference} très en retard",
-      "corps": "Le dossier {reference} ({parcours}) dépasse son délai de traitement de plus de 50 %. Votre attention est requise.",
+      "corps": "Bonjour,\n\nUn dossier présente un dépassement supérieur ou égal à 50 % du délai de traitement prévu.\n\nRéférence : {reference}\nType de déclaration : {parcours}\n\nAction attendue : prenez connaissance du dossier et assurez-vous qu’un plan de rattrapage est engagé et suivi.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2165,7 +2123,7 @@
       },
       "canal": "email",
       "objet": "🚨 Déclaration critique EI Employé — {reference}",
-      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, EI Employé). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "corps": "Bonjour,\n\nUne déclaration critique vient d’être enregistrée et nécessite une prise en charge immédiate.\n\nRéférence : {reference}\nType de déclaration : {parcours}\nNiveau : Critique\n\nActions attendues : sécuriser la situation, engager les premières mesures conservatoires dans les 24 heures et assurer l’information de la Direction Générale jusqu’à la clôture.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2191,7 +2149,7 @@
       },
       "canal": "email",
       "objet": "🚨 Déclaration critique Grief Employé — {reference}",
-      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Employé). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "corps": "Bonjour,\n\nUne déclaration critique vient d’être enregistrée et nécessite une prise en charge immédiate.\n\nRéférence : {reference}\nType de déclaration : {parcours}\nNiveau : Critique\n\nActions attendues : sécuriser la situation, engager les premières mesures conservatoires dans les 24 heures et assurer l’information de la Direction Générale jusqu’à la clôture.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2215,7 +2173,7 @@
       },
       "canal": "email",
       "objet": "🚨 Déclaration critique Grief Sous-traitant — {reference}",
-      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Sous-traitant). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "corps": "Bonjour,\n\nUne déclaration critique vient d’être enregistrée et nécessite une prise en charge immédiate.\n\nRéférence : {reference}\nType de déclaration : {parcours}\nNiveau : Critique\n\nActions attendues : sécuriser la situation, engager les premières mesures conservatoires dans les 24 heures et assurer l’information de la Direction Générale jusqu’à la clôture.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",
@@ -2239,7 +2197,7 @@
       },
       "canal": "email",
       "objet": "🚨 Déclaration critique Grief Communauté — {reference}",
-      "corps": "Une déclaration classée « Critique » vient d'être soumise ({reference}, Grief Communauté). Premières mesures conservatoires attendues sous 24h. Information continue de la Direction Générale jusqu'à clôture.",
+      "corps": "Bonjour,\n\nUne déclaration critique vient d’être enregistrée et nécessite une prise en charge immédiate.\n\nRéférence : {reference}\nType de déclaration : {parcours}\nNiveau : Critique\n\nActions attendues : sécuriser la situation, engager les premières mesures conservatoires dans les 24 heures et assurer l’information de la Direction Générale jusqu’à la clôture.\n\nCordialement,\nL’équipe EI / MGP\n\nCeci est un message automatique. Merci de ne pas y répondre.",
       "actif": true,
       "created_at": {
         "__type": "date",

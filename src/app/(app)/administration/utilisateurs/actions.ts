@@ -104,7 +104,6 @@ export async function actionEnregistrerCompte(
         poste: texte(donnees, 'poste') || null,
         directionId: identifiant(donnees, 'directionId'),
         siteId: identifiant(donnees, 'siteId'),
-        responsableHierarchiqueId: identifiant(donnees, 'responsableHierarchiqueId'),
         actif: donnees.get('actif') === '1',
         roles,
         parcours,

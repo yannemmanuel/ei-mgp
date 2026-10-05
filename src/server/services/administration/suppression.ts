@@ -342,7 +342,6 @@ async function tracesDuCompte(id: bigint): Promise<Citation[]> {
     messages,
     pieces,
     qrCodes,
-    subordonnes,
   ] = await Promise.all([
     prisma.audit_logs.count({ where: { user_id: id } }),
     prisma.dossier_affectations.count({ where: { user_id: id } }),
@@ -355,7 +354,6 @@ async function tracesDuCompte(id: bigint): Promise<Citation[]> {
     prisma.messages.count({ where: { expediteur_user_id: id } }),
     prisma.pieces_jointes.count({ where: { televerse_par: id } }),
     prisma.qr_codes.count({ where: { genere_par: id } }),
-    prisma.users.count({ where: { responsable_hierarchique_id: id } }),
   ])
 
   return [
@@ -368,7 +366,6 @@ async function tracesDuCompte(id: bigint): Promise<Citation[]> {
     { quoi: 'message', combien: messages },
     { quoi: 'pièce jointe', combien: pieces },
     { quoi: 'QR code', combien: qrCodes },
-    { quoi: 'compte dont il est le responsable', combien: subordonnes },
   ]
 }
 

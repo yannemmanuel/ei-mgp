@@ -173,7 +173,6 @@ describe('Escalade des retards (EX-NOT-04)', () => {
     const dossierId = await dossierAvecEcheance(acteur.id)
 
     await creerGabarit('alerte_retard_service_mgp')
-    await creerGabarit('alerte_retard_n1')
 
     // Recule largement l'entrée dans l'étape : l'échéance est nécessairement dépassée.
     await reculerDebutEtape(dossierId, 90)
@@ -194,7 +193,6 @@ describe('Escalade des retards (EX-NOT-04)', () => {
 
     const evenements = await evenementsNotifies(dossierId)
     expect(evenements).not.toContain('alerte_retard_service_mgp')
-    expect(evenements).not.toContain('alerte_retard_n1')
   })
 })
 

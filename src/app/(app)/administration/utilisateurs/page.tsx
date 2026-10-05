@@ -65,8 +65,6 @@ export default async function PageComptes({
         actif: c.actif,
         directionId: c.direction_id === null ? '' : String(c.direction_id),
         siteId: c.site_id === null ? '' : String(c.site_id),
-        responsableId:
-          c.responsable_hierarchique_id === null ? '' : String(c.responsable_hierarchique_id),
         roles: c.roles,
         site: c.sites?.libelle ?? null,
         direction: c.directions?.libelle ?? null,

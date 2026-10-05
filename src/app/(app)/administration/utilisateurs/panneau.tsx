@@ -42,7 +42,6 @@ export type CompteVue = {
   actif: boolean;
   directionId: string;
   siteId: string;
-  responsableId: string;
   roles: string[];
   /**
    * Ce que ce compte voit, en clair — les types de déclaration ouverts par ses RÔLES.
@@ -199,7 +198,6 @@ export function PanneauComptes({
             parcours={parcours}
             directions={directions}
             sites={sites}
-            comptes={comptes}
             onFermer={() => setCreation(false)}
           />
         </div>
@@ -271,7 +269,6 @@ export function PanneauComptes({
           parcours={parcours}
           directions={directions}
           sites={sites}
-          comptes={comptes}
           onFermer={() => {
             setCreation(false);
             setEdition(null);
@@ -676,7 +673,6 @@ function FormulaireCompte({
   parcours,
   directions,
   sites,
-  comptes,
   onFermer,
 }: {
   compte: CompteVue | null;
@@ -684,7 +680,6 @@ function FormulaireCompte({
   parcours: ParcoursOption[];
   directions: Option[];
   sites: Option[];
-  comptes: CompteVue[];
   onFermer: () => void;
 }) {
   const [etat, envoyer, enCours] = useActionState(
@@ -718,9 +713,6 @@ function FormulaireCompte({
   const [siteId, setSiteId] = useState(
     compte?.directionId ? "" : (compte?.siteId ?? ""),
   );
-
-  // Un compte ne peut pas être son propre responsable hiérarchique.
-  const responsables = comptes.filter((c) => c.id !== compte?.id);
 
   /*
     Les rôles cochés, suivis en état — le seul champ du formulaire qui le soit.
@@ -1006,31 +998,6 @@ function FormulaireCompte({
                 )}
               </div>
 
-              <div className="sm:col-span-2">
-                <Label
-                  htmlFor="responsableHierarchiqueId"
-                  className="text-caption text-muted-foreground"
-                >
-                  Responsable hiérarchique
-                </Label>
-                <select
-                  id="responsableHierarchiqueId"
-                  name="responsableHierarchiqueId"
-                  defaultValue={compte?.responsableId ?? ""}
-                  className={champ}
-                >
-                  <option value="">—</option>
-                  {responsables.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-caption text-muted-foreground">
-                  Destinataire des escalades de retard sur les dossiers de ce
-                  compte.
-                </p>
-              </div>
             </div>
           </section>
 

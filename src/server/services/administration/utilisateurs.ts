@@ -24,7 +24,6 @@ export type DonneesUtilisateur = {
   poste: string | null
   directionId: bigint | null
   siteId: bigint | null
-  responsableHierarchiqueId: bigint | null
   actif: boolean
   roles: string[]
   /**
@@ -60,7 +59,6 @@ export async function listerUtilisateurs(recherche = '') {
       actif: true,
       direction_id: true,
       site_id: true,
-      responsable_hierarchique_id: true,
       // Rattachement lisible, et site de la direction : leur désaccord se voit ainsi sans
       // requête supplémentaire, et l'écran peut le signaler.
       sites: { select: { libelle: true } },
@@ -232,7 +230,6 @@ export async function enregistrerUtilisateur(
     poste: donnees.poste,
     direction_id: directionId,
     site_id: siteId,
-    responsable_hierarchique_id: donnees.responsableHierarchiqueId,
     actif: donnees.actif,
   }
 

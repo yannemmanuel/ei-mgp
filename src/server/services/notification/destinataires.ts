@@ -177,29 +177,3 @@ export async function declarantIdentifie(dossierId: string): Promise<Destinatair
 
   return [{ type: 'utilisateur', id: dossier.users.id, email: dossier.users.email }]
 }
-
-/**
- * EX-NOT-04 : chaîne d'escalade en cas de dépassement d'échéance.
- * N+1 des titulaires, puis Service MGP, puis Direction au-delà de +50 %.
- */
-export async function responsablesHierarchiques(dossierId: string): Promise<Destinataire[]> {
-  const affectations = await prisma.dossier_affectations.findMany({
-    where: { dossier_id: dossierId, actif: true },
-    select: {
-      users_dossier_affectations_user_idTousers: {
-        select: { users: { select: { id: true, email: true, actif: true } } },
-      },
-    },
-  })
-
-  const parId = new Map<string, Destinataire>()
-
-  for (const a of affectations) {
-    const n1 = a.users_dossier_affectations_user_idTousers.users
-    if (n1?.actif) {
-      parId.set(String(n1.id), { type: 'utilisateur', id: n1.id, email: n1.email })
-    }
-  }
-
-  return [...parId.values()]
-}

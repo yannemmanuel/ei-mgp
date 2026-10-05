@@ -58,7 +58,6 @@ async function creerCompte(roles: string[]) {
     poste: null,
     directionId: null,
     siteId: null,
-    responsableHierarchiqueId: null,
     actif: true,
     roles,
     parcours: [],

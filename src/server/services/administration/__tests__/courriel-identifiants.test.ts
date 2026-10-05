@@ -42,6 +42,8 @@ let plancherAudit: bigint;
 const ENV_ORIGINE = {
   host: process.env.MAIL_HOST,
   from: process.env.MAIL_FROM,
+  resendKey: process.env.RESEND_API_KEY,
+  resendFrom: process.env.RESEND_FROM,
 };
 
 beforeEach(() => {
@@ -54,6 +56,8 @@ beforeEach(() => {
 afterEach(() => {
   process.env.MAIL_HOST = ENV_ORIGINE.host;
   process.env.MAIL_FROM = ENV_ORIGINE.from;
+  process.env.RESEND_API_KEY = ENV_ORIGINE.resendKey;
+  process.env.RESEND_FROM = ENV_ORIGINE.resendFrom;
   reinitialiserTransportEmail();
 });
 
@@ -109,7 +113,7 @@ describe("Le message porte de quoi se connecter", () => {
 
     const corps = espion.envoyes[0].corps;
     expect(corps).toContain(String(VALIDITE_HEURES));
-    expect(corps).toMatch(/une fois/i);
+    expect(corps).toMatch(/une seule fois/i);
   });
 
   it("⚠️ ne contient AUCUN mot de passe", async () => {
@@ -169,6 +173,8 @@ describe("Le jeton ne fuit pas", () => {
     */
     delete process.env.MAIL_HOST;
     delete process.env.MAIL_FROM;
+    delete process.env.RESEND_API_KEY;
+    delete process.env.RESEND_FROM;
 
     const resultat = await envoyer();
 

@@ -6,7 +6,7 @@ import {
   joursRestants,
   pourcentageDepassement,
 } from '../dossier/delais'
-import { responsablesHierarchiques, titulairesDuDossier, utilisateursAvecRoles } from './destinataires'
+import { titulairesDuDossier, utilisateursAvecRoles } from './destinataires'
 import { envoyerNotification } from './notification'
 
 /**
@@ -70,7 +70,7 @@ export async function relancerEcheances(): Promise<number> {
 /**
  * EX-NOT-04 : escalade en cas de dépassement d'échéance.
  *
- * Dès le dépassement : N+1 des titulaires **et** Service MGP.
+ * Dès le dépassement : Service MGP.
  * Au-delà de +50 % du délai alloué : la Direction Générale est alertée en plus.
  *
  * **Deux dépassements distincts déclenchent l'escalade** (RG-05, CDC §11.2) : celui de l'étape
@@ -101,15 +101,6 @@ export async function detecterRetards(): Promise<number> {
     })
 
     if (!enRetardEtape && !enRetardGlobal) continue
-
-    const n1 = await responsablesHierarchiques(dossier.id)
-    if (n1.length > 0) {
-      await envoyerNotification({
-        evenementCode: 'alerte_retard_n1',
-        dossierId: dossier.id,
-        destinataires: n1,
-      })
-    }
 
     const serviceMgp = await utilisateursAvecRoles(['service_mgp'])
     if (serviceMgp.length > 0) {
