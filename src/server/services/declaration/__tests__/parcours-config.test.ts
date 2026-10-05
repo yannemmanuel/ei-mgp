@@ -61,6 +61,7 @@ describe('Schéma dérivé de la configuration', () => {
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier de concassage',
       directionId: '1',
+      declarantEstVictime: true,
       // Ajouté au formulaire EI le 11/09 (EI9), et obligatoire comme sur le grief employé.
       caractereRepetitif: 'premiere_fois',
     })
@@ -76,6 +77,7 @@ describe('Schéma dérivé de la configuration', () => {
       dateHeureFaits: new Date().toISOString().slice(0, 16),
       lieu: 'Atelier de concassage',
       directionId: '1',
+      declarantEstVictime: true,
       // Propre au parcours Grief, obligatoire et sans rapport avec l'identité : sans lui, le
       // schéma échouerait pour une raison qui n'est pas celle qu'on veut observer ici.
       caractereRepetitif: 'premiere_fois',
@@ -148,6 +150,7 @@ describe('Schéma dérivé de la configuration', () => {
         ...base,
         anonymat: true,
         directionId: '1',
+        declarantEstVictime: true,
       }).success
     ).toBe(true)
   })
@@ -161,6 +164,7 @@ describe('Schéma dérivé de la configuration', () => {
       lieuSite: 'Siège',
       caractereRepetitif: 'premiere_fois',
       entreprise: 'Entreprise X',
+      nomPrenom: 'Awa Koné',
     }
 
     const sansConsentement = schemaParcours(PARCOURS.grief_sous_traitant, false).safeParse(base)
@@ -196,6 +200,43 @@ describe('Schéma dérivé de la configuration', () => {
       expect(resultat.success, code).toBe(false)
       expect(resultat.error?.issues.map((i) => String(i.path[0])), code).toContain(champDate.nom)
     }
+  })
+
+  it.each(['grief_sous_traitant', 'grief_communaute'] as const)(
+    'exige le nom et prénom pour un grief externe identifié (%s)',
+    (code) => {
+      const champ = PARCOURS[code].champs.find((c) => c.nom === 'nomPrenom')
+
+      expect(champ?.obligatoire).toBe('siIdentifie')
+      expect(champsVisibles(PARCOURS[code], true).some((c) => c.nom === 'nomPrenom')).toBe(false)
+    }
+  )
+
+  it('exige la direction du déclarant seulement lorsqu’il déclare pour une autre personne', () => {
+    const base = {
+      ...socle,
+      anonymat: false,
+      matricule: 'M-123',
+      directionId: '1',
+      dateSurvenance: new Date().toISOString().slice(0, 10),
+      lieu: 'Atelier',
+      caractereRepetitif: 'premiere_fois',
+    }
+
+    const pourAutrui = schemaParcours(PARCOURS.ei_employe, false).safeParse({
+      ...base,
+      declarantEstVictime: false,
+    })
+    expect(pourAutrui.success).toBe(false)
+    expect(pourAutrui.error?.issues.map((i) => String(i.path[0]))).toContain(
+      'directionDeclarant'
+    )
+
+    const pourSoi = schemaParcours(PARCOURS.ei_employe, false).safeParse({
+      ...base,
+      declarantEstVictime: true,
+    })
+    expect(pourSoi.success, JSON.stringify(pourSoi.error?.issues)).toBe(true)
   })
 })
 

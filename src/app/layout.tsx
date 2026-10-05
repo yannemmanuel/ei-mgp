@@ -29,10 +29,14 @@ export const metadata: Metadata = {
   },
   description:
     "Mécanisme de Gestion des Plaintes — déclaration et suivi des évènements indésirables et des griefs.",
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    shortcut: '/icon.svg',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#12213b',
+  themeColor: '#008f4c',
   colorScheme: 'light',
 }
 

@@ -21,7 +21,11 @@ function dateNonFuture(message: string) {
 }
 
 function schemaChamp(champ: Champ, anonyme: boolean): z.ZodTypeAny {
-  const requis = champ.obligatoire === true || (champ.obligatoire === 'siIdentifie' && !anonyme)
+  // Un champ conditionnel est exigé par le raffinement d'objet, uniquement lorsque sa condition
+  // est vraie. Le rendre requis ici le réclamerait même lorsqu'il n'est pas affiché.
+  const requis =
+    champ.afficherSi === undefined &&
+    (champ.obligatoire === true || (champ.obligatoire === 'siIdentifie' && !anonyme))
 
   switch (champ.type) {
     case 'case': {
@@ -98,9 +102,17 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
   const specifiques: Record<string, z.ZodTypeAny> = {}
 
   const precisions: { nom: string; parent: string; declencheur: string; libelle: string }[] = []
+  const conditionnelsRequis: Champ[] = []
 
   for (const champ of champsVisibles(config, anonyme)) {
     specifiques[champ.nom] = schemaChamp(champ, anonyme)
+
+    if (
+      champ.afficherSi !== undefined &&
+      (champ.obligatoire === true || (champ.obligatoire === 'siIdentifie' && !anonyme))
+    ) {
+      conditionnelsRequis.push(champ)
+    }
 
     if (champ.precisionSi) {
       const nom = `${champ.nom}Precision`
@@ -163,7 +175,7 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     ...specifiques,
   })
 
-  if (precisions.length === 0) return base
+  if (precisions.length === 0 && conditionnelsRequis.length === 0) return base
 
   /*
     « Autre » oblige à préciser, et seulement « Autre ».
@@ -176,6 +188,22 @@ export function schemaParcours(config: ParcoursConfig, anonyme: boolean) {
     l'œil la cherche, et c'est le champ à remplir.
   */
   return base.superRefine((valeurs, contexte) => {
+    for (const champ of conditionnelsRequis) {
+      if (!champ.afficherSi) continue
+
+      const pilote = Boolean((valeurs as Record<string, unknown>)[champ.afficherSi.champ])
+      if (pilote !== champ.afficherSi.vaut) continue
+
+      const saisie = String((valeurs as Record<string, unknown>)[champ.nom] ?? '').trim()
+      if (saisie === '') {
+        contexte.addIssue({
+          code: 'custom',
+          path: [champ.nom],
+          message: `« ${champ.libelle} » est obligatoire.`,
+        })
+      }
+    }
+
     for (const p of precisions) {
       const choisi = (valeurs as Record<string, unknown>)[p.parent]
       if (String(choisi ?? '') !== p.declencheur) continue

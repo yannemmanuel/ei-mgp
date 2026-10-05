@@ -88,6 +88,7 @@ async function envoyer(utilisateur: ReturnType<typeof userEvent.setup>) {
 async function remplirJusquAEtape3(utilisateur: ReturnType<typeof userEvent.setup>) {
   await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
   await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+  await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
   await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -109,6 +110,7 @@ describe('Progression entre les étapes', () => {
     // elle porte le rattachement au site, pas l'identité du déclarant.
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Étape 2
@@ -136,6 +138,7 @@ describe('Progression entre les étapes', () => {
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
 
@@ -151,6 +154,7 @@ describe('Progression entre les étapes', () => {
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -186,6 +190,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -209,6 +214,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
@@ -234,6 +240,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
     expect(visible(screen.getByLabelText(/Matricule/i))).toBe(true)
 
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Le matricule manque : l'étape 1 ne se quitte pas.

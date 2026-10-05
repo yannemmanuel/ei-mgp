@@ -925,6 +925,13 @@ function ChampFormulaire({
         id={champ.nom}
         name={champ.nom}
         type={typeHtml}
+        max={
+          champ.type === 'date'
+            ? dateLocalePourChamp(new Date()).slice(0, 10)
+            : champ.type === 'datetime'
+              ? `${dateLocalePourChamp(new Date()).slice(0, 10)}T23:59`
+              : undefined
+        }
         required={obligatoire}
         aria-invalid={erreur ? true : undefined}
         aria-describedby={
@@ -941,4 +948,10 @@ function ChampFormulaire({
       {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
     </div>
   )
+}
+
+/** Format local accepté par `<input type="datetime-local">`, sans conversion UTC. */
+function dateLocalePourChamp(date: Date): string {
+  const deux = (valeur: number) => String(valeur).padStart(2, '0')
+  return `${date.getFullYear()}-${deux(date.getMonth() + 1)}-${deux(date.getDate())}T${deux(date.getHours())}:${deux(date.getMinutes())}`
 }

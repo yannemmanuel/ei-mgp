@@ -220,6 +220,7 @@ const DIRECTION_DECLARANT = {
   libelle: 'Direction du déclarant',
   type: 'select',
   etape: 1,
+  obligatoire: true,
   referentiel: 'directions',
   afficherSi: { champ: 'declarantEstVictime', vaut: false },
   aide: 'Celle du déclarant, et non celle où les faits se sont produits.',
@@ -415,7 +416,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         etape: 1,
         obligatoire: true,
       },
-      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
+      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, obligatoire: 'siIdentifie', max: 255, identite: true, colonne: 'nomPrenom' },
       { nom: 'fonction', libelle: 'Fonction', type: 'texte', etape: 1, identite: true, colonne: 'fonction' },
       TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
@@ -452,7 +453,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     graviteSaisieParLeDeclarant: false,
     attentesDeclarant: false,
     champs: [
-      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, max: 255, identite: true, colonne: 'nomPrenom' },
+      { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, obligatoire: 'siIdentifie', max: 255, identite: true, colonne: 'nomPrenom' },
       {
         /*
           « Ville », obligatoire, en remplacement de la localité libre et facultative.
