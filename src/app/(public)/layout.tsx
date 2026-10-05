@@ -103,7 +103,7 @@ export default function LayoutPublic({ children }: LayoutProps<"/">) {
       <main
         id="contenu-principal"
         tabIndex={-1}
-        className="surface-grid relative flex flex-1 items-start px-4 py-8 sm:px-8 sm:py-12 lg:items-center lg:px-12 xl:px-20"
+        className="surface-grid relative flex flex-1 items-start px-4 py-8 sm:px-8 sm:py-12 lg:px-12 lg:py-10 xl:px-20 xl:py-12"
       >
         <div className="relative mx-auto w-full max-w-3xl">{children}</div>
       </main>
