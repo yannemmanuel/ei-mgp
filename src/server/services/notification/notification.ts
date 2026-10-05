@@ -178,10 +178,13 @@ async function expedier(
         preentete: corps.replace(/\s+/g, ' ').slice(0, 140),
         texte: corps,
         etiquette: 'Notification de dossier',
+<<<<<<< HEAD
         lienPied: {
           libelle: 'Cliquez ici pour faire une déclaration',
           url: `${originePublique()}/declarer`,
         },
+=======
+>>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
       }),
     })
   } catch (erreur) {

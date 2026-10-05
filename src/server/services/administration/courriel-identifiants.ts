@@ -159,10 +159,13 @@ export async function envoyerIdentifiants(params: {
           `Le lien est personnel, utilisable une seule fois et valable ${VALIDITE_HEURES} heures. S’il expire, contactez votre administrateur.`,
         ].join("\n\n"),
         action: { libelle: "Choisir mon mot de passe", url: invitation },
+<<<<<<< HEAD
         lienPied: {
           libelle: "Cliquez ici pour faire une déclaration",
           url: `${racine()}/declarer`,
         },
+=======
+>>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
       }),
     });
   } catch (erreur) {

@@ -9,7 +9,10 @@ type GabaritCourriel = {
   texte: string
   action?: ActionCourriel
   etiquette?: string
+<<<<<<< HEAD
   lienPied?: ActionCourriel
+=======
+>>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
 }
 
 function echapper(valeur: string): string {
@@ -65,6 +68,7 @@ export function creerCourrielHtml(params: GabaritCourriel): string {
     ? `<span style="display:inline-block;margin-bottom:14px;padding:6px 10px;border-radius:999px;background:#fff5d6;color:#765500;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">${echapper(params.etiquette)}</span>`
     : ''
 
+<<<<<<< HEAD
   const lienPied = params.lienPied
     ? `<div style="margin-bottom:12px;color:#405b53;font-size:13px">
         Vous souhaitez signaler une nouvelle situation ?
@@ -72,6 +76,8 @@ export function creerCourrielHtml(params: GabaritCourriel): string {
       </div>`
     : ''
 
+=======
+>>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
   return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f3f6f4;color:#17332b;font-family:Arial,Helvetica,sans-serif">
@@ -92,7 +98,10 @@ export function creerCourrielHtml(params: GabaritCourriel): string {
         </td></tr>
         ${action}
         <tr><td style="padding:22px 40px;background:#f8fbf9;border-top:1px solid #e6eeea;color:#71857f;font-size:12px;line-height:1.55">
+<<<<<<< HEAD
           ${lienPied}
+=======
+>>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
           Ce message a été envoyé automatiquement par la plateforme EI / MGP.<br>
           Pour votre sécurité, ne transmettez jamais un lien personnel ni vos identifiants.
         </td></tr>
