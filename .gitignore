@@ -52,3 +52,8 @@ secrets-production.txt
 # Pièces jointes déposées : DONNÉES PERSONNELLES. Ne doivent jamais entrer dans git —
 # un historique ne se purge pas.
 /storage/
+
+# Scripts et configurations de vérification ponctuels, locaux.
+/tmp-*
+/tsconfig.verif.json
+/verif-env.d.ts
