@@ -18,6 +18,7 @@
 import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { createTransport } from 'nodemailer'
+import { creerCourrielHtml } from '../src/server/services/notification/gabarit-courriel.ts'
 
 // ⚠️ SEULEMENT SI LE FICHIER EXISTE : `loadEnvFile` lève quand `.env` est absent, et il l’est
 // dans tout conteneur de déploiement — les variables y sont injectées par la plate-forme.
@@ -191,19 +192,28 @@ if (!destinataire) {
 }
 
 try {
+  const texteEssai = [
+    'Bonjour,',
+    '',
+    'Ceci est un message d’essai.',
+    '',
+    'Si vous le lisez, la messagerie de la plateforme fonctionne : les liens de première connexion, les relances d’échéance et les alertes du circuit critique pourront être expédiés.',
+    '',
+    `Expéditeur configuré : ${config.expediteur}`,
+    `Serveur : ${config.hote}:${config.port}`,
+  ].join('\n')
+
   const info = await transporteur.sendMail({
     from: config.expediteur,
     to: destinataire,
     subject: 'Essai — plateforme EI / MGP',
-    text: [
-      'Ceci est un message d’essai.',
-      '',
-      'Si vous le lisez, la messagerie de la plateforme fonctionne : les liens de première',
-      'connexion, les relances d’échéance et les alertes du circuit critique partiront.',
-      '',
-      `Expéditeur configuré : ${config.expediteur}`,
-      `Serveur : ${config.hote}:${config.port}`,
-    ].join('\n'),
+    text: texteEssai,
+    html: creerCourrielHtml({
+      titre: 'La messagerie est opérationnelle',
+      preentete: 'Le test de la messagerie EI / MGP a réussi.',
+      etiquette: 'Test de configuration',
+      texte: texteEssai,
+    }),
   })
 
   console.log(`\n✓ Message accepté par le serveur pour ${destinataire}.`)

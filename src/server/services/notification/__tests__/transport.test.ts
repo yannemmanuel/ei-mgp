@@ -1,4 +1,4 @@
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { creerDeclaration } from "../../declaration/creer-declaration";
 import {
@@ -44,6 +44,15 @@ function restaurerEnvironnement() {
     else process.env[v] = initial[v];
   }
 }
+
+beforeEach(() => {
+  // Chaque scénario part sans fournisseur prioritaire. Les tests Resend activent explicitement
+  // leurs valeurs factices ; une vraie clé du poste ne doit jamais modifier leur résultat ni
+  // apparaître dans le rapport d'échec.
+  delete process.env.RESEND_API_KEY;
+  delete process.env.RESEND_FROM;
+  reinitialiserTransportEmail();
+});
 
 afterEach(async () => {
   vi.restoreAllMocks();

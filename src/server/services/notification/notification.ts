@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { transportEmail } from './transport'
+import { creerCourrielHtml } from './gabarit-courriel'
 import { MODELES } from '@/server/modeles'
 
 /**
@@ -167,7 +168,17 @@ async function expedier(
   corps: string
 ): Promise<boolean> {
   try {
-    await transportEmail().envoyer({ destinataire: adresse, objet, corps })
+    await transportEmail().envoyer({
+      destinataire: adresse,
+      objet,
+      corps,
+      html: creerCourrielHtml({
+        titre: objet,
+        preentete: corps.replace(/\s+/g, ' ').slice(0, 140),
+        texte: corps,
+        etiquette: 'Notification de dossier',
+      }),
+    })
   } catch (erreur) {
     console.error(
       `Envoi e-mail en échec (évènement « ${evenementCode} », dossier ${dossier.id})`,

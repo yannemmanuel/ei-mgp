@@ -15,6 +15,8 @@ export type MessageEmail = {
   readonly destinataire: string;
   readonly objet: string;
   readonly corps: string;
+  /** Version enrichie facultative ; `corps` reste toujours le repli texte accessible. */
+  readonly html?: string;
 };
 
 export interface TransportEmail {
@@ -120,6 +122,7 @@ export class TransportSmtp implements TransportEmail {
       to: message.destinataire,
       subject: message.objet,
       text: message.corps,
+      html: message.html,
     });
   }
 }
