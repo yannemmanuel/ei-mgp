@@ -19,7 +19,7 @@ export type EnteteHttp = { readonly key: string; readonly value: string }
  * - `style-src 'unsafe-inline'` — Next injecte ses styles critiques en ligne.
  *
  * `frame-ancestors 'none'` ferme le détournement de clic, `connect-src 'self'` l'exfiltration.
- * Aucune ressource externe n'est chargée : `next/font/google` auto-héberge les polices.
+ * Aucune ressource externe n'est chargée : les polices sont hébergées dans le dépôt (`next/font/local`).
  */
 const DIRECTIVES_CSP: readonly string[] = [
   "default-src 'self'",

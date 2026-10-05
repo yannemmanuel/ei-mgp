@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Instrument_Sans, Source_Serif_4 } from 'next/font/google'
+import localFont from 'next/font/local'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -8,16 +8,22 @@ import './globals.css'
  * l'interface, Source Serif 4 réservée aux titres et aux moments « document officiel » du
  * front-office public (accroche, numéro de référence) — jamais sur les libellés de champs ni
  * les tableaux, qui restent en sans pour la lisibilité.
+ *
+ * Fichiers variables hébergés dans le dépôt (Fontsource, licence OFL, sous-ensemble latin) plutôt
+ * que `next/font/google` : celui-ci télécharge les polices AU BUILD, et le moindre échec réseau
+ * (proxy, certificat intercepté, serveur sans accès sortant) casse toute la construction.
  */
-const instrumentSans = Instrument_Sans({
+const instrumentSans = localFont({
+  src: './polices/instrument-sans-latin-wght-normal.woff2',
   variable: '--font-sans',
-  subsets: ['latin'],
+  weight: '400 700',
   display: 'swap',
 })
 
-const sourceSerif = Source_Serif_4({
+const sourceSerif = localFont({
+  src: './polices/source-serif-4-latin-wght-normal.woff2',
   variable: '--font-serif',
-  subsets: ['latin'],
+  weight: '200 900',
   display: 'swap',
 })
 
