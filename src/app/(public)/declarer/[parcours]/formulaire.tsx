@@ -428,6 +428,9 @@ export function FormulaireDeclaration({
       <h1 className="font-serif text-h1 text-secondary-900">{config.titre}</h1>
       <p className="mt-1 text-sm text-secondary-600">{config.accroche}</p>
 
+      <p className="mt-6 text-sm font-semibold text-secondary-900 sm:hidden" aria-live="polite">
+        Étape {etape} sur {NB_ETAPES} — {LIBELLES_ETAPES[etape - 1]}
+      </p>
       <ol className="mt-6 flex gap-2" aria-label="Progression">
         {LIBELLES_ETAPES.map((libelle, index) => {
           const numero = index + 1
@@ -441,7 +444,7 @@ export function FormulaireDeclaration({
               <span
                 className={`mt-1 block text-caption ${
                   numero === etape ? 'text-secondary-900' : 'text-secondary-400'
-                }`}
+                } hidden sm:block`}
               >
                 {libelle}
               </span>
@@ -677,12 +680,13 @@ export function FormulaireDeclaration({
         </div>
       </div>
 
-      <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-6">
+      <div className="mt-8 flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
         <Button
           type="button"
           variant="outline"
           onClick={() => allerA(Math.max(1, etape - 1))}
           disabled={etape === 1}
+          className="w-full sm:w-auto"
         >
           Précédent
         </Button>
@@ -711,13 +715,14 @@ export function FormulaireDeclaration({
              précédent.
         */}
         {etape < NB_ETAPES ? (
-          <Button key="continuer" type="button" onClick={continuer}>
+          <Button key="continuer" type="button" onClick={continuer} className="w-full sm:w-auto">
             Continuer
           </Button>
         ) : (
           <Button
             key="envoyer"
             type="submit"
+            className="w-full sm:w-auto"
             disabled={enCours || !envoiArme || reduction === 'en-cours'}
             onClick={(e) => {
               if (e.detail > 1) {

@@ -59,21 +59,24 @@ export function ClocheNotifications({ notifications, nonLues }: Props) {
             onClick={() => setOuvert(false)}
           />
 
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-lg border border-border bg-background shadow-lg">
+          <section
+            aria-label="Centre de notifications"
+            className="fixed inset-x-4 top-18 z-50 flex max-h-[calc(100dvh-5.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-h-none"
+          >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 className="text-label font-medium text-secondary-900">Notifications</h2>
               {nonLues > 0 && (
                 <button
                   type="button"
                   onClick={() => rafraichir(actionToutMarquerLu)}
-                  className="text-caption font-medium text-primary-700 hover:underline"
+                  className="min-h-11 rounded-lg px-2 text-caption font-medium text-primary-700 hover:bg-muted hover:underline md:min-h-0"
                 >
                   Tout marquer comme lu
                 </button>
               )}
             </div>
 
-            <div className="max-h-96 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-96">
               {notifications.length === 0 && (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   Aucune notification. Vous êtes à jour.
@@ -104,7 +107,7 @@ export function ClocheNotifications({ notifications, nonLues }: Props) {
                 </button>
               ))}
             </div>
-          </div>
+          </section>
         </>
       )}
     </div>

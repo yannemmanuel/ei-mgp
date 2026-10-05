@@ -99,7 +99,7 @@ export function PanneauPiecesJointes({ pieces }: Props) {
                       onClick={() => basculerApercu(piece.id)}
                       aria-expanded={estOuverte}
                       aria-controls={idRegion}
-                      className="min-w-[12rem] flex-1 text-left"
+                      className="min-w-0 flex-[1_1_calc(100%-3.5rem)] text-left sm:flex-1"
                     >
                       <span className="block truncate text-sm font-semibold text-secondary-900">{piece.nomOriginal}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">{piece.mimeType} · {poidsLisible(piece.tailleOctets)}</span>
@@ -108,37 +108,40 @@ export function PanneauPiecesJointes({ pieces }: Props) {
                     <a
                       href={urlTelechargement(piece.id)}
                       download={piece.nomOriginal}
-                      className="min-w-[12rem] flex-1"
+                      className="min-w-0 flex-[1_1_calc(100%-3.5rem)] sm:flex-1"
                     >
                       <span className="block truncate text-sm font-semibold text-secondary-900">{piece.nomOriginal}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">{piece.mimeType} · {poidsLisible(piece.tailleOctets)}</span>
                     </a>
                   )}
 
-                  {format && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => basculerApercu(piece.id)}
-                      aria-expanded={estOuverte}
-                      aria-controls={idRegion}
-                      className="shrink-0 gap-1.5"
-                    >
-                      <Eye className="h-4 w-4" aria-hidden />
-                      {estOuverte ? 'Fermer' : 'Aperçu'}
-                    </Button>
-                  )}
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    {format && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => basculerApercu(piece.id)}
+                        aria-expanded={estOuverte}
+                        aria-controls={idRegion}
+                        className="flex-1 gap-1.5 sm:flex-none"
+                      >
+                        <Eye className="h-4 w-4" aria-hidden />
+                        {estOuverte ? 'Fermer' : 'Aperçu'}
+                      </Button>
+                    )}
 
-                  <a
-                    href={urlTelechargement(piece.id)}
-                    download={piece.nomOriginal}
-                    aria-label={`Télécharger ${piece.nomOriginal}`}
-                    title="Télécharger"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-secondary-500 transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <Download className="h-4 w-4" aria-hidden />
-                  </a>
+                    <a
+                      href={urlTelechargement(piece.id)}
+                      download={piece.nomOriginal}
+                      aria-label={`Télécharger ${piece.nomOriginal}`}
+                      title="Télécharger"
+                      className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-secondary-600 transition-colors hover:bg-muted hover:text-foreground sm:h-9 sm:flex-none sm:px-2.5"
+                    >
+                      <Download className="h-4 w-4" aria-hidden />
+                      <span className="sm:hidden">Télécharger</span>
+                    </a>
+                  </div>
                 </div>
 
                 {format && estOuverte && (
@@ -176,7 +179,7 @@ export function PanneauPiecesJointes({ pieces }: Props) {
                       href={urlApercu(piece.id)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1.5 text-caption text-secondary-600 underline-offset-2 hover:text-primary-700 hover:underline"
+                      className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-caption text-secondary-600 underline-offset-2 hover:bg-white hover:text-primary-700 hover:underline sm:min-h-0"
                     >
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                       Ouvrir dans un nouvel onglet
@@ -214,17 +217,17 @@ function Apercu({
        `next/image` optimise en amont via son propre service, à partir d'une URL qu'il doit
        pouvoir refetcher. Ces pièces sont privées, servies en `no-store` derrière un contrôle
        d'accès par dossier : elles n'ont rien à faire dans un cache d'images partagé. */
-    return <img src={url} alt={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} max-h-[60vh] object-contain`} />
+    return <img src={url} alt={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} max-h-[55dvh] object-contain sm:max-h-[60vh]`} />
   }
 
   if (format === 'video') {
     return (
-      <video controls preload="metadata" onLoadedMetadata={onCharge} onError={onErreur} className={`${cadre} max-h-[60vh]`}>
+      <video controls preload="metadata" onLoadedMetadata={onCharge} onError={onErreur} className={`${cadre} max-h-[55dvh] sm:max-h-[60vh]`}>
         <source src={url} type={mimeType} />
         Votre navigateur ne sait pas lire cette vidéo — ouvrez-la dans un nouvel onglet.
       </video>
     )
   }
 
-  return <iframe src={url} title={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} h-[70vh]`} />
+  return <iframe src={url} title={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} h-[55dvh] sm:h-[70vh]`} />
 }

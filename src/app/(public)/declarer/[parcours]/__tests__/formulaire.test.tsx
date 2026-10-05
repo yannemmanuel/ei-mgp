@@ -106,6 +106,8 @@ describe('Progression entre les étapes', () => {
   it('atteint l’étape des pièces jointes, et ne la saute pas', async () => {
     const { utilisateur } = afficher()
 
+    expect(screen.getByText(/Étape 1 sur 4/i)).toBeDefined()
+
     // Étape 1 — l'anonymat retire les champs d'identité. La direction, elle, reste demandée :
     // elle porte le rattachement au site, pas l'identité du déclarant.
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
@@ -114,6 +116,7 @@ describe('Progression entre les étapes', () => {
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Étape 2
+    await waitFor(() => expect(screen.getByText(/Étape 2 sur 4/i)).toBeDefined())
     await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
     await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
@@ -130,6 +133,7 @@ describe('Progression entre les étapes', () => {
     await waitFor(() =>
       expect(visible(screen.getByLabelText(/Pièces jointes/i)), 'étape 4 non atteinte').toBe(true)
     )
+    expect(screen.getByText(/Étape 4 sur 4/i)).toBeDefined()
     expect(screen.getByRole('button', { name: /Envoyer ma déclaration/i })).toBeDefined()
   })
 
