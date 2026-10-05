@@ -213,13 +213,10 @@ try {
       preentete: 'Le test de la messagerie EI / MGP a réussi.',
       etiquette: 'Test de configuration',
       texte: texteEssai,
-<<<<<<< HEAD
       lienPied: {
         libelle: 'Cliquez ici pour faire une déclaration',
         url: `${valeur('AUTH_URL') ?? 'https://csst.dtdsodeci.ci'}/declarer`,
       },
-=======
->>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
     }),
   })
 

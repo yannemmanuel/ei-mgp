@@ -9,24 +9,18 @@ describe('Gabarit HTML des courriels', () => {
       texte: 'Bonjour Awa,\n\nVotre compte est disponible.',
       etiquette: 'Création de compte',
       action: { libelle: 'Choisir mon mot de passe', url: 'https://example.test/acces/jeton' },
-<<<<<<< HEAD
       lienPied: {
         libelle: 'Cliquez ici pour faire une déclaration',
         url: 'https://example.test/declarer',
       },
-=======
->>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
     })
 
     expect(html).toContain('Plateforme EI / MGP')
     expect(html).toContain('Choisir mon mot de passe')
     expect(html).toContain('href="https://example.test/acces/jeton"')
     expect(html).toContain('role="presentation"')
-<<<<<<< HEAD
     expect(html).toContain('Cliquez ici pour faire une déclaration')
     expect(html).toContain('href="https://example.test/declarer"')
-=======
->>>>>>> 59bc8fac27b3ea2457a9c134873a3a527e76c08e
   })
 
   it('neutralise le HTML injecté par les gabarits administrables', () => {
