@@ -76,7 +76,7 @@ afterAll(async () => {
   });
 });
 
-async function envoyer() {
+async function envoyer(motif?: "creation" | "reattribution") {
   const acteur = await prisma.users.findFirstOrThrow({
     where: { actif: true },
     select: { id: true },
@@ -88,6 +88,7 @@ async function envoyer() {
     nom: "Awa Koffi",
     email: "awa.koffi@example.test",
     jeton: JETON,
+    motif,
   });
 }
 
@@ -127,6 +128,16 @@ describe("Le message porte de quoi se connecter", () => {
     expect(espion.envoyes[0].corps.toLowerCase()).not.toContain(
       "mot de passe provisoire",
     );
+  });
+
+  it("explique clairement la réattribution sans envoyer de mot de passe", async () => {
+    await envoyer("reattribution");
+
+    const message = espion.envoyes[0];
+    expect(message.objet).toBe("Définissez votre nouveau mot de passe EI / MGP");
+    expect(message.corps).toContain("choisir votre nouveau mot de passe");
+    expect(message.corps).toContain(`/premiere-connexion/${JETON}`);
+    expect(message.corps.toLowerCase()).not.toContain("mot de passe provisoire");
   });
 
   it("⚠️ le chemin de connexion suit celui d’Auth.js", async () => {

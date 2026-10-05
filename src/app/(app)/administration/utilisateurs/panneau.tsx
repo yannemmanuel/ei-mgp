@@ -1147,9 +1147,8 @@ function FormulaireCompte({
 }
 
 /**
- * Seule voie de récupération opérationnelle aujourd'hui : le parcours « mot de passe oublié » en
- * libre-service n'est pas atteignable dans la baseline, et exigerait de toute façon un transport
- * e-mail qui n'est pas branché.
+ * Deux voies de récupération : le lien sécurisé permet au titulaire de choisir lui-même son mot
+ * de passe ; la génération manuelle reste disponible si la messagerie est indisponible.
  */
 function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
   const [etat, envoyer, enCours] = useActionState(
@@ -1166,8 +1165,8 @@ function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
       <input type="hidden" name="id" value={compte.id} />
 
       <p className="text-caption text-muted-foreground">
-        Si {compte.name} a perdu son mot de passe, attribuez-lui-en un nouveau.
-        Il ne s’affichera qu’une fois — transmettez-le par un canal sûr.
+        Si {compte.name} a perdu son mot de passe, envoyez-lui de préférence un lien personnel.
+        Aucun mot de passe ne sera transmis par e-mail.
       </p>
 
       {etat.motDePasseInitial && (
@@ -1179,9 +1178,28 @@ function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
         </Alert>
       )}
 
-      <Button type="submit" size="sm" variant="outline" disabled={enCours}>
-        {enCours ? "Attribution…" : "Réattribuer un mot de passe"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="submit"
+          name="remise"
+          value="courriel"
+          size="sm"
+          disabled={enCours}
+        >
+          <Mail aria-hidden />
+          {enCours ? "Traitement…" : "Envoyer un lien sécurisé"}
+        </Button>
+        <Button
+          type="submit"
+          name="remise"
+          value="manuelle"
+          size="sm"
+          variant="outline"
+          disabled={enCours}
+        >
+          {enCours ? "Traitement…" : "Générer un mot de passe provisoire"}
+        </Button>
+      </div>
     </form>
   );
 }

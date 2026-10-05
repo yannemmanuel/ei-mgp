@@ -2,16 +2,19 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { TriangleAlert } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, RotateCcw, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function ErreurPublique({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string }
-  reset: () => void
+  retry: () => void
 }) {
+  const router = useRouter()
+
   useEffect(() => {
     console.error(error)
   }, [error])
@@ -28,17 +31,24 @@ export default function ErreurPublique({
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-50 text-accent-600">
         <TriangleAlert className="h-7 w-7" aria-hidden />
       </div>
-      <h1 className="text-titre text-secondary-900 font-heading">Une erreur est survenue</h1>
+      <h1 className="text-titre text-secondary-900 font-heading">
+        Votre action n&apos;a pas pu être terminée
+      </h1>
       <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-        L&apos;opération n&apos;a pas pu aboutir. Aucune donnée n&apos;a été perdue : vous pouvez
-        réessayer.
+        La page n&apos;a pas pu être chargée. Réessayez une fois. Si le problème persiste, revenez
+        à l&apos;étape précédente pour vérifier vos informations avant de continuer.
       </p>
       {error.digest && (
         <p className="mt-2 text-xs font-mono text-muted-foreground">Référence technique : {error.digest}</p>
       )}
-      <div className="mt-6 flex justify-center gap-3">
-        <Button onClick={reset} className="rounded-xl shadow-xs">
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Button onClick={retry} className="rounded-xl shadow-xs">
+          <RotateCcw aria-hidden />
           Réessayer
+        </Button>
+        <Button variant="outline" onClick={() => router.back()} className="rounded-xl">
+          <ArrowLeft aria-hidden />
+          Revenir à l&apos;étape précédente
         </Button>
         {/*
           ⚠️ `/declarer`, JAMAIS `/`. La racine n'est pas un accueil : c'est un aiguillage
@@ -50,7 +60,7 @@ export default function ErreurPublique({
           en porte le commentaire, et pour `(public)/not-found.tsx`. C'est sa troisième
           apparition : la racine ATTIRE, parce qu'elle ressemble à un accueil.
         */}
-        <Button variant="outline" render={<Link href="/declarer" />} className="rounded-xl">
+        <Button variant="ghost" render={<Link href="/declarer" />} className="rounded-xl">
           Recommencer ma déclaration
         </Button>
       </div>

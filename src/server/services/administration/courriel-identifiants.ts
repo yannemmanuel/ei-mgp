@@ -68,17 +68,26 @@ export function urlInvitation(jeton: string): string {
   return `${racine()}/premiere-connexion/${jeton}`;
 }
 
-function corps(params: { nom: string; email: string; jeton: string }): string {
+function corps(params: {
+  nom: string;
+  email: string;
+  jeton: string;
+  motif?: "creation" | "reattribution";
+}): string {
   // Texte brut, comme tout ce que `TransportSmtp` expédie : pas de HTML à assainir, et le message
   // reste lisible dans n'importe quel client, y compris en consultation mobile dégradée.
   return [
     `Bonjour ${params.nom},`,
     "",
-    "Votre compte sur la plateforme EI / MGP vient d’être créé.",
+    params.motif === "reattribution"
+      ? "Un administrateur vous invite à définir un nouveau mot de passe pour votre compte EI / MGP."
+      : "Votre compte sur la plateforme EI / MGP vient d’être créé.",
     "",
     `Votre identifiant : ${params.email}`,
     "",
-    "Pour activer votre accès et choisir votre mot de passe, utilisez le lien sécurisé ci-dessous :",
+    params.motif === "reattribution"
+      ? "Pour choisir votre nouveau mot de passe, utilisez le lien sécurisé ci-dessous :"
+      : "Pour activer votre accès et choisir votre mot de passe, utilisez le lien sécurisé ci-dessous :",
     urlInvitation(params.jeton),
     "",
     `Ce lien est personnel, utilisable une seule fois et valable ${VALIDITE_HEURES} heures.`,
@@ -112,6 +121,8 @@ export async function envoyerIdentifiants(params: {
   email: string;
   /** Jeton d'invitation en clair. Il n'existe sous cette forme que le temps de cet envoi. */
   jeton: string;
+  /** Adapte le message lorsqu'un accès existant doit recevoir un nouveau mot de passe. */
+  motif?: "creation" | "reattribution";
 }): Promise<ResultatEnvoiIdentifiants> {
   if (configurationSmtp() === null) {
     return { etat: "sans_transport" };
@@ -120,7 +131,10 @@ export async function envoyerIdentifiants(params: {
   try {
     await transportEmail().envoyer({
       destinataire: params.email,
-      objet: "Votre accès à la plateforme EI / MGP",
+      objet:
+        params.motif === "reattribution"
+          ? "Définissez votre nouveau mot de passe EI / MGP"
+          : "Votre accès à la plateforme EI / MGP",
       corps: corps(params),
     });
   } catch (erreur) {

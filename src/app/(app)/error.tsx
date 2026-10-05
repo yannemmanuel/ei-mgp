@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { TriangleAlert } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, RotateCcw, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 /**
@@ -18,11 +19,13 @@ import { Button } from '@/components/ui/button'
  */
 export default function ErreurApplication({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string }
-  reset: () => void
+  retry: () => void
 }) {
+  const router = useRouter()
+
   useEffect(() => {
     console.error(error)
   }, [error])
@@ -30,16 +33,24 @@ export default function ErreurApplication({
   return (
     <div className="mx-auto max-w-md py-16 text-center">
       <TriangleAlert className="mx-auto h-10 w-10 text-accent-500" aria-hidden />
-      <h1 className="mt-4 text-h2 text-secondary-900">Une erreur est survenue</h1>
+      <h1 className="mt-4 text-h2 text-secondary-900">Impossible de terminer cette action</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        L&apos;opération n&apos;a pas pu aboutir. Aucune donnée n&apos;a été perdue : vous pouvez
-        réessayer.
+        La page n&apos;a pas pu être chargée ou l&apos;action a été interrompue. Réessayez une fois.
+        Si le problème persiste, revenez à l&apos;écran précédent : les informations déjà
+        enregistrées restent disponibles.
       </p>
       {error.digest && (
         <p className="mt-2 text-caption text-muted-foreground">Référence technique : {error.digest}</p>
       )}
-      <div className="mt-6 flex justify-center gap-2">
-        <Button onClick={reset}>Réessayer</Button>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <Button onClick={retry}>
+          <RotateCcw aria-hidden />
+          Réessayer
+        </Button>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft aria-hidden />
+          Revenir à l&apos;écran précédent
+        </Button>
         <Button variant="outline" render={<Link href="/dashboard" />}>
           Tableau de bord
         </Button>

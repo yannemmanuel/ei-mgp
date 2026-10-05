@@ -11,6 +11,7 @@ import { envoyerIdentifiants } from '@/server/services/administration/courriel-i
 import { creerInvitation } from '@/server/services/administration/invitation'
 import { configurationSmtp } from '@/server/services/notification/transport'
 import { revaliderComptes } from '@/server/revalidation'
+import { prisma } from '@/lib/prisma'
 
 /**
  * Console des comptes.
@@ -199,6 +200,52 @@ export async function actionRegenererMotDePasse(
   if (cible === null) return { erreur: 'Compte introuvable.' }
 
   try {
+    const remise = texte(donnees, 'remise')
+
+    if (remise === 'courriel') {
+      if (configurationSmtp() === null) {
+        return {
+          erreur:
+            "Le courriel n’a pas été envoyé : aucun service d’envoi n’est configuré. Utilisez l’attribution manuelle ou contactez l’administrateur technique.",
+          courriel: 'sans_transport',
+        }
+      }
+
+      const compte = await prisma.users.findUnique({
+        where: { id: cible },
+        select: { id: true, name: true, email: true, actif: true },
+      })
+
+      if (!compte) return { erreur: 'Ce compte n’existe plus. Actualisez la liste des utilisateurs.' }
+      if (!compte.actif) {
+        return { erreur: 'Le compte est désactivé. Réactivez-le avant d’envoyer un lien.' }
+      }
+
+      const jeton = await creerInvitation(compte.id)
+      const envoi = await envoyerIdentifiants({
+        utilisateurId: compte.id,
+        acteurId: acteur.id,
+        nom: compte.name,
+        email: compte.email,
+        jeton,
+        motif: 'reattribution',
+      })
+
+      if (envoi.etat !== 'expedie') {
+        return {
+          erreur:
+            "Le lien a été préparé, mais le courriel n’a pas pu être envoyé. Vérifiez la configuration Resend puis réessayez ; aucun mot de passe n’a été modifié.",
+          courriel: envoi.etat,
+        }
+      }
+
+      return {
+        succes: `Un lien sécurisé a été envoyé à ${compte.email}. Il est valable 72 heures et remplace tout lien précédent.`,
+        courriel: 'expedie',
+        parInvitation: true,
+      }
+    }
+
     const motDePasse = await regenererMotDePasse(acteur, cible)
 
     revaliderComptes()
