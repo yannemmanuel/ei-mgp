@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, ExternalLink, Paperclip } from 'lucide-react'
+import { Download, ExternalLink, Eye, FileText, Image as ImageIcon, LoaderCircle, Paperclip, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatApercu, type FormatApercu } from '@/lib/apercu-pieces-jointes'
@@ -40,6 +40,15 @@ export function PanneauPiecesJointes({ pieces }: Props) {
    * parfois aucune — exactement ce que la demande cherche à éviter.
    */
   const [ouverte, setOuverte] = useState<string | null>(null)
+  const [chargement, setChargement] = useState(false)
+  const [erreurApercu, setErreurApercu] = useState(false)
+
+  const basculerApercu = (id: string) => {
+    const ouvrir = ouverte !== id
+    setOuverte(ouvrir ? id : null)
+    setChargement(ouvrir)
+    setErreurApercu(false)
+  }
 
   if (pieces.length === 0) {
     return (
@@ -57,19 +66,26 @@ export function PanneauPiecesJointes({ pieces }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-h3">Pièces jointes</CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-h3">Pièces jointes</CardTitle>
+          <span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700">
+            {pieces.length} fichier{pieces.length > 1 ? 's' : ''}
+          </span>
+        </div>
       </CardHeader>
       <CardContent>
-        <ul className="divide-y divide-border">
+        <ul className="space-y-3">
           {pieces.map((piece) => {
             const format = formatApercu(piece.mimeType)
             const estOuverte = ouverte === piece.id
             const idRegion = `apercu-${piece.id}`
 
             return (
-              <li key={piece.id} className="py-3 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-3">
-                  <Paperclip className="h-4 w-4 shrink-0 text-secondary-400" aria-hidden />
+              <li key={piece.id} className="overflow-hidden rounded-xl border border-border/80 bg-white shadow-xs transition-shadow hover:shadow-sm">
+                <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100">
+                    {format === 'image' ? <ImageIcon className="h-5 w-5" aria-hidden /> : format === 'video' ? <Video className="h-5 w-5" aria-hidden /> : piece.mimeType === 'application/pdf' ? <FileText className="h-5 w-5" aria-hidden /> : <Paperclip className="h-5 w-5" aria-hidden />}
+                  </span>
 
                   {/*
                     Le nom déclenche l'aperçu quand la pièce est affichable — c'est l'intention la
@@ -80,38 +96,37 @@ export function PanneauPiecesJointes({ pieces }: Props) {
                   {format ? (
                     <button
                       type="button"
-                      onClick={() => setOuverte(estOuverte ? null : piece.id)}
+                      onClick={() => basculerApercu(piece.id)}
                       aria-expanded={estOuverte}
                       aria-controls={idRegion}
-                      className="min-w-0 flex-1 truncate text-left text-sm text-secondary-800 underline-offset-2 hover:text-primary-700 hover:underline"
+                      className="min-w-[12rem] flex-1 text-left"
                     >
-                      {piece.nomOriginal}
+                      <span className="block truncate text-sm font-semibold text-secondary-900">{piece.nomOriginal}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{piece.mimeType} · {poidsLisible(piece.tailleOctets)}</span>
                     </button>
                   ) : (
                     <a
                       href={urlTelechargement(piece.id)}
                       download={piece.nomOriginal}
-                      className="min-w-0 flex-1 truncate text-sm text-secondary-800 underline-offset-2 hover:text-primary-700 hover:underline"
+                      className="min-w-[12rem] flex-1"
                     >
-                      {piece.nomOriginal}
+                      <span className="block truncate text-sm font-semibold text-secondary-900">{piece.nomOriginal}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{piece.mimeType} · {poidsLisible(piece.tailleOctets)}</span>
                     </a>
                   )}
-
-                  <span className="shrink-0 text-caption text-muted-foreground">
-                    {poidsLisible(piece.tailleOctets)}
-                  </span>
 
                   {format && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => setOuverte(estOuverte ? null : piece.id)}
+                      onClick={() => basculerApercu(piece.id)}
                       aria-expanded={estOuverte}
                       aria-controls={idRegion}
-                      className="shrink-0"
+                      className="shrink-0 gap-1.5"
                     >
-                      {estOuverte ? 'Masquer' : 'Aperçu'}
+                      <Eye className="h-4 w-4" aria-hidden />
+                      {estOuverte ? 'Fermer' : 'Aperçu'}
                     </Button>
                   )}
 
@@ -120,20 +135,38 @@ export function PanneauPiecesJointes({ pieces }: Props) {
                     download={piece.nomOriginal}
                     aria-label={`Télécharger ${piece.nomOriginal}`}
                     title="Télécharger"
-                    className="shrink-0 rounded-md p-1.5 text-secondary-500 hover:bg-muted hover:text-foreground"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-secondary-500 transition-colors hover:bg-muted hover:text-foreground"
                   >
                     <Download className="h-4 w-4" aria-hidden />
                   </a>
                 </div>
 
                 {format && estOuverte && (
-                  <div id={idRegion} className="mt-3">
-                    <Apercu
-                      format={format}
-                      url={urlApercu(piece.id)}
-                      nom={piece.nomOriginal}
-                      mimeType={piece.mimeType}
-                    />
+                  <div id={idRegion} className="border-t border-border bg-secondary-50/50 p-3 sm:p-4">
+                    <div className="relative min-h-40">
+                      {chargement && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/90" role="status">
+                          <span className="inline-flex items-center gap-2 text-sm font-medium text-secondary-700">
+                            <LoaderCircle className="h-5 w-5 animate-spin text-primary-700" aria-hidden />
+                            Chargement de l’aperçu…
+                          </span>
+                        </div>
+                      )}
+                      {erreurApercu ? (
+                        <div className="flex min-h-40 items-center justify-center rounded-lg border border-dashed border-border bg-white p-6 text-center text-sm text-muted-foreground">
+                          L’aperçu n’a pas pu être chargé. Utilisez le téléchargement ou ouvrez le fichier dans un nouvel onglet.
+                        </div>
+                      ) : (
+                        <Apercu
+                          format={format}
+                          url={urlApercu(piece.id)}
+                          nom={piece.nomOriginal}
+                          mimeType={piece.mimeType}
+                          onCharge={() => setChargement(false)}
+                          onErreur={() => { setChargement(false); setErreurApercu(true) }}
+                        />
+                      )}
+                    </div>
                     {/*
                       Le plein écran n'est pas un ornement : il confie le rendu au visualiseur du
                       navigateur, hors de tout cadre. C'est le recours si un format se prête mal à
@@ -164,11 +197,15 @@ function Apercu({
   url,
   nom,
   mimeType,
+  onCharge,
+  onErreur,
 }: {
   format: FormatApercu
   url: string
   nom: string
   mimeType: string
+  onCharge: () => void
+  onErreur: () => void
 }) {
   const cadre = 'w-full rounded-md border border-border bg-secondary-50'
 
@@ -177,17 +214,17 @@ function Apercu({
        `next/image` optimise en amont via son propre service, à partir d'une URL qu'il doit
        pouvoir refetcher. Ces pièces sont privées, servies en `no-store` derrière un contrôle
        d'accès par dossier : elles n'ont rien à faire dans un cache d'images partagé. */
-    return <img src={url} alt={`Aperçu de ${nom}`} className={`${cadre} max-h-[60vh] object-contain`} />
+    return <img src={url} alt={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} max-h-[60vh] object-contain`} />
   }
 
   if (format === 'video') {
     return (
-      <video controls preload="metadata" className={`${cadre} max-h-[60vh]`}>
+      <video controls preload="metadata" onLoadedMetadata={onCharge} onError={onErreur} className={`${cadre} max-h-[60vh]`}>
         <source src={url} type={mimeType} />
         Votre navigateur ne sait pas lire cette vidéo — ouvrez-la dans un nouvel onglet.
       </video>
     )
   }
 
-  return <iframe src={url} title={`Aperçu de ${nom}`} className={`${cadre} h-[70vh]`} />
+  return <iframe src={url} title={`Aperçu de ${nom}`} onLoad={onCharge} onError={onErreur} className={`${cadre} h-[70vh]`} />
 }

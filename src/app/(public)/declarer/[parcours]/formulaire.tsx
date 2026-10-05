@@ -4,6 +4,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CheckCircle2, FileText, Image as ImageIcon, Paperclip, Video, X } from 'lucide-react'
 import { compresserLot } from '@/lib/compression-images'
 import { useRetourEnToast } from '@/lib/retour-operation'
 import {
@@ -140,6 +141,7 @@ export function FormulaireDeclaration({
   const [envoiArme, setEnvoiArme] = useState(false)
   /** `en-cours` barre l'envoi : partir maintenant déposerait les fichiers d'origine. */
   const [reduction, setReduction] = useState<'inactive' | 'en-cours'>('inactive')
+  const [fichiersSelectionnes, setFichiersSelectionnes] = useState<File[]>([])
 
   /*
     RGI-03 : en anonymat, les champs d'identité ne sont pas rendus du tout — donc pas soumissibles.
@@ -296,6 +298,7 @@ export function FormulaireDeclaration({
 
     if (choisis.length === 0) {
       champ.setCustomValidity('')
+      setFichiersSelectionnes([])
       return
     }
 
@@ -310,7 +313,23 @@ export function FormulaireDeclaration({
     // Ce qui est pesé est ce que contient le champ : si le remplacement n'a pas pu avoir lieu, ce
     // sont les fichiers d'origine qui partiront, et ce sont eux qui doivent tenir dans les bornes.
     champ.setCustomValidity(verifierLotSuperficiellement(Array.from(champ.files ?? [])) ?? '')
+    setFichiersSelectionnes(Array.from(champ.files ?? []))
   }
+
+  function retirerFichier(index: number) {
+    const champ = formulaireRef.current?.querySelector<HTMLInputElement>('#fichiers')
+    if (!champ) return
+
+    const restants = fichiersSelectionnes.filter((_, position) => position !== index)
+    remplacerFichiers(champ, restants)
+    champ.setCustomValidity(verifierLotSuperficiellement(restants) ?? '')
+    setFichiersSelectionnes(restants)
+  }
+
+  const poidsFichier = (octets: number) =>
+    octets >= 1024 * 1024
+      ? `${(octets / (1024 * 1024)).toFixed(1)} Mo`
+      : `${Math.max(1, Math.round(octets / 1024))} Ko`
 
   return (
     <form
@@ -591,6 +610,50 @@ export function FormulaireDeclaration({
             <p id="fichiers-etat" role="status" className="text-caption text-muted-foreground">
               Réduction des images en cours…
             </p>
+          )}
+          {fichiersSelectionnes.length > 0 && reduction !== 'en-cours' && (
+            <div className="mt-4 overflow-hidden rounded-xl border border-primary-200 bg-primary-50/40">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-primary-100 px-4 py-3">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-secondary-900">
+                  <CheckCircle2 className="h-4 w-4 text-success-600" aria-hidden />
+                  {fichiersSelectionnes.length} fichier{fichiersSelectionnes.length > 1 ? 's' : ''} prêt{fichiersSelectionnes.length > 1 ? 's' : ''}
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {poidsFichier(fichiersSelectionnes.reduce((total, fichier) => total + fichier.size, 0))} au total
+                </span>
+              </div>
+              <ul className="divide-y divide-primary-100">
+                {fichiersSelectionnes.map((fichier, index) => {
+                  const Icone = fichier.type.startsWith('image/')
+                    ? ImageIcon
+                    : fichier.type.startsWith('video/')
+                      ? Video
+                      : fichier.type === 'application/pdf'
+                        ? FileText
+                        : Paperclip
+
+                  return (
+                    <li key={`${fichier.name}-${fichier.lastModified}`} className="flex items-center gap-3 px-4 py-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-primary-700 ring-1 ring-primary-100">
+                        <Icone className="h-4 w-4" aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-secondary-900">{fichier.name}</span>
+                        <span className="block text-xs text-muted-foreground">{poidsFichier(fichier.size)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => retirerFichier(index)}
+                        aria-label={`Retirer ${fichier.name}`}
+                        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" aria-hidden />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )}
           {erreur('fichiers') && (
             <Erreur id="fichiers-erreur" message={erreur('fichiers')!} />

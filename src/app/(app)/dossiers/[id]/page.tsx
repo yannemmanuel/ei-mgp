@@ -228,6 +228,17 @@ export default async function PageDossier({
   const politiqueSuppression = aPermission(utilisateur, "users.manage")
     ? await lirePolitiqueSuppression()
     : null;
+  const suppressionEligibleLe = politiqueSuppression
+    ? new Date(
+        (dossier.created_at ?? new Date()).getTime() +
+          politiqueSuppression.delaiJours * 86_400_000,
+      )
+    : null;
+  const motifSuppressionIndisponible = !politiqueSuppression?.autorisee
+    ? "Activez la suppression dans Administration > Conservation."
+    : suppressionEligibleLe && suppressionEligibleLe > new Date()
+      ? `Disponible à partir du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(suppressionEligibleLe)}.`
+      : undefined;
 
   const actionsVues = peutVoirAction(utilisateur, contexteDossier)
     ? actions.map((a) => ({
@@ -397,8 +408,11 @@ export default async function PageDossier({
                 Délai global dépassé
               </EtiquetteStatut>
             )}
-            {politiqueSuppression?.autorisee && (
-              <BoutonRetirer dossierId={dossier.id} />
+            {politiqueSuppression && (
+              <BoutonRetirer
+                dossierId={dossier.id}
+                indisponible={motifSuppressionIndisponible}
+              />
             )}
           </div>
         </div>

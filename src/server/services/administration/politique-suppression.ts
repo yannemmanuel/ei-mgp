@@ -21,7 +21,7 @@ export async function lirePolitiqueSuppression(): Promise<PolitiqueSuppression> 
   try {
     lignes = await prisma.$queryRaw<Array<{ cle: string; valeur: string }>>`
       SELECT "cle", "valeur"
-      FROM "parametres_application"
+      FROM "ei_mgp"."parametres_application"
       WHERE "cle" IN (${CLE_AUTORISEE}, ${CLE_DELAI})
     `;
   } catch (erreur) {
@@ -58,7 +58,7 @@ export async function enregistrerPolitiqueSuppression(
 
   await prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`
-      INSERT INTO "parametres_application" ("cle", "valeur", "updated_by")
+      INSERT INTO "ei_mgp"."parametres_application" ("cle", "valeur", "updated_by")
       VALUES (${CLE_AUTORISEE}, ${String(politique.autorisee)}, ${acteur.id})
       ON CONFLICT ("cle") DO UPDATE SET
         "valeur" = EXCLUDED."valeur",
@@ -66,7 +66,7 @@ export async function enregistrerPolitiqueSuppression(
         "updated_at" = CURRENT_TIMESTAMP
     `;
     await transaction.$executeRaw`
-      INSERT INTO "parametres_application" ("cle", "valeur", "updated_by")
+      INSERT INTO "ei_mgp"."parametres_application" ("cle", "valeur", "updated_by")
       VALUES (${CLE_DELAI}, ${String(politique.delaiJours)}, ${acteur.id})
       ON CONFLICT ("cle") DO UPDATE SET
         "valeur" = EXCLUDED."valeur",
