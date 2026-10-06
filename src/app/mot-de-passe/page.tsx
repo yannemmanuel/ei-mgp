@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { KeyRound } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
-import { exigerUtilisateur } from '@/server/auth'
+import { exigerUtilisateurAuthentifie } from '@/server/auth'
 import { LONGUEUR_MINIMALE, OCTETS_MAXIMUM } from '@/server/auth/mot-de-passe'
 import { seDeconnecter } from '../(app)/actions'
 import { FormulaireMotDePasse } from './formulaire'
@@ -23,7 +23,12 @@ export const dynamic = 'force-dynamic'
  * tableau de bord » rendrait l'obligation contournable d'un clic.
  */
 export default async function PageMotDePasse() {
-  const utilisateur = await exigerUtilisateur()
+  /*
+    ⚠️ `exigerUtilisateurAuthentifie()`, JAMAIS `exigerUtilisateur()` : ce dernier redirige vers
+    CETTE page tout compte qui doit changer son mot de passe. L'appeler ici renvoyait la page vers
+    elle-même à l'infini — exactement les comptes qu'elle doit servir n'y accédaient plus.
+  */
+  const utilisateur = await exigerUtilisateurAuthentifie()
   const obligatoire = utilisateur.doitChangerMotDePasse
 
   return (
