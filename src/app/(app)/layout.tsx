@@ -5,7 +5,7 @@ import { LIBELLES_ROLE } from "@/server/authz";
 import { BarreLaterale } from "@/components/layout/barre-laterale";
 import { EnTete } from "@/components/layout/en-tete";
 import { navigationPour } from "@/components/layout/navigation";
-import { LogoProduit } from "@/components/ui/logo-produit";
+import { MarqueSodeci } from "@/components/ui/marque-sodeci";
 import { prisma } from "@/lib/prisma";
 import {
   nombreNonLues,
@@ -67,17 +67,9 @@ export default async function LayoutApplication({
           <div className="flex h-18 shrink-0 items-center border-b border-sidebar-border px-5">
             <Link
               href="/dashboard"
-              className="flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              className="flex min-w-0 items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
             >
-              <LogoProduit />
-              <div className="flex flex-col">
-                <span className="text-sm font-bold tracking-tight text-secondary-900 leading-tight">
-                  SODECI
-                </span>
-                <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
-                  Écoute &amp; intégrité
-                </span>
-              </div>
+              <MarqueSodeci tailleLogo="h-8" sousTitre="Plaintes et évènements indésirables" />
             </Link>
           </div>
 

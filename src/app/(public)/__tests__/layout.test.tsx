@@ -49,7 +49,7 @@ describe('Coquille publique', () => {
     afficher()
 
     // EX-DEC-01/02 : `/declarer` est le point d'entrée unique. C'est l'accueil de qui est ici.
-    expect(screen.getByRole('link', { name: /SODECI.*Écoute/i })).toHaveProperty(
+    expect(screen.getByRole('link', { name: /SODECI.*Déclaration des plaintes/i })).toHaveProperty(
       'pathname',
       '/declarer'
     )

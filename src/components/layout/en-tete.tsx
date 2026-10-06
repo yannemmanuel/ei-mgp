@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogoProduit } from "@/components/ui/logo-produit";
+import { MarqueSodeci } from "@/components/ui/marque-sodeci";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,10 +94,7 @@ export function EnTete({
         >
           <SheetTitle className="sr-only">Navigation principale</SheetTitle>
           <div className="flex h-20 items-center border-b border-sidebar-border px-5">
-            <LogoProduit />
-            <span className="ml-3 text-sm font-bold tracking-tight text-secondary-900">
-              SODECI
-            </span>
+            <MarqueSodeci tailleLogo="h-8" sousTitre="Plaintes et évènements indésirables" />
           </div>
           <div className="py-4">
             <BarreLaterale

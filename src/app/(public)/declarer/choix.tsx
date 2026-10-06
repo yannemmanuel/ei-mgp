@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 
 type Option = {
   readonly code: string;
@@ -92,29 +92,43 @@ export function ChoixParcours() {
           }}
         />
 
+        {/* Même carte et même flèche que l'évènement indésirable : deux choix de même rang. */}
         <button
           type="button"
           onClick={() => setEtape("plainte")}
-          className="group block w-full rounded-2xl border border-border/80 bg-card p-5 text-left shadow-[0_8px_28px_rgba(18,33,59,0.05)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-secondary-300 hover:shadow-[0_16px_40px_rgba(18,33,59,0.09)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+          className={CLASSES_CARTE}
         >
-          <div className="flex items-center justify-between">
-            <span className="block text-sm font-semibold text-secondary-900">
-              Une plainte ou un grief
-            </span>
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary-100 text-secondary-500 group-hover:bg-secondary-200 transition-colors">
-              <ChevronRight className="h-4 w-4" />
-            </span>
-          </div>
-          <span className="mt-1.5 block text-xs text-secondary-600 leading-relaxed">
-            Un désaccord, un préjudice ou un manquement que vous souhaitez
-            porter à notre connaissance.
-          </span>
-          <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary-700">
-            Préciser
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
+          <ContenuCarte
+            titre="Une plainte ou un grief"
+            description="Un désaccord, un préjudice ou un manquement que vous souhaitez porter à notre connaissance."
+          />
         </button>
       </div>
+
+      {/*
+        Le QR code mène ici, et pas au suivi : sur téléphone, le lien « Suivre mon dossier » du
+        panneau latéral n'est pas affiché. Sans ce bouton, qui avait déjà déclaré ne trouvait pas
+        comment consulter son dossier après avoir scanné l'affiche.
+      */}
+      <Link
+        href="/suivi"
+        className="mt-6 flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-secondary-300 bg-secondary-50/60 p-4 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+      >
+        <span className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-secondary-700 shadow-xs">
+            <Search className="h-4 w-4" aria-hidden />
+          </span>
+          <span>
+            <span className="block text-sm font-semibold text-secondary-900">
+              Suivre une déclaration
+            </span>
+            <span className="mt-0.5 block text-xs text-secondary-600">
+              Avec votre numéro de référence et votre code d&apos;accès.
+            </span>
+          </span>
+        </span>
+        <ArrowRight className="h-4 w-4 shrink-0 text-secondary-500" aria-hidden />
+      </Link>
 
       <p className="mt-8 rounded-xl border border-secondary-100 bg-secondary-50/70 px-4 py-3 text-xs leading-5 text-secondary-600">
         Vous hésitez ? Choisissez ce qui vous semble le plus proche : nous
@@ -124,23 +138,29 @@ export function ChoixParcours() {
   );
 }
 
-function CarteOption({ option }: { option: Option }) {
+const CLASSES_CARTE =
+  "group flex w-full items-center justify-between rounded-2xl border border-border/80 bg-card p-5 text-left shadow-[0_8px_28px_rgba(18,33,59,0.05)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-[0_16px_40px_rgba(18,33,59,0.09)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30";
+
+function ContenuCarte({ titre, description }: { titre: string; description: string }) {
   return (
-    <Link
-      href={`/declarer/${option.code}`}
-      className="group flex w-full items-center justify-between rounded-2xl border border-border/80 bg-card p-5 text-left shadow-[0_8px_28px_rgba(18,33,59,0.05)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-[0_16px_40px_rgba(18,33,59,0.09)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
-    >
+    <>
       <span className="min-w-0">
-        <span className="block text-sm font-semibold text-secondary-900">
-          {option.titre}
-        </span>
+        <span className="block text-sm font-semibold text-secondary-900">{titre}</span>
         <span className="mt-1 block text-xs text-secondary-600 leading-relaxed">
-          {option.description}
+          {description}
         </span>
       </span>
       <span className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 border border-primary-200/60 text-primary-700 group-hover:bg-primary-100 transition-colors">
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
+    </>
+  );
+}
+
+function CarteOption({ option }: { option: Option }) {
+  return (
+    <Link href={`/declarer/${option.code}`} className={CLASSES_CARTE}>
+      <ContenuCarte titre={option.titre} description={option.description} />
     </Link>
   );
 }

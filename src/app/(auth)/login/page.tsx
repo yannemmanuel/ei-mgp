@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { utilisateurCourant } from "@/server/auth";
 import { FormulaireConnexion } from "./formulaire-connexion";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
-import { LogoProduit } from "@/components/ui/logo-produit";
+import { MarqueSodeci } from "@/components/ui/marque-sodeci";
 
 export const metadata: Metadata = {
   title: "Connexion — EI-MGP",
@@ -27,14 +27,8 @@ export default async function PageConnexion() {
           className="absolute inset-0 bg-[radial-gradient(circle_at_center,#1f386418_1px,transparent_1.5px)] bg-[size:1.5rem_1.5rem] opacity-30 [mask-image:linear-gradient(to_bottom,black,transparent)]"
           aria-hidden
         />
-        <div className="relative flex items-center gap-3">
-          <LogoProduit className="size-11" />
-          <div>
-            <p className="font-bold">SODECI</p>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
-              Écoute &amp; intégrité
-            </p>
-          </div>
+        <div className="relative">
+          <MarqueSodeci tailleLogo="h-12" prioritaire />
         </div>
         <div className="relative mt-auto max-w-md pb-8">
           <p className="text-[2.75rem] font-semibold leading-[1.08] tracking-[-0.04em]">
@@ -53,14 +47,8 @@ export default async function PageConnexion() {
 
       <section className="surface-grid flex items-center justify-center px-4 py-10 sm:px-8">
         <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <LogoProduit />
-            <div>
-              <p className="font-bold text-secondary-900">SODECI</p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
-                Écoute &amp; intégrité
-              </p>
-            </div>
+          <div className="mb-8 lg:hidden">
+            <MarqueSodeci tailleLogo="h-10" prioritaire />
           </div>
           <div className="rounded-3xl border border-border/80 bg-card p-6 shadow-[0_24px_70px_rgba(18,33,59,0.10)] sm:p-9">
             <div className="mb-8">

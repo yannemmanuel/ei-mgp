@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Shield, ChevronRight } from "lucide-react";
-import { LogoProduit } from "@/components/ui/logo-produit";
+import { MarqueSodeci } from "@/components/ui/marque-sodeci";
 
 const ETAPES = [
   {
@@ -31,17 +31,9 @@ export default function LayoutPublic({ children }: LayoutProps<"/">) {
           <div className="flex items-center justify-between gap-4 lg:block">
             <Link
               href="/declarer"
-              className="group flex min-h-11 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
+              className="group flex min-h-11 min-w-0 items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300"
             >
-              <LogoProduit />
-              <div className="flex flex-col">
-                <span className="text-sm font-bold tracking-tight text-secondary-900">
-                  SODECI
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-secondary-500">
-                  Écoute &amp; intégrité
-                </span>
-              </div>
+              <MarqueSodeci tailleLogo="h-9 lg:h-11" prioritaire />
             </Link>
 
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 lg:hidden">
