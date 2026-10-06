@@ -178,8 +178,19 @@ export async function enregistrerUtilisateur(
   utilisateurId?: bigint,
   options: OptionsEnregistrement = {}
 ): Promise<ResultatEnregistrement> {
+  /*
+    ⚠️ L'ADRESSE EST ENREGISTRÉE EN MINUSCULES, et c'est ICI qu'elle l'est : tous les chemins
+    d'enregistrement passent par ce service. Gardée telle que saisie, une majuscule suffisait à
+    rendre le compte impossible à connecter, et deux comptes pouvaient coexister pour la même
+    adresse à la casse près.
+  */
+  const email = donnees.email.trim().toLowerCase()
+
   const doublon = await prisma.users.findFirst({
-    where: { email: donnees.email, ...(utilisateurId ? { NOT: { id: utilisateurId } } : {}) },
+    where: {
+      email: { equals: email, mode: 'insensitive' },
+      ...(utilisateurId ? { NOT: { id: utilisateurId } } : {}),
+    },
     select: { id: true },
   })
 
@@ -236,7 +247,7 @@ export async function enregistrerUtilisateur(
 
   const valeurs = {
     name: donnees.name,
-    email: donnees.email,
+    email,
     matricule: donnees.matricule,
     poste: donnees.poste,
     direction_id: directionId,

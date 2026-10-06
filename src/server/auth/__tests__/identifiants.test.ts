@@ -43,6 +43,25 @@ describe('Vérification des identifiants', () => {
     expect(resultat.statut).toBe('ok')
   })
 
+  it('⚠️ connecte un compte dont l\'adresse a été ENREGISTRÉE avec des majuscules', async () => {
+    /*
+      Le cas réel : la console d'administration gardait la casse saisie (« Adama.Bamba@… »), la
+      connexion cherchait en minuscules, et ces comptes ne pouvaient jamais se connecter. Le cas
+      précédent ne le voyait pas : il ne met des majuscules que dans la SAISIE.
+
+      Seule écriture de ce fichier, défaite dans `finally`.
+    */
+    const enregistree = 'Admin@Example.TEST'
+    await prisma.users.update({ where: { email: COMPTE }, data: { email: enregistree } })
+
+    try {
+      expect((await verifierIdentifiants(COMPTE, MOT_DE_PASSE)).statut).toBe('ok')
+      expect((await verifierIdentifiants(` ${enregistree} `, MOT_DE_PASSE)).statut).toBe('ok')
+    } finally {
+      await prisma.users.update({ where: { email: enregistree }, data: { email: COMPTE } })
+    }
+  })
+
   it('distingue un compte désactivé d\'un mot de passe faux', async () => {
     // Durcissement délibéré : le dispositif précédent ne contrôlait pas `actif` à la connexion
     // (cf. MIGRATION_PLAN.md étape 2). On vérifie ici la logique sans modifier la base :

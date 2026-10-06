@@ -24,8 +24,16 @@ export async function verifierIdentifiants(
   email: string,
   motDePasse: string
 ): Promise<ResultatVerification> {
+  /*
+    ⚠️ COMPARAISON INSENSIBLE À LA CASSE. La console d'administration enregistrait l'adresse telle
+    que saisie (« Adama.Bamba@sodeci.ci ») alors que la recherche se faisait en minuscules : ces
+    comptes ne pouvaient JAMAIS se connecter, avec pour seul message « Identifiants invalides ».
+    Une adresse e-mail ne se distingue pas par sa casse ; la base ne doit pas le faire non plus.
+    Le tri par identifiant rend le choix déterministe si deux lignes ne différaient que par la casse.
+  */
   const utilisateur = await prisma.users.findFirst({
-    where: { email: email.trim().toLowerCase() },
+    where: { email: { equals: email.trim(), mode: 'insensitive' } },
+    orderBy: { id: 'asc' },
     select: { id: true, password: true, actif: true },
   })
 
