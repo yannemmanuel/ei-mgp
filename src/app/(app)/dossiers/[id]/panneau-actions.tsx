@@ -297,7 +297,6 @@ export function PanneauActions({
                 name="syntheseResolution"
                 rows={3}
                 required
-                minLength={10}
                 placeholder="Synthèse de résolution *"
                 className={champ}
               />

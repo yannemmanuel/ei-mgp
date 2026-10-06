@@ -712,8 +712,9 @@ export default async function PageDossier({
                 libelle: `Investigation du ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(i.date_ouverture)}`,
               }))}
               droits={droitsActions}
-              dossierEnActionCorrective={
-                dossier.statutCode === "action_corrective_en_cours"
+              creationOuverte={
+                dossier.statutCode === "action_corrective_en_cours" ||
+                dossier.statutCode === "resolu"
               }
             />
           </section>

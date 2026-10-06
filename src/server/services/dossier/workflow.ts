@@ -124,17 +124,58 @@ export async function changerStatut(params: {
 }
 
 /**
- * RG-10 / EX-ACT-05 : un dossier n'est clôturable que si TOUTES ses actions correctives sont
- * closes et leur efficacité vérifiée. N'exige pas qu'il en existe : un dossier sans action
- * corrective formelle reste clôturable.
+ * Ramène un dossier « Résolu » à « Action corrective en cours » quand une NOUVELLE action y est
+ * créée — typiquement après une action jugée non efficace (décision métier du 2026-10-06).
+ *
+ * Hors du graphe des transitions manuelles : ce retour n'a de sens qu'accompagné d'une action, et
+ * ne doit donc pas être proposé seul dans la liste des statuts. Sans effet sur un dossier déjà
+ * « Action corrective en cours ».
+ */
+export async function reprendreActionsCorrectives(params: {
+  dossierId: string
+  acteurId: bigint
+}): Promise<void> {
+  const libelleAffiche = await prisma.$transaction(async (tx) => {
+    const actuel = await statutCourant(tx, params.dossierId)
+
+    if (actuel.code === 'action_corrective_en_cours') return null
+
+    if (actuel.code !== 'resolu') {
+      throw new ErreurWorkflow(
+        'Une action corrective ne peut être créée que sur un dossier « Action corrective en cours » ou « Résolu ».'
+      )
+    }
+
+    return appliquerTransition(
+      tx,
+      params.dossierId,
+      actuel.statut_id,
+      'action_corrective_en_cours',
+      params.acteurId,
+      'Retour en « Action corrective en cours » : une nouvelle action corrective a été créée.'
+    )
+  })
+
+  if (libelleAffiche !== null) await surChangementStatut(params.dossierId, libelleAffiche)
+}
+
+/**
+ * RG-10 : un dossier n'est clôturable que si TOUTES ses actions correctives sont « Réalisées ».
+ * N'exige pas qu'il en existe : un dossier sans action corrective formelle reste clôturable.
+ *
+ * ⚠️ L'EFFICACITÉ N'EST PLUS UNE CONDITION (décision métier du 2026-10-06). Une action jugée non
+ * efficace donne lieu à une NOUVELLE action, qui devra à son tour être réalisée ; exiger
+ * l'efficacité de chacune bloquait définitivement tout dossier dont une mesure avait échoué.
+ *
+ * La synthèse reste exigée, sans longueur minimale : c'est au traitant d'en juger la teneur.
  */
 export async function cloturer(params: {
   dossierId: string
   acteurId: bigint
   syntheseResolution: string
 }): Promise<void> {
-  if (params.syntheseResolution.trim().length < 10) {
-    throw new ErreurWorkflow('La synthèse de résolution est obligatoire (10 caractères minimum).')
+  if (params.syntheseResolution.trim() === '') {
+    throw new ErreurWorkflow('La synthèse de résolution est obligatoire.')
   }
 
   const libelleAffiche = await prisma.$transaction(async (tx) => {
@@ -144,22 +185,19 @@ export async function cloturer(params: {
       throw new ErreurWorkflow('Seul un dossier « Résolu » peut être clôturé.')
     }
 
-    const actionsNonCloses = await tx.actions_correctives.count({
-      where: {
-        dossier_id: params.dossierId,
-        OR: [{ date_cloture: null }, { NOT: { verification_efficacite: true } }],
-      },
+    const actionsNonRealisees = await tx.actions_correctives.count({
+      where: { dossier_id: params.dossierId, statut: { not: 'realisee' } },
     })
 
-    if (actionsNonCloses > 0) {
+    if (actionsNonRealisees > 0) {
       throw new ErreurWorkflow(
-        'Toutes les actions correctives doivent être closes et vérifiées avant de clôturer.'
+        'Toutes les actions correctives doivent être marquées « Réalisée » avant de clôturer.'
       )
     }
 
     await tx.dossiers.update({
       where: { id: params.dossierId },
-      data: { synthese_resolution: params.syntheseResolution },
+      data: { synthese_resolution: params.syntheseResolution.trim() },
     })
 
     return appliquerTransition(

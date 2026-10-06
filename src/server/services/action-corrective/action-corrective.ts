@@ -1,6 +1,10 @@
 import { ulid } from 'ulid'
 import { prisma } from '@/lib/prisma'
-import { changerStatut as changerStatutDossier, ErreurWorkflow } from '../dossier/workflow'
+import {
+  changerStatut as changerStatutDossier,
+  ErreurWorkflow,
+  reprendreActionsCorrectives,
+} from '../dossier/workflow'
 import type { StatutCode } from '../dossier/statuts'
 
 /**
@@ -22,6 +26,12 @@ const TRANSITIONS_AUTORISEES: Partial<Record<StatutAction, readonly StatutAction
   en_retard: ['en_cours', 'realisee'],
 }
 
+/** Statuts du dossier sur lesquels une action corrective peut être créée. */
+export const STATUTS_DOSSIER_CREATION: readonly StatutCode[] = [
+  'action_corrective_en_cours',
+  'resolu',
+]
+
 function jourDe(date: Date): number {
   const copie = new Date(date)
   copie.setHours(0, 0, 0, 0)
@@ -31,6 +41,10 @@ function jourDe(date: Date): number {
 /**
  * EX-ACT-01/02 : création depuis les recommandations d'une investigation, avec responsable et
  * échéance. RGI-07 : l'échéance doit être postérieure à la date de création.
+ *
+ * Possible sur un dossier « Action corrective en cours » ET sur un dossier « Résolu » : une action
+ * évaluée — efficace ou non — peut appeler une action complémentaire. Le dossier « Résolu »
+ * revient alors à « Action corrective en cours » (`reprendreActionsCorrectives()`).
  *
  * ⚠️ LE RESPONSABLE EST SAISI À LA MAIN (décision métier du 2026-09-18), et non choisi parmi les
  * comptes. Celui qui met en œuvre une mesure — chef d'équipe, prestataire, service entier — n'est
@@ -44,15 +58,16 @@ export async function creerAction(params: {
   description: string
   responsableNom: string
   echeance: Date
+  acteurId: bigint
 }): Promise<string> {
   const dossier = await prisma.dossiers.findUniqueOrThrow({
     where: { id: params.dossierId },
     select: { statuts_dossier: { select: { code: true } } },
   })
 
-  if ((dossier.statuts_dossier.code as StatutCode) !== 'action_corrective_en_cours') {
+  if (!STATUTS_DOSSIER_CREATION.includes(dossier.statuts_dossier.code as StatutCode)) {
     throw new ErreurWorkflow(
-      'Une action corrective ne peut être créée que sur un dossier « Action corrective en cours ».'
+      'Une action corrective ne peut être créée que sur un dossier « Action corrective en cours » ou « Résolu ».'
     )
   }
 
@@ -92,6 +107,10 @@ export async function creerAction(params: {
   if (responsableNom === '') {
     throw new ErreurWorkflow('Le responsable de l’action est obligatoire.')
   }
+
+  // Après TOUTES les validations : un dossier « Résolu » ne doit pas être rouvert pour une
+  // action qui serait ensuite refusée.
+  await reprendreActionsCorrectives({ dossierId: params.dossierId, acteurId: params.acteurId })
 
   const maintenant = new Date()
 
@@ -142,8 +161,9 @@ export async function changerStatutAction(params: {
 
 /**
  * EX-ACT-04 : l'efficacité ne se vérifie qu'une fois l'action réalisée.
- * RGI-08 : une vérification POSITIVE exige un commentaire — une efficacité affirmée sans
- * justification ne serait pas auditable.
+ *
+ * Le commentaire est FACULTATIF dans les deux cas (décision métier du 2026-10-06) : l'exigence
+ * d'un commentaire sur une vérification positive (ancienne RGI-08) a été levée.
  */
 export async function verifierEfficacite(params: {
   actionId: string
@@ -161,24 +181,22 @@ export async function verifierEfficacite(params: {
     )
   }
 
-  if (params.efficace && (params.commentaire ?? '').trim() === '') {
-    throw new ErreurWorkflow(
-      'Un commentaire est obligatoire quand la vérification est positive.'
-    )
-  }
+  const commentaire = (params.commentaire ?? '').trim()
 
   await prisma.actions_correctives.update({
     where: { id: params.actionId },
     data: {
       verification_efficacite: params.efficace,
-      verification_commentaire: params.commentaire ?? null,
+      verification_commentaire: commentaire === '' ? null : commentaire,
       updated_at: new Date(),
     },
   })
 }
 
 /**
- * RGI-09 : la clôture n'est possible qu'après une vérification d'efficacité positive.
+ * Clôture d'une action, possible dès que son efficacité a été ÉVALUÉE — positivement ou non.
+ * Une action non efficace se clôt elle aussi : la suite passe par une nouvelle action.
+ *
  * EX-ACT-05 : dès que toutes les actions du dossier sont closes, celui-ci avance
  * automatiquement à « Résolu » (DT-27).
  */
@@ -191,9 +209,9 @@ export async function cloturerAction(params: {
     select: { verification_efficacite: true, dossier_id: true },
   })
 
-  if (action.verification_efficacite !== true) {
+  if (action.verification_efficacite === null) {
     throw new ErreurWorkflow(
-      'Une action ne peut être clôturée qu’après une vérification positive.'
+      'Une action ne peut être clôturée qu’après l’évaluation de son efficacité.'
     )
   }
 
@@ -219,10 +237,7 @@ async function avancerDossierSiToutesActionsClosees(
   }
 
   const resteOuvertes = await prisma.actions_correctives.count({
-    where: {
-      dossier_id: dossierId,
-      OR: [{ date_cloture: null }, { NOT: { verification_efficacite: true } }],
-    },
+    where: { dossier_id: dossierId, date_cloture: null },
   })
 
   if (resteOuvertes > 0) return
@@ -232,7 +247,7 @@ async function avancerDossierSiToutesActionsClosees(
     vers: 'resolu',
     acteurId,
     commentaire:
-      'Transition automatique : toutes les actions correctives sont closes et vérifiées efficaces (EX-ACT-05).',
+      'Transition automatique : toutes les actions correctives sont closes (EX-ACT-05).',
   })
 }
 

@@ -61,12 +61,14 @@ async function dossierEnActionCorrective(acteurId: bigint): Promise<string> {
 }
 
 async function nouvelleAction(dossierId: string, responsableNom = 'Chef d’équipe maintenance'): Promise<string> {
+  const [acteurId] = await deuxUtilisateurs()
   const id = await creerAction({
     dossierId,
     intitule: 'Action de test',
     description: 'Description de l’action corrective.',
     responsableNom,
     echeance: demain(),
+    acteurId,
   })
   actionsCreees.push(id)
   return id
@@ -144,6 +146,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
         description: 'B',
         responsableNom: 'Responsable de test',
         echeance: demain(),
+        acteurId: (await deuxUtilisateurs())[0],
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
@@ -159,6 +162,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
         description: 'Description',
         responsableNom: 'Responsable de test',
         echeance: new Date(), // aujourd'hui : refusé
+        acteurId: (await deuxUtilisateurs())[0],
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
@@ -180,6 +184,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
       description: 'Description',
       responsableNom: 'Prestataire extérieur',
       echeance: demain(),
+      acteurId: (await deuxUtilisateurs())[0],
     })
     actionsCreees.push(id)
 
@@ -207,6 +212,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
         description: 'Description',
         responsableNom: 'Chef de service',
         echeance: demain(),
+        acteurId: (await deuxUtilisateurs())[0],
       })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
@@ -225,6 +231,7 @@ describe('Création (EX-ACT-01, EX-ACT-02, RGI-07)', () => {
           description: 'Description',
           responsableNom: vide,
           echeance: demain(),
+          acteurId: (await deuxUtilisateurs())[0],
         })
       ).rejects.toBeInstanceOf(ErreurWorkflow)
     }
@@ -291,7 +298,20 @@ describe('Avancement (EX-ACT-03)', () => {
   })
 })
 
-describe('Vérification d’efficacité (EX-ACT-04, RGI-08)', () => {
+async function realiser(id: string): Promise<void> {
+  await changerStatutAction({ actionId: id, vers: 'en_cours' })
+  await changerStatutAction({ actionId: id, vers: 'realisee' })
+}
+
+async function statutDossier(dossierId: string): Promise<string> {
+  const dossier = await prisma.dossiers.findUniqueOrThrow({
+    where: { id: dossierId },
+    select: { statuts_dossier: { select: { code: true } } },
+  })
+  return dossier.statuts_dossier.code
+}
+
+describe('Vérification d’efficacité (EX-ACT-04)', () => {
   it('refuse la vérification avant que l’action soit réalisée', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
@@ -302,28 +322,31 @@ describe('Vérification d’efficacité (EX-ACT-04, RGI-08)', () => {
     ).rejects.toBeInstanceOf(ErreurWorkflow)
   })
 
-  it('exige un commentaire pour une vérification positive (RGI-08)', async () => {
+  it('n’exige de commentaire ni pour une vérification positive, ni pour une négative', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
-    const id = await nouvelleAction(dossierId)
+    const efficace = await nouvelleAction(dossierId)
+    const inefficace = await nouvelleAction(dossierId)
+    await realiser(efficace)
+    await realiser(inefficace)
 
-    await changerStatutAction({ actionId: id, vers: 'en_cours' })
-    await changerStatutAction({ actionId: id, vers: 'realisee' })
+    await verifierEfficacite({ actionId: efficace, efficace: true, commentaire: '   ' })
+    await verifierEfficacite({ actionId: inefficace, efficace: false, commentaire: null })
 
-    await expect(
-      verifierEfficacite({ actionId: id, efficace: true, commentaire: '   ' })
-    ).rejects.toBeInstanceOf(ErreurWorkflow)
+    const lues = await prisma.actions_correctives.findMany({
+      where: { id: { in: [efficace, inefficace] } },
+      select: { id: true, verification_efficacite: true, verification_commentaire: true },
+    })
+    const parId = new Map(lues.map((a) => [a.id, a]))
 
-    // Une vérification NÉGATIVE n'exige pas de commentaire.
-    await verifierEfficacite({ actionId: id, efficace: false, commentaire: null })
-    expect(
-      (await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })).verification_efficacite
-    ).toBe(false)
+    expect(parId.get(efficace)?.verification_efficacite).toBe(true)
+    expect(parId.get(efficace)?.verification_commentaire, 'un blanc est enregistré').toBeNull()
+    expect(parId.get(inefficace)?.verification_efficacite).toBe(false)
   })
 })
 
-describe('Clôture (RGI-09, EX-ACT-05)', () => {
-  it('refuse la clôture sans vérification d’efficacité positive (RGI-09)', async () => {
+describe('Clôture (EX-ACT-05)', () => {
+  it('refuse la clôture d’une action dont l’efficacité n’a pas été évaluée', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
     const id = await nouvelleAction(dossierId)
@@ -333,6 +356,20 @@ describe('Clôture (RGI-09, EX-ACT-05)', () => {
     )
   })
 
+  it('clôt une action jugée NON efficace', async () => {
+    const [acteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(acteur)
+    const id = await nouvelleAction(dossierId)
+    await realiser(id)
+    await verifierEfficacite({ actionId: id, efficace: false })
+
+    await cloturerAction({ actionId: id, acteurId: acteur })
+
+    expect(
+      (await prisma.actions_correctives.findUniqueOrThrow({ where: { id } })).date_cloture
+    ).not.toBeNull()
+  })
+
   it('fait avancer le dossier à « Résolu » quand la dernière action est close (EX-ACT-05)', async () => {
     const [acteur] = await deuxUtilisateurs()
     const dossierId = await dossierEnActionCorrective(acteur)
@@ -340,26 +377,67 @@ describe('Clôture (RGI-09, EX-ACT-05)', () => {
     const a = await nouvelleAction(dossierId)
     const b = await nouvelleAction(dossierId)
 
-    for (const id of [a, b]) {
-      await changerStatutAction({ actionId: id, vers: 'en_cours' })
-      await changerStatutAction({ actionId: id, vers: 'realisee' })
-      await verifierEfficacite({ actionId: id, efficace: true, commentaire: 'Efficace.' })
-    }
+    await realiser(a)
+    await verifierEfficacite({ actionId: a, efficace: true })
+    await realiser(b)
+    await verifierEfficacite({ actionId: b, efficace: false })
 
     // Première clôture : une action reste ouverte, le dossier ne bouge pas.
     await cloturerAction({ actionId: a, acteurId: acteur })
-    let dossier = await prisma.dossiers.findUniqueOrThrow({
-      where: { id: dossierId },
-      select: { statuts_dossier: { select: { code: true } } },
-    })
-    expect(dossier.statuts_dossier.code).toBe('action_corrective_en_cours')
+    expect(await statutDossier(dossierId)).toBe('action_corrective_en_cours')
 
-    // Seconde clôture : plus rien d'ouvert, le dossier avance automatiquement.
+    // Seconde clôture, sur une action non efficace : plus rien d'ouvert, le dossier avance.
     await cloturerAction({ actionId: b, acteurId: acteur })
-    dossier = await prisma.dossiers.findUniqueOrThrow({
-      where: { id: dossierId },
-      select: { statuts_dossier: { select: { code: true } } },
+    expect(await statutDossier(dossierId)).toBe('resolu')
+  })
+})
+
+describe('Action complémentaire après évaluation', () => {
+  it('crée une autre action sur un dossier « Résolu » et le ramène en « Action corrective en cours »', async () => {
+    const [acteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(acteur)
+
+    const premiere = await nouvelleAction(dossierId)
+    await realiser(premiere)
+    await verifierEfficacite({ actionId: premiere, efficace: false })
+    await cloturerAction({ actionId: premiere, acteurId: acteur })
+    expect(await statutDossier(dossierId)).toBe('resolu')
+
+    await nouvelleAction(dossierId, 'Équipe HSE du site')
+
+    expect(await statutDossier(dossierId)).toBe('action_corrective_en_cours')
+
+    // Le retour est tracé comme toute transition (RG-04).
+    const derniere = await prisma.historique_statuts.findFirstOrThrow({
+      where: { dossier_id: dossierId },
+      orderBy: { id: 'desc' },
+      select: { statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: { select: { code: true } } },
     })
-    expect(dossier.statuts_dossier.code).toBe('resolu')
+    expect(
+      derniere.statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier.code
+    ).toBe('action_corrective_en_cours')
+  })
+
+  it('⚠️ ne rouvre pas un dossier « Résolu » pour une action refusée', async () => {
+    const [acteur] = await deuxUtilisateurs()
+    const dossierId = await dossierEnActionCorrective(acteur)
+
+    const premiere = await nouvelleAction(dossierId)
+    await realiser(premiere)
+    await verifierEfficacite({ actionId: premiere, efficace: true })
+    await cloturerAction({ actionId: premiere, acteurId: acteur })
+
+    await expect(
+      creerAction({
+        dossierId,
+        intitule: 'Action',
+        description: 'Description',
+        responsableNom: '   ',
+        echeance: demain(),
+        acteurId: acteur,
+      })
+    ).rejects.toBeInstanceOf(ErreurWorkflow)
+
+    expect(await statutDossier(dossierId)).toBe('resolu')
   })
 })

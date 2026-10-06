@@ -34,8 +34,11 @@ type Props = {
   /** Toutes les fiches du dossier : une investigation n'est plus soumise à validation. */
   investigations: { id: string; libelle: string }[]
   droits: { creer: boolean; modifier: boolean; verifier: boolean; cloturer: boolean }
-  /** Une action ne se crée que sur un dossier « Action corrective en cours » (EX-ACT-01). */
-  dossierEnActionCorrective: boolean
+  /**
+   * Une action se crée sur un dossier « Action corrective en cours » ou « Résolu » : une action
+   * évaluée, efficace ou non, peut appeler une action complémentaire.
+   */
+  creationOuverte: boolean
 }
 
 const ETAT: EtatAction = {}
@@ -63,16 +66,26 @@ export function PanneauActionsCorrectives({
   actions,
   investigations,
   droits,
-  dossierEnActionCorrective,
+  creationOuverte,
 }: Props) {
   const [creationVisible, setCreationVisible] = useState(false)
+  const peutCreer = droits.creer && creationOuverte
+
+  // Ouvre le formulaire en haut du panneau, où il est rendu, et l'amène à l'écran : le bouton
+  // « Créer une autre action » d'une fiche peut se trouver loin en dessous.
+  const ouvrirCreation = () => {
+    setCreationVisible(true)
+    requestAnimationFrame(() =>
+      document.getElementById('creation-action')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    )
+  }
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-h3">Actions correctives</CardTitle>
-        {droits.creer && dossierEnActionCorrective && !creationVisible && (
-          <Button size="sm" variant="outline" onClick={() => setCreationVisible(true)}>
+        {peutCreer && !creationVisible && (
+          <Button size="sm" variant="outline" onClick={ouvrirCreation}>
             Créer une action
           </Button>
         )}
@@ -81,9 +94,9 @@ export function PanneauActionsCorrectives({
       <CardContent className="space-y-5">
         {actions.length === 0 && !creationVisible && (
           <p className="text-sm text-muted-foreground">
-            {dossierEnActionCorrective
+            {creationOuverte
               ? 'Aucune action corrective.'
-              : 'Une action corrective ne peut être créée que sur un dossier « Action corrective en cours ».'}
+              : 'Une action corrective ne peut être créée que sur un dossier « Action corrective en cours » ou « Résolu ».'}
           </p>
         )}
 
@@ -96,16 +109,31 @@ export function PanneauActionsCorrectives({
         )}
 
         {actions.map((a) => (
-          <FicheAction key={a.id} action={a} droits={droits} />
+          <FicheAction
+            key={a.id}
+            action={a}
+            droits={droits}
+            onCreerAutre={peutCreer && !creationVisible ? ouvrirCreation : undefined}
+          />
         ))}
       </CardContent>
     </Card>
   )
 }
 
-function FicheAction({ action, droits }: { action: ActionVue; droits: Props['droits'] }) {
+function FicheAction({
+  action,
+  droits,
+  onCreerAutre,
+}: {
+  action: ActionVue
+  droits: Props['droits']
+  /** Absent quand la création n'est pas permise, ou que le formulaire est déjà ouvert. */
+  onCreerAutre?: () => void
+}) {
   const suivant = SUIVANT[action.statut]
   const close = action.dateCloture !== null
+  const evaluee = action.verificationEfficacite !== null
 
   return (
     <div className="rounded-lg border border-border p-4">
@@ -126,7 +154,7 @@ function FicheAction({ action, droits }: { action: ActionVue; droits: Props['dro
 
       <p className="mt-2 whitespace-pre-line text-sm text-secondary-700">{action.description}</p>
 
-      {action.verificationEfficacite !== null && (
+      {evaluee && (
         <Alert className="mt-3">
           <AlertDescription>
             <strong className="font-medium">
@@ -152,14 +180,32 @@ function FicheAction({ action, droits }: { action: ActionVue; droits: Props['dro
             <FormulaireVerification actionId={action.id} />
           )}
 
-          {/* RGI-09 : clôture possible seulement après une vérification POSITIVE. */}
-          {droits.cloturer && action.verificationEfficacite === true && (
+          {/* Clôture possible dès l'évaluation, efficace ou non. */}
+          {droits.cloturer && evaluee && (
             <FormulaireSimple
               action={actionCloturerActionCorrective}
               champs={{ actionId: action.id }}
               libelle="Clôturer l’action"
             />
           )}
+        </div>
+      )}
+
+      {/* Une action évaluée, efficace ou non, peut appeler une action complémentaire. */}
+      {evaluee && onCreerAutre && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+          <p className="text-caption text-muted-foreground">
+            {action.verificationEfficacite
+              ? 'Une mesure complémentaire est nécessaire ?'
+              : 'L’action n’a pas eu l’effet attendu : prévoyez une nouvelle action.'}
+          </p>
+          <Button
+            size="sm"
+            variant={action.verificationEfficacite ? 'outline' : 'default'}
+            onClick={onCreerAutre}
+          >
+            Créer une autre action
+          </Button>
         </div>
       )}
     </div>
@@ -210,14 +256,11 @@ function FormulaireVerification({ actionId }: { actionId: string }) {
         <option value="non">Non efficace</option>
       </select>
 
+      {/* Commentaire facultatif dans les deux cas (décision métier du 2026-10-06). */}
       <textarea
         name="commentaire"
         rows={2}
-        // RGI-08 : commentaire obligatoire pour une vérification positive uniquement.
-        required={efficace === 'oui'}
-        placeholder={
-          efficace === 'oui' ? 'Commentaire obligatoire *' : 'Commentaire (facultatif)'
-        }
+        placeholder="Commentaire (facultatif)"
         className={champ}
       />
 
@@ -245,7 +288,11 @@ function FormulaireCreation({
   demain.setDate(demain.getDate() + 1)
 
   return (
-    <form action={envoyer} className="space-y-3 rounded-lg border border-border p-4">
+    <form
+      id="creation-action"
+      action={envoyer}
+      className="scroll-mt-28 space-y-3 rounded-lg border border-border p-4"
+    >
       <input type="hidden" name="dossierId" value={dossierId} />
 
       <div className="space-y-1.5">

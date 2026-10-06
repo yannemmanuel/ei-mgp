@@ -94,6 +94,7 @@ export async function actionCreerActionCorrective(
       description: String(donnees.get("description") ?? ""),
       responsableNom,
       echeance,
+      acteurId: utilisateur.id,
     });
   } catch (erreur) {
     return { erreur: messageErreur(erreur) };

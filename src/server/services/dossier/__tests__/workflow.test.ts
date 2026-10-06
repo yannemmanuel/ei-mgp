@@ -153,7 +153,7 @@ describe('Clôture (RG-10, EX-GES-05)', () => {
     expect(d.date_cloture).not.toBeNull()
   })
 
-  it('refuse la clôture tant qu’une action corrective est ouverte ou non vérifiée (RG-10)', async () => {
+  it('refuse la clôture tant qu’une action corrective n’est pas « Réalisée » (RG-10)', async () => {
     const id = await nouveauDossier()
     await placerAuStatut(id, 'resolu')
     const acteurId = await acteur()
@@ -178,23 +178,24 @@ describe('Clôture (RG-10, EX-GES-05)', () => {
       cloturer({ dossierId: id, acteurId, syntheseResolution: 'Synthèse complète.' })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
 
-    // Close mais efficacité non vérifiée : toujours bloquant.
+    // En cours, même déjà évaluée : toujours bloquant.
     await prisma.actions_correctives.update({
       where: { id: action.id },
-      data: { date_cloture: new Date(), verification_efficacite: false },
+      data: { statut: 'en_cours', verification_efficacite: true },
     })
 
     await expect(
       cloturer({ dossierId: id, acteurId, syntheseResolution: 'Synthèse complète.' })
     ).rejects.toBeInstanceOf(ErreurWorkflow)
 
-    // Close ET efficacité vérifiée : la clôture devient possible.
+    // ⚠️ Réalisée mais jugée NON efficace : la clôture est possible. L'efficacité n'est plus une
+    // condition — une action qui échoue appelle une nouvelle action, pas un dossier bloqué.
     await prisma.actions_correctives.update({
       where: { id: action.id },
-      data: { verification_efficacite: true },
+      data: { statut: 'realisee', verification_efficacite: false, date_cloture: null },
     })
 
-    await cloturer({ dossierId: id, acteurId, syntheseResolution: 'Synthèse complète et vérifiée.' })
+    await cloturer({ dossierId: id, acteurId, syntheseResolution: 'Synthèse complète.' })
     expect(await statutDe(id)).toBe('cloture')
 
     await prisma.actions_correctives.delete({ where: { id: action.id } })
@@ -359,14 +360,12 @@ describe('⚠️ DT-06 — le déclarant n’instruit jamais son propre dossier'
 })
 
 describe('EX-GES-05 — synthèse de résolution obligatoire à la clôture', () => {
-  it('refuse une clôture sans synthèse, ou avec une synthèse indigente', async () => {
+  it('refuse une clôture sans synthèse', async () => {
     const dossierId = await nouveauDossier()
     await placerAuStatut(dossierId, 'resolu')
     const acteurId = await acteur()
 
-    // La borne est à 10 caractères après élagage : « trop court » en fait exactement 10 et
-    // passerait, ce qui rendrait le test faussement rassurant.
-    for (const synthese of ['', '   ', 'court', 'a'.repeat(9)]) {
+    for (const synthese of ['', '   ']) {
       await expect(
         cloturer({ dossierId, acteurId, syntheseResolution: synthese })
       ).rejects.toBeInstanceOf(ErreurWorkflow)
@@ -380,5 +379,19 @@ describe('EX-GES-05 — synthèse de résolution obligatoire à la clôture', ()
 
     expect(apres.date_cloture).toBeNull()
     expect(apres.synthese_resolution).toBeNull()
+  })
+
+  it('accepte une synthèse courte : aucune longueur minimale n’est imposée', async () => {
+    const dossierId = await nouveauDossier()
+    await placerAuStatut(dossierId, 'resolu')
+
+    await cloturer({ dossierId, acteurId: await acteur(), syntheseResolution: '  Réglé.  ' })
+
+    const apres = await prisma.dossiers.findUniqueOrThrow({
+      where: { id: dossierId },
+      select: { synthese_resolution: true },
+    })
+    expect(await statutDe(dossierId)).toBe('cloture')
+    expect(apres.synthese_resolution).toBe('Réglé.')
   })
 })
