@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  MapPin,
   Mail,
   Pencil,
   Plus,
@@ -713,6 +714,11 @@ function FormulaireCompte({
   const [siteId, setSiteId] = useState(
     compte?.directionId ? "" : (compte?.siteId ?? ""),
   );
+  const rattachementAffiche = directionId
+    ? `Direction : ${directions.find((d) => d.id === directionId)?.libelle ?? "inconnue"}`
+    : siteId
+      ? `Site : ${sites.find((s) => s.id === siteId)?.libelle ?? "inconnu"}`
+      : "Aucun rattachement sélectionné";
 
   /*
     Les rôles cochés, suivis en état — le seul champ du formulaire qui le soit.
@@ -998,6 +1004,10 @@ function FormulaireCompte({
                 )}
               </div>
 
+            </div>
+            <div className="mt-3 flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50/70 px-3 py-2 text-xs font-medium text-primary-900">
+              <MapPin className="h-4 w-4 shrink-0" aria-hidden />
+              <span>Périmètre d’habilitation : {rattachementAffiche}</span>
             </div>
           </section>
 

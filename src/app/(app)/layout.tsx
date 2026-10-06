@@ -27,7 +27,13 @@ export default async function LayoutApplication({
   const [profil, notifications, nonLues, libellesRoles] = await Promise.all([
     prisma.users.findUnique({
       where: { id: utilisateur.id },
-      select: { name: true },
+      select: {
+        name: true,
+        sites: { select: { libelle: true } },
+        directions: {
+          select: { libelle: true, sites: { select: { libelle: true } } },
+        },
+      },
     }),
     notificationsRecentes(utilisateur.id),
     nombreNonLues(utilisateur.id),
@@ -38,6 +44,13 @@ export default async function LayoutApplication({
   ]);
 
   const libelleDuRole = new Map(libellesRoles.map((r) => [r.name, r.libelle]));
+  const rattachement = profil?.sites
+    ? `Site : ${profil.sites.libelle}`
+    : profil?.directions?.sites
+      ? `Site : ${profil.directions.sites.libelle}`
+      : profil?.directions
+        ? `Direction : ${profil.directions.libelle}`
+        : null;
 
   return (
     <div className="app-shell flex min-h-screen flex-col bg-background lg:flex-row">
@@ -93,6 +106,7 @@ export default async function LayoutApplication({
           roles={utilisateur.roles.map(
             (role) => libelleDuRole.get(role) ?? LIBELLES_ROLE[role] ?? role,
           )}
+          rattachement={rattachement}
           sections={sections}
           actionDeconnexion={seDeconnecter}
           notifications={notifications}

@@ -9,6 +9,7 @@ import {
   Menu,
   ChevronDown,
   LayoutDashboard,
+  MapPin,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { ClocheNotifications } from "./cloche-notifications";
 type Props = {
   nom: string;
   roles: readonly string[];
+  rattachement: string | null;
   sections: SectionNavigation[];
   actionDeconnexion: () => Promise<void>;
   notifications: NotificationVue[];
@@ -54,6 +56,7 @@ function initiales(nom: string): string {
 export function EnTete({
   nom,
   roles,
+  rattachement,
   sections,
   actionDeconnexion,
   notifications,
@@ -126,6 +129,12 @@ export function EnTete({
             Vue d’ensemble
           </Button>
         )}
+        {rattachement && (
+          <div className="hidden max-w-56 items-center gap-1.5 rounded-full border border-primary-100 bg-primary-50/70 px-3 py-1.5 text-[11px] font-medium text-primary-900 lg:flex">
+            <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{rattachement}</span>
+          </div>
+        )}
         <ClocheNotifications notifications={notifications} nonLues={nonLues} />
 
         <div className="h-6 w-px bg-border/60 mx-1 hidden sm:block" />
@@ -172,6 +181,10 @@ export function EnTete({
               </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground font-medium">
                 {roles.length === 0 ? "Aucun rôle attribué" : roles.join(" • ")}
+              </p>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-secondary-700">
+                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{rattachement ?? "Aucun rattachement"}</span>
               </p>
             </div>
 
