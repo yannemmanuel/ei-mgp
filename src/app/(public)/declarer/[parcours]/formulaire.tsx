@@ -256,6 +256,7 @@ export function FormulaireDeclaration({
       >(`[data-etape="${numero}"] [name]`)
 
       for (const champ of champs) {
+        verifierDateNonFuture(champ)
         if (champ.checkValidity()) continue
 
         messages[champ.name] = champ.validationMessage
@@ -1032,6 +1033,27 @@ function ChampFormulaire({
       {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
     </div>
   )
+}
+
+/**
+ * RGI-01 dans le navigateur : la date des faits ne peut pas dépasser aujourd'hui.
+ *
+ * ⚠️ L'attribut `max` NE SUFFIT PAS SUR MOBILE : Safari sur iPhone, notamment, laisse choisir une
+ * date future dans son sélecteur et ne la signale pas comme invalide. Le contrôle est donc refait
+ * ici, à chaque validation d'étape, contre la date du moment — pas celle du rendu de la page.
+ * Le serveur revérifie de toute façon (`dateNonFuture`).
+ */
+const MESSAGE_DATE_FUTURE = 'La date des faits ne peut pas être postérieure à aujourd’hui.'
+
+function verifierDateNonFuture(champ: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) {
+  if (!(champ instanceof HTMLInputElement)) return
+  if (champ.type !== 'date' && champ.type !== 'datetime-local') return
+
+  const aujourdhui = dateLocalePourChamp(new Date()).slice(0, 10)
+  // Les deux formats commencent par AAAA-MM-JJ : la comparaison de chaînes suit l'ordre des dates.
+  const future = champ.value !== '' && champ.value.slice(0, 10) > aujourdhui
+
+  champ.setCustomValidity(future ? MESSAGE_DATE_FUTURE : '')
 }
 
 /** Format local accepté par `<input type="datetime-local">`, sans conversion UTC. */

@@ -145,9 +145,27 @@ const CARACTERE_REPETITIF = [
   { valeur: 'recurrent', libelle: 'Récurrent' },
 ] as const
 
+/**
+ * Adresse e-mail du déclarant, sur les QUATRE parcours (retour métier du 2026-10-06, qui revient
+ * sur le retrait du 11/09) : c'est le seul moyen de joindre un déclarant identifié sans téléphone.
+ *
+ * Marquée `identite` : elle disparaît dès que l'anonymat est coché et n'est jamais stockée pour
+ * une déclaration anonyme. Facultative — tout le monde n'a pas d'adresse, un riverain encore moins.
+ */
+const EMAIL = {
+  nom: 'contactEmail',
+  libelle: 'Adresse e-mail',
+  type: 'email',
+  etape: 1,
+  max: 255,
+  identite: true,
+  colonne: 'contactEmail',
+  aide: 'Facultatif. Pour vous contacter au sujet de votre déclaration.',
+} as const satisfies Champ
+
 /*
   Le téléphone n'est demandé que sur les deux parcours qui proposent un rappel : ailleurs, il
-  promettrait un retour que rien ne permet d'honorer. L'adresse e-mail n'est plus collectée.
+  promettrait un retour que rien ne permet d'honorer.
 
   Les colonnes retirées restent en base : c'est la collecte qui cesse, pas l'historique.
 */
@@ -274,7 +292,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     champs: [
       DECLARANT_VICTIME,
       /*
-        Retour métier du 11/09/2026 : nom, prénom, téléphone et e-mail ne sont plus demandés.
+        Retour métier du 11/09/2026 : nom, prénom et téléphone ne sont plus demandés. L'e-mail,
+        retiré alors, est revenu le 2026-10-06 (voir EMAIL).
 
         Le matricule reste le seul point d'identification, et la colonne des trois autres reste en
         base — vingt-trois dossiers les renseignent. On cesse de collecter, on n'efface rien.
@@ -293,6 +312,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         identite: true,
         colonne: 'matricule',
       },
+      EMAIL,
       DIRECTION,
       POSTE,
       DIRECTION_DECLARANT,
@@ -342,6 +362,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         identite: true,
         colonne: 'matricule',
       },
+      EMAIL,
       DIRECTION,
       POSTE,
       DIRECTION_DECLARANT,
@@ -419,6 +440,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, obligatoire: 'siIdentifie', max: 255, identite: true, colonne: 'nomPrenom' },
       { nom: 'fonction', libelle: 'Fonction', type: 'texte', etape: 1, identite: true, colonne: 'fonction' },
       TELEPHONE,
+      EMAIL,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
       { nom: 'lieuSite', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
@@ -454,6 +476,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
     attentesDeclarant: false,
     champs: [
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, obligatoire: 'siIdentifie', max: 255, identite: true, colonne: 'nomPrenom' },
+      EMAIL,
       {
         /*
           « Ville », obligatoire, en remplacement de la localité libre et facultative.

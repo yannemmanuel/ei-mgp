@@ -251,9 +251,16 @@ describe('Schéma dérivé de la configuration', () => {
 describe('Harmonisation des quatre formulaires', () => {
   const tous = CODES_PARCOURS.map((code) => [code, PARCOURS[code]] as const)
 
-  it('ne collecte plus d’adresse e-mail, nulle part', () => {
+  it('demande l’adresse e-mail partout, comme donnée d’identité facultative', () => {
+    // Retour métier du 2026-10-06 : l'e-mail revient sur les quatre parcours. Marqué `identite`,
+    // il disparaît avec l'anonymat ; facultatif, il n'empêche personne de déclarer.
     for (const [code, config] of tous) {
-      expect(config.champs.map((c) => c.nom), code).not.toContain('contactEmail')
+      const email = config.champs.find((c) => c.nom === 'contactEmail')
+
+      expect(email?.type, code).toBe('email')
+      expect(email?.identite, `${code} : l’e-mail survivrait à l’anonymat`).toBe(true)
+      expect(email?.obligatoire, code).toBeUndefined()
+      expect(email?.colonne, code).toBe('contactEmail')
     }
   })
 
