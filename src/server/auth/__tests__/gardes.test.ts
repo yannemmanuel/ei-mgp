@@ -108,7 +108,10 @@ describe('Chaque Server Action revérifie', () => {
     for (const nom of Object.keys(PUBLICS)) {
       const source = readFileSync(join(RACINE, ...nom.split('/')), 'utf8')
 
-      expect(source.includes("'use server'"), `« ${nom} » n’est plus une Server Action`).toBe(true)
+      expect(
+        source.includes("'use server'") || source.includes('"use server"'),
+        `« ${nom} » n’est plus une Server Action`,
+      ).toBe(true)
     }
   })
 })

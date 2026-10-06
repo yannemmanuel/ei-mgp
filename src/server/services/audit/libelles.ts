@@ -26,6 +26,7 @@ const OBJETS: Record<string, string> = {
   niveau_gravite: 'Niveau de gravité',
   notification: 'Notification',
   notification_template: 'Modèle de message',
+  parametre_application: 'Paramètre de l’application',
   piece_jointe: 'Pièce jointe',
   qr_code: 'QR code',
   rapport: 'Rapport',
@@ -57,6 +58,7 @@ const OBJETS: Record<string, string> = {
   // écrans emploient, et c'est celui qu'on lit dans le journal.
   parcours: 'Type de déclaration',
   famille_risque: 'Famille de risque',
+  politique_suppression: 'Politique de suppression',
 }
 
 const VERBES: Record<string, string> = {
@@ -82,6 +84,7 @@ const VERBES: Record<string, string> = {
   permissions_modifiees: '— droits modifiés',
   premiere_connexion: '— compte pris en main',
   rattachee: 'rattachée',
+  retire: 'retiré',
   roles_modifies: '— rôles modifiés',
   statut_change: '— statut changé',
   supprime: 'supprimé',

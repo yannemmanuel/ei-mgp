@@ -88,8 +88,8 @@ describe('La fiche montre tout ce que la déclaration collecte', () => {
     const source = sourceDeLaFiche()
 
     expect(source, 'la traduction des valeurs codées a disparu').toContain('libelleValeur(')
-    expect(source).toMatch(/libelleValeur\([\s\S]{0,120}'caractereRepetitif'/)
-    expect(source).toMatch(/libelleValeur\([\s\S]{0,160}'statutPlaignant'/)
+    expect(source).toMatch(/libelleValeur\([\s\S]{0,120}["']caractereRepetitif["']/)
+    expect(source).toMatch(/libelleValeur\([\s\S]{0,160}["']statutPlaignant["']/)
   })
 
   it('⚠️ lit les colonnes déplacées à leurs DEUX emplacements', () => {

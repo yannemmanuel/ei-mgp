@@ -90,6 +90,7 @@ async function declarationCitant(libelle: string): Promise<void> {
   donnees.set('parcours', 'ei_employe')
   donnees.set('anonymat', 'on')
   donnees.set('directionId', String(direction.id))
+  donnees.set('directionDeclarant', String(direction.id))
   donnees.set('categorieId', String(categorie.id))
   donnees.set('niveauGraviteId', String(gravite.id))
   donnees.set(

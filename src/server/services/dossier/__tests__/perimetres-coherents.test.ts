@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { chargerUtilisateurAutorise } from '@/server/authz'
+import { aPermission, chargerUtilisateurAutorise } from '@/server/authz'
 import { perimetreDossiers } from '../liste'
 import { perimetreInvestigations } from '../../investigation/liste'
 import { perimetreActions } from '../../action-corrective/liste'
+import { ulid } from 'ulid'
+
+const investigationsTemoins: string[] = []
+
+afterEach(async () => {
+  await prisma.investigations.deleteMany({ where: { id: { in: investigationsTemoins } } })
+  investigationsTemoins.length = 0
+})
 
 /**
  * ⚠️ TOUT DOSSIER QU'UNE LISTE AFFICHE DOIT ÊTRE OUVRABLE.
@@ -37,6 +45,36 @@ describe('⚠️ Cohérence des périmètres entre les listes et la fiche', () =
     })
 
     expect(comptes.length, 'aucun compte actif : le cas ne prouverait rien').toBeGreaterThan(0)
+
+    // Le test possède sa donnée probante : une base sans investigation ne doit pas transformer
+    // ce contrôle de sécurité en échec d'environnement ni, pire, en succès vide.
+    let investigationTemoin: string | null = null
+    for (const compte of comptes) {
+      const utilisateur = await chargerUtilisateurAutorise(compte.id)
+      if (!utilisateur || !aPermission(utilisateur, 'investigations.view')) continue
+      const dossier = await prisma.dossiers.findFirst({
+        where: perimetreDossiers(utilisateur),
+        select: { id: true },
+      })
+      if (!dossier) continue
+
+      investigationTemoin = ulid().toLowerCase()
+      investigationsTemoins.push(investigationTemoin)
+      await prisma.investigations.create({
+        data: {
+          id: investigationTemoin,
+          dossier_id: dossier.id,
+          enqueteur_id: compte.id,
+          date_ouverture: new Date(),
+          faits_constates: 'Témoin temporaire du test de cohérence des périmètres.',
+          recommandations: 'Aucune : donnée supprimée à la fin du test.',
+          statut: 'ouverte',
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      })
+      break
+    }
 
     const ecarts: string[] = []
     let comptesExamines = 0
@@ -82,5 +120,6 @@ describe('⚠️ Cohérence des périmètres entre les listes et la fiche', () =
     ).toBeGreaterThan(0)
 
     expect(ecarts, `écarts de périmètre :\n  ${ecarts.join('\n  ')}`).toEqual([])
+
   })
 })

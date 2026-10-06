@@ -232,16 +232,30 @@ describe('La messagerie éteinte est signalée', () => {
     l'application journalise au lieu d'expédier : elle fonctionne, n'affiche aucune erreur, et pas
     un message ne sort. Rien nulle part ne le disait.
   */
-  const ORIGINE = { host: process.env.MAIL_HOST, from: process.env.MAIL_FROM }
+  const ORIGINE = {
+    host: process.env.MAIL_HOST,
+    from: process.env.MAIL_FROM,
+    resendKey: process.env.RESEND_API_KEY,
+    resendFrom: process.env.RESEND_FROM,
+  }
 
   afterEach(() => {
-    process.env.MAIL_HOST = ORIGINE.host
-    process.env.MAIL_FROM = ORIGINE.from
+    for (const [nom, valeur] of Object.entries({
+      MAIL_HOST: ORIGINE.host,
+      MAIL_FROM: ORIGINE.from,
+      RESEND_API_KEY: ORIGINE.resendKey,
+      RESEND_FROM: ORIGINE.resendFrom,
+    })) {
+      if (valeur === undefined) delete process.env[nom]
+      else process.env[nom] = valeur
+    }
   })
 
   it('remonte l’alerte quand la configuration manque', async () => {
     delete process.env.MAIL_HOST
     delete process.env.MAIL_FROM
+    delete process.env.RESEND_API_KEY
+    delete process.env.RESEND_FROM
 
     const alerte = (await santeAdministration()).find((a) => a.cle === 'messagerie')
 

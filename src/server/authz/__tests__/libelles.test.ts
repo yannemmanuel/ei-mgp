@@ -92,7 +92,7 @@ describe('Un droit affiché doit agir', () => {
       if (LIBELLES[permission].sansEffet) continue
 
       expect(
-        texte.includes(`'${permission}'`),
+        texte.includes(`'${permission}'`) || texte.includes(`"${permission}"`),
         `« ${permission} » n’est consultée nulle part : déclarez-la « sansEffet » ou câblez-la`
       ).toBe(true)
     }

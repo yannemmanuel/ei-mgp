@@ -57,6 +57,7 @@ async function formulaire(horodatage?: string): Promise<FormData> {
 
   const donnees = new FormData()
   donnees.set('directionId', String(direction.id))
+  donnees.set('directionDeclarant', String(direction.id))
   donnees.set('parcours', 'ei_employe')
   donnees.set('anonymat', 'on')
   donnees.set('categorieId', String(categorie.id))

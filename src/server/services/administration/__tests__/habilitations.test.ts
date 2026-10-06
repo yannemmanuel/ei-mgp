@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
-import { PERMISSIONS, ROLES, ROLE_NAMES, type RoleLivre } from '@/server/authz'
+import { PERMISSIONS, ROLES, type RoleLivre } from '@/server/authz'
 import { ErreurWorkflow } from '../../dossier/workflow'
 import {
   chargerHabilitations,
