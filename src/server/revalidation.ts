@@ -54,10 +54,17 @@ export function revaliderHabilitations(): void {
 /**
  * Tout ce qu'un changement sur un compte touche.
  *
- * L'écran des comptes, et celui des habilitations : il affiche pour chaque rôle le nombre de
- * comptes qui le portent, et c'est ce nombre qui décide si le rôle est supprimable.
+ * Le rattachement et les rôles d'un compte définissent son périmètre DYNAMIQUE, y compris sur
+ * les dossiers créés avant la modification. Il faut donc purger les écrans métier, pas seulement
+ * les deux consoles d'administration : sinon le filtre est juste en base mais l'ancien rendu
+ * reste dans le cache de navigation et donne l'impression que l'habilitation n'a pas pris effet.
  */
 export function revaliderComptes(): void {
   revalidatePath('/administration/utilisateurs')
   revalidatePath('/administration/habilitations')
+  revalidatePath('/dossiers')
+  revalidatePath('/dossiers/[id]', 'page')
+  revalidatePath('/dashboard')
+  revalidatePath('/investigations')
+  revalidatePath('/actions-correctives')
 }

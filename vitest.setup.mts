@@ -29,6 +29,14 @@ const clientPrisma = async () => (await import('@/lib/prisma')).prisma
 beforeAll(async () => {
   const prisma = await clientPrisma()
 
+  // Aucun test général ne doit joindre Resend ou un SMTP réel, même si le poste possède une
+  // configuration complète dans `.env`. Les tests dédiés au transport injectent eux-mêmes un
+  // espion ou une panne contrôlée après ce garde-fou.
+  const { definirTransportEmail, TransportJournal } = await import(
+    '@/server/services/notification/transport'
+  )
+  definirTransportEmail(new TransportJournal())
+
   const lignes = await prisma.notifications.findMany({ select: { id: true } })
   notificationsPreexistantes = new Set(lignes.map((n) => n.id))
 

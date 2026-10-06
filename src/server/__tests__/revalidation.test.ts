@@ -85,6 +85,34 @@ describe('⚠️ Les actions d’un dossier rafraîchissent TOUS les écrans con
       )
     }
   })
+
+  it('⚠️ un changement de rattachement rafraîchit aussi les anciens dossiers', () => {
+    /*
+      Le site et la direction ne sont pas recopiés sur les dossiers lors de la modification d'un
+      compte : ils bornent dynamiquement son accès. La conséquence est que TOUS les écrans qui
+      appliquent ce périmètre doivent être invalidés, fiches existantes comprises.
+    */
+    const source = readFileSync(join(process.cwd(), 'src', 'server', 'revalidation.ts'), 'utf8')
+    const corps = source.slice(source.indexOf('export function revaliderComptes'))
+
+    for (const chemin of [
+      '/administration/utilisateurs',
+      '/administration/habilitations',
+      '/dossiers',
+      '/dashboard',
+      '/investigations',
+      '/actions-correctives',
+    ]) {
+      expect(
+        corps,
+        `« ${chemin} » n’est pas rafraîchi après un changement de rattachement`,
+      ).toContain(`revalidatePath('${chemin}')`)
+    }
+
+    expect(corps, 'les fiches de dossiers existantes ne sont pas invalidées').toContain(
+      "revalidatePath('/dossiers/[id]', 'page')",
+    )
+  })
 })
 
 describe('⚠️ Toute action serveur revalide quelque chose', () => {
