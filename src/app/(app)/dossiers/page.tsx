@@ -18,7 +18,11 @@ import { EnTetePage } from '@/components/layout/en-tete-page'
 import { Pagination } from '@/components/layout/pagination'
 import { exigerUtilisateur } from '@/server/auth'
 import { peutVoirListeDossiers } from '@/server/authz'
-import { listerDossiers, referentielsFiltres } from '@/server/services/dossier/liste'
+import {
+  DIRECTION_NON_RENSEIGNEE,
+  listerDossiers,
+  referentielsFiltres,
+} from '@/server/services/dossier/liste'
 
 export const metadata: Metadata = { title: 'Dossiers' }
 
@@ -61,6 +65,7 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
     categorieId: lire('categorieId'),
     statutId: lire('statutId'),
     niveauGraviteId: lire('niveauGraviteId'),
+    directionId: lire('directionId'),
     periodeDebut: lire('periodeDebut'),
     periodeFin: lire('periodeFin'),
     aMoiDAgir: lire('aMoiDAgir') === '1',
@@ -107,6 +112,16 @@ export default async function PageDossiers({ searchParams }: PageProps<'/dossier
       libelle: 'Gravité',
       tous: 'Toutes',
       options: referentiels.gravites.map((g) => ({ valeur: String(g.id), libelle: g.libelle })),
+    },
+    {
+      type: 'select',
+      cle: 'directionId',
+      libelle: 'Direction',
+      tous: 'Toutes',
+      options: [
+        ...referentiels.directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle })),
+        { valeur: DIRECTION_NON_RENSEIGNEE, libelle: 'Non renseignée' },
+      ],
     },
     { type: 'date', cle: 'periodeDebut', libelle: 'Reçu à partir du' },
     { type: 'date', cle: 'periodeFin', libelle: 'Jusqu’au' },

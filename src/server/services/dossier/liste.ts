@@ -190,11 +190,19 @@ export function perimetreDossiers(
   return { id: { in: [] } };
 }
 
+/** Valeur du filtre `directionId` qui retient les dossiers sans direction concernée. */
+export const DIRECTION_NON_RENSEIGNEE = "aucune";
+
 export type FiltresDossiers = {
   parcoursId?: string;
   categorieId?: string;
   statutId?: string;
   niveauGraviteId?: string;
+  /**
+   * Direction concernée : un identifiant, ou `DIRECTION_NON_RENSEIGNEE` pour les dossiers qui
+   * n'en ont pas. Ouvert depuis la répartition par direction du tableau de bord.
+   */
+  directionId?: string;
   periodeDebut?: string;
   periodeFin?: string;
   /** Restreint aux dossiers dont l'étape courante revient à ce rôle (docs/workflows.md §3). */
@@ -243,6 +251,14 @@ function clauseFiltres(
   if (filtres.statutId) where.statut_id = BigInt(filtres.statutId);
   if (filtres.niveauGraviteId)
     where.niveau_gravite_id = BigInt(filtres.niveauGraviteId);
+
+  // Le périmètre du lecteur reste appliqué à côté (`AND`) : demander une direction hors de son
+  // rattachement ne l'ouvre pas, cela ne renvoie rien.
+  if (filtres.directionId === DIRECTION_NON_RENSEIGNEE) {
+    where.direction_id = null;
+  } else if (filtres.directionId && /^\d+$/.test(filtres.directionId)) {
+    where.direction_id = BigInt(filtres.directionId);
+  }
 
   if (filtres.periodeDebut || filtres.periodeFin) {
     where.created_at = {
@@ -327,7 +343,7 @@ export async function listerDossiers(
  * fois. Le parcours est donc accolé au libellé tant qu'aucun n'est choisi ; il disparaît ensuite.
  */
 export async function referentielsFiltres(parcoursId?: string) {
-  const [parcours, categories, statuts, gravites] = await Promise.all([
+  const [parcours, categories, statuts, gravites, directions] = await Promise.all([
     prisma.parcours.findMany({
       where: { actif: true },
       orderBy: { ordre: "asc" },
@@ -354,6 +370,12 @@ export async function referentielsFiltres(parcoursId?: string) {
       orderBy: { niveau: "asc" },
       select: { id: true, libelle: true },
     }),
+    // Les directions « racines » (sans site), comme le filtre du tableau de bord.
+    prisma.directions.findMany({
+      where: { actif: true, site_id: null },
+      orderBy: { libelle: "asc" },
+      select: { id: true, libelle: true },
+    }),
   ]);
 
   return {
@@ -364,5 +386,6 @@ export async function referentielsFiltres(parcoursId?: string) {
     })),
     statuts,
     gravites,
+    directions,
   };
 }

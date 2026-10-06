@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  Siren,
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,13 @@ import { calculerIndicateurs, type LigneRepartition } from '@/server/services/re
 import { filtreDepuisParametres } from '@/server/services/reporting/filtre'
 import { historiqueMensuel } from '@/server/services/reporting/statistiques-mensuelles'
 import {
+  parcoursDuLecteur,
+  progressionParDirection,
+} from '@/server/services/reporting/repartition-directions'
+import type { ParcoursCode } from '@/server/authz'
+import { perimetreActions } from '@/server/services/action-corrective/liste'
+import { perimetreDossiers } from '@/server/services/dossier/liste'
+import {
   aTraiter,
   dossiersATraiter,
   type ADTraiter,
@@ -38,6 +46,7 @@ import {
 } from '@/server/services/reporting/sante-administration'
 import { PERMISSIONS_CONSOLES } from '../administration/page'
 import { BoutonsExport } from './boutons-export'
+import { GraphiqueDirections } from './graphique-directions'
 
 export const metadata: Metadata = { title: 'Tableau de bord' }
 
@@ -85,8 +94,8 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
         lede={
           traiteDesDossiers
             ? voitLeRapport
-              ? 'Ce qui vous attend, puis la vue d’ensemble.'
-              : 'Les dossiers qui vous sont confiés.'
+              ? 'Ce qui vous attend, où agir, puis la vue d’ensemble.'
+              : 'Les dossiers qui vous sont confiés, et où ils se concentrent.'
             : 'L’état du paramétrage dont vous répondez.'
         }
         actions={
@@ -148,7 +157,14 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
           utilisateur={utilisateur}
           peutVoirInvestigations={aPermission(utilisateur, 'investigations.view')}
           peutVoirActions={aPermission(utilisateur, 'actions.view')}
+          peutOuvrirListe={traiteDesDossiers}
         />
+      ) : traiteDesDossiers ? (
+        /*
+          Sans `reporting.view`, pas de vue consolidée — mais la répartition par direction reste
+          due : elle ne porte que sur les déclarations que le compte peut DÉJÀ ouvrir.
+        */
+        <RepartitionDirectionsSeule utilisateur={utilisateur} parametres={parametres} />
       ) : (
         /*
           L'attente de dossiers ne se dit qu'à qui peut en recevoir.
@@ -431,25 +447,42 @@ async function VueConsolidee({
   utilisateur,
   peutVoirInvestigations,
   peutVoirActions,
+  peutOuvrirListe,
 }: {
   filtre: ReturnType<typeof filtreDepuisParametres>
   parametres: Record<string, string | string[] | undefined>
   utilisateur: UtilisateurAutorise
   peutVoirInvestigations: boolean
   peutVoirActions: boolean
+  /** Le lecteur a-t-il la liste des dossiers ? Sinon les lignes par direction ne sont pas des liens. */
+  peutOuvrirListe: boolean
 }) {
   // Le compte entier, et non ses seuls rôles : le périmètre dépend aussi des parcours qui lui ont
   // été confiés. Deux personnes portant les mêmes rôles n'ont plus les mêmes chiffres.
   const codes = parcoursAutorises(utilisateur)
 
-  const [indicateurs, historique, referentiels, compteurs] = await Promise.all([
+  const progressionDemandee = parcoursDemande(parametres)
+
+  const [indicateurs, historique, referentiels, compteurs, directions, ongletsParcours] =
+    await Promise.all([
     calculerIndicateurs(filtre),
     // Voir `historiqueMensuel` : l'agrégat mensuel ne porte pas le rattachement, il ne peut donc
     // pas être cloisonné. Pour un lecteur borné, il ne renvoie rien plutôt que des chiffres faux.
     historiqueMensuel(codes, filtre.siteDuLecteur != null || filtre.directionDuLecteur != null),
     chargerReferentiels(filtre.parcoursId ?? null),
-    blocATraiter(codes),
+    blocATraiter(utilisateur),
+    progressionParDirection(utilisateur, { filtre, parcours: progressionDemandee }),
+    parcoursDuLecteur(utilisateur),
   ])
+
+  // La situation reste GLOBALE (tous les parcours du lecteur, critères de la barre de filtres) :
+  // l'onglet de parcours ne règle que le graphique de progression.
+  const situation =
+    progressionDemandee === null
+      ? directions.global
+      : (await progressionParDirection(utilisateur, { filtre })).global
+  const ouverts = situation.ouverts
+  const critiquesOuverts = situation.critiquesOuverts
 
   const valeurs = Object.fromEntries(
     Object.entries(parametres).map(([cle, valeur]) => [
@@ -484,9 +517,10 @@ async function VueConsolidee({
       <nav aria-label="Sections du tableau de bord" className="overflow-x-auto">
         <ul className="flex min-w-max gap-1 rounded-xl border border-border/70 bg-card p-1 text-sm shadow-xs">
           {[
-            { href: '#vue-ensemble', libelle: 'Vue d’ensemble' },
-            { href: '#repartitions', libelle: 'Répartitions' },
-            { href: '#historique', libelle: 'Historique' },
+            { href: '#situation', libelle: 'Situation' },
+            { href: '#ou-agir', libelle: 'Où agir' },
+            { href: '#repartitions', libelle: 'Analyse' },
+            { href: '#historique', libelle: 'Tendance' },
           ].map((section) => (
             <li key={section.href}>
               <a
@@ -501,34 +535,39 @@ async function VueConsolidee({
       </nav>
 
       {/*
+        1. SITUATION — quatre chiffres qui disent s'il faut s'inquiéter, dans l'ordre où on les lit.
+        Le stock OUVERT passe en tête : c'est lui qui appelle une décision, pas le volume cumulé.
+
         Un « 0 % » sans contexte se lit comme un mauvais résultat, alors qu'il dit souvent qu'il
         n'y a rien à mesurer : aucun dossier clôturé, donc aucun délai moyen. Nommer la cause évite
         de faire passer un dispositif qui démarre pour un dispositif qui échoue.
       */}
-      <section id="vue-ensemble" aria-labelledby="titre-vue-ensemble" className="scroll-mt-6 space-y-4">
-        <div>
-          <h2 id="titre-vue-ensemble" className="text-h2 text-secondary-900">
-            Vue d’ensemble
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Les volumes, délais et éléments qui appellent une action.
-          </p>
-        </div>
+      <section id="situation" aria-labelledby="titre-situation" className="scroll-mt-6 space-y-4">
+        <EnTeteSection
+          id="titre-situation"
+          surtitre="1 · Situation"
+          titre="Où en est-on ?"
+          description="Le stock à traiter, la capacité à résoudre et la vitesse de traitement."
+        />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Indicateur libelle="Déclarations" valeur={String(indicateurs.total)} />
+          <Indicateur
+            libelle="Dossiers ouverts"
+            valeur={String(ouverts)}
+            note={
+              critiquesOuverts > 0
+                ? `dont ${critiquesOuverts} critique${critiquesOuverts > 1 ? 's' : ''}`
+                : 'Aucun dossier critique ouvert.'
+            }
+            alerte={critiquesOuverts > 0}
+          />
           <Indicateur
             libelle="Taux de résolution"
             valeur={pourcent(indicateurs.tauxResolution)}
-            note={indicateurs.total === 0 ? 'Aucune déclaration.' : undefined}
-          />
-          <Indicateur
-            libelle="Taux de clôture"
-            valeur={pourcent(indicateurs.tauxCloture)}
             note={
-              indicateurs.tauxCloture === 0 && indicateurs.total > 0
-                ? 'Aucun dossier clôturé.'
-                : undefined
+              indicateurs.total === 0
+                ? 'Aucune déclaration.'
+                : `Clôture administrative : ${pourcent(indicateurs.tauxCloture)}`
             }
           />
           <Indicateur
@@ -537,171 +576,271 @@ async function VueConsolidee({
             note={
               indicateurs.delaiMoyen === null
                 ? 'Se calcule à la clôture des dossiers.'
-                : undefined
+                : 'De la soumission à la clôture.'
+            }
+          />
+          <Indicateur
+            libelle="Déclarations"
+            valeur={String(indicateurs.total)}
+            note="Sur la période et les critères choisis."
+          />
+        </div>
+      </section>
+
+      {/*
+        2. OÙ AGIR — la répartition par direction et les files en souffrance, côte à côte : c'est
+        ici que se décide où porter l'effort.
+      */}
+      <section id="ou-agir" aria-labelledby="titre-ou-agir" className="scroll-mt-6 space-y-4">
+        <EnTeteSection
+          id="titre-ou-agir"
+          surtitre="2 · Où agir"
+          titre="Où en est le traitement ?"
+          description="La progression de chaque direction, étape par étape, classée par urgence."
+        />
+
+        {/* Ces deux nombres appelaient une action sans y mener : il fallait deviner où retrouver
+            les lignes qu'ils comptaient. Ils ouvrent désormais la liste correspondante, filtrée. */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CompteurActionnable
+            libelle="Actions correctives en retard"
+            valeur={compteurs.actionsEnRetard}
+            href={peutVoirActions ? '/actions-correctives?statut=en_retard' : null}
+            alerte={compteurs.actionsEnRetard > 0}
+          />
+          {/*
+            ⚠️ « Investigations à valider » A ÉTÉ REMPLACÉ : une investigation n'est soumise à
+            aucune validation (décision métier du 2026-09-18). Ce qui reste vrai et actionnable :
+            les dossiers encore sous investigation.
+          */}
+          <CompteurActionnable
+            libelle="Investigations en cours"
+            valeur={compteurs.investigationsEnCours}
+            href={
+              peutVoirInvestigations && compteurs.statutEnInvestigationId !== null
+                ? `/investigations?statutDossierId=${compteurs.statutEnInvestigationId}`
+                : null
             }
           />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-h3">À traiter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Ces deux nombres appelaient une action sans y mener : il fallait deviner où
-                retrouver les lignes qu'ils comptaient. Ils ouvrent désormais la liste
-                correspondante, déjà filtrée. */}
-            <div className="grid grid-cols-2 gap-4">
-              <CompteurActionnable
-                libelle="Actions correctives en retard"
-                valeur={compteurs.actionsEnRetard}
-                href={peutVoirActions ? '/actions-correctives?statut=en_retard' : null}
-                alerte={compteurs.actionsEnRetard > 0}
-              />
-              {/*
-                ⚠️ « Investigations à valider » A ÉTÉ REMPLACÉ : une investigation n'est soumise à
-                aucune validation (décision métier du 2026-09-18). Le compteur portait sur un
-                état qui n'existe plus et son lien sur un filtre retiré — il serait resté à zéro
-                pour toujours, ce qui se lit comme « rien à faire ».
+        <GraphiqueDirections
+          progression={directions}
+          parcours={ongletsParcours}
+          parcoursActif={progressionDemandee}
+          lienOnglet={(code) => lienProgression(parametres, code)}
+          peutOuvrirListe={peutOuvrirListe}
+        />
+      </section>
 
-                Ce qui reste vrai et actionnable : les dossiers encore sous investigation.
-              */}
-              <CompteurActionnable
-                libelle="Investigations en cours"
-                valeur={compteurs.investigationsEnCours}
-                href={
-                  peutVoirInvestigations && compteurs.statutEnInvestigationId !== null
-                    ? `/investigations?statutDossierId=${compteurs.statutEnInvestigationId}`
-                    : null
-                }
-              />
-            </div>
+      {/* 3. ANALYSE — la nature des déclarations, une fois l'urgence vue. */}
+      <section id="repartitions" aria-labelledby="titre-repartitions" className="scroll-mt-6 space-y-4">
+        <EnTeteSection
+          id="titre-repartitions"
+          surtitre="3 · Analyse"
+          titre="De quoi parle-t-on ?"
+          description="La composition des déclarations selon les principaux axes d’analyse."
+        />
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Repartition titre="Par gravité" lignes={indicateurs.parGravite} total={indicateurs.total} />
+          <Repartition titre="Par statut" lignes={indicateurs.parStatut} total={indicateurs.total} />
+          <Repartition titre="Par parcours" lignes={indicateurs.parParcours} total={indicateurs.total} />
+        </div>
+
+        {/*
+          ⚠️ SUR TOUTE LA LARGEUR : neuf familles plus « Non qualifiée » ne tiennent pas sur une
+          demi-largeur sans que les libellés passent à la ligne.
+
+          ⚠️ MASQUÉ QUAND AUCUN TYPE NE QUALIFIE DE FAMILLE : un graphique vide se lit comme une
+          panne plutôt que comme un réglage.
+        */}
+        {indicateurs.parFamilleRisque.length > 0 && (
+          <Repartition
+            titre="Par famille de risque"
+            lignes={indicateurs.parFamilleRisque}
+            /*
+              ⚠️ LE TOTAL DES LIGNES, et non le total des dossiers : la répartition ne porte que
+              sur les types qui qualifient une famille. Garder le total général aurait affiché des
+              pourcentages qui ne font jamais 100 %, sans dire pourquoi.
+            */
+            total={indicateurs.parFamilleRisque.reduce((somme, l) => somme + l.total, 0)}
+          />
+        )}
+      </section>
+
+      {/* 4. TENDANCE */}
+      <section id="historique" aria-labelledby="titre-historique" className="scroll-mt-6 space-y-4">
+        <EnTeteSection
+          id="titre-historique"
+          surtitre="4 · Tendance"
+          titre="Comment cela évolue-t-il ?"
+          description="Les volumes et la résolution, mois par mois."
+        />
+        <Card>
+          <CardContent className="pt-6">
+            {historique.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {filtre.siteDuLecteur != null || filtre.directionDuLecteur != null
+                  ? 'L’historique mensuel n’est pas disponible pour un compte rattaché à un site ou à une direction : le récapitulatif est agrégé par parcours, sans distinguer les rattachements. Les chiffres du haut de cette page, eux, sont bien limités au vôtre.'
+                  : 'Le récapitulatif du mois est établi au début du mois suivant. Une ligne apparaîtra ici dès le premier récapitulatif.'}
+              </p>
+            ) : (
+              <TableauHistorique lignes={historique} />
+            )}
           </CardContent>
         </Card>
       </section>
-
-      <section id="repartitions" aria-labelledby="titre-repartitions" className="scroll-mt-6 space-y-4">
-        <div>
-          <h2 id="titre-repartitions" className="text-h2 text-secondary-900">
-            Répartitions
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            La composition des déclarations selon les principaux axes d’analyse.
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Repartition titre="Par gravité" lignes={indicateurs.parGravite} total={indicateurs.total} />
-          <Repartition
-            titre="Par parcours"
-            lignes={indicateurs.parParcours}
-            total={indicateurs.total}
-          />
-          <Repartition titre="Par statut" lignes={indicateurs.parStatut} total={indicateurs.total} />
-        </div>
-
-      {/*
-        ⚠️ SUR TOUTE LA LARGEUR, et non dans la grille à deux colonnes ci-dessus.
-
-        Neuf familles plus la ligne « Non qualifiée » : serrées sur une demi-largeur, les libellés
-        passaient à la ligne et le bloc devenait illisible. C'est aussi la répartition la plus
-        récente et la moins connue — la mettre en pleine largeur est ce qui lui donne une chance
-        d'être lue.
-      */}
-      {/*
-        ⚠️ MASQUÉ QUAND AUCUN TYPE NE QUALIFIE DE FAMILLE. Le bloc porte alors zéro ligne, et un
-        graphique vide se lit comme une panne plutôt que comme un réglage.
-      */}
-      {indicateurs.parFamilleRisque.length > 0 && (
-        <Repartition
-          titre="Par famille de risque"
-          lignes={indicateurs.parFamilleRisque}
-          /*
-            ⚠️ LE TOTAL DES LIGNES, et non le total des dossiers : la répartition ne porte plus que
-            sur les types qui qualifient une famille. Garder le total général aurait affiché des
-            pourcentages qui ne font jamais 100 %, sans dire pourquoi.
-          */
-          total={indicateurs.parFamilleRisque.reduce((somme, l) => somme + l.total, 0)}
-        />
-      )}
-      </section>
-
-      <section id="historique" aria-labelledby="titre-historique" className="scroll-mt-6">
-      <Card>
-        <CardHeader>
-          <CardTitle id="titre-historique" className="text-h3">Historique mensuel</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {historique.length === 0 ? (
-<p className="text-sm text-muted-foreground">
-              {filtre.siteDuLecteur != null || filtre.directionDuLecteur != null
-                ? 'L’historique mensuel n’est pas disponible pour un compte rattaché à un site ou à une direction : le récapitulatif est agrégé par parcours, sans distinguer les rattachements. Les chiffres du haut de cette page, eux, sont bien limités au vôtre.'
-                : 'Le récapitulatif du mois est établi au début du mois suivant. Une ligne apparaîtra ici dès le premier récapitulatif.'}
-            </p>
-          ) : (
-            <>
-            <GraphiqueHistorique lignes={historique} />
-            <ul className="space-y-3 md:hidden" aria-label="Historique mensuel">
-              {historique.map((ligne) => (
-                <li key={ligne.periode} className="rounded-xl border border-border/70 bg-muted/20 p-4">
-                  <p className="font-semibold capitalize text-secondary-900">{moisFr(ligne.periode)}</p>
-                  <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <dt className="text-muted-foreground">Déclarations</dt>
-                      <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.total}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Clôturées</dt>
-                      <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.cloturees}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Délai moyen</dt>
-                      <dd className="mt-0.5 font-medium text-secondary-800">
-                        {ligne.delaiMoyen === null ? '—' : `${ligne.delaiMoyen} j`}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Résolution</dt>
-                      <dd className="mt-0.5 font-medium text-secondary-800">
-                        {pourcent(ligne.tauxResolution)}
-                      </dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th scope="col" className="py-2 font-medium text-muted-foreground">Période</th>
-                    <th scope="col" className="py-2 font-medium text-muted-foreground">Déclarations</th>
-                    <th scope="col" className="py-2 font-medium text-muted-foreground">Clôturées</th>
-                    <th scope="col" className="py-2 font-medium text-muted-foreground">Délai moyen</th>
-                    <th scope="col" className="py-2 font-medium text-muted-foreground">Taux de résolution</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historique.map((ligne) => (
-                    <tr key={ligne.periode} className="border-b border-border/50">
-                      <td className="py-2 text-secondary-900">{moisFr(ligne.periode)}</td>
-                      <td className="py-2 text-secondary-800">{ligne.total}</td>
-                      <td className="py-2 text-secondary-800">{ligne.cloturees}</td>
-                      <td className="py-2 text-secondary-800">
-                        {ligne.delaiMoyen === null ? '—' : `${ligne.delaiMoyen} j`}
-                      </td>
-                      <td className="py-2 text-secondary-800">{pourcent(ligne.tauxResolution)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-      </section>
     </div>
+  )
+}
+
+/** Variante sans `reporting.view` : la seule progression par direction, sans barre de filtres. */
+async function RepartitionDirectionsSeule({
+  utilisateur,
+  parametres,
+}: {
+  utilisateur: UtilisateurAutorise
+  parametres: Record<string, string | string[] | undefined>
+}) {
+  const parcours = parcoursDemande(parametres)
+  const [progression, onglets] = await Promise.all([
+    progressionParDirection(utilisateur, { parcours }),
+    parcoursDuLecteur(utilisateur),
+  ])
+
+  if (progression.global.total === 0 && parcours === null) return null
+
+  return (
+    <section id="ou-agir" aria-labelledby="titre-ou-agir" className="scroll-mt-6 space-y-4">
+      <EnTeteSection
+        id="titre-ou-agir"
+        surtitre="Où agir"
+        titre="Où en est le traitement de vos dossiers ?"
+        description="La progression de chaque direction, étape par étape, classée par urgence."
+      />
+      <GraphiqueDirections
+        progression={progression}
+        parcours={onglets}
+        parcoursActif={parcours}
+        lienOnglet={(code) => lienProgression(parametres, code)}
+        peutOuvrirListe
+      />
+    </section>
+  )
+}
+
+/** Parcours choisi dans les onglets du graphique (`?progression=`). Le service revérifie le droit. */
+function parcoursDemande(
+  parametres: Record<string, string | string[] | undefined>
+): ParcoursCode | null {
+  const brut = Array.isArray(parametres.progression)
+    ? parametres.progression[0]
+    : parametres.progression
+  return brut ? (brut as ParcoursCode) : null
+}
+
+/** URL d'un onglet : les autres critères sont conservés, seul le parcours du graphique change. */
+function lienProgression(
+  parametres: Record<string, string | string[] | undefined>,
+  code: string | null
+): string {
+  const recherche = new URLSearchParams()
+
+  for (const [cle, valeur] of Object.entries(parametres)) {
+    const v = Array.isArray(valeur) ? valeur[0] : valeur
+    if (cle !== 'progression' && v) recherche.set(cle, v)
+  }
+  if (code) recherche.set('progression', code)
+
+  const chaine = recherche.toString()
+  return `/dashboard${chaine ? `?${chaine}` : ''}#ou-agir`
+}
+
+function EnTeteSection({
+  id,
+  surtitre,
+  titre,
+  description,
+}: {
+  id: string
+  surtitre: string
+  titre: string
+  description: string
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">{surtitre}</p>
+      <h2 id={id} className="mt-1 text-h2 text-secondary-900">
+        {titre}
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+/** Graphique (écran large) et liste (mobile) de l'historique, puis le tableau détaillé. */
+function TableauHistorique({ lignes }: { lignes: Awaited<ReturnType<typeof historiqueMensuel>> }) {
+  return (
+    <>
+      <GraphiqueHistorique lignes={lignes} />
+      <ul className="space-y-3 md:hidden" aria-label="Historique mensuel">
+        {lignes.map((ligne) => (
+          <li key={ligne.periode} className="rounded-xl border border-border/70 bg-muted/20 p-4">
+            <p className="font-semibold capitalize text-secondary-900">{moisFr(ligne.periode)}</p>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <dt className="text-muted-foreground">Déclarations</dt>
+                <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.total}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Clôturées</dt>
+                <dd className="mt-0.5 text-base font-semibold text-secondary-900">{ligne.cloturees}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Délai moyen</dt>
+                <dd className="mt-0.5 font-medium text-secondary-800">
+                  {ligne.delaiMoyen === null ? '—' : `${ligne.delaiMoyen} j`}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Résolution</dt>
+                <dd className="mt-0.5 font-medium text-secondary-800">
+                  {pourcent(ligne.tauxResolution)}
+                </dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left">
+              <th scope="col" className="py-2 font-medium text-muted-foreground">Période</th>
+              <th scope="col" className="py-2 font-medium text-muted-foreground">Déclarations</th>
+              <th scope="col" className="py-2 font-medium text-muted-foreground">Clôturées</th>
+              <th scope="col" className="py-2 font-medium text-muted-foreground">Délai moyen</th>
+              <th scope="col" className="py-2 font-medium text-muted-foreground">Taux de résolution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lignes.map((ligne) => (
+              <tr key={ligne.periode} className="border-b border-border/50">
+                <td className="py-2 text-secondary-900">{moisFr(ligne.periode)}</td>
+                <td className="py-2 text-secondary-800">{ligne.total}</td>
+                <td className="py-2 text-secondary-800">{ligne.cloturees}</td>
+                <td className="py-2 text-secondary-800">
+                  {ligne.delaiMoyen === null ? '—' : `${ligne.delaiMoyen} j`}
+                </td>
+                <td className="py-2 text-secondary-800">{pourcent(ligne.tauxResolution)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
 
@@ -713,10 +852,12 @@ async function VueConsolidee({
  * l'ensemble du périmètre à chaque chargement de la page la plus visitée créerait un vrai risque
  * de N+1. Il faudrait une colonne recalculée, sur le modèle de `actions_correctives.statut`.
  */
-async function blocATraiter(codes: string[]) {
+async function blocATraiter(utilisateur: UtilisateurAutorise) {
+  // ⚠️ Le périmètre de la LISTE, et non le seul parcours : un compte borné à une direction
+  // comptait les retards de toutes les directions de ses parcours.
   const [actionsEnRetard, investigationsEnCours, statutEnInvestigation] = await Promise.all([
     prisma.actions_correctives.count({
-      where: { statut: 'en_retard', dossiers: { parcours: { code: { in: codes } } } },
+      where: { AND: [perimetreActions(utilisateur), { statut: 'en_retard' }] },
     }),
     // Les fiches dont le DOSSIER est encore en investigation. La fiche, elle, n'a plus d'état :
     // compter sur `investigations.statut` ramènerait toutes les fiches jamais ouvertes, y compris
@@ -724,8 +865,7 @@ async function blocATraiter(codes: string[]) {
     prisma.investigations.count({
       where: {
         dossiers: {
-          parcours: { code: { in: codes } },
-          statuts_dossier: { code: 'en_investigation' },
+          AND: [perimetreDossiers(utilisateur), { statuts_dossier: { code: 'en_investigation' } }],
         },
       },
     }),
@@ -806,10 +946,13 @@ function Indicateur({
   libelle,
   valeur,
   note,
+  alerte = false,
 }: {
   libelle: string
   valeur: string
   note?: string
+  /** La note signale un point qui appelle une décision : icône et couleur d'alerte. */
+  alerte?: boolean
 }) {
   return (
     <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-card to-secondary-50/30 border-border/80 shadow-xs hover:shadow-md transition-all duration-200 rounded-2xl">
@@ -818,7 +961,17 @@ function Indicateur({
         <span className="h-2 w-2 rounded-full bg-primary-500/70" />
       </div>
       <p className="mt-2 text-chiffre text-secondary-900 font-heading">{valeur}</p>
-      {note && <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{note}</p>}
+      {note && (
+        <p
+          className={cn(
+            'mt-1.5 flex items-center gap-1 text-xs leading-relaxed',
+            alerte ? 'font-semibold text-destructive' : 'text-muted-foreground'
+          )}
+        >
+          {alerte && <Siren className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+          {note}
+        </p>
+      )}
     </Card>
   )
 }
