@@ -48,7 +48,10 @@ export function revaliderHabilitations(): void {
   revalidatePath('/administration/habilitations')
   revalidatePath('/administration/utilisateurs')
   revalidatePath('/dossiers')
+  revalidatePath('/dossiers/[id]', 'page')
   revalidatePath('/dashboard')
+  revalidatePath('/investigations')
+  revalidatePath('/actions-correctives')
 }
 
 /**

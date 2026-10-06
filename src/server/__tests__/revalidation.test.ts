@@ -79,11 +79,21 @@ describe('⚠️ Les actions d’un dossier rafraîchissent TOUS les écrans con
       source.indexOf('export function revaliderComptes')
     )
 
-    for (const chemin of ['/administration/utilisateurs', '/dossiers', '/dashboard']) {
+    for (const chemin of [
+      '/administration/utilisateurs',
+      '/dossiers',
+      '/dashboard',
+      '/investigations',
+      '/actions-correctives',
+    ]) {
       expect(corps, `« ${chemin} » n’est pas rafraîchi après un changement d’habilitation`).toContain(
         chemin
       )
     }
+
+    expect(corps, 'les fiches déjà créées ne sont pas invalidées').toContain(
+      "revalidatePath('/dossiers/[id]', 'page')",
+    )
   })
 
   it('⚠️ un changement de rattachement rafraîchit aussi les anciens dossiers', () => {
@@ -159,5 +169,17 @@ describe('⚠️ Toute action serveur revalide quelque chose', () => {
       sansRafraichissement.filter((f) => !tolerees.includes(f)),
       'ces actions écrivent sans rien rafraîchir'
     ).toEqual([])
+  })
+})
+
+describe('La fiche reflète la personne actuellement habilitée', () => {
+  it("ne revient jamais à l'ancien historique d'affectation", () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src', 'app', '(app)', 'dossiers', '[id]', 'page.tsx'),
+      'utf8',
+    )
+
+    expect(source).not.toContain('affectationsActives')
+    expect(source).toContain('affectations={enCharge.map')
   })
 })

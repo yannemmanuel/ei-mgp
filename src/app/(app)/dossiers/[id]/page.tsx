@@ -35,7 +35,6 @@ import {
   messagesDuDossier,
 } from "@/server/services/messagerie/messagerie";
 import {
-  affectationsActives,
   chargerFiche,
   historiqueDossier,
   piecesJointesDossier,
@@ -112,7 +111,6 @@ export default async function PageDossier({
 
   const [
     historique,
-    affectations,
     pieces,
     transitions,
     restants,
@@ -128,7 +126,6 @@ export default async function PageDossier({
     acteursAttendus,
   ] = await Promise.all([
     historiqueDossier(id),
-    affectationsActives(id),
     piecesJointesDossier(id),
     peutChangerStatutDossier(utilisateur, pourPolicy)
       ? transitionsManuelles(dossier.statutCode)
@@ -776,22 +773,12 @@ export default async function PageDossier({
             dossierId={id}
             statutCode={dossier.statutCode}
             /*
-              ⚠️ DEUX SOURCES, selon le parcours — et une seule est juste pour chacun.
-
-              L'évènement indésirable n'est affecté à personne : sa charge se déduit du
-              rattachement, comme dans l'encadré de suivi juste au-dessus. Lire
-              `dossier_affectations` ici faisait dire « Personne » à cette carte pendant que
-              l'encadré nommait le chargé de sécurité — c'est ce qui a été remonté.
+              La personne en charge est toujours recalculée depuis les habilitations et le
+              rattachement ACTUELS. Ne jamais revenir à `dossier_affectations` : cette table
+              porte l'ancien modèle et réafficherait un responsable devenu obsolète.
             */
-            affectations={
-              enCharge.length > 0 || affectations.length === 0
-                ? enCharge.map((c) => ({ id: String(c.id), nom: c.nom }))
-                : affectations.map((a) => ({
-                    id: String(a.id),
-                    nom: a.users_dossier_affectations_user_idTousers.name,
-                  }))
-            }
-            parRattachement={enCharge.length > 0 || affectations.length === 0}
+            affectations={enCharge.map((c) => ({ id: String(c.id), nom: c.nom }))}
+            parRattachement
             transitions={transitions.map((t) => ({
               code: t.code,
               libelle: t.libelle_interne,
