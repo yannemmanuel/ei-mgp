@@ -130,7 +130,7 @@ export async function envoyerNotification(params: {
       // de réception dans l'application.
       for (const d of params.destinataires) {
         if (d.type !== 'utilisateur') continue
-        await creerNotificationOutil(d.id, params.evenementCode, objet, corps)
+        await creerNotificationOutil(d.id, params.evenementCode, dossier.id, objet, corps)
         await auditerEnvoi(dossier, params.evenementCode, 'outil', d.email, objet)
         envoyees += 1
       }
@@ -210,6 +210,7 @@ function adressesSupplementaires(gabarit: Gabarit): string[] {
 async function creerNotificationOutil(
   utilisateurId: bigint,
   evenementCode: string,
+  dossierId: string,
   objet: string,
   corps: string
 ): Promise<void> {
@@ -219,7 +220,7 @@ async function creerNotificationOutil(
       type: TYPE_NOTIFICATION,
       notifiable_type: NOTIFIABLE_USER,
       notifiable_id: utilisateurId,
-      data: JSON.stringify({ evenement_code: evenementCode, objet, corps }),
+      data: JSON.stringify({ evenement_code: evenementCode, dossier_id: dossierId, objet, corps }),
       created_at: new Date(),
       updated_at: new Date(),
     },

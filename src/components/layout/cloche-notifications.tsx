@@ -32,6 +32,15 @@ export function ClocheNotifications({ notifications, nonLues }: Props) {
     })
   }
 
+  const ouvrir = (notification: NotificationVue) => {
+    setOuvert(false)
+    demarrer(async () => {
+      await actionMarquerNotificationLue(notification.id)
+      if (notification.href) routeur.push(notification.href)
+      else routeur.refresh()
+    })
+  }
+
   return (
     <div className="relative">
       <Button
@@ -87,7 +96,7 @@ export function ClocheNotifications({ notifications, nonLues }: Props) {
                 <button
                   key={n.id}
                   type="button"
-                  onClick={() => rafraichir(() => actionMarquerNotificationLue(n.id))}
+                  onClick={() => ouvrir(n)}
                   className="flex w-full items-start gap-2.5 border-b border-border/50 px-4 py-3 text-left transition-colors hover:bg-muted"
                 >
                   <span

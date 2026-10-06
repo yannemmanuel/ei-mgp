@@ -173,6 +173,7 @@ describe('Envoi piloté par gabarit', () => {
     expect(notification.notifiable_type).toBe(MODELES.utilisateur)
     expect(JSON.parse(notification.data)).toMatchObject({
       evenement_code: 'test_outil',
+      dossier_id: dossierId,
       objet: 'Objet outil',
     })
     // Aucun e-mail : le canal « outil » n'écrit qu'en base.

@@ -18,25 +18,43 @@ export type NotificationVue = {
   corps: string
   recueLe: string
   lue: boolean
+  href: string | null
 }
 
 /** `data` est stockée en JSON sérialisé : une ligne illisible ne doit pas casser la boîte. */
-function contenu(data: string): { objet: string; corps: string } {
+function contenu(data: string): {
+  objet: string
+  corps: string
+  href: string | null
+  reference: string | null
+} {
   try {
     const decode: unknown = JSON.parse(data)
 
     if (typeof decode === 'object' && decode !== null) {
       const enregistrement = decode as Record<string, unknown>
+      const dossierId =
+        typeof enregistrement.dossier_id === 'string' ? enregistrement.dossier_id : null
+      const objet = typeof enregistrement.objet === 'string' ? enregistrement.objet : 'Notification'
+      const corps = typeof enregistrement.corps === 'string' ? enregistrement.corps : ''
       return {
-        objet: typeof enregistrement.objet === 'string' ? enregistrement.objet : 'Notification',
-        corps: typeof enregistrement.corps === 'string' ? enregistrement.corps : '',
+        objet,
+        corps,
+        // Une destination interne est reconstruite côté serveur : aucune URL arbitraire stockée
+        // dans le JSON ne peut transformer la cloche en redirection externe.
+        href: dossierId && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(dossierId)
+          ? `/dossiers/${dossierId}`
+          : null,
+        // Rétrocompatibilité : les anciennes notifications n'avaient pas `dossier_id`, mais les
+        // gabarits plaçaient toujours la référence métier dans l'objet ou le corps.
+        reference: `${objet} ${corps}`.match(/\b[A-Z0-9]+-\d{4}-\d{6}\b/i)?.[0] ?? null,
       }
     }
   } catch {
     // Ligne corrompue ou écrite par une version antérieure : dégradation silencieuse.
   }
 
-  return { objet: 'Notification', corps: '' }
+  return { objet: 'Notification', corps: '', href: null, reference: null }
 }
 
 export async function notificationsRecentes(utilisateurId: bigint): Promise<NotificationVue[]> {
@@ -47,11 +65,29 @@ export async function notificationsRecentes(utilisateurId: bigint): Promise<Noti
     select: { id: true, data: true, read_at: true, created_at: true },
   })
 
-  return lignes.map((n) => ({
-    id: n.id,
-    ...contenu(n.data),
-    recueLe: (n.created_at ?? new Date()).toISOString(),
-    lue: n.read_at !== null,
+  const decodees = lignes.map((n) => ({ ligne: n, contenu: contenu(n.data) }))
+  const references = decodees
+    .filter((n) => n.contenu.href === null && n.contenu.reference !== null)
+    .map((n) => n.contenu.reference as string)
+  const dossiers = references.length === 0
+    ? []
+    : await prisma.dossiers.findMany({
+        where: { reference: { in: references } },
+        select: { id: true, reference: true },
+      })
+  const hrefParReference = new Map(dossiers.map((d) => [d.reference.toUpperCase(), `/dossiers/${d.id}`]))
+
+  return decodees.map(({ ligne, contenu: notification }) => ({
+    id: ligne.id,
+    objet: notification.objet,
+    corps: notification.corps,
+    href:
+      notification.href ??
+      (notification.reference
+        ? (hrefParReference.get(notification.reference.toUpperCase()) ?? null)
+        : null),
+    recueLe: (ligne.created_at ?? new Date()).toISOString(),
+    lue: ligne.read_at !== null,
   }))
 }
 

@@ -59,6 +59,38 @@ describe('Boîte de réception « outil »', () => {
     expect(miennes.map((n) => n.objet)).not.toContain('Pour un autre')
   })
 
+  it('expose uniquement un lien interne vers le dossier de la notification', async () => {
+    const [moi] = await deuxUtilisateurs()
+    const dossier = await prisma.dossiers.findFirstOrThrow({ select: { id: true, reference: true } })
+    const id = await deposer(
+      moi,
+      'Dossier à ouvrir',
+      JSON.stringify({ objet: 'Dossier à ouvrir', corps: 'Consulter.', dossier_id: dossier.id }),
+    )
+
+    const trouvee = (await notificationsRecentes(moi)).find((n) => n.id === id)
+    expect(trouvee?.href).toBe(`/dossiers/${dossier.id}`)
+
+    const invalide = await deposer(
+      moi,
+      'Destination invalide',
+      JSON.stringify({ objet: 'Destination invalide', corps: '', dossier_id: 'https://evil.test' }),
+    )
+    const rejetee = (await notificationsRecentes(moi)).find((n) => n.id === invalide)
+    expect(rejetee?.href).toBeNull()
+
+    const ancienne = await deposer(
+      moi,
+      `Dossier ${dossier.reference} affecté`,
+      JSON.stringify({
+        objet: `Dossier ${dossier.reference} affecté`,
+        corps: `Le dossier ${dossier.reference} nécessite votre prise en charge.`,
+      }),
+    )
+    const retrocompatible = (await notificationsRecentes(moi)).find((n) => n.id === ancienne)
+    expect(retrocompatible?.href).toBe(`/dossiers/${dossier.id}`)
+  })
+
   it('ne laisse pas marquer lue la notification d’un autre utilisateur', async () => {
     const [moi, autre] = await deuxUtilisateurs()
     const sienne = await deposer(autre, 'Pour un autre')
