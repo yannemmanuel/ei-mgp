@@ -57,7 +57,7 @@ export function PanneauMessagerie() {
   const messages = courant.messages ?? []
 
   return (
-    <div className="mt-6 rounded-lg border border-border p-6">
+    <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-[0_8px_28px_rgba(18,33,59,0.05)] sm:p-6">
       <h2 className="text-h3 text-secondary-900">Messagerie sécurisée</h2>
       <p className="mt-1 text-caption text-muted-foreground">
         Échangez avec le service en charge de votre dossier. Votre anonymat est préservé.

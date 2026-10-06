@@ -14,6 +14,11 @@ import {
   ouvrirSessionSuivi,
 } from "@/server/auth/session-suivi";
 import { adresseClient } from "@/lib/adresse-client";
+import {
+  etapesAVenir,
+  historiquePublic,
+  parcoursPublicType,
+} from "@/server/services/declaration/suivi-public";
 
 /**
  * EX-NOT-06 : consultation publique d'un dossier par référence + code d'accès.
@@ -33,6 +38,20 @@ export type EtatSuivi = {
     parcours: string;
     deposeLe: string;
     misAJourLe: string;
+    /**
+     * Étapes successives, en LIBELLÉS AFFICHÉS uniquement (RGI-10) et sans les commentaires
+     * internes : le déclarant voit où en est son dossier, jamais comment il est instruit.
+     */
+    historique: { libelle: string; le: string }[];
+    /** Étapes encore à franchir, montrées grisées : on sait ce qui reste, pas seulement où l'on est. */
+    aVenir: string[];
+    /** Ce que le déclarant a lui-même déclaré — rien qui vienne du traitement. */
+    recapitulatif: {
+      categorie: string;
+      dateFaits: string | null;
+      lieu: string | null;
+      description: string;
+    };
   };
   /** Le panneau de messagerie ne reçoit jamais l'identifiant : il relit la session signée. */
   messagerieOuverte?: boolean;
@@ -79,10 +98,26 @@ export async function rechercherDossier(
       access_code_hash: true,
       created_at: true,
       updated_at: true,
+      description: true,
+      date_survenance: true,
+      lieu: true,
+      ville: true,
+      precision_localisation: true,
+      categorie_autre_precision: true,
+      categories: { select: { libelle: true } },
       parcours: { select: { libelle: true } },
+      historique_statuts: {
+        orderBy: [{ created_at: "asc" }, { id: "asc" }],
+        select: {
+          created_at: true,
+          statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier: {
+            select: { libelle_affiche: true },
+          },
+        },
+      },
       // RGI-10 : le déclarant ne voit JAMAIS le statut interne, seulement sa projection
       // simplifiée. RGI-11 : un dossier « Rejeté » s'affiche comme « Clôturé ».
-      statuts_dossier: { select: { libelle_affiche: true } },
+      statuts_dossier: { select: { libelle_affiche: true, is_terminal: true } },
     },
   });
 
@@ -113,8 +148,39 @@ export async function rechercherDossier(
   // ouvrir une session de suivi. Elle donne accès à la messagerie de CE dossier (EX-NOT-07).
   await ouvrirSessionSuivi(dossier.id);
 
+  const deposeLe = dossier.created_at ?? new Date();
+  const statuts = await prisma.statuts_dossier.findMany({
+    select: { libelle_affiche: true, ordre: true, actif: true },
+  });
+
   return {
     dossier: {
+      historique: historiquePublic(
+        deposeLe,
+        dossier.historique_statuts.map((h) => ({
+          libelle:
+            h.statuts_dossier_historique_statuts_statut_suivant_idTostatuts_dossier
+              .libelle_affiche,
+          le: h.created_at ?? deposeLe,
+        })),
+        dossier.statuts_dossier.libelle_affiche,
+      ),
+      aVenir: etapesAVenir(
+        dossier.statuts_dossier.libelle_affiche,
+        parcoursPublicType(statuts),
+        dossier.statuts_dossier.is_terminal,
+      ),
+      recapitulatif: {
+        categorie: dossier.categorie_autre_precision
+          ? `${dossier.categories.libelle} — ${dossier.categorie_autre_precision}`
+          : dossier.categories.libelle,
+        dateFaits: dossier.date_survenance?.toISOString() ?? null,
+        lieu:
+          [dossier.lieu, dossier.ville, dossier.precision_localisation]
+            .filter((v): v is string => Boolean(v && v.trim()))
+            .join(" · ") || null,
+        description: dossier.description,
+      },
       reference: dossier.reference,
       statutAffiche: dossier.statuts_dossier.libelle_affiche,
       parcours: dossier.parcours.libelle,
