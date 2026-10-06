@@ -21,7 +21,7 @@ export default async function PagePostes() {
   const [postes, directions] = await Promise.all([
     listerPostes(),
     prisma.directions.findMany({
-      where: { actif: true },
+      where: { actif: true, site_id: null },
       orderBy: { libelle: 'asc' },
       select: { id: true, libelle: true },
     }),

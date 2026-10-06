@@ -225,9 +225,12 @@ describe('Le bloc de suivi', () => {
       seulement quand le dossier avait un site. Sur un dossier rattaché à une direction sans site,
       il n'était jamais retenu.
     */
-    const direction = await prisma.directions.findFirstOrThrow({ select: { id: true } })
+    const direction = await prisma.directions.findFirstOrThrow({
+      where: { site_id: null },
+      select: { id: true },
+    })
     const autre = await prisma.directions.findFirst({
-      where: { id: { not: direction.id } },
+      where: { id: { not: direction.id }, site_id: null },
       select: { id: true },
     })
 

@@ -73,6 +73,10 @@ function estSoumisAuRattachement(u: PourCloisonnement): boolean {
  */
 export function directionCloisonnante(u: PourCloisonnement): bigint | null {
   if (u.directionId === null) return null
+  // Une direction rattachée à un site n'est plus un rattachement autonome. Les anciens comptes
+  // qui la portent reçoivent donc le périmètre du site, sans migration destructive de leur
+  // historique. `chargerUtilisateurAutorise()` expose précisément ce site dans `siteId`.
+  if (u.siteId !== null) return null
   if (!estSoumisAuRattachement(u)) return null
 
   return u.directionId

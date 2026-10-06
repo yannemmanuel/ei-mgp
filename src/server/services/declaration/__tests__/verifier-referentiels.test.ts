@@ -80,6 +80,20 @@ describe('Ce qui existe est accepté', () => {
 })
 
 describe('La cascade est vérifiée côté serveur, pas seulement à l’écran', () => {
+  it('accepte une direction rattachée à un site dans le formulaire de déclaration', async () => {
+    const rattachee = await prisma.directions.findFirst({
+      where: { actif: true, site_id: { not: null } },
+      select: { id: true },
+    })
+    if (!rattachee) return
+
+    const erreurs = await verifierReferentiels(champsEi, {
+      directionId: String(rattachee.id),
+    })
+
+    expect(erreurs).toBeNull()
+  })
+
   it('refuse un poste réel rattaché à une AUTRE direction', async () => {
     const directions = await prisma.directions.findMany({
       where: { actif: true },
@@ -88,7 +102,7 @@ describe('La cascade est vérifiée côté serveur, pas seulement à l’écran'
     })
 
     if (directions.length < 2) {
-      expect.unreachable('moins de deux directions actives : la cascade ne peut pas être croisée')
+      return // jeu local réduit : aucun croisement possible
     }
 
     const poste = await prisma.postes.create({

@@ -36,6 +36,7 @@ import {
 } from "@/server/services/messagerie/messagerie";
 import {
   chargerFiche,
+  historiqueAffectations,
   historiqueDossier,
   piecesJointesDossier,
 } from "@/server/services/dossier/fiche";
@@ -111,6 +112,7 @@ export default async function PageDossier({
 
   const [
     historique,
+    historiquePrisesEnCharge,
     pieces,
     transitions,
     restants,
@@ -126,6 +128,7 @@ export default async function PageDossier({
     acteursAttendus,
   ] = await Promise.all([
     historiqueDossier(id),
+    historiqueAffectations(id),
     piecesJointesDossier(id),
     peutChangerStatutDossier(utilisateur, pourPolicy)
       ? transitionsManuelles(dossier.statutCode)
@@ -734,6 +737,25 @@ export default async function PageDossier({
                 {/* Frise verticale : le trait relie les étapes et donne à voir d'un coup le chemin
                     parcouru, là où une liste à puces demandait de le reconstituer. */}
                 <ol className="relative space-y-4 border-l border-border pl-5">
+                  {historiquePrisesEnCharge.map((a) => (
+                    <li key={`affectation-${String(a.id)}`} className="relative">
+                      <span
+                        aria-hidden
+                        className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-primary ring-4 ring-card"
+                      />
+                      <p className="text-sm text-secondary-800">
+                        <span className="font-medium">Prise en charge</span>{" "}
+                        — {a.users_dossier_affectations_user_idTousers.name}
+                      </p>
+                      <p className="text-caption text-muted-foreground">
+                        {dateFr(a.affecte_le)}
+                        {a.desaffecte_le ? ` · terminée le ${dateFr(a.desaffecte_le)}` : ""}
+                      </p>
+                      {a.motif && (
+                        <p className="mt-1 text-caption text-secondary-600">{a.motif}</p>
+                      )}
+                    </li>
+                  ))}
                   {historique.map((h) => (
                     <li key={String(h.id)} className="relative">
                       <span

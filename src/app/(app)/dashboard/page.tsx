@@ -778,7 +778,7 @@ async function chargerReferentiels(parcoursId: bigint | null) {
       select: { id: true, libelle: true },
     }),
     prisma.directions.findMany({
-      where: { actif: true },
+      where: { actif: true, site_id: null },
       orderBy: { libelle: 'asc' },
       select: { id: true, libelle: true },
     }),

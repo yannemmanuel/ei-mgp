@@ -58,16 +58,17 @@ describe('Habilitation sur une DIRECTION', () => {
     ).toBe(false)
   })
 
-  it('⚠️ efface le contrôle par site, qui refuserait des dossiers légitimes', () => {
+  it('⚠️ traite une direction rattachée comme son site', () => {
     /*
-      Une direction peut n'être rattachée à aucun site : ses dossiers portent alors `site_id` nul.
-      Si les deux contrôles s'appliquaient, le contrôle de site rejetterait ce dossier alors même
-      que sa direction correspond — et le compte ne verrait plus rien du tout.
+      `siteId` est alimenté depuis `directions.site_id` au chargement du compte. La présence des
+      deux identifiants signifie donc que la direction appartient au site et n'est plus proposée
+      comme rattachement autonome.
     */
     const rh = compte('secretaire_csst', { siteId: SIEGE, directionId: RH })
 
-    expect(siteCloisonnant(rh), 'le site borne encore un compte borné par sa direction').toBeNull()
-    expect(peutVoirDossier(rh, dossier(null, RH))).toBe(true)
+    expect(directionCloisonnante(rh)).toBeNull()
+    expect(siteCloisonnant(rh)).toBe(SIEGE)
+    expect(peutVoirDossier(rh, dossier(SIEGE, QHSE))).toBe(true)
   })
 
   it('⚠️ ne montre AUCUN dossier sans direction', () => {
@@ -82,13 +83,12 @@ describe('Habilitation sur une DIRECTION', () => {
     expect(peutVoirDossier(rh, dossier(null, null))).toBe(false)
   })
 
-  it('⚠️ l’emporte sur le site quand les deux sont renseignés', () => {
-    // L'écran de création l'empêche, mais d'anciennes lignes le portent. Pour un cloisonnement, la
-    // bonne erreur est de RESTREINDRE : retenir le site montrerait toutes les autres directions.
+  it('⚠️ remonte au site pour les anciennes lignes portant une direction rattachée', () => {
     const mixte = compte('secretaire_csst', { siteId: SIEGE, directionId: RH })
 
-    expect(peutVoirDossier(mixte, dossier(SIEGE, QHSE)), 'le site a pris le pas').toBe(false)
+    expect(peutVoirDossier(mixte, dossier(SIEGE, QHSE))).toBe(true)
     expect(peutVoirDossier(mixte, dossier(SIEGE, RH))).toBe(true)
+    expect(peutVoirDossier(mixte, dossier(YOPOUGON, RH))).toBe(false)
   })
 })
 

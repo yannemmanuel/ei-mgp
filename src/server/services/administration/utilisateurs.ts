@@ -202,6 +202,17 @@ export async function enregistrerUtilisateur(
   const directionId = donnees.directionId
   const siteId = directionId === null ? donnees.siteId : null
 
+  if (directionId !== null) {
+    const directionAutonome = await prisma.directions.count({
+      where: { id: directionId, actif: true, site_id: null },
+    })
+    if (directionAutonome === 0) {
+      throw new ErreurWorkflow(
+        'Cette direction appartient déjà à un site. Sélectionnez directement le site.',
+      )
+    }
+  }
+
   // Garde-fou : un administrateur ne doit pas pouvoir se verrouiller hors de la console en
   // désactivant son propre compte par inadvertance.
   if (utilisateurId !== undefined && utilisateurId === acteur.id && !donnees.actif) {
@@ -354,8 +365,16 @@ async function synchroniserRoles(utilisateurId: bigint, roles: string[]): Promis
 
 export async function referentielsComptes() {
   const [directions, sites] = await Promise.all([
-    prisma.directions.findMany({ orderBy: { libelle: 'asc' }, select: { id: true, libelle: true } }),
-    prisma.sites.findMany({ orderBy: { libelle: 'asc' }, select: { id: true, libelle: true } }),
+    prisma.directions.findMany({
+      where: { actif: true, site_id: null },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true },
+    }),
+    prisma.sites.findMany({
+      where: { actif: true },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true },
+    }),
   ])
 
   return { directions, sites }

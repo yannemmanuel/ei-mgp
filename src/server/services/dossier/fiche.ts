@@ -145,13 +145,17 @@ export async function historiqueDossier(dossierId: string) {
   });
 }
 
-export async function affectationsActives(dossierId: string) {
+/** Anciennes prises en charge, conservées comme historique même après changement d'habilitation. */
+export async function historiqueAffectations(dossierId: string) {
   return prisma.dossier_affectations.findMany({
-    where: { dossier_id: dossierId, actif: true },
+    where: { dossier_id: dossierId },
+    orderBy: { affecte_le: "desc" },
     select: {
       id: true,
       motif: true,
       affecte_le: true,
+      desaffecte_le: true,
+      actif: true,
       users_dossier_affectations_user_idTousers: {
         select: { id: true, name: true },
       },

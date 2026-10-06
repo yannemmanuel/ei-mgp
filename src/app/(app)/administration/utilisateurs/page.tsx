@@ -63,11 +63,12 @@ export default async function PageComptes({
         matricule: c.matricule ?? '',
         poste: c.poste ?? '',
         actif: c.actif,
-        directionId: c.direction_id === null ? '' : String(c.direction_id),
-        siteId: c.site_id === null ? '' : String(c.site_id),
+        directionId:
+          c.direction_id === null || c.directions?.site_id != null ? '' : String(c.direction_id),
+        siteId: String(c.site_id ?? c.directions?.site_id ?? ''),
         roles: c.roles,
-        site: c.sites?.libelle ?? null,
-        direction: c.directions?.libelle ?? null,
+        site: c.sites?.libelle ?? c.directions?.sites?.libelle ?? null,
+        direction: c.directions?.site_id == null ? (c.directions?.libelle ?? null) : null,
         /*
           ⚠️ Le site DÉDUIT, et LA DIRECTION — pas la seule colonne `site_id`.
 

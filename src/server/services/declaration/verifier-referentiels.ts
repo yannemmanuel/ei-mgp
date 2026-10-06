@@ -25,12 +25,22 @@ export async function verifierReferentiels(
   const erreurs: Record<string, string> = {}
 
   for (const champ of champs) {
-    if (champ.referentiel === undefined || champ.referentiel === 'directions') continue
+    if (champ.referentiel === undefined) continue
 
     const valeur = valeurs[champ.nom]
     if (valeur === undefined || valeur === '') continue
 
     const libelle = String(valeur)
+    if (champ.referentiel === 'directions') {
+      const directionValide = await prisma.directions
+        .count({ where: { id: BigInt(libelle), actif: true } })
+        .catch(() => 0)
+
+      if (directionValide === 0) {
+        erreurs[champ.nom] = `« ${champ.libelle} » ne correspond à aucune direction proposée.`
+      }
+      continue
+    }
     /*
       Le référentiel est passé à PART, bien qu'il soit lisible sur `champ`.
 
