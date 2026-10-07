@@ -91,8 +91,8 @@ async function remplirJusquAEtape3(utilisateur: ReturnType<typeof userEvent.setu
   await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
-  await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
-  await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
+  await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+  await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
   await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
   await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -117,8 +117,8 @@ describe('Progression entre les étapes', () => {
 
     // Étape 2
     await waitFor(() => expect(screen.getByText(/Étape 2 sur 4/i)).toBeDefined())
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
-    await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+    await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
     await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -144,12 +144,12 @@ describe('Progression entre les étapes', () => {
     await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
     await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
 
     // « Lieu » est obligatoire et vide : l'étape 2 ne doit pas se quitter.
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    expect(visible(screen.getByLabelText(/Date des faits/i)), 'l’étape 2 a été quittée').toBe(true)
+    expect(visible(screen.getByLabelText(/Date et heure des faits/i)), 'l’étape 2 a été quittée').toBe(true)
     expect(visible(screen.queryByLabelText(/Catégorie/i))).toBe(false)
   })
 
@@ -161,8 +161,8 @@ describe('Progression entre les étapes', () => {
     await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
-    await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+    await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
     await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -197,8 +197,8 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
     await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
-    await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+    await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
     await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -221,8 +221,8 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
     await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
-    await utilisateur.type(screen.getByLabelText(/Date des faits/i), '2026-09-01')
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+    await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
     await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -249,14 +249,14 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     // Le matricule manque : l'étape 1 ne se quitte pas.
     expect(visible(screen.getByLabelText(/Matricule/i)), 'l’étape 1 a été quittée').toBe(true)
-    expect(visible(screen.queryByLabelText(/Date des faits/i))).toBe(false)
+    expect(visible(screen.queryByLabelText(/Date et heure des faits/i))).toBe(false)
 
     // En anonyme, le champ n'existe simplement plus : rien à exiger.
     await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
     expect(screen.queryByLabelText(/Matricule/i)).toBeNull()
 
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
-    await waitFor(() => expect(visible(screen.getByLabelText(/Date des faits/i))).toBe(true))
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
   })
 })
 
@@ -622,5 +622,35 @@ describe('Rattachement du déclarant', () => {
 
     // Celui de la personne concernée reste fermé : sa direction n'a pas été choisie.
     expect(posteConcerne.disabled, 'les deux cascades sont couplées').toBe(true)
+  })
+})
+
+describe('Date des faits', () => {
+  it('⚠️ bloque une date postérieure à aujourd’hui avant de quitter l’étape', async () => {
+    /*
+      L'attribut `max` ne suffit pas : Safari sur iPhone laisse choisir une date future. Le
+      contrôle refait à chaque étape doit retenir la personne ICI, avec le motif, plutôt que de
+      la laisser découvrir le refus du serveur après l'envoi.
+    */
+    const { utilisateur } = afficher()
+
+    await utilisateur.click(screen.getByRole('checkbox', { name: /rester anonyme/i }))
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction de la victime/i), '1')
+    await utilisateur.selectOptions(screen.getByLabelText(/Direction du déclarant/i), '1')
+    await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
+
+    const demain = new Date()
+    demain.setDate(demain.getDate() + 1)
+    const deux = (n: number) => String(n).padStart(2, '0')
+    const valeur = `${demain.getFullYear()}-${deux(demain.getMonth() + 1)}-${deux(demain.getDate())}T09:00`
+
+    await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
+    await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), valeur)
+    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
+    await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
+
+    expect(await screen.findByText(/ne peut pas être postérieure à aujourd’hui/i)).toBeDefined()
+    expect(screen.getByText(/Étape 2 sur 4/i)).toBeDefined()
   })
 })

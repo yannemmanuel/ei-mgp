@@ -77,6 +77,16 @@ const dateFr = (d: Date | null) =>
 const dateCourteFr = (d: Date | null) =>
   d ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(d) : "—";
 
+/**
+ * Date des faits : avec l'heure quand elle a été saisie. Tous les parcours demandent désormais
+ * « date et heure » ; les déclarations plus anciennes n'ont que la date, stockée à minuit.
+ */
+const dateFaitsFr = (d: Date) =>
+  new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "long",
+    ...(d.getHours() === 0 && d.getMinutes() === 0 ? {} : { timeStyle: "short" }),
+  }).format(d);
+
 /** Échelle de gravité 1-4 (CDC §11.1) : seul le palier haut passe en alerte. */
 function tonGravite(niveau: number): TonStatut {
   if (niveau >= 4) return "alerte";
@@ -469,7 +479,7 @@ export default async function PageDossier({
                       [
                         "Date des faits",
                         dossier.date_survenance
-                          ? dateCourteFr(dossier.date_survenance)
+                          ? dateFaitsFr(dossier.date_survenance)
                           : null,
                       ],
                       // ⚠️ Traduit, et non plus rendu brut : la colonne porte « premiere_fois ».

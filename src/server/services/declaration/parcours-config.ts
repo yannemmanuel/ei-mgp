@@ -317,7 +317,9 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       POSTE,
       DIRECTION_DECLARANT,
       POSTE_DECLARANT,
-      { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
+      // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
+      // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
+      { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
       { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
         nom: 'caractereRepetitif',
@@ -521,7 +523,9 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
           { valeur: 'autre', libelle: 'Autre' },
         ],
       },
-      { nom: 'dateSurvenance', libelle: 'Date des faits', type: 'date', etape: 2, obligatoire: true },
+      // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
+      // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
+      { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
       { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
         nom: 'caractereRepetitif',
