@@ -57,7 +57,7 @@ function dispositionAvecNom(disposition: 'inline' | 'attachment', nom: string): 
 export function reponsePieceJointe(
   octets: Buffer,
   piece: PieceServie,
-  options: { readonly apercu: boolean }
+  options: { readonly apercu: boolean; readonly plage?: string | null }
 ): Response {
   // Un aperçu n'est servi que pour les formats affichables. Demander l'aperçu d'un type qui n'en
   // a pas ne le force pas : la réponse retombe sur le téléchargement.
@@ -69,7 +69,9 @@ export function reponsePieceJointe(
       enApercu ? 'inline' : 'attachment',
       piece.nom_original
     ),
-    'Content-Length': String(piece.taille_octets),
+    // Les octets réellement lus font autorité. Une ancienne métadonnée de taille erronée ferait
+    // attendre au navigateur des octets qui n'arriveront jamais et laisserait l'aperçu vide.
+    'Content-Length': String(octets.byteLength),
     'Cache-Control': 'no-store, private',
     // Défense supplémentaire contre l'interprétation d'un type deviné par le navigateur.
     'X-Content-Type-Options': 'nosniff',
@@ -77,7 +79,72 @@ export function reponsePieceJointe(
 
   if (enApercu) {
     entetes['Content-Security-Policy'] = politiqueIsolation(piece.mime_type)
+    entetes['Accept-Ranges'] = 'bytes'
   }
 
-  return new Response(new Uint8Array(octets), { headers: entetes })
+  if (!enApercu || !options.plage) {
+    return new Response(new Uint8Array(octets), { headers: entetes })
+  }
+
+  const plage = extrairePlage(options.plage, octets.byteLength)
+
+  if (!plage) {
+    return new Response(null, {
+      status: 416,
+      headers: {
+        ...entetes,
+        'Content-Length': '0',
+        'Content-Range': `bytes */${octets.byteLength}`,
+      },
+    })
+  }
+
+  const portion = octets.subarray(plage.debut, plage.fin + 1)
+
+  return new Response(new Uint8Array(portion), {
+    status: 206,
+    headers: {
+      ...entetes,
+      'Content-Length': String(portion.byteLength),
+      'Content-Range': `bytes ${plage.debut}-${plage.fin}/${octets.byteLength}`,
+    },
+  })
+}
+
+/**
+ * Décode une plage HTTP simple. Les lecteurs intégrés n'envoient qu'une plage à la fois ; une
+ * requête multipart, invalide ou hors fichier est refusée explicitement en 416.
+ */
+function extrairePlage(
+  entete: string,
+  taille: number
+): { readonly debut: number; readonly fin: number } | null {
+  if (taille === 0 || entete.includes(',')) return null
+
+  const correspondance = /^bytes=(\d*)-(\d*)$/i.exec(entete.trim())
+  if (!correspondance) return null
+
+  const [, debutBrut, finBrut] = correspondance
+  if (debutBrut === '' && finBrut === '') return null
+
+  if (debutBrut === '') {
+    const longueur = Number(finBrut)
+    if (!Number.isSafeInteger(longueur) || longueur <= 0) return null
+    return { debut: Math.max(0, taille - longueur), fin: taille - 1 }
+  }
+
+  const debut = Number(debutBrut)
+  const finDemandee = finBrut === '' ? taille - 1 : Number(finBrut)
+
+  if (
+    !Number.isSafeInteger(debut) ||
+    !Number.isSafeInteger(finDemandee) ||
+    debut < 0 ||
+    debut >= taille ||
+    finDemandee < debut
+  ) {
+    return null
+  }
+
+  return { debut, fin: Math.min(finDemandee, taille - 1) }
 }

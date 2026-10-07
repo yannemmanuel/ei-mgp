@@ -49,6 +49,63 @@ describe('Réponse servant une pièce jointe', () => {
       expect(politique).not.toContain('allow-same-origin')
     })
 
+    it('annonce la prise en charge des plages demandées par les lecteurs PDF et vidéo', () => {
+      expect(servir('application/pdf', true).headers.get('Accept-Ranges')).toBe('bytes')
+      expect(servir('video/mp4', true).headers.get('Accept-Ranges')).toBe('bytes')
+    })
+
+    it('sert une plage valide en 206 avec les bons octets', async () => {
+      const reponse = reponsePieceJointe(
+        OCTETS,
+        { nom_original: 'video.mp4', mime_type: 'video/mp4', taille_octets: OCTETS.byteLength },
+        { apercu: true, plage: 'bytes=5-8' }
+      )
+
+      expect(reponse.status).toBe(206)
+      expect(reponse.headers.get('Content-Range')).toBe(`bytes 5-8/${OCTETS.byteLength}`)
+      expect(reponse.headers.get('Content-Length')).toBe('4')
+      expect(Buffer.from(await reponse.arrayBuffer())).toEqual(OCTETS.subarray(5, 9))
+    })
+
+    it('sert les plages ouvertes et suffixées', async () => {
+      const ouverte = reponsePieceJointe(
+        OCTETS,
+        { nom_original: 'constat.pdf', mime_type: 'application/pdf', taille_octets: 1 },
+        { apercu: true, plage: 'bytes=5-' }
+      )
+      const suffixe = reponsePieceJointe(
+        OCTETS,
+        { nom_original: 'constat.pdf', mime_type: 'application/pdf', taille_octets: 1 },
+        { apercu: true, plage: 'bytes=-4' }
+      )
+
+      expect(Buffer.from(await ouverte.arrayBuffer())).toEqual(OCTETS.subarray(5))
+      expect(Buffer.from(await suffixe.arrayBuffer())).toEqual(OCTETS.subarray(-4))
+    })
+
+    it('répond 416 à une plage invalide ou située après la fin du fichier', () => {
+      for (const plage of ['bytes=999-', 'bytes=8-2', 'bytes=0-1,4-5', 'autre=0-2']) {
+        const reponse = reponsePieceJointe(
+          OCTETS,
+          { nom_original: 'constat.pdf', mime_type: 'application/pdf', taille_octets: 1 },
+          { apercu: true, plage }
+        )
+
+        expect(reponse.status).toBe(416)
+        expect(reponse.headers.get('Content-Range')).toBe(`bytes */${OCTETS.byteLength}`)
+      }
+    })
+
+    it('utilise la taille réelle du fichier plutôt qu’une ancienne métadonnée erronée', () => {
+      const reponse = reponsePieceJointe(
+        OCTETS,
+        { nom_original: 'constat.pdf', mime_type: 'application/pdf', taille_octets: 999_999 },
+        { apercu: true }
+      )
+
+      expect(reponse.headers.get('Content-Length')).toBe(String(OCTETS.byteLength))
+    })
+
     it('REFUSE d’afficher un type non prévisualisable, même si l’aperçu est demandé', () => {
       // La demande d'aperçu est un paramètre d'URL : n'importe qui peut l'ajouter. Elle ne doit
       // pas pouvoir transformer en document affiché ce qui n'a pas été jugé inerte.

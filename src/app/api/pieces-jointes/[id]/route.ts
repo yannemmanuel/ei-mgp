@@ -138,5 +138,6 @@ export async function GET(
 
   return reponsePieceJointe(octets, piece, {
     apercu: requete.nextUrl.searchParams.get('apercu') === '1',
+    plage: requete.headers.get('range'),
   })
 }
