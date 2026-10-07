@@ -45,9 +45,23 @@ export type ResultatRamassage = {
   readonly tropRecents: number
 }
 
+export type FichierOrphelin = FichierStocke
+
 /** `chemin` est stocké avec des antislashs pour les pièces d'avant la migration. */
 function normaliser(chemin: string): string {
   return chemin.split('\\').join('/')
+}
+
+/**
+ * Inventorie sans rien supprimer. Cette lecture séparée permet à l'administration et aux tests
+ * de nommer précisément les fichiers suspects avant toute décision destructive.
+ */
+export async function inventorierFichiersOrphelins(): Promise<FichierOrphelin[]> {
+  const lignes = await prisma.pieces_jointes.findMany({ select: { chemin: true } })
+  const references = new Set(lignes.map((l) => normaliser(l.chemin)))
+  const inventaire = await magasinCourant().lister()
+
+  return inventaire.filter((f) => !references.has(normaliser(f.chemin)))
 }
 
 export async function ramasserFichiersOrphelins(
@@ -66,12 +80,7 @@ export async function ramasserFichiersOrphelins(
     ⚠️ TOUTES les lignes, sans filtrer sur `disque` : une pièce écrite hier sur un autre magasin
     reste une pièce référencée, et son chemin ne doit pas être considéré comme libre.
   */
-  const lignes = await prisma.pieces_jointes.findMany({ select: { chemin: true } })
-  const references = new Set(lignes.map((l) => normaliser(l.chemin)))
-
-  const inventaire = await magasin.lister()
-
-  const orphelins = inventaire.filter((f) => !references.has(normaliser(f.chemin)))
+  const orphelins = await inventorierFichiersOrphelins()
 
   const limite = new Date(maintenant.getTime() - GRACE_HEURES * 3600 * 1000)
 

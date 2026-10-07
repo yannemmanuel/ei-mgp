@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { MODELES } from '@/server/modeles'
 import { magasinCourant } from '../magasin'
-import { ramasserFichiersOrphelins } from '../ramasse-miettes'
+import { inventorierFichiersOrphelins, ramasserFichiersOrphelins } from '../ramasse-miettes'
 
 /**
  * Le ramasse-miettes des fichiers orphelins.
@@ -77,11 +77,14 @@ async function referencer(chemin: string): Promise<void> {
   se regarde et se traite à la main ; il ne se fait pas emporter par une suite de tests.
 */
 beforeAll(async () => {
+  const orphelins = await inventorierFichiersOrphelins()
   const bilan = await ramasserFichiersOrphelins(new Date(Date.now() - 365 * 24 * 3600 * 1000))
 
   expect(
     bilan.tropRecents + bilan.ageInconnu,
-    'des fichiers orphelins préexistent dans le magasin : les traiter à la main avant de relancer'
+    `des fichiers orphelins préexistent dans le magasin :\n${orphelins
+      .map((f) => `- ${f.chemin} (${f.modifieLe?.toISOString() ?? 'âge inconnu'})`)
+      .join('\n')}\nLes traiter à la main avant de relancer.`
   ).toBe(0)
   expect(bilan.effaces, 'le contrôle préalable n’aurait dû rien effacer').toBe(0)
 })
