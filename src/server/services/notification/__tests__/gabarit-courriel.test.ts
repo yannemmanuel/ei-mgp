@@ -16,6 +16,9 @@ describe('Gabarit HTML des courriels', () => {
     })
 
     expect(html).toContain('Plateforme EI / MGP')
+    expect(html).toContain('alt="SODECI"')
+    expect(html).toContain('src="http://localhost:3000/logo-sodeci.png"')
+    expect(html).toContain('Déclaration des plaintes et évènements indésirables')
     expect(html).toContain('Choisir mon mot de passe')
     expect(html).toContain('href="https://example.test/acces/jeton"')
     expect(html).toContain('role="presentation"')
