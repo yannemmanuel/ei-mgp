@@ -1,4 +1,5 @@
 import { createTransport, type Transporter } from "nodemailer";
+import { CID_LOGO_SODECI, lireLogoSodeciCourriel } from "./logo-courriel";
 
 /**
  * Transport d'envoi des e-mails.
@@ -117,12 +118,25 @@ export class TransportSmtp implements TransportEmail {
   }
 
   async envoyer(message: MessageEmail): Promise<void> {
+    const integreLogo = message.html?.includes(`cid:${CID_LOGO_SODECI}`) ?? false;
+
     await this.transporteur.sendMail({
       from: this.expediteur,
       to: message.destinataire,
       subject: message.objet,
       text: message.corps,
       html: message.html,
+      attachments: integreLogo
+        ? [
+            {
+              filename: "logo-sodeci.png",
+              content: await lireLogoSodeciCourriel(),
+              contentType: "image/png",
+              cid: CID_LOGO_SODECI,
+              contentDisposition: "inline",
+            },
+          ]
+        : undefined,
     });
   }
 }

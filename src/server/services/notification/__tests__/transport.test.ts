@@ -17,6 +17,7 @@ import {
   type MessageEmail,
 } from "../transport";
 import { MODELES } from "@/server/modeles";
+import { lireLogoSodeciCourriel } from "../logo-courriel";
 
 /**
  * Transport e-mail.
@@ -77,6 +78,13 @@ afterAll(async () => {
 });
 
 describe("Choix du transport", () => {
+  it("dispose du logo PNG intégré aux courriels", async () => {
+    const logo = await lireLogoSodeciCourriel();
+
+    expect(logo.byteLength).toBeGreaterThan(1_000);
+    expect(logo.subarray(1, 4).toString("ascii")).toBe("PNG");
+  });
+
   it("se replie sur le journal quand SMTP n’est pas configuré", () => {
     delete process.env.MAIL_HOST;
     delete process.env.MAIL_FROM;

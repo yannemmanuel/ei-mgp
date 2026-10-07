@@ -12,7 +12,7 @@ type GabaritCourriel = {
   lienPied?: ActionCourriel
 }
 
-import { originePublique } from '@/server/origine-publique'
+import { CID_LOGO_SODECI } from './logo-courriel'
 
 function echapper(valeur: string): string {
   return valeur
@@ -55,7 +55,7 @@ function mettreEnForme(texte: string): string {
  * mises en page modernes. Le texte brut reste toujours envoyé en parallèle par Nodemailer.
  */
 export function creerCourrielHtml(params: GabaritCourriel): string {
-  const logo = `${originePublique()}/logo-sodeci.png`
+  const logo = `cid:${CID_LOGO_SODECI}`
   const action = params.action
     ? `<tr><td class="contenu" style="padding:4px 44px 32px">
         <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="border-radius:8px;background:#08783e;box-shadow:0 3px 8px rgba(8,120,62,.18)">
