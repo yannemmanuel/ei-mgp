@@ -752,7 +752,7 @@ export default async function PageDossier({
                     <li key={`affectation-${String(a.id)}`} className="relative">
                       <span
                         aria-hidden
-                        className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-primary ring-4 ring-card"
+                        className="absolute -left-5.75 top-1.5 h-2 w-2 rounded-full bg-primary ring-4 ring-card"
                       />
                       <p className="text-sm text-secondary-800">
                         <span className="font-medium">Prise en charge</span>{" "}
@@ -771,7 +771,7 @@ export default async function PageDossier({
                     <li key={String(h.id)} className="relative">
                       <span
                         aria-hidden
-                        className="absolute -left-[23px] top-1.5 h-2 w-2 rounded-full bg-secondary-300 ring-4 ring-card"
+                        className="absolute -left-5.75 top-1.5 h-2 w-2 rounded-full bg-secondary-300 ring-4 ring-card"
                       />
                       <p className="text-sm text-secondary-800">
                         <span className="font-medium">

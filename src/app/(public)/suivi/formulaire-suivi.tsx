@@ -211,7 +211,7 @@ function FriseEtats({ dossier: d }: { dossier: Dossier }) {
                   <span
                     aria-hidden
                     className={cn(
-                      'absolute left-1/2 top-[15px] h-0.5 w-full',
+                      'absolute left-1/2 top-3.75 h-0.5 w-full',
                       suivanteAtteinte ? 'bg-primary' : 'bg-secondary-200'
                     )}
                   />

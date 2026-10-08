@@ -340,8 +340,8 @@ function BandeUrgences({
             className={cn(
               'h-full p-5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
               carte.grave
-                ? 'border-destructive/30 bg-gradient-to-br from-rose-50/70 via-card to-rose-50/20 hover:border-destructive/50 shadow-xs'
-                : 'border-border/80 bg-gradient-to-br from-card via-card to-secondary-50/40 hover:border-primary/40 shadow-xs'
+                ? 'border-destructive/30 bg-linear-to-br from-rose-50/70 via-card to-rose-50/20 hover:border-destructive/50 shadow-xs'
+                : 'border-border/80 bg-linear-to-br from-card via-card to-secondary-50/40 hover:border-primary/40 shadow-xs'
             )}
           >
             <div className="flex items-start justify-between gap-2">
@@ -955,7 +955,7 @@ function Indicateur({
   alerte?: boolean
 }) {
   return (
-    <Card className="p-5 relative overflow-hidden bg-gradient-to-br from-card to-secondary-50/30 border-border/80 shadow-xs hover:shadow-md transition-all duration-200 rounded-2xl">
+    <Card className="p-5 relative overflow-hidden bg-linear-to-br from-card to-secondary-50/30 border-border/80 shadow-xs hover:shadow-md transition-all duration-200 rounded-2xl">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wider text-secondary-500">{libelle}</p>
         <span className="h-2 w-2 rounded-full bg-primary-500/70" />
@@ -1089,7 +1089,7 @@ function Repartition({
                     aria-label={`${ligne.libelle} : ${ligne.total}, soit ${part} %`}
                   >
                     <div
-                      className="h-full min-w-1 rounded-full bg-gradient-to-r from-primary-700 to-primary-500 transition-[width] duration-500"
+                      className="h-full min-w-1 rounded-full bg-linear-to-r from-primary-700 to-primary-500 transition-[width] duration-500"
                       style={{
                         width: `${part}%`,
                         ...(ligne.couleur ? { background: ligne.couleur } : {}),
@@ -1133,7 +1133,7 @@ function GraphiqueHistorique({
 
       <div className="overflow-x-auto pb-1">
         <div
-          className="flex h-52 min-w-[42rem] items-end gap-3 border-b border-secondary-200 px-2"
+          className="flex h-52 min-w-2xl items-end gap-3 border-b border-secondary-200 px-2"
           role="img"
           aria-label="Évolution mensuelle des déclarations et dossiers clôturés"
         >
@@ -1153,7 +1153,7 @@ function GraphiqueHistorique({
                 <span className="mb-1 text-[10px] font-semibold tabular-nums text-secondary-700">
                   {ligne.total}
                 </span>
-                <div className="flex h-[168px] items-end gap-1">
+                <div className="flex h-42 items-end gap-1">
                   <span
                     className="w-3 rounded-t bg-primary-500"
                     style={{ height: `${hauteurTotal}px` }}
