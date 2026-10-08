@@ -2,6 +2,12 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { verifierIdentifiants } from "./identifiants";
 import { autoriserConnexion, reinitialiserConnexionCompte } from "./throttle";
+import {
+  identifiantUtilisateurAuth,
+  journaliserConnexion,
+  journaliserDeconnexion,
+  journaliserEchecConnexion,
+} from "./audit-authentification";
 
 /**
  * Auth.js v5 — stratégie JWT.
@@ -53,12 +59,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (!(await autoriserConnexion(email, ip))) {
+          await journaliserEchecConnexion(email, "trop_de_tentatives");
           throw new Error("TROP_DE_TENTATIVES");
         }
 
         const resultat = await verifierIdentifiants(email, motDePasse);
 
         if (resultat.statut !== "ok") {
+          await journaliserEchecConnexion(email, resultat.statut);
           // Message générique côté interface : ne jamais révéler si le compte existe, s'il est
           // désactivé, ou si seul le mot de passe est faux.
           return null;
@@ -86,6 +94,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.sub;
       }
       return session;
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      const utilisateurId = identifiantUtilisateurAuth(user.id);
+      if (utilisateurId !== null) await journaliserConnexion(utilisateurId);
+    },
+    async signOut(message) {
+      const utilisateurId = identifiantUtilisateurAuth(
+        "token" in message ? message.token?.sub : message.session?.userId,
+      );
+      if (utilisateurId !== null) await journaliserDeconnexion(utilisateurId);
     },
   },
 });
