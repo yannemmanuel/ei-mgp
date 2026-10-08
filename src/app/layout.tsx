@@ -15,14 +15,14 @@ import './globals.css'
  */
 const instrumentSans = localFont({
   src: './polices/instrument-sans-latin-wght-normal.woff2',
-  variable: '--font-sans',
+  variable: '--font-instrument-sans',
   weight: '400 700',
   display: 'swap',
 })
 
 const sourceSerif = localFont({
   src: './polices/source-serif-4-latin-wght-normal.woff2',
-  variable: '--font-serif',
+  variable: '--font-source-serif',
   weight: '200 900',
   display: 'swap',
 })
