@@ -253,12 +253,12 @@ function Colonne({
         {ligne.total}
         <span className="block text-[10px] font-normal text-muted-foreground">{part ?? 0} %</span>
       </span>
-      {/* Pile : 2px d'écart entre segments, sommet arrondi à 4px, base posée sur l'axe. */}
+      {/* Pile : 2px d'écart entre segments, sommet arrondi selon le design system, base posée sur l'axe. */}
       <span className="flex w-10 flex-col-reverse gap-0.5" style={{ height: hauteur }}>
         {segments.map(({ cle }, index) => (
           <span
             key={cle}
-            className={cn('w-full', index === segments.length - 1 && 'rounded-t-[4px]')}
+            className={cn('w-full', index === segments.length - 1 && 'rounded-t-lg')}
             style={{
               flexGrow: ligne.etapes[cle],
               flexBasis: 0,
