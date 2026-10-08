@@ -143,8 +143,31 @@ describe('Ajout seul', () => {
     const page = await consulterJournal({ action: 'test.consultation' })
 
     expect(page.lignes[0].auditableType).toBe(MODEL_TYPE_DOSSIER)
+    expect(page.lignes[0].objetNom).toBeNull()
     expect(page.lignes[0].nouvelles).toEqual({ champ: 'valeur' })
     // Hors requête HTTP : pas d'acteur — une tâche planifiée ou un script n'en a pas.
     expect(page.lignes[0].acteur).toBeNull()
+  })
+
+  it('résout le nom métier d’un compte audité', async () => {
+    const utilisateur = await prisma.users.findFirstOrThrow({ select: { id: true, name: true } })
+    const ligne = await prisma.audit_logs.create({
+      data: {
+        user_id: utilisateur.id,
+        action: 'auth.connexion',
+        auditable_type: MODELES.utilisateur,
+        auditable_id: String(utilisateur.id),
+        created_at: new Date(),
+      },
+    })
+
+    try {
+      const page = await consulterJournal({ action: 'auth.connexion' })
+      const trouvee = page.lignes.find((l) => l.id === String(ligne.id))
+
+      expect(trouvee?.objetNom).toBe(utilisateur.name)
+    } finally {
+      await prisma.audit_logs.delete({ where: { id: ligne.id } })
+    }
   })
 })

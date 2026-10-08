@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { exigerPermission, utilisateurCourant } from '@/server/auth'
 import { LIBELLES_ROLE, peutVoirAdresseIpAudit, type Role } from '@/server/authz'
-import { actionsConnues, consulterJournal } from '@/server/services/audit/consultation'
+import { actionsConnues, consulterJournal, type LigneAudit } from '@/server/services/audit/consultation'
 import { libelleAction, libelleChamp, libelleObjet } from '@/server/services/audit/libelles'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { FiltresAudit } from './filtres'
@@ -107,15 +107,8 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
 
                   <dl className="space-y-2 text-xs">
                     <div>
-                      <dt className="text-muted-foreground">Objet</dt>
-                      <dd className="mt-0.5 text-secondary-800">
-                        {ligne.auditableType ? libelleObjet(ligne.auditableType) : '—'}
-                        {ligne.auditableId && (
-                          <span className="ml-1 font-mono text-caption text-muted-foreground">
-                            {ligne.auditableId}
-                          </span>
-                        )}
-                      </dd>
+                      <dt className="text-muted-foreground">Élément concerné</dt>
+                      <dd className="mt-0.5 text-secondary-800">{descriptionObjet(ligne)}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Changement</dt>
@@ -143,7 +136,7 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
                     <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Horodatage</th>
                     <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Action</th>
                     <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Acteur</th>
-                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Objet</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Élément concerné</th>
                     <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Changement</th>
                     {voitAdresseIp && (
                       <th scope="col" className="px-4 py-2 font-medium text-muted-foreground">Origine</th>
@@ -162,11 +155,8 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
                         </Badge>
                       </td>
                       <td className="px-4 py-2 text-secondary-800">{ligne.acteur ?? 'Système'}</td>
-                      <td className="px-4 py-2 text-caption text-muted-foreground">
-                        {ligne.auditableType ? libelleObjet(ligne.auditableType) : '—'}
-                        {ligne.auditableId && (
-                          <span className="block font-mono">{ligne.auditableId}</span>
-                        )}
+                      <td className="px-4 py-2 text-caption text-secondary-800">
+                        {descriptionObjet(ligne)}
                       </td>
                       <td className="px-4 py-2">
                         <Changement anciennes={ligne.anciennes} nouvelles={ligne.nouvelles} />
@@ -217,6 +207,19 @@ export default async function PageAudit({ searchParams }: PageProps<'/audit'>) {
 
 const horodatage = (iso: string) =>
   new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(iso))
+
+function descriptionObjet(ligne: LigneAudit): string {
+  if (!ligne.auditableType) {
+    return ligne.action === 'auth.tentative_echouee'
+      ? 'Tentative de connexion non rattachée à un compte'
+      : 'Événement système sans élément métier associé'
+  }
+
+  const type = libelleObjet(ligne.auditableType)
+  if (ligne.objetNom) return `${type} — ${ligne.objetNom}`
+  if (ligne.auditableId) return `${type} — identifiant ${ligne.auditableId}`
+  return type
+}
 
 function Changement({ anciennes, nouvelles }: { anciennes: unknown; nouvelles: unknown }) {
   const avant = objet(anciennes)

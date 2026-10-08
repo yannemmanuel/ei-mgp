@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { MODELES } from '@/server/modeles'
 
 /**
  * Lecture du journal d'audit
@@ -20,6 +21,8 @@ export type LigneAudit = {
   action: string
   auditableType: string | null
   auditableId: string | null
+  /** Nom métier résolu quand l'objet existe encore (nom du compte ou référence du dossier). */
+  objetNom: string | null
   acteur: string | null
   anciennes: unknown
   nouvelles: unknown
@@ -102,6 +105,31 @@ export async function consulterJournal(
     }),
   ])
 
+  const idsUtilisateurs = lignes
+    .filter((l) => l.auditable_type === MODELES.utilisateur && /^\d+$/.test(l.auditable_id ?? ''))
+    .map((l) => BigInt(l.auditable_id!))
+  const idsDossiers = lignes
+    .filter((l) => l.auditable_type === MODELES.dossier && l.auditable_id)
+    .map((l) => l.auditable_id!)
+
+  const [utilisateurs, dossiers] = await Promise.all([
+    idsUtilisateurs.length === 0
+      ? []
+      : prisma.users.findMany({
+          where: { id: { in: idsUtilisateurs } },
+          select: { id: true, name: true },
+        }),
+    idsDossiers.length === 0
+      ? []
+      : prisma.dossiers.findMany({
+          where: { id: { in: idsDossiers } },
+          select: { id: true, reference: true },
+        }),
+  ])
+
+  const nomsUtilisateurs = new Map(utilisateurs.map((u) => [String(u.id), u.name]))
+  const referencesDossiers = new Map(dossiers.map((d) => [d.id, d.reference]))
+
   return {
     total,
     page: pageDemandee,
@@ -111,6 +139,12 @@ export async function consulterJournal(
       action: l.action,
       auditableType: l.auditable_type,
       auditableId: l.auditable_id,
+      objetNom:
+        l.auditable_type === MODELES.utilisateur
+          ? (nomsUtilisateurs.get(l.auditable_id ?? '') ?? null)
+          : l.auditable_type === MODELES.dossier
+            ? (referencesDossiers.get(l.auditable_id ?? '') ?? null)
+            : null,
       acteur: l.users?.name ?? null,
       anciennes: l.old_values,
       nouvelles: l.new_values,
