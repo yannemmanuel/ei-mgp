@@ -200,7 +200,7 @@ function ProgressionGlobale({
           etapes[cle] > 0 ? (
             <span
               key={cle}
-              className="min-w-1 rounded-[4px]"
+              className="min-w-1 rounded-lg"
               style={{ width: `${(etapes[cle] / total) * 100}%`, background: COULEUR[cle] }}
             />
           ) : null
