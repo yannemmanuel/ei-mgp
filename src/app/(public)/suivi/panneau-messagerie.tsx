@@ -10,6 +10,7 @@ import {
   type EtatConversation,
   type MessageVue,
 } from './messagerie-actions'
+import { formaterDateMetier } from '@/lib/date-metier'
 
 /**
  * Messagerie du déclarant (EX-NOT-07).
@@ -21,7 +22,7 @@ import {
 const ETAT: EtatConversation = {}
 
 const heureFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
+  formaterDateMetier(iso, { dateStyle: 'short', timeStyle: 'short' })
 
 export function PanneauMessagerie() {
   const [etat, envoyer, enCours] = useActionState(envoyerMessageDeclarant, ETAT)

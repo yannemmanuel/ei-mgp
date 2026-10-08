@@ -6,6 +6,7 @@ import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { formaterDateMetier } from "@/lib/date-metier";
 
 export type OptionFiltre = {
   readonly valeur: string;
@@ -105,9 +106,7 @@ export function BarreFiltres({
         const lisible =
           champ.type === "select"
             ? champ.options.find((o) => o.valeur === valeur)?.libelle
-            : new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" }).format(
-                new Date(valeur),
-              );
+            : formaterDateMetier(valeur, { dateStyle: "short" });
 
         // Une valeur d'URL qui ne correspond à aucune option existante n'est pas affichée sous
         // son identifiant brut : la puce dirait alors moins que rien.

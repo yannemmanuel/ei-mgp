@@ -10,6 +10,7 @@ import {
   actionOuvrirInvestigation,
 } from './investigations-actions'
 import { useRetourEnToast } from '@/lib/retour-operation'
+import { formaterDateMetier } from '@/lib/date-metier'
 
 /**
  * ⚠️ Une investigation n'est soumise à AUCUNE validation (décision métier du 2026-09-18).
@@ -41,7 +42,7 @@ const ETAT: EtatAction = {}
 const champ = 'w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm'
 
 const dateFr = (iso: string | null) =>
-  iso ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(iso)) : '—'
+  iso ? formaterDateMetier(iso, { dateStyle: 'long' }) : '—'
 
 export function PanneauInvestigations({
   dossierId,

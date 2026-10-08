@@ -15,6 +15,7 @@ import {
   actionVerifierEfficacite,
 } from './actions-correctives-actions'
 import { useRetourEnToast } from '@/lib/retour-operation'
+import { formaterDateMetier } from '@/lib/date-metier'
 
 export type ActionVue = {
   id: string
@@ -59,7 +60,7 @@ const SUIVANT: Record<string, { vers: string; libelle: string } | undefined> = {
 }
 
 const dateFr = (iso: string | null) =>
-  iso ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(iso)) : '—'
+  iso ? formaterDateMetier(iso, { dateStyle: 'long' }) : '—'
 
 export function PanneauActionsCorrectives({
   dossierId,

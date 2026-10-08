@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { EtatAction } from './actions'
 import { actionEnvoyerMessageAgent } from './messagerie-actions'
 import { useRetourEnToast } from '@/lib/retour-operation'
+import { formaterDateMetier } from '@/lib/date-metier'
 
 export type MessageVue = {
   id: string
@@ -24,7 +25,7 @@ type Props = {
 const ETAT: EtatAction = {}
 
 const heureFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso))
+  formaterDateMetier(iso, { dateStyle: 'short', timeStyle: 'short' })
 
 export function PanneauMessagerie({ dossierId, messages, peutEnvoyer }: Props) {
   const [etat, envoyer, enCours] = useActionState(actionEnvoyerMessageAgent, ETAT)

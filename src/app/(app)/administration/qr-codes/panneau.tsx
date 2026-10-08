@@ -21,6 +21,7 @@ import {
   actionGenererQrCode,
   actionModifierUrlCible,
 } from "./actions";
+import { formaterDateMetier } from "@/lib/date-metier";
 
 export type QrCodeVue = {
   id: string;
@@ -36,7 +37,7 @@ export type QrCodeVue = {
 const ETAT: EtatFormulaire = {};
 
 const dateFr = (iso: string) =>
-  new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(new Date(iso));
+  formaterDateMetier(iso, { dateStyle: "long" });
 
 export function PanneauQrCodes({
   qrCodes,

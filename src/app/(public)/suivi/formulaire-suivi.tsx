@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils'
 import { quitterLeSuivi, rechercherDossier, type EtatSuivi } from './actions'
 import { PanneauMessagerie } from './panneau-messagerie'
 import { useRetourEnToast } from '@/lib/retour-operation'
+import { formaterDateMetier } from '@/lib/date-metier'
 
 const ETAT_INITIAL: EtatSuivi = {}
 
@@ -27,16 +28,16 @@ type Dossier = NonNullable<EtatSuivi['dossier']>
 
 /** Date ET heure : « 6 octobre 2026 à 14:32 ». L'heure dit si quelque chose a bougé aujourd'hui. */
 const dateHeureFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(iso))
+  formaterDateMetier(iso, { dateStyle: 'long', timeStyle: 'short' })
 
 const dateFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(iso))
+  formaterDateMetier(iso, { dateStyle: 'long' })
 
 const dateCourteFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date(iso))
+  formaterDateMetier(iso, { dateStyle: 'medium' })
 
 const heureFr = (iso: string) =>
-  new Intl.DateTimeFormat('fr-FR', { timeStyle: 'short' }).format(new Date(iso))
+  formaterDateMetier(iso, { timeStyle: 'short' })
 
 /** Certains parcours saisissent la date seule, d'autres la date et l'heure : minuit = date seule. */
 const dateFaitsFr = (iso: string) => {
