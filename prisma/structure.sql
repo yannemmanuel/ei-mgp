@@ -186,6 +186,7 @@ CREATE TABLE "ei_mgp"."dossiers" (
     "created_at" TIMESTAMP(0),
     "updated_at" TIMESTAMP(0),
     "caractere_repetitif" VARCHAR(255),
+    "action_immediate" TEXT,
     "proposition_mesure_corrective" TEXT,
     "contentieux" BOOLEAN NOT NULL DEFAULT false,
     "archive_le" TIMESTAMP(0),

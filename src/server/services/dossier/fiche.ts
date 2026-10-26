@@ -35,6 +35,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       date_survenance: true,
       attentes_declarant: true,
       caractere_repetitif: true,
+      action_immediate: true,
       proposition_mesure_corrective: true,
       categorie_autre_precision: true,
       /*

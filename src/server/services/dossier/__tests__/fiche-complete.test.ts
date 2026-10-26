@@ -35,6 +35,7 @@ const COLONNE: Record<string, string> = {
   dateSurvenance: 'date_survenance',
   dateHeureFaits: 'date_survenance',
   caractereRepetitif: 'caractere_repetitif',
+  actionImmediate: 'action_immediate',
   propositionMesureCorrective: 'proposition_mesure_corrective',
   solutionSouhaitee: 'proposition_mesure_corrective',
   entreprise: 'entreprise',

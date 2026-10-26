@@ -306,6 +306,14 @@ function Recapitulatif({ dossier: d }: { dossier: Dossier }) {
                 {r.description}
               </dd>
             </div>
+            {r.actionImmediate && (
+              <div className="sm:col-span-2">
+                <dt className="text-caption text-muted-foreground">Action immédiate</dt>
+                <dd className="mt-1 whitespace-pre-line rounded-lg border border-primary-200 bg-primary-50/70 p-3 text-secondary-900">
+                  {r.actionImmediate}
+                </dd>
+              </div>
+            )}
           </dl>
         </DialogBody>
 

@@ -131,6 +131,7 @@ export function libelleObjet(type: string): string {
 }
 
 const CHAMPS: Record<string, string> = {
+  action_immediate: 'Action immédiate',
   actif: 'Actif',
   canal_captage_id: 'Canal de réception',
   categorie_id: 'Catégorie',

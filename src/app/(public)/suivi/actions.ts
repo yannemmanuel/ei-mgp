@@ -51,6 +51,7 @@ export type EtatSuivi = {
       dateFaits: string | null;
       lieu: string | null;
       description: string;
+      actionImmediate: string | null;
     };
   };
   /** Le panneau de messagerie ne reçoit jamais l'identifiant : il relit la session signée. */
@@ -99,6 +100,7 @@ export async function rechercherDossier(
       created_at: true,
       updated_at: true,
       description: true,
+      action_immediate: true,
       date_survenance: true,
       lieu: true,
       ville: true,
@@ -180,6 +182,7 @@ export async function rechercherDossier(
             .filter((v): v is string => Boolean(v && v.trim()))
             .join(" · ") || null,
         description: dossier.description,
+        actionImmediate: dossier.action_immediate,
       },
       reference: dossier.reference,
       statutAffiche: dossier.statuts_dossier.libelle_affiche,

@@ -65,6 +65,7 @@ const COLONNES_NOMINATIVES = [
  */
 const CHAMPS_LIBRES = [
   'description',
+  'action_immediate',
   'attentes_declarant',
   'precision_localisation',
   'categorie_autre_precision',

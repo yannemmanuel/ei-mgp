@@ -72,6 +72,7 @@ export type DonneesDossier = {
   siteId?: bigint | null;
   directionId?: bigint | null;
   caractereRepetitif?: string | null;
+  actionImmediate?: string | null;
   propositionMesureCorrective?: string | null;
   /**
    * Le déclarant parle-t-il pour lui-même ?
@@ -235,6 +236,7 @@ export async function creerDeclaration(params: {
         date_survenance: d.dateSurvenance ?? null,
         attentes_declarant: d.attentesDeclarant ?? null,
         caractere_repetitif: d.caractereRepetitif ?? null,
+        action_immediate: d.actionImmediate ?? null,
         proposition_mesure_corrective: d.propositionMesureCorrective ?? null,
         // `?? null` et non `?? false` : une question non posée reste sans réponse.
         declarant_est_victime: d.declarantEstVictime ?? null,

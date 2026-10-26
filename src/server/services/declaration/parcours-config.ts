@@ -336,8 +336,15 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         options: CARACTERE_REPETITIF,
       },
       {
-        // Renommé « Mesure immédiate » (retour métier) : ce qui a été fait sur le moment, et non
-        // une suggestion pour plus tard. Reste facultatif.
+        nom: 'actionImmediate',
+        libelle: 'Action immédiate',
+        type: 'zone',
+        etape: 3,
+        max: 5_000,
+        aide: 'Facultatif — mesure prise sur le moment pour sécuriser la situation ou limiter les conséquences.',
+      },
+      {
+        // Attente exprimée par le déclarant, distincte de l'action déjà réalisée sur le moment.
         nom: 'propositionMesureCorrective',
         libelle: 'Solution souhaitée',
         type: 'zone',

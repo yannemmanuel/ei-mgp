@@ -472,6 +472,17 @@ export default async function PageDossier({
                   </p>
                 )}
 
+                {dossier.action_immediate && (
+                  <div className="mt-4 rounded-xl border border-primary-200 bg-primary-50/70 p-4">
+                    <p className="text-label uppercase tracking-wide text-primary-800">
+                      Action immédiate
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-sm text-secondary-800">
+                      {dossier.action_immediate}
+                    </p>
+                  </div>
+                )}
+
                 <dl className="mt-4 grid gap-3 sm:grid-cols-2">
                   {(
                     [

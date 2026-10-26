@@ -419,4 +419,18 @@ describe('Harmonisation des quatre formulaires', () => {
       expect(localisation?.etape, `${code} : localisation hors de l’étape des faits`).toBe(2)
     }
   })
+
+  it('réserve l’action immédiate aux événements indésirables', () => {
+    for (const [code, config] of tous) {
+      const action = config.champs.find((c) => c.nom === 'actionImmediate')
+
+      if (code === 'ei_employe') {
+        expect(action?.libelle).toBe('Action immédiate')
+        expect(action?.etape).toBe(3)
+        expect(action?.obligatoire).toBeUndefined()
+      } else {
+        expect(action, `${code} demande une action immédiate`).toBeUndefined()
+      }
+    }
+  })
 })

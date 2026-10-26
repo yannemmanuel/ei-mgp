@@ -199,6 +199,7 @@ model dossiers {
   created_at                                             DateTime?              @db.Timestamp(0)
   updated_at                                             DateTime?              @db.Timestamp(0)
   caractere_repetitif                                    String?                @db.VarChar(255)
+  action_immediate                                       String?
   proposition_mesure_corrective                          String?
   contentieux                                            Boolean                @default(false)
   archive_le                                             DateTime?              @db.Timestamp(0)
