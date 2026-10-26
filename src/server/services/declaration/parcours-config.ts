@@ -258,6 +258,16 @@ const POSTE_DECLARANT = {
   aide: 'Facultatif. « Autre » s’il n’y figure pas.',
 } as const satisfies Champ
 
+/** Complément libre commun aux quatre parcours, conservé directement sur le dossier. */
+const LOCALISATION_EXACTE = {
+  nom: 'precisionLocalisation',
+  libelle: 'Localisation exacte',
+  type: 'texte',
+  etape: 2,
+  max: 500,
+  aide: 'Facultatif — quartier, bâtiment, chantier ou point de repère.',
+} as const satisfies Champ
+
 /**
  * Paliers d'ancienneté, figés ici plutôt qu'administrables (décision du 2026-09-22).
  *
@@ -315,7 +325,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
       // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
       { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      { nom: 'lieu', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',
@@ -378,7 +389,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       },
       TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      { nom: 'lieu', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',
@@ -440,6 +452,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       EMAIL,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
       { nom: 'lieuSite', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',
@@ -491,13 +504,6 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
         referentiel: 'villes',
       },
       {
-        nom: 'precisionLocalisation',
-        libelle: 'Précision de localisation',
-        type: 'texte',
-        etape: 1,
-        aide: 'Facultatif — quartier, campement, point de repère.',
-      },
-      {
         // Qualifie la plainte, pas la personne : stocké sur `dossiers`. Marqué `identite`, il
         // était exigé à l'écran puis jeté en silence sur toute déclaration anonyme.
         nom: 'statutPlaignant',
@@ -522,6 +528,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
       { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
       { nom: 'lieu', libelle: 'Lieu des faits', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',

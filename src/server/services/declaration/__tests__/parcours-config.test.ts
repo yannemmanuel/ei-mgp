@@ -406,4 +406,17 @@ describe('Harmonisation des quatre formulaires', () => {
     )
     expect(champs.find((c) => c.nom === 'lieu')?.libelle).toBe('Lieu des faits')
   })
+
+  it('place la localisation exacte juste après le lieu dans chaque parcours', () => {
+    for (const [code, config] of tous) {
+      const indexLieu = config.champs.findIndex((c) => c.nom === 'lieu' || c.nom === 'lieuSite')
+      const localisation = config.champs[indexLieu + 1]
+
+      expect(indexLieu, `${code} : aucun lieu`).toBeGreaterThanOrEqual(0)
+      expect(localisation?.nom, `${code} : localisation mal placée`).toBe(
+        'precisionLocalisation'
+      )
+      expect(localisation?.etape, `${code} : localisation hors de l’étape des faits`).toBe(2)
+    }
+  })
 })
