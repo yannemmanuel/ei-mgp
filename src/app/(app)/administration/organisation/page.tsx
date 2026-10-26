@@ -3,7 +3,7 @@ import { exigerPermission } from '@/server/auth'
 import { listerDirections, listerSites } from '@/server/services/administration/referentiels'
 import { PanneauOrganisation } from './panneau'
 
-export const metadata: Metadata = { title: 'Administration — Sites et directions' }
+export const metadata: Metadata = { title: 'Administration — CSST et directions' }
 export const dynamic = 'force-dynamic'
 
 /**

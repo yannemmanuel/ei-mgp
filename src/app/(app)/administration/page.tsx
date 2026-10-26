@@ -155,17 +155,17 @@ const GROUPES: Groupe[] = [
         unite: ["famille", "familles"],
       },
       {
-        libelle: "Sites et directions",
+        libelle: "CSST et directions",
         href: "/administration/organisation",
         permission: "referentiels.sites.manage",
         description:
-          "Un site regroupe plusieurs directions. Ce rattachement décide du site d’un dossier, donc de qui le reçoit.",
+          "Un CSST regroupe plusieurs directions. Ce rattachement détermine le périmètre de réception du dossier.",
         // Ce sont les directions ORPHELINES qui méritent l'attention : leurs dossiers
         // n'atteignent aucun secrétaire habilité par site. Compter les sites n'appellerait
         // aucune action.
         compter: () =>
           prisma.directions.count({ where: { actif: true, site_id: null } }),
-        unite: ["direction sans site", "directions sans site"],
+        unite: ["direction sans CSST", "directions sans CSST"],
       },
       {
         libelle: "Postes",

@@ -28,7 +28,11 @@ const crees = {
 }
 
 async function acteur() {
-  const u = await prisma.users.findFirstOrThrow({ where: { actif: true }, select: { id: true } })
+  const u = await prisma.users.findFirstOrThrow({
+    where: { actif: true, id: { notIn: crees.users } },
+    orderBy: { id: 'asc' },
+    select: { id: true },
+  })
   return { id: u.id }
 }
 

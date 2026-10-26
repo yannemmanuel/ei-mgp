@@ -15,6 +15,7 @@ import { MODELES } from '@/server/modeles'
  * malgré l'absence d'affectation.
  */
 const comptesCrees: bigint[] = []
+const directionsCreees: bigint[] = []
 
 async function compteCharge(
   siteId: bigint | null,
@@ -56,11 +57,14 @@ async function compteCharge(
 
 // ⚠️ Borné aux comptes fabriqués ici : jamais de suppression large sur `users`.
 afterAll(async () => {
-  if (comptesCrees.length === 0) return
-
-  await prisma.utilisateur_parcours.deleteMany({ where: { user_id: { in: comptesCrees } } })
-  await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptesCrees } } })
-  await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
+  if (comptesCrees.length > 0) {
+    await prisma.utilisateur_parcours.deleteMany({ where: { user_id: { in: comptesCrees } } })
+    await prisma.model_has_roles.deleteMany({ where: { model_id: { in: comptesCrees } } })
+    await prisma.users.deleteMany({ where: { id: { in: comptesCrees } } })
+  }
+  if (directionsCreees.length > 0) {
+    await prisma.directions.deleteMany({ where: { id: { in: directionsCreees } } })
+  }
 })
 
 describe('Le chargé de sécurité voit les évènements de son site', () => {
@@ -225,14 +229,30 @@ describe('Le bloc de suivi', () => {
       seulement quand le dossier avait un site. Sur un dossier rattaché à une direction sans site,
       il n'était jamais retenu.
     */
-    const direction = await prisma.directions.findFirstOrThrow({
-      where: { site_id: null },
+    const suffixe = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+    const direction = await prisma.directions.create({
+      data: {
+        code: `TEST-SUIVI-A-${suffixe}`,
+        libelle: 'Direction temporaire de suivi A',
+        site_id: null,
+        actif: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
       select: { id: true },
     })
-    const autre = await prisma.directions.findFirst({
-      where: { id: { not: direction.id }, site_id: null },
+    const autre = await prisma.directions.create({
+      data: {
+        code: `TEST-SUIVI-B-${suffixe}`,
+        libelle: 'Direction temporaire de suivi B',
+        site_id: null,
+        actif: true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
       select: { id: true },
     })
+    directionsCreees.push(direction.id, autre.id)
 
     const chargeDeLaDirection = await compteCharge(null, direction.id)
 
@@ -241,12 +261,10 @@ describe('Le bloc de suivi', () => {
       'le chargé habilité sur cette direction n’est pas retenu'
     ).toContainEqual(chargeDeLaDirection)
 
-    if (autre) {
-      expect(
-        (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: null, directionId: autre.id })).map((c) => c.id),
-        'il est proposé sur une AUTRE direction'
-      ).not.toContainEqual(chargeDeLaDirection)
-    }
+    expect(
+      (await personnesEnCharge({ parcoursCode: 'ei_employe', siteId: null, directionId: autre.id })).map((c) => c.id),
+      'il est proposé sur une AUTRE direction'
+    ).not.toContainEqual(chargeDeLaDirection)
   })
 
   it('⚠️ retient quelqu’un sur un dossier SANS site', async () => {

@@ -169,7 +169,7 @@ export function PanneauComptes({
         >
           {[
             ["1", "Informations", "Identité professionnelle"],
-            ["2", "Organisation", "Site et responsable"],
+            ["2", "Organisation", "CSST et direction"],
             ["3", "Accès", "Rôles et visibilité"],
           ].map(([numero, titre, aide]) => (
             <li
@@ -390,7 +390,7 @@ export function PanneauComptes({
                         )}
                         {compte.siteManquant && (
                           <Badge variant="destructive" className="font-normal">
-                            Site manquant
+                            CSST manquant
                           </Badge>
                         )}
                       </div>
@@ -408,7 +408,7 @@ export function PanneauComptes({
                         Rattachement
                       </p>
                       <p className="mt-1 text-sm text-secondary-900">
-                        {compte.site ?? "Aucun site"}
+                        {compte.site ?? "Aucun CSST"}
                         {compte.direction && (
                           <span className="block text-caption text-muted-foreground">
                             {compte.direction}
@@ -417,7 +417,7 @@ export function PanneauComptes({
                       </p>
                       {compte.rattachementIncoherent && (
                         <p className="mt-1 text-caption font-medium text-destructive">
-                          Site et direction se contredisent
+                          CSST et direction se contredisent
                         </p>
                       )}
                     </div>
@@ -531,9 +531,9 @@ export function PanneauComptes({
                               <Badge
                                 variant="destructive"
                                 className="font-normal"
-                                title="Ce rôle est habilité par site, mais aucun site n’est renseigné : le compte voit tous les dossiers de son parcours."
+                                title="Ce rôle est habilité par CSST, mais aucun CSST n’est renseigné : le compte voit tous les dossiers de son parcours."
                               >
-                                Site manquant
+                                CSST manquant
                               </Badge>
                             )}
                           </div>
@@ -567,7 +567,7 @@ export function PanneauComptes({
                           ) : (
                             <div className="text-sm">
                               <span className="text-secondary-900">
-                                {compte.site ?? "Aucun site"}
+                                {compte.site ?? "Aucun CSST"}
                               </span>
                               {compte.direction && (
                                 <span className="block text-caption text-muted-foreground">
@@ -577,9 +577,9 @@ export function PanneauComptes({
                               {compte.rattachementIncoherent && (
                                 <span
                                   className="mt-0.5 block text-caption font-medium text-destructive"
-                                  title="La direction de ce compte relève d’un autre site que celui qui lui est attribué."
+                                  title="La direction de ce compte relève d’un autre CSST que celui qui lui est attribué."
                                 >
-                                  Site et direction se contredisent
+                                  CSST et direction se contredisent
                                 </span>
                               )}
                             </div>
@@ -717,7 +717,7 @@ function FormulaireCompte({
   const rattachementAffiche = directionId
     ? `Direction : ${directions.find((d) => d.id === directionId)?.libelle ?? "inconnue"}`
     : siteId
-      ? `Site : ${sites.find((s) => s.id === siteId)?.libelle ?? "inconnu"}`
+      ? `CSST : ${sites.find((s) => s.id === siteId)?.libelle ?? "inconnu"}`
       : "Aucun rattachement sélectionné";
 
   /*
@@ -966,7 +966,7 @@ function FormulaireCompte({
                 </select>
                 {siteId !== "" && (
                   <p className="mt-1 text-caption text-muted-foreground">
-                    Un site est déjà choisi. Videz-le pour rattacher à une
+                    Un CSST est déjà choisi. Videz-le pour rattacher à une
                     direction.
                   </p>
                 )}
@@ -977,7 +977,7 @@ function FormulaireCompte({
                   htmlFor="siteId"
                   className="text-caption text-muted-foreground"
                 >
-                  Site
+                  CSST
                 </Label>
                 <select
                   id="siteId"

@@ -29,7 +29,7 @@ const COMPORTEMENTS_TEST = [
   },
   {
     cle: "cloisonne_par_rattachement",
-    libelle: "Borné à son site ou à sa direction",
+    libelle: "Borné à son CSST ou à sa direction",
     aide: "Périmètre.",
   },
   {

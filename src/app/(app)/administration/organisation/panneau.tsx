@@ -86,13 +86,13 @@ export function PanneauOrganisation({
   return (
     <div className="space-y-6">
       <EnTetePage
-        titre="Sites et directions"
-        lede="C’est la direction d’un dossier qui détermine son site, donc qui le recevra."
+        titre="CSST et directions"
+        lede="Chaque direction est rattachée à un CSST, qui détermine le périmètre de réception du dossier."
         mailles={[
           { libelle: "Administration", href: "/administration" },
-          { libelle: "Sites et directions" },
+          { libelle: "CSST et directions" },
         ]}
-        compteur={`${sites.length} sites · ${directions.length} directions`}
+        compteur={`${sites.length} CSST · ${directions.length} directions`}
         actions={
           creation === null &&
           siteEnEdition === null &&
@@ -103,7 +103,7 @@ export function PanneauOrganisation({
                 variant="outline"
                 onClick={() => setCreation("site")}
               >
-                Ajouter un site
+                Ajouter un CSST
               </Button>
               <Button size="sm" onClick={() => setCreation("direction")}>
                 Ajouter une direction
@@ -146,8 +146,8 @@ export function PanneauOrganisation({
           <AlertDescription>
             <p className="font-medium">
               {orphelines.length > 1
-                ? `${orphelines.length} directions ne relèvent d’aucun site.`
-                : "1 direction ne relève d’aucun site."}
+                ? `${orphelines.length} directions ne relèvent d’aucun CSST.`
+                : "1 direction ne relève d’aucun CSST."}
             </p>
             <p className="mt-1 text-caption">
               Les déclarations qui les visent ne seront vues que des rôles
@@ -180,7 +180,7 @@ export function PanneauOrganisation({
         <CardContent className="p-4">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-secondary-400" aria-hidden />
-            <p className="text-h3 text-secondary-900">Sans site</p>
+            <p className="text-h3 text-secondary-900">Sans CSST</p>
             <Badge
               variant={orphelines.length > 0 ? "destructive" : "secondary"}
             >
@@ -260,7 +260,7 @@ function BlocSite({
           directions={directions}
           sites={sites}
           siteCourant={site.id}
-          messageVide="Aucune direction rattachée à ce site."
+          messageVide="Aucune direction rattachée à ce CSST."
           onModifier={onModifierDirection}
         />
       </CardContent>
@@ -361,7 +361,7 @@ function DeplacerDirection({
     <form action={envoyer} className="flex items-center gap-2">
       <input type="hidden" name="directionId" value={direction.id} />
       <label className="sr-only" htmlFor={`site-${direction.id}`}>
-        Site de {direction.libelle}
+        CSST de {direction.libelle}
       </label>
       <select
         id={`site-${direction.id}`}
@@ -371,7 +371,7 @@ function DeplacerDirection({
         className="rounded-md border border-input bg-background px-2 py-1 text-sm"
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
       >
-        <option value="">— Aucun site —</option>
+        <option value="">— Aucun CSST —</option>
         {sites.map((s) => (
           <option key={s.id} value={s.id}>
             {s.libelle}
@@ -401,7 +401,7 @@ function FormulaireSite({
           {site && <input type="hidden" name="id" value={site.id} />}
 
           <p className="text-h3 text-secondary-900">
-            {site ? `Modifier « ${site.libelle} »` : "Nouveau site"}
+            {site ? `Modifier « ${site.libelle} »` : "Nouveau CSST"}
           </p>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -534,7 +534,7 @@ function FormulaireDirection({
                 htmlFor="site-direction"
                 className="text-caption text-muted-foreground"
               >
-                Site
+                CSST
               </Label>
               <select
                 id="site-direction"

@@ -219,7 +219,7 @@ export async function enregistrerUtilisateur(
     })
     if (directionAutonome === 0) {
       throw new ErreurWorkflow(
-        'Cette direction appartient déjà à un site. Sélectionnez directement le site.',
+        'Cette direction appartient déjà à un CSST. Sélectionnez directement le CSST.',
       )
     }
   }

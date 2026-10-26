@@ -140,7 +140,7 @@ export async function supprimerSite(acteur: Acteur, id: bigint): Promise<void> {
   })
 
   refuserSiCite(
-    `Le site « ${cible.libelle} »`,
+    `Le CSST « ${cible.libelle} »`,
     [
       { quoi: 'direction', combien: cible._count.directions },
       { quoi: 'dossier', combien: cible._count.dossiers },

@@ -167,7 +167,7 @@ export async function actionEnregistrerSite(
   }
 
   revalidatePath('/administration/organisation')
-  return { succes: 'Site enregistré.' }
+  return { succes: 'CSST enregistré.' }
 }
 
 /**

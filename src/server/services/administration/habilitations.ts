@@ -160,8 +160,8 @@ export const COMPORTEMENTS_ROLE = {
     aide: "Ses porteurs apparaissent comme titulaires sur chaque fiche de leur périmètre, et ces dossiers entrent dans leur « à traiter ». Distinct du droit de faire avancer un dossier : le Service MGP arbitre sans instruire.",
   },
   cloisonne_par_rattachement: {
-    libelle: 'Borné à son site ou à sa direction',
-    aide: "Ses porteurs ne voient que les déclarations de leur rattachement. Un compte habilité sur une seule direction ne reçoit que celles de cette direction ; un compte habilité sur un site reçoit celles de toutes ses directions.",
+    libelle: 'Borné à son CSST ou à sa direction',
+    aide: "Ses porteurs ne voient que les déclarations de leur rattachement. Un compte habilité sur une seule direction ne reçoit que celles de cette direction ; un compte habilité sur un CSST reçoit celles de toutes ses directions.",
   },
   voit_seulement_ses_declarations: {
     libelle: 'Ne voit que ses propres déclarations',

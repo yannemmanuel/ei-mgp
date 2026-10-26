@@ -122,8 +122,8 @@ export const actionSupprimerSite = actionDeSuppression({
   supprimer: supprimerSite,
   lireId: identifiant,
   chemin: "/administration/organisation",
-  introuvable: "Site introuvable.",
-  succes: "Site supprimé.",
+  introuvable: "CSST introuvable.",
+  succes: "CSST supprimé.",
 });
 
 export const actionSupprimerDirection = actionDeSuppression({

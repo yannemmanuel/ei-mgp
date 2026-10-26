@@ -29,7 +29,7 @@ const COMPORTEMENTS_TEST = [
   },
   {
     cle: "cloisonne_par_rattachement",
-    libelle: "Borné à son site ou à sa direction",
+    libelle: "Borné à son CSST ou à sa direction",
     aide: "Périmètre.",
   },
   {
@@ -550,7 +550,7 @@ describe("⚠️ Les quatre comportements du rôle", () => {
 
     for (const libelle of [
       "A la charge des dossiers de son périmètre",
-      "Borné à son site ou à sa direction",
+      "Borné à son CSST ou à sa direction",
       "Ne voit que ses propres déclarations",
       "Voit l'identité du déclarant",
     ]) {
@@ -578,7 +578,7 @@ describe("⚠️ Les quatre comportements du rôle", () => {
     expect(
       (
         screen.getByLabelText(
-          /Borné à son site ou à sa direction/,
+          /Borné à son CSST ou à sa direction/,
         ) as HTMLInputElement
       ).checked,
     ).toBe(true);

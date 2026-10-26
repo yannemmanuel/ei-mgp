@@ -207,7 +207,7 @@ export async function enregistrerSite(
   })
 
   if (doublon) {
-    throw new ErreurWorkflow('Ce code de site est déjà utilisé.')
+    throw new ErreurWorkflow('Ce code de CSST est déjà utilisé.')
   }
 
   /**
@@ -219,7 +219,7 @@ export async function enregistrerSite(
 
     if (rattachees > 0) {
       throw new ErreurWorkflow(
-        `Impossible de désactiver ce site : ${rattachees} direction${rattachees > 1 ? 's y sont' : ' y est'} encore rattachée${rattachees > 1 ? 's' : ''}. Rattachez-les ailleurs, ou désactivez-les d'abord.`
+        `Impossible de désactiver ce CSST : ${rattachees} direction${rattachees > 1 ? 's y sont' : ' y est'} encore rattachée${rattachees > 1 ? 's' : ''}. Rattachez-les ailleurs, ou désactivez-les d'abord.`
       )
     }
   }
@@ -311,7 +311,7 @@ export async function enregistrerDirection(
     })
 
     if (!site) {
-      throw new ErreurWorkflow('Site inconnu.')
+      throw new ErreurWorkflow('CSST inconnu.')
     }
   }
 
@@ -388,12 +388,12 @@ export async function rattacherDirection(
     })
 
     if (!site) {
-      throw new ErreurWorkflow('Site inconnu.')
+      throw new ErreurWorkflow('CSST inconnu.')
     }
 
     // Rattacher à un site désactivé produirait des dossiers acheminés vers un site hors service.
     if (!site.actif) {
-      throw new ErreurWorkflow('Ce site est désactivé : on ne peut pas y rattacher une direction.')
+      throw new ErreurWorkflow('Ce CSST est désactivé : on ne peut pas y rattacher une direction.')
     }
   }
 
