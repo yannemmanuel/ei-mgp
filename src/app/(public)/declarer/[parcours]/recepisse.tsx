@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { CheckCircle2, Plus } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle2, Plus, TriangleAlert } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -35,10 +35,12 @@ export function Recepisse({ reference, codeAcces }: { reference: string; codeAcc
         </dl>
       </div>
 
-      <Alert className="mt-6">
-        <AlertDescription>
-          <strong className="font-medium">Conservez ces deux informations.</strong> Elles sont la
-          seule façon de consulter votre dossier, et le code d’accès ne peut pas vous être renvoyé.
+      <Alert className="mt-6 border-red-200 bg-red-50 text-red-900">
+        <TriangleAlert aria-hidden />
+        <AlertTitle>À conserver impérativement</AlertTitle>
+        <AlertDescription className="text-red-800">
+          Notez votre numéro de référence et votre code d’accès. Ils sont indispensables pour
+          consulter votre dossier et le code ne pourra pas vous être renvoyé.
         </AlertDescription>
       </Alert>
 
@@ -85,11 +87,14 @@ function AutreDeclaration() {
         Faire une autre déclaration
       </summary>
 
-      <div className="mt-4 rounded-lg bg-muted/50 p-4">
-        <p className="text-sm text-secondary-800">
-          Avez-vous noté votre numéro de référence et votre code d’accès ? Ils ne seront plus
-          affichés après cette page.
-        </p>
+      <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-900">
+        <div className="flex items-start gap-2.5">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p className="text-sm">
+            Avez-vous noté votre numéro de référence et votre code d’accès ? Ils ne seront plus
+            affichés après cette page.
+          </p>
+        </div>
 
         <Button className="mt-3" render={<Link href="/declarer" />}>
           Oui, faire une autre déclaration

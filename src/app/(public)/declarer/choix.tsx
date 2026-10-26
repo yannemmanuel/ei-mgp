@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BriefcaseBusiness,
+  HardHat,
+  MessageSquareWarning,
+  Search,
+  ShieldAlert,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
 
 type Option = {
   readonly code: string;
   readonly titre: string;
   readonly description: string;
-  readonly icone?: string;
+  readonly icone: LucideIcon;
 };
 
 const PLAINTES: Option[] = [
@@ -16,20 +26,20 @@ const PLAINTES: Option[] = [
     code: "grief_employe",
     titre: "Employé SODECI",
     description: "Une situation professionnelle que vous jugez préjudiciable.",
-    icone: "employe",
+    icone: BriefcaseBusiness,
   },
   {
     code: "grief_sous_traitant",
     titre: "Sous-Traitant SODECI",
     description: "Conditions de travail, paiement, sécurité sur un chantier.",
-    icone: "soustraitant",
+    icone: HardHat,
   },
   {
     code: "grief_communaute",
     titre: "Riverain ou membre de la communauté",
     description:
       "Nuisance, dommage ou différend lié aux activités de l'entreprise.",
-    icone: "communaute",
+    icone: UsersRound,
   },
 ];
 
@@ -88,7 +98,7 @@ export function ChoixParcours() {
             titre: "Un événement indésirable",
             description:
               "Un incident, un presque-accident ou une situation dangereuse constatée sur le site.",
-            icone: "ei",
+            icone: ShieldAlert,
           }}
         />
 
@@ -101,6 +111,7 @@ export function ChoixParcours() {
           <ContenuCarte
             titre="Une plainte ou un grief"
             description="Un désaccord, un préjudice ou un manquement que vous souhaitez porter à notre connaissance."
+            icone={MessageSquareWarning}
           />
         </button>
       </div>
@@ -112,13 +123,13 @@ export function ChoixParcours() {
       */}
       <Link
         href="/suivi"
-        className="mt-6 flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-secondary-300 bg-secondary-50/60 p-4 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+        className="mt-6 flex w-full min-w-0 items-center justify-between gap-3 rounded-2xl border border-dashed border-secondary-300 bg-secondary-50/60 p-4 text-left transition-colors hover:border-primary-400 hover:bg-primary-50/50 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
       >
-        <span className="flex items-center gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-card text-secondary-700 shadow-xs">
             <Search className="h-4 w-4" aria-hidden />
           </span>
-          <span>
+          <span className="min-w-0">
             <span className="block text-sm font-semibold text-secondary-900">
               Suivre une déclaration
             </span>
@@ -139,18 +150,31 @@ export function ChoixParcours() {
 }
 
 const CLASSES_CARTE =
-  "group flex w-full items-center justify-between rounded-2xl border border-border/80 bg-card p-5 text-left shadow-[0_8px_28px_rgba(18,33,59,0.05)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-[0_16px_40px_rgba(18,33,59,0.09)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30";
+  "group flex w-full min-w-0 items-center justify-between gap-2 rounded-2xl border border-border/80 bg-card p-4 text-left shadow-[0_8px_28px_rgba(18,33,59,0.05)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-[0_16px_40px_rgba(18,33,59,0.09)] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30 sm:gap-3 sm:p-5";
 
-function ContenuCarte({ titre, description }: { titre: string; description: string }) {
+function ContenuCarte({
+  titre,
+  description,
+  icone: Icone,
+}: {
+  titre: string;
+  description: string;
+  icone: LucideIcon;
+}) {
   return (
     <>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold text-secondary-900">{titre}</span>
-        <span className="mt-1 block text-xs text-secondary-600 leading-relaxed">
-          {description}
+      <span className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary-200/70 bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100 sm:size-11">
+          <Icone className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0">
+          <span className="block break-words text-sm font-semibold text-secondary-900">{titre}</span>
+          <span className="mt-1 block break-words text-xs leading-relaxed text-secondary-600">
+            {description}
+          </span>
         </span>
       </span>
-      <span className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 border border-primary-200/60 text-primary-700 group-hover:bg-primary-100 transition-colors">
+      <span className="ml-1 flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary-200/60 bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100 sm:ml-2 sm:size-9">
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
     </>
@@ -160,7 +184,7 @@ function ContenuCarte({ titre, description }: { titre: string; description: stri
 function CarteOption({ option }: { option: Option }) {
   return (
     <Link href={`/declarer/${option.code}`} className={CLASSES_CARTE}>
-      <ContenuCarte titre={option.titre} description={option.description} />
+      <ContenuCarte titre={option.titre} description={option.description} icone={option.icone} />
     </Link>
   );
 }

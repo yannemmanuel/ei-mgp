@@ -484,6 +484,7 @@ describe('Faire une autre déclaration', () => {
     // Le récépissé porte bien ce qu'il ne réaffichera jamais.
     expect(screen.getByText('EI-2026-000042')).toBeDefined()
     expect(screen.getByText('ABCD-1234')).toBeDefined()
+    expect(screen.getByRole('alert').textContent).toContain('À conserver impérativement')
 
     const declencheur = screen.getByText('Faire une autre déclaration')
     const repli = declencheur.closest('details') as HTMLDetailsElement
@@ -507,6 +508,25 @@ describe('Faire une autre déclaration', () => {
       '/declarer'
     )
   })
+})
+
+describe('Identification des salariés', () => {
+  for (const parcours of ['ei_employe', 'grief_employe'] as const) {
+    it(`sépare le déclarant de la personne concernée sur ${parcours}`, () => {
+      afficher(parcours)
+
+      const groupeDeclarant = screen.getByRole('group', {
+        name: 'Identification du déclarant',
+      })
+      const groupeVictime = screen.getByRole('group', {
+        name: 'Identification de la victime ou de la personne concernée',
+      })
+
+      expect(groupeDeclarant.querySelector('[name="matricule"]')).not.toBeNull()
+      expect(groupeVictime.querySelector('[name="directionId"]')).not.toBeNull()
+      expect(groupeDeclarant.querySelector('[name="directionId"]')).toBeNull()
+    })
+  }
 })
 
 /**

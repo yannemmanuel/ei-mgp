@@ -373,17 +373,37 @@ describe('Harmonisation des quatre formulaires', () => {
     for (const [code, config] of tous) {
       const noms = config.champs.map((c) => c.nom)
       const proposeUnRappel = noms.some((n) => n.startsWith('souhaitEtre'))
-      const collecteUneCoordonnee = noms.includes('contactTelephone')
+      const collecteUneCoordonnee =
+        noms.includes('contactTelephone') || noms.includes('contactEmail')
 
-      expect(collecteUneCoordonnee, `${code} : rappel proposé sans coordonnée`).toBe(proposeUnRappel)
+      if (proposeUnRappel) {
+        expect(collecteUneCoordonnee, `${code} : rappel proposé sans coordonnée`).toBe(true)
+      }
     }
 
     // Et les canaux proposés doivent tous rester praticables.
     for (const [code, config] of tous) {
+      const noms = config.champs.map((c) => c.nom)
       const canal = config.champs.find((c) => c.nom.startsWith('canalRetour') || c.nom.startsWith('preferenceCanal'))
       const valeurs = canal?.options?.map((o) => o.valeur) ?? []
 
-      expect(valeurs, `${code} propose un retour par e-mail sans collecter d’adresse`).not.toContain('email')
+      if (valeurs.includes('email')) {
+        expect(noms, `${code} propose un retour par e-mail sans collecter d’adresse`).toContain(
+          'contactEmail'
+        )
+      }
     }
+  })
+
+  it('porte les libellés demandés pour la communauté', () => {
+    const champs = PARCOURS.grief_communaute.champs
+
+    expect(champs.find((c) => c.nom === 'souhaitEtreRecontacte')?.libelle).toBe(
+      'Je souhaite être recontacté pour des informations complémentaires'
+    )
+    expect(champs.find((c) => c.nom === 'preferenceCanalRetour')?.libelle).toBe(
+      'Canal de contact'
+    )
+    expect(champs.find((c) => c.nom === 'lieu')?.libelle).toBe('Lieu des faits')
   })
 })

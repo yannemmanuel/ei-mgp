@@ -1,6 +1,14 @@
 'use client'
 
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -62,6 +70,7 @@ type Props = {
 
 const LIBELLES_ETAPES = ['Votre identité', 'Contexte', 'Nature de l’évènement', 'Pièces jointes']
 const NB_ETAPES = 4
+const CHAMPS_VICTIME_EMPLOYE = new Set(['directionId', 'posteOccupe'])
 
 /**
  * Délai pendant lequel « Envoyer ma déclaration » reste inerte après son apparition (ms).
@@ -235,6 +244,19 @@ export function FormulaireDeclaration({
 
   // Le serveur fait autorité : son message l'emporte sur celui du navigateur pour un même champ.
   const erreur = (nom: string) => etat.erreurs?.[nom] ?? erreursClient[nom]
+
+  const rendreChamp = (champ: Champ) => (
+    <ChampFormulaire
+      key={champ.nom}
+      champ={champ}
+      erreur={erreur(champ.nom)}
+      erreurPrecision={erreur(`${champ.nom}Precision`)}
+      referentiels={referentiels}
+      valeursPilotes={valeursPilotes}
+      onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
+      pilote={pilotes.has(champ.nom)}
+    />
+  )
 
   /**
    * Vérifie les champs d'une ou plusieurs étapes, et renvoie la première en défaut.
@@ -487,18 +509,29 @@ export function FormulaireDeclaration({
             </label>
           </div>
 
-          {champsDe(1).map((champ) => (
-            <ChampFormulaire
-              key={champ.nom}
-              champ={champ}
-              erreur={erreur(champ.nom)}
-              erreurPrecision={erreur(`${champ.nom}Precision`)}
-              referentiels={referentiels}
-              valeursPilotes={valeursPilotes}
-              onPilote={(nom, valeur) => setValeursPilotes((v) => ({ ...v, [nom]: valeur }))}
-              pilote={pilotes.has(champ.nom)}
-            />
-          ))}
+          {config.code === 'ei_employe' || config.code === 'grief_employe' ? (
+            <div className="space-y-6">
+              <GroupeIdentite
+                titre="Identification du déclarant"
+                description="Informations sur la personne qui effectue cette déclaration."
+              >
+                {champsDe(1)
+                  .filter((champ) => !CHAMPS_VICTIME_EMPLOYE.has(champ.nom))
+                  .map(rendreChamp)}
+              </GroupeIdentite>
+
+              <GroupeIdentite
+                titre="Identification de la victime ou de la personne concernée"
+                description="Rattachement professionnel de la personne concernée par les faits."
+              >
+                {champsDe(1)
+                  .filter((champ) => CHAMPS_VICTIME_EMPLOYE.has(champ.nom))
+                  .map(rendreChamp)}
+              </GroupeIdentite>
+            </div>
+          ) : (
+            champsDe(1).map(rendreChamp)
+          )}
         </div>
 
         <div data-etape={2} className={etape === 2 ? 'space-y-5' : 'hidden'}>
@@ -560,7 +593,7 @@ export function FormulaireDeclaration({
             aria-describedby={
               erreur('description') ? 'description-aide description-erreur' : 'description-aide'
             }
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
             <p id="description-aide" className="text-caption text-muted-foreground">
               Décrivez les faits aussi longuement que nécessaire.
@@ -819,7 +852,7 @@ function ChampSelect({
           undefined
         }
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
         <option value="">— Sélectionner —</option>
         {options.map((o) => (
@@ -976,7 +1009,7 @@ function ChampFormulaire({
               .filter(Boolean)
               .join(' ') || undefined
           }
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
         {champ.aide && (
           <p id={`${champ.nom}-aide`} className="text-caption text-muted-foreground">
@@ -1032,6 +1065,29 @@ function ChampFormulaire({
       )}
       {erreur && <Erreur id={`${champ.nom}-erreur`} message={erreur} />}
     </div>
+  )
+}
+
+function GroupeIdentite({
+  titre,
+  description,
+  children,
+}: {
+  titre: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <fieldset className="min-w-0">
+      <legend className="sr-only">{titre}</legend>
+      <div className="min-w-0 rounded-2xl border border-secondary-200 bg-card p-4 shadow-xs sm:p-5">
+        <div className="mb-5 border-b border-secondary-100 pb-4">
+          <h2 className="text-sm font-semibold leading-5 text-secondary-900">{titre}</h2>
+          <p className="mt-1 text-caption text-secondary-600">{description}</p>
+        </div>
+        <div className="min-w-0 space-y-5">{children}</div>
+      </div>
+    </fieldset>
   )
 }
 

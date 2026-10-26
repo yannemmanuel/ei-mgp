@@ -103,14 +103,9 @@ export type ParcoursConfig = {
   readonly attentesDeclarant: boolean
 }
 
-/*
-  L'e-mail a quitté cette liste avec le champ qui l'alimentait.
-
-  Le proposer comme canal de retour alors qu'aucune adresse n'est plus collectée aurait recréé, à
-  un choix près, le défaut que le retour du téléphone corrige : une promesse sans moyen de la
-  tenir.
-*/
+/* Tous les parcours identifiés collectent désormais une adresse e-mail facultative. */
 const CANAUX_RETOUR = [
+  { valeur: 'email', libelle: 'E-mail' },
   { valeur: 'telephone', libelle: 'Téléphone' },
   { valeur: 'entretien', libelle: 'Entretien' },
   { valeur: 'page_de_suivi', libelle: 'Page de suivi' },
@@ -526,7 +521,7 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
       // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
       { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      { nom: 'lieu', libelle: 'Lieu des faits', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
       {
         nom: 'caractereRepetitif',
         libelle: 'Caractère répétitif',
@@ -541,6 +536,23 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
 
         La colonne `proposition_mesure_corrective` reste en base et porte l'historique.
       */
+      {
+        nom: 'souhaitEtreRecontacte',
+        libelle: 'Je souhaite être recontacté pour des informations complémentaires',
+        type: 'case',
+        etape: 3,
+        identite: true,
+        colonne: 'souhaitRecontact',
+      },
+      {
+        nom: 'preferenceCanalRetour',
+        libelle: 'Canal de contact',
+        type: 'select',
+        etape: 3,
+        options: CANAUX_RETOUR,
+        identite: true,
+        colonne: 'canalRetourPrefere',
+      },
       { nom: 'solutionSouhaitee', libelle: 'Solution souhaitée', type: 'zone', etape: 3 },
     ],
   },
