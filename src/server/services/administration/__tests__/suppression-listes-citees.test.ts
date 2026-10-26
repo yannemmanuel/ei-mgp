@@ -44,9 +44,12 @@ const MODELE_LIEU = MODELES.lieu
 
 const dossiers: string[] = []
 const lieux: bigint[] = []
+const villes: bigint[] = []
+const communeParRegion = new Map<string, string>()
 
 afterAll(async () => {
   await nettoyerDossiers(dossiers)
+  await prisma.villes.deleteMany({ where: { id: { in: villes } } })
   await prisma.lieux.deleteMany({ where: { id: { in: lieux } } })
   await nettoyerAudit(MODELE_LIEU, lieux)
 })
@@ -79,6 +82,25 @@ async function lieuNeuf(libelle: string): Promise<bigint> {
 async function declarationCitant(libelle: string): Promise<void> {
   process.env.AUTH_SECRET ??= 'secret-de-test-suffisamment-long-pour-hmac'
 
+  const region = await prisma.lieux.findFirstOrThrow({
+    where: { libelle },
+    select: { id: true },
+  })
+  const commune = `Commune de test ${region.id}`
+  const ville = await prisma.villes.create({
+    data: {
+      libelle: commune,
+      region_id: region.id,
+      actif: true,
+      ordre: 999,
+      created_at: new Date(),
+      updated_at: new Date(),
+    },
+    select: { id: true },
+  })
+  villes.push(ville.id)
+  communeParRegion.set(libelle, commune)
+
   const categorie = await categoriePour('ei_employe')
   const gravite = await graviteParNiveau(1)
   const direction = await prisma.directions.findFirstOrThrow({
@@ -99,6 +121,7 @@ async function declarationCitant(libelle: string): Promise<void> {
   )
   donnees.set('dateSurvenance', new Date().toISOString().slice(0, 10))
   donnees.set('lieu', libelle)
+  donnees.set('ville', communeParRegion.get(libelle) ?? '')
   donnees.set('caractereRepetitif', 'premiere_fois')
   donnees.set('piegeAraignee', '')
   // Quatre secondes de recul : le délai minimal de remplissage est de trois.

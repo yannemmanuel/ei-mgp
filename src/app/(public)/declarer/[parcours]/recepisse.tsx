@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import { CheckCircle2, Plus, TriangleAlert } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { CheckCircle2, Plus, Search, TriangleAlert } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -14,41 +13,63 @@ import { cn } from '@/lib/utils'
 export function Recepisse({ reference, codeAcces }: { reference: string; codeAcces: string }) {
   return (
     <div className="mx-auto max-w-lg motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2">
-      <CheckCircle2 className="h-10 w-10 text-primary" aria-hidden />
+      <div className="flex size-12 items-center justify-center rounded-full bg-primary-50">
+        <CheckCircle2 className="size-7 text-primary-700" aria-hidden />
+      </div>
       <h1 className="mt-4 font-serif text-h1 text-secondary-900">Déclaration enregistrée</h1>
-      <p className="mt-2 text-sm text-secondary-600">
-        Votre déclaration a bien été reçue et va être prise en charge.
+      <p className="mt-2 text-sm leading-6 text-secondary-600">
+        Votre déclaration a bien été reçue. Conservez les informations ci-dessous pour consulter
+        son avancement.
       </p>
 
-      <div className="mt-8 rounded-lg border border-border p-6">
-        <dl className="space-y-5">
+      <section
+        aria-labelledby="identifiants-suivi"
+        className="mt-7 overflow-hidden rounded-xl bg-red-700 text-white shadow-sm"
+      >
+        <div className="flex items-start gap-3 border-b border-white/20 px-5 py-4 sm:px-6">
+          <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden />
           <div>
-            <dt className="text-label uppercase tracking-wide text-secondary-500">
+            <h2 id="identifiants-suivi" className="font-semibold">
+              À conserver impérativement
+            </h2>
+            <p className="mt-1 text-sm leading-5 text-red-50">
+              Ces deux informations sont nécessaires pour retrouver votre dossier.
+            </p>
+          </div>
+        </div>
+
+        <dl className="grid gap-px bg-white/20 sm:grid-cols-2">
+          <div className="min-w-0 bg-red-700 px-5 py-5 sm:px-6">
+            <dt className="text-xs font-semibold uppercase tracking-wider text-red-100">
               Numéro de référence
             </dt>
-            <dd className="mt-1 font-serif text-h1 tracking-tight text-secondary-900">{reference}</dd>
+            <dd className="mt-2 select-all break-words font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
+              {reference}
+            </dd>
           </div>
-          <div>
-            <dt className="text-label uppercase tracking-wide text-secondary-500">Code d’accès</dt>
-            <dd className="mt-1 font-mono text-h1 tracking-widest text-secondary-900">{codeAcces}</dd>
+          <div className="min-w-0 bg-red-700 px-5 py-5 sm:px-6">
+            <dt className="text-xs font-semibold uppercase tracking-wider text-red-100">
+              Code d’accès
+            </dt>
+            <dd className="mt-2 select-all break-all font-mono text-2xl font-bold tracking-[0.14em] sm:text-3xl">
+              {codeAcces}
+            </dd>
           </div>
         </dl>
-      </div>
 
-      <Alert className="mt-6 border-red-200 bg-red-50 text-red-900">
-        <TriangleAlert aria-hidden />
-        <AlertTitle>À conserver impérativement</AlertTitle>
-        <AlertDescription className="text-red-800">
-          Notez votre numéro de référence et votre code d’accès. Ils sont indispensables pour
-          consulter votre dossier et le code ne pourra pas vous être renvoyé.
-        </AlertDescription>
-      </Alert>
+        <p className="border-t border-white/20 px-5 py-3 text-xs leading-5 text-red-50 sm:px-6">
+          Prenez une capture d’écran ou notez-les maintenant : le code ne pourra pas être affiché
+          une seconde fois.
+        </p>
+      </section>
 
-      <p className="mt-6 text-sm">
-        <Link href="/suivi" className="text-primary-700 underline underline-offset-2">
-          Suivre mon dossier
-        </Link>
-      </p>
+      <Link
+        href="/suivi"
+        className={cn(buttonVariants({ size: 'lg' }), 'mt-6 w-full sm:w-auto')}
+      >
+        <Search className="size-4" aria-hidden />
+        Suivre mon dossier
+      </Link>
 
       <AutreDeclaration />
     </div>

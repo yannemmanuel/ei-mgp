@@ -36,8 +36,7 @@ import type { ParcoursCode } from '@/server/authz'
 import { perimetreActions } from '@/server/services/action-corrective/liste'
 import { perimetreDossiers } from '@/server/services/dossier/liste'
 import {
-  aTraiter,
-  dossiersATraiter,
+  prioritesTableauDeBord,
   type ADTraiter,
 } from '@/server/services/reporting/a-traiter'
 import {
@@ -81,11 +80,17 @@ export default async function PageTableauDeBord({ searchParams }: PageProps<'/da
     'dossiers.view.own',
   ])
 
-  const [mesDossiers, urgences, alertes] = await Promise.all([
-    dossiersATraiter(utilisateur),
-    aTraiter(utilisateur),
+  const [priorites, alertes] = await Promise.all([
+    traiteDesDossiers
+      ? prioritesTableauDeBord(utilisateur)
+      : Promise.resolve({
+          dossiers: [],
+          compteurs: { enRetard: 0, nonAffectes: 0, miensEnRetard: 0, miens: 0 },
+        }),
     administre ? santeAdministration() : Promise.resolve([]),
   ])
+  const mesDossiers = priorites.dossiers
+  const urgences = priorites.compteurs
 
   return (
     <div className="space-y-6">
@@ -183,7 +188,7 @@ function FileActions({
   dossiers,
   urgences,
 }: {
-  dossiers: Awaited<ReturnType<typeof dossiersATraiter>>
+  dossiers: Awaited<ReturnType<typeof prioritesTableauDeBord>>['dossiers']
   urgences: ADTraiter
 }) {
   return (
@@ -463,7 +468,15 @@ async function VueConsolidee({
 
   const progressionDemandee = parcoursDemande(parametres)
 
-  const [indicateurs, historique, referentiels, compteurs, directions, ongletsParcours] =
+  const [
+    indicateurs,
+    historique,
+    referentiels,
+    compteurs,
+    directions,
+    ongletsParcours,
+    progressionGlobale,
+  ] =
     await Promise.all([
     calculerIndicateurs(filtre),
     // Voir `historiqueMensuel` : l'agrégat mensuel ne porte pas le rattachement, il ne peut donc
@@ -473,14 +486,16 @@ async function VueConsolidee({
     blocATraiter(utilisateur),
     progressionParDirection(utilisateur, { filtre, parcours: progressionDemandee }),
     parcoursDuLecteur(utilisateur),
+    // Avec un onglet actif, les lignes sont filtrées mais les cartes « Situation » restent
+    // globales. Démarrer cette lecture maintenant évite une seconde cascade après tout le reste.
+    progressionDemandee === null
+      ? Promise.resolve(null)
+      : progressionParDirection(utilisateur, { filtre }),
   ])
 
   // La situation reste GLOBALE (tous les parcours du lecteur, critères de la barre de filtres) :
   // l'onglet de parcours ne règle que le graphique de progression.
-  const situation =
-    progressionDemandee === null
-      ? directions.global
-      : (await progressionParDirection(utilisateur, { filtre })).global
+  const situation = progressionGlobale?.global ?? directions.global
   const ouverts = situation.ouverts
   const critiquesOuverts = situation.critiquesOuverts
 

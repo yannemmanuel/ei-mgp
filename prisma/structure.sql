@@ -513,6 +513,7 @@ CREATE TABLE "ei_mgp"."villes" (
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(0),
     "updated_at" TIMESTAMP(0),
+    "region_id" BIGINT,
 
     CONSTRAINT "villes_pkey" PRIMARY KEY ("id")
 );
@@ -788,7 +789,9 @@ CREATE INDEX "postes_direction_id_index" ON "ei_mgp"."postes"("direction_id");
 CREATE UNIQUE INDEX "postes_direction_libelle_unique" ON "ei_mgp"."postes"("direction_id", "libelle");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "villes_libelle_unique" ON "ei_mgp"."villes"("libelle");
+CREATE UNIQUE INDEX "villes_region_libelle_unique" ON "ei_mgp"."villes"("region_id", "libelle");
+
+CREATE INDEX "villes_region_id_index" ON "ei_mgp"."villes"("region_id");
 
 -- CreateIndex
 CREATE INDEX "utilisateur_parcours_user_id_index" ON "ei_mgp"."utilisateur_parcours"("user_id");
@@ -969,6 +972,8 @@ ALTER TABLE "ei_mgp"."users" ADD CONSTRAINT "users_site_id_foreign" FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE "ei_mgp"."postes" ADD CONSTRAINT "postes_direction_id_fkey" FOREIGN KEY ("direction_id") REFERENCES "ei_mgp"."directions"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+ALTER TABLE "ei_mgp"."villes" ADD CONSTRAINT "villes_region_id_fkey" FOREIGN KEY ("region_id") REFERENCES "ei_mgp"."lieux"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "ei_mgp"."utilisateur_parcours" ADD CONSTRAINT "utilisateur_parcours_parcours_id_fkey" FOREIGN KEY ("parcours_id") REFERENCES "ei_mgp"."parcours"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;

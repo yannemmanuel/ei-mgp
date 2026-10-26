@@ -72,9 +72,16 @@ async function formulaire(horodatage?: string): Promise<FormData> {
     devient obligatoire sans que personne ne l'ait voulu. Ici, un champ ajouté fait échouer ce cas
     — et c'est le bon moment pour décider s'il doit vraiment être exigé du déclarant.
   */
-  // Le lieu est contraint au référentiel : une valeur libre est refusée, et c'est voulu.
-  const lieu = await prisma.lieux.findFirstOrThrow({ where: { actif: true }, select: { libelle: true } })
+  // Région et commune sont contraintes au référentiel et à leur rattachement réciproque.
+  const lieu = await prisma.lieux.findFirstOrThrow({
+    where: { actif: true, villes: { some: { actif: true } } },
+    select: {
+      libelle: true,
+      villes: { where: { actif: true }, take: 1, select: { libelle: true } },
+    },
+  })
   donnees.set('lieu', lieu.libelle)
+  donnees.set('ville', lieu.villes[0].libelle)
   donnees.set('caractereRepetitif', 'premiere_fois')
   donnees.set('piegeAraignee', '')
   donnees.set('horodatageAffichage', horodatage ?? signerHorodatage(Date.now() - 4_000))

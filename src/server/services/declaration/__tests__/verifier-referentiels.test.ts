@@ -144,6 +144,29 @@ describe('La cascade est vérifiée côté serveur, pas seulement à l’écran'
 
     expect(erreurs?.posteOccupe).toBeDefined()
   })
+
+  it('refuse une commune rattachée à une AUTRE région', async () => {
+    const regions = await prisma.lieux.findMany({
+      where: { actif: true, villes: { some: { actif: true } } },
+      take: 2,
+      select: {
+        libelle: true,
+        villes: { where: { actif: true }, take: 1, select: { libelle: true } },
+      },
+    })
+    if (regions.length < 2 || !regions[0].villes[0]) return
+
+    const commune = regions[0].villes[0].libelle
+    expect(
+      await verifierReferentiels(champsEi, { lieu: regions[0].libelle, ville: commune })
+    ).toBeNull()
+
+    const erreurs = await verifierReferentiels(champsEi, {
+      lieu: regions[1].libelle,
+      ville: commune,
+    })
+    expect(erreurs?.ville, 'commune acceptée sous une autre région').toBeDefined()
+  })
 })
 
 /**

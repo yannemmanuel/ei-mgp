@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
-import { listerListePlate } from '@/server/services/administration/referentiels'
+import { listerCommunes, listerListePlate } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
 import {
   actionDeplacerLieu,
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 type EtatFormulaire = { erreur?: string; succes?: string }
 
 /**
- * Lieux et villes (ADM3, ADM4).
+ * Régions et communes (ADM3, ADM4).
  *
  * Deux listes de la même forme — un libellé, un état — réunies sur un seul écran.
  * Deux entrées de plus dans le sommaire de l'administration pour deux tableaux de quelques
@@ -32,8 +32,8 @@ type EtatFormulaire = { erreur?: string; succes?: string }
  * gagne rien à être paramétrable. Ils sont figés dans `TRANCHES_ANCIENNETE`, où ils deviennent
  * une énumération que la validation refuse à la porte.
  *
- * ⚠️ LA VILLE, ELLE, RESTE ICI et c'est délibéré : la liste des localités riveraines n'est pas
- * connue d'avance, et doit pouvoir s'allonger sans déploiement.
+ * ⚠️ LA COMMUNE RESTE ICI et c'est délibéré : la nomenclature doit pouvoir évoluer sans
+ * déploiement, tout en conservant son rattachement explicite à une région.
  *
  * Une valeur CITÉE par un dossier ne se supprime pas : elle se désactive, et les déclarations
  * qui l'ont retenue gardent leur sens.
@@ -41,7 +41,7 @@ type EtatFormulaire = { erreur?: string; succes?: string }
 export default async function PageListesFormulaires() {
   await exigerPermission('referentiels.categories.manage')
 
-  const [lieux, villes] = await Promise.all([listerListePlate('lieu'), listerListePlate('ville')])
+  const [lieux, villes] = await Promise.all([listerListePlate('lieu'), listerCommunes()])
 
   return (
     <div className="space-y-8">
@@ -55,23 +55,52 @@ export default async function PageListesFormulaires() {
       />
 
       <Liste
-        titre="Lieux"
-        description="Lieux proposés dans le formulaire d’évènement indésirable."
-        singulier="un lieu"
+        titre="Régions"
+        description="Régions proposées dans tous les formulaires de déclaration."
+        singulier="une région"
         lignes={lieux}
         action={actionEnregistrerLieu}
         actionDeplacer={actionDeplacerLieu}
         actionSupprimer={actionSupprimerLieu}
       />
 
-      <Liste
-        titre="Villes"
-        description="Villes proposées dans le formulaire de plainte des riverains."
-        singulier="une ville"
-        lignes={villes}
+      <EditeurReferentiel
+        titre="Communes"
+        description="Communes proposées selon la région choisie dans le formulaire."
+        colonnes={['Région', 'Commune', 'État']}
+        lignes={villes.map((ville) => ({
+          id: String(ville.id),
+          groupe: String(ville.region_id),
+          cellules: [
+            ville.lieux?.libelle ?? 'Région non renseignée',
+            ville.libelle,
+            { badge: ville.actif ? 'Actif' : 'Inactif', variant: ville.actif ? 'default' : 'secondary' },
+          ],
+          valeurs: {
+            regionId: String(ville.region_id),
+            libelle: ville.libelle,
+            actif: ville.actif,
+          },
+        }))}
+        champs={[
+          {
+            type: 'liste',
+            nom: 'regionId',
+            libelle: 'Région',
+            requis: true,
+            options: lieux.map((region) => ({ valeur: String(region.id), libelle: region.libelle })),
+          },
+          { type: 'texte', nom: 'libelle', libelle: 'Commune', requis: true, max: 255 },
+          { type: 'booleen', nom: 'actif', libelle: 'Active' },
+        ]}
         action={actionEnregistrerVille}
         actionDeplacer={actionDeplacerVille}
         actionSupprimer={actionSupprimerVille}
+        creationPossible
+        libelleCreation="Ajouter une commune"
+        presentation="section"
+        taillePage={24}
+        libelleTousGroupes="Toutes les régions"
       />
     </div>
   )
@@ -116,6 +145,8 @@ function Liste({
       actionSupprimer={actionSupprimer}
       creationPossible
       libelleCreation={`Ajouter ${singulier}`}
+      presentation="section"
+      taillePage={16}
     />
   )
 }

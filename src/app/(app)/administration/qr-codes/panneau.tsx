@@ -77,8 +77,8 @@ export function PanneauQrCodes({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={generer} className="flex flex-wrap items-end gap-3">
-            <div className="min-w-56">
+          <form action={generer} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="w-full sm:max-w-sm">
               <Label
                 htmlFor="parcoursId"
                 className="text-caption text-muted-foreground"
@@ -100,7 +100,7 @@ export function PanneauQrCodes({
               </select>
             </div>
 
-            <Button type="submit" disabled={generationEnCours}>
+            <Button type="submit" disabled={generationEnCours} className="w-full sm:w-auto">
               {generationEnCours ? "Génération…" : "Générer"}
             </Button>
           </form>

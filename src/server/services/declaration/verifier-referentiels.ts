@@ -93,7 +93,18 @@ async function estDansLeReferentiel(
   }
 
   if (referentiel === 'villes') {
-    return (await prisma.villes.count({ where: { libelle, actif: true } })) > 0
+    const region = champ.dependDe ? valeurs[champ.dependDe] : undefined
+    if (region === undefined || region === '') return false
+
+    return (
+      (await prisma.villes.count({
+        where: {
+          libelle,
+          actif: true,
+          lieux: { libelle: String(region), actif: true },
+        },
+      })) > 0
+    )
   }
 
   /*

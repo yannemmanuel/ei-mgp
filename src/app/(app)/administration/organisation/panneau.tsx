@@ -221,7 +221,7 @@ function BlocSite({
     <Card className={site.actif ? undefined : "border-dashed bg-muted/30"}>
       <CardContent className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Building2 className="h-4 w-4 text-secondary-400" aria-hidden />
               <p
@@ -294,7 +294,7 @@ function ListeDirections({
         >
           <div className="min-w-0">
             <p
-              className={`text-sm font-medium ${
+              className={`break-words text-sm font-medium ${
                 direction.actif ? "text-secondary-900" : "text-secondary-500"
               }`}
             >
@@ -315,7 +315,7 @@ function ListeDirections({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <DeplacerDirection
               direction={direction}
               sites={sites}
@@ -358,7 +358,7 @@ function DeplacerDirection({
   );
 
   return (
-    <form action={envoyer} className="flex items-center gap-2">
+    <form action={envoyer} className="flex min-w-0 w-full items-center gap-2 sm:w-auto">
       <input type="hidden" name="directionId" value={direction.id} />
       <label className="sr-only" htmlFor={`site-${direction.id}`}>
         CSST de {direction.libelle}
@@ -368,7 +368,7 @@ function DeplacerDirection({
         name="siteId"
         defaultValue={siteCourant ?? ""}
         disabled={enCours}
-        className="rounded-md border border-input bg-background px-2 py-1 text-sm"
+        className="min-h-9 min-w-0 w-full max-w-full rounded-md border border-input bg-background px-2 py-1 text-sm sm:w-auto sm:max-w-64"
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
       >
         <option value="">— Aucun CSST —</option>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -108,6 +108,12 @@ type Props = {
    * `erreur`, avec son motif.
    */
   actionSupprimer?: ActionReferentiel;
+  /** Affiche un titre de section léger quand plusieurs éditeurs partagent la même page. */
+  presentation?: "page" | "section";
+  /** Nombre de lignes affichées à la fois. Sans valeur, aucune pagination n'est appliquée. */
+  taillePage?: number;
+  /** Libellé du filtre proposé lorsque les lignes sont réparties en groupes. */
+  libelleTousGroupes?: string;
 };
 
 const ETAT: EtatFormulaire = {};
@@ -129,6 +135,9 @@ export function EditeurReferentiel({
   messageVide = "Aucune entrée.",
   actionDeplacer,
   actionSupprimer,
+  presentation = "page",
+  taillePage = 24,
+  libelleTousGroupes = "Tous les groupes",
 }: Props) {
   const [etat, envoyer, enCours] = useActionState(action, ETAT);
   const [etatRang, envoyerRang, rangEnCours] = useActionState(
@@ -143,6 +152,9 @@ export function EditeurReferentiel({
   } | null>(null);
   /** Ligne dont la suppression attend confirmation — un clic ne suffit pas à effacer. */
   const [aConfirmer, setAConfirmer] = useState<string | null>(null);
+  const [recherche, setRecherche] = useState("");
+  const [groupeActif, setGroupeActif] = useState("");
+  const [page, setPage] = useState(1);
   const router = useRouter();
 
   const valeursVides: ValeursLigne = Object.fromEntries(
@@ -160,27 +172,69 @@ export function EditeurReferentiel({
       router.refresh();
   }, [etat, etatRang, etatSuppression, router]);
 
+  const groupes = useMemo(() => {
+    const trouves = new Map<string, string>();
+    for (const ligne of lignes) {
+      if (!ligne.groupe || trouves.has(ligne.groupe)) continue;
+      const premierTexte = ligne.cellules.find((cellule) => typeof cellule === "string");
+      trouves.set(ligne.groupe, typeof premierTexte === "string" ? premierTexte : ligne.groupe);
+    }
+    return [...trouves].map(([valeur, libelle]) => ({ valeur, libelle }));
+  }, [lignes]);
+
+  const lignesFiltrees = useMemo(() => {
+    const terme = recherche.trim().toLocaleLowerCase("fr");
+    return lignes.filter((ligne) => {
+      if (groupeActif && ligne.groupe !== groupeActif) return false;
+      if (!terme) return true;
+      return ligne.cellules.some((cellule) =>
+        (typeof cellule === "string" ? cellule : cellule.badge)
+          .toLocaleLowerCase("fr")
+          .includes(terme),
+      );
+    });
+  }, [groupeActif, lignes, recherche]);
+
+  const nombrePages = taillePage
+    ? Math.max(1, Math.ceil(lignesFiltrees.length / taillePage))
+    : 1;
+  const pageCourante = Math.min(page, nombrePages);
+  const lignesAffichees = taillePage
+    ? lignesFiltrees.slice((pageCourante - 1) * taillePage, pageCourante * taillePage)
+    : lignesFiltrees;
+
+  const actionCreation =
+    creationPossible && edition === null ? (
+      <Button
+        onClick={() => setEdition({ id: "", valeurs: valeursVides })}
+        className="gap-2"
+      >
+        <Plus className="h-4 w-4" aria-hidden />
+        {libelleCreation}
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <EnTetePage
-        titre={titre}
-        lede={description}
-        mailles={[
-          { libelle: "Administration", href: "/administration" },
-          { libelle: titre },
-        ]}
-        actions={
-          creationPossible && edition === null ? (
-            <Button
-              onClick={() => setEdition({ id: "", valeurs: valeursVides })}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              {libelleCreation}
-            </Button>
-          ) : null
-        }
-      />
+      {presentation === "page" ? (
+        <EnTetePage
+          titre={titre}
+          lede={description}
+          mailles={[
+            { libelle: "Administration", href: "/administration" },
+            { libelle: titre },
+          ]}
+          actions={actionCreation}
+        />
+      ) : (
+        <div className="flex flex-col gap-4 border-t border-border pt-7 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold tracking-tight text-secondary-950">{titre}</h2>
+            {description && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>}
+          </div>
+          <div className="shrink-0">{actionCreation}</div>
+        </div>
+      )}
 
       {edition !== null && (
         <Card className="border-primary-200 shadow-lg shadow-secondary-900/5">
@@ -268,24 +322,66 @@ export function EditeurReferentiel({
       )}
 
       <Card className="overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border/70 bg-secondary-50/60 px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 border-b border-border/70 bg-secondary-50/60 px-4 py-4 sm:px-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="font-semibold text-secondary-900">
               Liste des entrées
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {lignes.length} entrée{lignes.length > 1 ? "s" : ""} configurée
-              {lignes.length > 1 ? "s" : ""}
+              {lignesFiltrees.length === lignes.length
+                ? `${lignes.length} entrée${lignes.length > 1 ? "s" : ""} configurée${lignes.length > 1 ? "s" : ""}`
+                : `${lignesFiltrees.length} résultat${lignesFiltrees.length > 1 ? "s" : ""} sur ${lignes.length}`}
             </p>
           </div>
+          {lignes.length > 8 && (
+            <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+              <label className="relative min-w-0 flex-1 lg:w-64">
+                <span className="sr-only">Rechercher dans {titre.toLocaleLowerCase("fr")}</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  value={recherche}
+                  onChange={(event) => {
+                    setRecherche(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Rechercher…"
+                  className="bg-background pl-9"
+                />
+              </label>
+              {groupes.length > 1 && (
+                <select
+                  value={groupeActif}
+                  onChange={(event) => {
+                    setGroupeActif(event.target.value);
+                    setPage(1);
+                  }}
+                  aria-label={`Filtrer ${titre.toLocaleLowerCase("fr")}`}
+                  className="min-h-10 min-w-0 rounded-lg border border-input bg-background px-3 text-sm sm:max-w-64"
+                >
+                  <option value="">{libelleTousGroupes}</option>
+                  {groupes.map((groupe) => (
+                    <option key={groupe.valeur} value={groupe.valeur}>{groupe.libelle}</option>
+                  ))}
+                </select>
+              )}
+              {(recherche || groupeActif) && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setRecherche(""); setGroupeActif(""); setPage(1); }}>
+                  <X className="h-4 w-4" aria-hidden />
+                  Réinitialiser
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         <CardContent className="p-0">
-          {lignes.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">{messageVide}</p>
+          {lignesFiltrees.length === 0 ? (
+            <p className="p-8 text-center text-sm text-muted-foreground">
+              {lignes.length === 0 ? messageVide : "Aucune entrée ne correspond à votre recherche."}
+            </p>
           ) : (
             <>
               <ul className="divide-y divide-border md:hidden" aria-label="Liste des entrées">
-                {lignes.map((ligne, index) => {
+                {lignesAffichees.map((ligne, index) => {
                   const groupe = ligne.groupe ?? "";
                   const memeGroupe = lignes.filter((l) => (l.groupe ?? "") === groupe);
                   const rang = memeGroupe.indexOf(ligne);
@@ -383,7 +479,7 @@ export function EditeurReferentiel({
                   </tr>
                 </thead>
                 <tbody>
-                  {lignes.map((ligne, index) => {
+                  {lignesAffichees.map((ligne, index) => {
                     const groupe = ligne.groupe ?? "";
                     const memeGroupe = lignes.filter(
                       (l) => (l.groupe ?? "") === groupe,
@@ -506,6 +602,23 @@ export function EditeurReferentiel({
             </>
           )}
         </CardContent>
+        {nombrePages > 1 && (
+          <div className="flex items-center justify-between gap-3 border-t border-border bg-background px-4 py-3 sm:px-5">
+            <p className="text-xs text-muted-foreground">
+              Page {pageCourante} sur {nombrePages}
+            </p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" disabled={pageCourante === 1} onClick={() => setPage((numero) => Math.max(1, numero - 1))}>
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                <span className="hidden sm:inline">Précédente</span>
+              </Button>
+              <Button type="button" size="sm" variant="outline" disabled={pageCourante === nombrePages} onClick={() => setPage((numero) => Math.min(nombrePages, numero + 1))}>
+                <span className="hidden sm:inline">Suivante</span>
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <p className="text-caption text-muted-foreground">

@@ -60,6 +60,7 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier de concassage',
+      ville: 'Yopougon',
       directionId: '1',
       declarantEstVictime: true,
       // Ajouté au formulaire EI le 11/09 (EI9), et obligatoire comme sur le grief employé.
@@ -76,6 +77,7 @@ describe('Schéma dérivé de la configuration', () => {
       dateSurvenance: new Date().toISOString().slice(0, 10),
       dateHeureFaits: new Date().toISOString().slice(0, 16),
       lieu: 'Atelier de concassage',
+      ville: 'Yopougon',
       directionId: '1',
       declarantEstVictime: true,
       // Propre au parcours Grief, obligatoire et sans rapport avec l'identité : sans lui, le
@@ -132,6 +134,7 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier',
+      ville: 'Yopougon',
       caractereRepetitif: 'premiere_fois',
     }
 
@@ -160,8 +163,8 @@ describe('Schéma dérivé de la configuration', () => {
       ...socle,
       anonymat: false,
       dateHeureFaits: new Date().toISOString().slice(0, 16),
-      // Le lieu est devenu une liste ; le nom et prénom ne sont plus demandés (11/09).
-      lieuSite: 'Siège',
+      lieu: 'ABIDJAN',
+      ville: 'Yopougon',
       caractereRepetitif: 'premiere_fois',
       entreprise: 'Entreprise X',
       nomPrenom: 'Awa Koné',
@@ -220,6 +223,7 @@ describe('Schéma dérivé de la configuration', () => {
       directionId: '1',
       dateSurvenance: new Date().toISOString().slice(0, 10),
       lieu: 'Atelier',
+      ville: 'Yopougon',
       caractereRepetitif: 'premiere_fois',
     }
 
@@ -311,14 +315,20 @@ describe('Harmonisation des quatre formulaires', () => {
     }
   })
 
-  it('choisit le lieu dans le référentiel, jamais en saisie libre', () => {
+  it('choisit une région puis une commune rattachée dans chaque parcours', () => {
     for (const [code, config] of tous) {
-      const lieu = config.champs.find((c) => c.nom === 'lieu' || c.nom === 'lieuSite')
+      const lieu = config.champs.find((c) => c.nom === 'lieu')
+      const commune = config.champs.find((c) => c.nom === 'ville')
 
-      expect(lieu, `${code} n’a aucun champ de lieu`).toBeDefined()
+      expect(lieu, `${code} n’a aucune région`).toBeDefined()
+      expect(lieu?.libelle, code).toBe('Région')
       expect(lieu?.type, code).toBe('select')
       expect(lieu?.referentiel, code).toBe('lieux')
       expect(lieu?.obligatoire, code).toBe(true)
+      expect(commune?.libelle, code).toBe('Commune')
+      expect(commune?.referentiel, code).toBe('villes')
+      expect(commune?.dependDe, code).toBe('lieu')
+      expect(commune?.obligatoire, code).toBe(true)
     }
   })
 
@@ -404,18 +414,21 @@ describe('Harmonisation des quatre formulaires', () => {
     expect(champs.find((c) => c.nom === 'preferenceCanalRetour')?.libelle).toBe(
       'Canal de contact'
     )
-    expect(champs.find((c) => c.nom === 'lieu')?.libelle).toBe('Lieu des faits')
+    expect(champs.find((c) => c.nom === 'lieu')?.libelle).toBe('Région')
   })
 
-  it('place la localisation exacte juste après le lieu dans chaque parcours', () => {
+  it('place la localisation exacte juste après la commune dans chaque parcours', () => {
     for (const [code, config] of tous) {
-      const indexLieu = config.champs.findIndex((c) => c.nom === 'lieu' || c.nom === 'lieuSite')
-      const localisation = config.champs[indexLieu + 1]
+      const indexRegion = config.champs.findIndex((c) => c.nom === 'lieu')
+      const commune = config.champs[indexRegion + 1]
+      const localisation = config.champs[indexRegion + 2]
 
-      expect(indexLieu, `${code} : aucun lieu`).toBeGreaterThanOrEqual(0)
+      expect(indexRegion, `${code} : aucune région`).toBeGreaterThanOrEqual(0)
+      expect(commune?.nom, `${code} : commune mal placée`).toBe('ville')
       expect(localisation?.nom, `${code} : localisation mal placée`).toBe(
         'precisionLocalisation'
       )
+      expect(localisation?.obligatoire, `${code} : localisation rendue obligatoire`).toBeUndefined()
       expect(localisation?.etape, `${code} : localisation hors de l’étape des faits`).toBe(2)
     }
   })

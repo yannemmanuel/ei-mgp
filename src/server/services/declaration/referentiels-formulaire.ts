@@ -38,7 +38,7 @@ export type ReferentielsFormulaire = {
   directions: OptionFormulaire[]
   postes: OptionLieeFormulaire[]
   lieux: OptionFormulaire[]
-  villes: OptionFormulaire[]
+  villes: OptionLieeFormulaire[]
 }
 
 export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
@@ -61,9 +61,9 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
       select: { id: true, libelle: true },
     }),
     prisma.villes.findMany({
-      where: { actif: true },
+      where: { actif: true, region_id: { not: null }, lieux: { actif: true } },
       orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
-      select: { id: true, libelle: true },
+      select: { id: true, libelle: true, lieux: { select: { libelle: true } } },
     }),
   ])
 
@@ -105,6 +105,9 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
     directions: directions.map((d) => ({ valeur: String(d.id), libelle: d.libelle })),
     postes: postesParDirection,
     lieux: lieux.map(parLibelle),
-    villes: villes.map(parLibelle),
+    villes: villes.map((ville) => ({
+      ...parLibelle(ville),
+      parent: ville.lieux!.libelle,
+    })),
   }
 }

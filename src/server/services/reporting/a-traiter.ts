@@ -36,6 +36,18 @@ export type ADTraiter = {
   readonly miens: number
 }
 
+type DossierPrioritaire = {
+  id: string
+  reference: string
+  categories: { libelle: string }
+  statuts_dossier: { libelle_interne: string }
+}
+
+export type PrioritesTableauDeBord = {
+  compteurs: ADTraiter
+  dossiers: DossierPrioritaire[]
+}
+
 
 /**
  * ⚠️ Borné aux dossiers OUVERTS dont l'étape est suivie.
@@ -45,6 +57,23 @@ export type ADTraiter = {
  * toute façon aucune échéance courante — la borne ne cache donc rien qu'on voudrait voir.
  */
 export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
+  return (await chargerPriorites(u)).compteurs
+}
+
+/**
+ * Charge en un seul passage les compteurs et l'aperçu du tableau de bord.
+ *
+ * La page appelait auparavant `aTraiter()` puis `dossiersATraiter()` : deux requêtes lisaient la
+ * même clause « à moi d'agir ». La première doit connaître toutes les lignes pour croiser leurs
+ * échéances ; elle remonte donc aussi les quatre colonnes nécessaires à l'aperçu, puis en garde 5.
+ */
+export async function prioritesTableauDeBord(
+  u: UtilisateurAutorise
+): Promise<PrioritesTableauDeBord> {
+  return chargerPriorites(u)
+}
+
+async function chargerPriorites(u: UtilisateurAutorise): Promise<PrioritesTableauDeBord> {
   // Lue à la source, jamais recopiée : une liste écrite ici en doublon a déjà cessé d'être vraie
   // le jour où « reçu » est devenu une étape suivie, et le tableau de bord annonçait alors moins
   // de retards qu'il n'y en avait.
@@ -82,7 +111,13 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
           clauseAMoiDAgir(u),
         ],
       },
-      select: { id: true },
+      orderBy: { updated_at: 'desc' },
+      select: {
+        id: true,
+        reference: true,
+        categories: { select: { libelle: true } },
+        statuts_dossier: { select: { libelle_interne: true } },
+      },
     }),
 
     // « Reçu » sans destinataire actif : l'affectation automatique n'a trouvé aucun compte portant
@@ -118,7 +153,10 @@ export async function aTraiter(u: UtilisateurAutorise): Promise<ADTraiter> {
     if (aMoi) miensEnRetard += 1
   }
 
-  return { enRetard, nonAffectes, miensEnRetard, miens }
+  return {
+    compteurs: { enRetard, nonAffectes, miensEnRetard, miens },
+    dossiers: aMoiDAgir.slice(0, 5),
+  }
 }
 
 /**

@@ -6,6 +6,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Building2,
   MapPin,
   Mail,
@@ -90,6 +91,7 @@ export type RoleOption = {
 export type ParcoursOption = { code: string; libelle: string };
 
 const ETAT: EtatCompte = {};
+const COMPTES_PAR_PAGE = 20;
 const champ =
   "mt-1.5 min-h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/20 focus-visible:outline-none";
 
@@ -125,11 +127,18 @@ export function PanneauComptes({
   const libelleDuRole = new Map(roles.map((r) => [r.nom, r.libelle]));
   const [edition, setEdition] = useState<CompteVue | null>(null);
   const [creation, setCreation] = useState(false);
+  const [page, setPage] = useState(1);
   const actifs = comptes.filter((compte) => compte.actif).length;
   const desactives = comptes.length - actifs;
   const alertes = comptes.filter(
     (compte) => compte.siteManquant || compte.rattachementIncoherent,
   ).length;
+  const nombrePages = Math.max(1, Math.ceil(comptes.length / COMPTES_PAR_PAGE));
+  const pageCourante = Math.min(page, nombrePages);
+  const comptesAffiches = comptes.slice(
+    (pageCourante - 1) * COMPTES_PAR_PAGE,
+    pageCourante * COMPTES_PAR_PAGE,
+  );
 
   function chercher(valeur: string) {
     const suivants = new URLSearchParams(params.toString());
@@ -344,7 +353,7 @@ export function PanneauComptes({
                 className="divide-y divide-border md:hidden"
                 aria-label="Liste des comptes"
               >
-                {comptes.map((compte) => (
+                {comptesAffiches.map((compte) => (
                   <li
                     key={compte.id}
                     className="space-y-4 p-4 transition-colors hover:bg-secondary-50/50"
@@ -481,7 +490,7 @@ export function PanneauComptes({
                     </tr>
                   </thead>
                   <tbody>
-                    {comptes.map((compte) => (
+                    {comptesAffiches.map((compte) => (
                       <tr
                         key={compte.id}
                         className="border-b border-border/50 transition-colors hover:bg-primary-50/35"
@@ -624,6 +633,35 @@ export function PanneauComptes({
             </>
           )}
         </CardContent>
+        {nombrePages > 1 && (
+          <div className="flex items-center justify-between gap-3 border-t border-border bg-background px-4 py-3 sm:px-5">
+            <p className="text-xs text-muted-foreground">
+              Page {pageCourante} sur {nombrePages}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pageCourante === 1}
+                onClick={() => setPage((numero) => Math.max(1, numero - 1))}
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden />
+                <span className="hidden sm:inline">Précédente</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pageCourante === nombrePages}
+                onClick={() => setPage((numero) => Math.min(nombrePages, numero + 1))}
+              >
+                <span className="hidden sm:inline">Suivante</span>
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -744,7 +782,7 @@ function FormulaireCompte({
     <Card className="border-primary-200 shadow-lg shadow-secondary-900/5">
       <CardHeader className="border-b border-primary-100 bg-gradient-to-r from-primary-50 to-white py-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary-700 shadow-xs ring-1 ring-primary-100">
               {compte ? (
                 <Pencil className="h-5 w-5" aria-hidden />
@@ -752,8 +790,8 @@ function FormulaireCompte({
                 <Plus className="h-5 w-5" aria-hidden />
               )}
             </span>
-            <div>
-              <CardTitle className="text-h3">
+            <div className="min-w-0">
+              <CardTitle className="break-words text-h3">
                 {compte ? `Modifier ${compte.name}` : "Créer un utilisateur"}
               </CardTitle>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -817,7 +855,7 @@ function FormulaireCompte({
           <Alert className="mb-4">
             <AlertDescription>
               <p className="font-medium">Mot de passe initial : </p>
-              <p className="mt-1 font-mono text-base">
+              <p className="mt-1 break-all font-mono text-base">
                 {etat.motDePasseInitial}
               </p>
 
@@ -1183,7 +1221,7 @@ function RegenerationMotDePasse({ compte }: { compte: CompteVue }) {
         <Alert>
           <AlertDescription>
             <p className="font-medium">Nouveau mot de passe : </p>
-            <p className="mt-1 font-mono text-base">{etat.motDePasseInitial}</p>
+            <p className="mt-1 break-all font-mono text-base">{etat.motDePasseInitial}</p>
           </AlertDescription>
         </Alert>
       )}

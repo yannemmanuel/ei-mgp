@@ -460,6 +460,11 @@ function actionListePlate(liste: ListePlate, succes: string) {
       return { erreur: 'Le libellé est obligatoire.' }
     }
 
+    const regionId = identifiant(donnees, 'regionId')
+    if (liste === 'ville' && regionId === undefined) {
+      return { erreur: 'La région est obligatoire.' }
+    }
+
     try {
       await enregistrerListePlate(
         acteur,
@@ -467,6 +472,7 @@ function actionListePlate(liste: ListePlate, succes: string) {
         {
           libelle: texte(donnees, 'libelle'),
           actif: coche(donnees, 'actif'),
+          regionId,
         },
         identifiant(donnees)
       )
@@ -479,8 +485,8 @@ function actionListePlate(liste: ListePlate, succes: string) {
   }
 }
 
-export const actionEnregistrerLieu = actionListePlate('lieu', 'Lieu enregistré.')
-export const actionEnregistrerVille = actionListePlate('ville', 'Ville enregistrée.')
+export const actionEnregistrerLieu = actionListePlate('lieu', 'Région enregistrée.')
+export const actionEnregistrerVille = actionListePlate('ville', 'Commune enregistrée.')
 
 /* ==========================================================================
    Rang et suppression
@@ -631,4 +637,4 @@ export const actionDeplacerLieu = actionRangListePlate('lieu')
 export const actionDeplacerVille = actionRangListePlate('ville')
 
 export const actionSupprimerLieu = actionSuppressionListePlate('lieu', 'Lieu supprimé.')
-export const actionSupprimerVille = actionSuppressionListePlate('ville', 'Ville supprimée.')
+export const actionSupprimerVille = actionSuppressionListePlate('ville', 'Commune supprimée.')

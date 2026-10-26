@@ -666,7 +666,20 @@ export async function deplacerListePlate(
   ligneId: bigint,
   sens: SensDeplacement
 ): Promise<void> {
-  const lignes = await listerListePlate(liste)
+  const lignes =
+    liste === 'lieu'
+      ? await listerListePlate(liste)
+      : await (async () => {
+          const cible = await prisma.villes.findUniqueOrThrow({
+            where: { id: ligneId },
+            select: { region_id: true },
+          })
+
+          return prisma.villes.findMany({
+            where: { region_id: cible.region_id },
+            orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+          })
+        })()
 
   await deplacerDansGroupe(
     acteur,
@@ -798,6 +811,17 @@ export async function supprimerListePlate(
     )
   }
 
+  if (liste === 'lieu') {
+    const communes = await prisma.villes.count({ where: { region_id: ligneId } })
+
+    if (communes > 0) {
+      throw new ErreurWorkflow(
+        `Cette région contient ${communes} commune${communes > 1 ? 's' : ''}. ` +
+          'Supprimez ou rattachez d’abord ces communes ; vous pouvez aussi désactiver la région.'
+      )
+    }
+  }
+
   if (liste === 'lieu') await prisma.lieux.delete({ where: { id: ligneId } })
   else await prisma.villes.delete({ where: { id: ligneId } })
 
@@ -926,7 +950,7 @@ export async function enregistrerPoste(
   return posteId
 }
 
-export type DonneesListeSimple = { libelle: string; actif: boolean }
+export type DonneesListeSimple = { libelle: string; actif: boolean; regionId?: bigint }
 
 /** Les deux listes plates partagent la même forme : un libellé et un état. */
 export type ListePlate = 'lieu' | 'ville'
@@ -944,6 +968,14 @@ export async function listerListePlate(liste: ListePlate) {
   return prisma.villes.findMany(options)
 }
 
+export async function listerCommunes() {
+  return prisma.villes.findMany({
+    where: { region_id: { not: null } },
+    orderBy: [{ lieux: { ordre: 'asc' } }, { ordre: 'asc' }, { libelle: 'asc' }],
+    include: { lieux: { select: { id: true, libelle: true } } },
+  })
+}
+
 const MODELE_DE_LISTE: Record<ListePlate, ModeleAudite> = {
   lieu: MODELES.lieu,
   ville: MODELES.ville,
@@ -956,13 +988,34 @@ export async function enregistrerListePlate(
   ligneId?: bigint
 ): Promise<bigint> {
   const existantes = await listerListePlate(liste)
-  const doublon = existantes.find((l) => l.libelle === donnees.libelle && l.id !== ligneId)
+  const doublon = existantes.find(
+    (l) =>
+      l.libelle === donnees.libelle &&
+      l.id !== ligneId &&
+      (liste === 'lieu' || ('region_id' in l && l.region_id === donnees.regionId))
+  )
 
   if (doublon) {
     throw new ErreurWorkflow('Ce libellé existe déjà.')
   }
 
-  const valeurs = { libelle: donnees.libelle, actif: donnees.actif }
+  if (liste === 'lieu' && ligneId !== undefined && !donnees.actif) {
+    const communesActives = await prisma.villes.count({
+      where: { region_id: ligneId, actif: true },
+    })
+
+    if (communesActives > 0) {
+      throw new ErreurWorkflow(
+        `Impossible de désactiver cette région : ${communesActives} commune${communesActives > 1 ? 's actives y sont rattachées' : ' active y est rattachée'}. Désactivez-les ou rattachez-les d’abord.`
+      )
+    }
+  }
+
+  const valeurs = {
+    libelle: donnees.libelle,
+    actif: donnees.actif,
+    ...(liste === 'ville' ? { region_id: donnees.regionId! } : {}),
+  }
   const maintenant = new Date()
 
   if (ligneId === undefined) {
@@ -990,7 +1043,9 @@ export async function enregistrerListePlate(
   const data = { ...valeurs, updated_at: maintenant }
 
   if (liste === 'lieu') await prisma.lieux.update({ where: { id: ligneId }, data })
-  else await prisma.villes.update({ where: { id: ligneId }, data })
+  else {
+    await prisma.villes.update({ where: { id: ligneId }, data })
+  }
 
   await journaliserModification(
     `${liste}.modifie`,

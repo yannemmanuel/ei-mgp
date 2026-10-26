@@ -84,12 +84,12 @@ function Bulle({ message }: { message: MessageVue }) {
   return (
     <div className={`flex ${estAgent ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+        className={`min-w-0 max-w-[90%] rounded-lg px-3 py-2 text-sm sm:max-w-[80%] ${
           estAgent ? 'bg-secondary-900 text-white' : 'bg-muted text-secondary-800'
         }`}
       >
-        <p className="whitespace-pre-line">{message.corps}</p>
-        <p className={`mt-1 text-caption ${estAgent ? 'text-white/70' : 'text-muted-foreground'}`}>
+        <p className="whitespace-pre-line break-words">{message.corps}</p>
+        <p className={`mt-1 break-words text-caption ${estAgent ? 'text-white/70' : 'text-muted-foreground'}`}>
           {message.auteur} — {heureFr(message.envoyeLe)}
         </p>
       </div>

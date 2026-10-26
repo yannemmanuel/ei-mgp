@@ -30,7 +30,7 @@ import { Recepisse } from './recepisse'
 
 type Option = { valeur: string; libelle: string }
 
-/** Une option qui n'apparaît que sous un parent donné — un poste sous sa direction. */
+/** Une option qui n'apparaît que sous un parent donné — poste/direction ou commune/région. */
 type OptionLiee = Option & { parent: string }
 
 /**
@@ -43,7 +43,7 @@ export type Referentiels = {
   directions: Option[]
   postes: OptionLiee[]
   lieux: Option[]
-  villes: Option[]
+  villes: OptionLiee[]
 }
 
 type Props = {
@@ -854,7 +854,9 @@ function ChampSelect({
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <option value="">— Sélectionner —</option>
+        <option value="">
+          {desactive ? '— Choisissez d’abord le champ précédent —' : '— Sélectionner —'}
+        </option>
         {options.map((o) => (
           <option key={o.valeur} value={o.valeur}>
             {o.libelle}
@@ -880,9 +882,9 @@ function ChampSelect({
 function optionsDe(champ: Champ, referentiels: Referentiels, parent: string | null): Option[] {
   if (champ.referentiel === undefined) return [...(champ.options ?? [])]
 
-  if (champ.referentiel === 'postes') {
+  if (champ.referentiel === 'postes' || champ.referentiel === 'villes') {
     if (parent === null || parent === '') return []
-    return referentiels.postes.filter((poste) => poste.parent === parent)
+    return referentiels[champ.referentiel].filter((option) => option.parent === parent)
   }
 
   return referentiels[champ.referentiel]

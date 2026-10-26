@@ -179,10 +179,14 @@ const GROUPES: Groupe[] = [
         libelle: "Listes des formulaires",
         href: "/administration/listes-formulaires",
         permission: "referentiels.categories.manage",
-        description: "Lieux et villes proposés dans les formulaires.",
-        compter: async () =>
-          (await prisma.lieux.count({ where: { actif: true } })) +
-          (await prisma.villes.count({ where: { actif: true } })),
+        description: "Régions et communes proposées dans les formulaires.",
+        compter: async () => {
+          const [regions, communes] = await Promise.all([
+            prisma.lieux.count({ where: { actif: true } }),
+            prisma.villes.count({ where: { actif: true } }),
+          ]);
+          return regions + communes;
+        },
         unite: ["valeur active", "valeurs actives"],
       },
       {

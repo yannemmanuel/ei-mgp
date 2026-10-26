@@ -146,13 +146,16 @@ export type LigneRepartition = {
 }
 
 export async function repartitionParParcours(filtre: FiltreReporting): Promise<LigneRepartition[]> {
-  const groupes = await prisma.dossiers.groupBy({
-    by: ['parcours_id'],
-    where: clauseFiltre(filtre),
-    _count: { _all: true },
-  })
-
-  const libelles = await prisma.parcours.findMany({ select: { id: true, libelle: true } })
+  // Les libellés ne dépendent pas de l'agrégat : les lire en parallèle évite un aller-retour
+  // séquentiel sur chaque affichage du tableau de bord.
+  const [groupes, libelles] = await Promise.all([
+    prisma.dossiers.groupBy({
+      by: ['parcours_id'],
+      where: clauseFiltre(filtre),
+      _count: { _all: true },
+    }),
+    prisma.parcours.findMany({ select: { id: true, libelle: true } }),
+  ])
   const parId = new Map(libelles.map((p) => [p.id, p.libelle]))
 
   return groupes
@@ -189,17 +192,18 @@ export async function repartitionParFamilleRisque(
 
   if (typesQualifiants.length === 0) return []
 
-  const groupes = await prisma.dossiers.groupBy({
-    by: ['famille_risque_id'],
-    where: {
-      AND: [clauseFiltre(filtre), { parcours_id: { in: typesQualifiants.map((p) => p.id) } }],
-    },
-    _count: { _all: true },
-  })
-
-  const libelles = await prisma.familles_risque.findMany({
-    select: { id: true, libelle: true, ordre: true },
-  })
+  const [groupes, libelles] = await Promise.all([
+    prisma.dossiers.groupBy({
+      by: ['famille_risque_id'],
+      where: {
+        AND: [clauseFiltre(filtre), { parcours_id: { in: typesQualifiants.map((p) => p.id) } }],
+      },
+      _count: { _all: true },
+    }),
+    prisma.familles_risque.findMany({
+      select: { id: true, libelle: true, ordre: true },
+    }),
+  ])
   const parId = new Map(libelles.map((f) => [f.id, f]))
 
   return groupes
@@ -217,15 +221,16 @@ export async function repartitionParFamilleRisque(
 }
 
 export async function repartitionParStatut(filtre: FiltreReporting): Promise<LigneRepartition[]> {
-  const groupes = await prisma.dossiers.groupBy({
-    by: ['statut_id'],
-    where: clauseFiltre(filtre),
-    _count: { _all: true },
-  })
-
-  const statuts = await prisma.statuts_dossier.findMany({
-    select: { id: true, libelle_interne: true, ordre: true },
-  })
+  const [groupes, statuts] = await Promise.all([
+    prisma.dossiers.groupBy({
+      by: ['statut_id'],
+      where: clauseFiltre(filtre),
+      _count: { _all: true },
+    }),
+    prisma.statuts_dossier.findMany({
+      select: { id: true, libelle_interne: true, ordre: true },
+    }),
+  ])
   const parId = new Map(statuts.map((s) => [s.id, s]))
 
   return groupes
@@ -239,15 +244,16 @@ export async function repartitionParStatut(filtre: FiltreReporting): Promise<Lig
 }
 
 export async function repartitionParGravite(filtre: FiltreReporting): Promise<LigneRepartition[]> {
-  const groupes = await prisma.dossiers.groupBy({
-    by: ['niveau_gravite_id'],
-    where: clauseFiltre(filtre),
-    _count: { _all: true },
-  })
-
-  const gravites = await prisma.niveaux_gravite.findMany({
-    select: { id: true, libelle: true, couleur: true, niveau: true },
-  })
+  const [groupes, gravites] = await Promise.all([
+    prisma.dossiers.groupBy({
+      by: ['niveau_gravite_id'],
+      where: clauseFiltre(filtre),
+      _count: { _all: true },
+    }),
+    prisma.niveaux_gravite.findMany({
+      select: { id: true, libelle: true, couleur: true, niveau: true },
+    }),
+  ])
   const parId = new Map(gravites.map((g) => [g.id, g]))
 
   // Un dossier peut n'avoir aucune gravité tant qu'elle n'est pas qualifiée au traitement (EI8) :
@@ -279,11 +285,22 @@ export type Indicateurs = {
 }
 
 export async function calculerIndicateurs(filtre: FiltreReporting): Promise<Indicateurs> {
-  const [total, resolution, cloture, delai, parParcours, parStatut, parGravite, parFamilleRisque] =
+  const where = clauseFiltre(filtre)
+
+  /*
+    Le total était compté trois fois : directement, puis une fois dans chacun des deux taux.
+    Les trois populations sont maintenant comptées une seule fois et en parallèle. Cela retire
+    deux requêtes sur `dossiers` de chaque ouverture ou changement de filtre du tableau de bord.
+  */
+  const [total, resolus, clotures, delai, parParcours, parStatut, parGravite, parFamilleRisque] =
     await Promise.all([
-      nbDeclarations(filtre),
-      tauxResolution(filtre),
-      tauxCloture(filtre),
+      prisma.dossiers.count({ where }),
+      prisma.dossiers.count({
+        where: { ...where, statuts_dossier: { code: { in: [...CODES_RESOLUS] } } },
+      }),
+      prisma.dossiers.count({
+        where: { ...where, statuts_dossier: { is_terminal: true } },
+      }),
       delaiMoyenJours(filtre),
       repartitionParParcours(filtre),
       repartitionParStatut(filtre),
@@ -293,8 +310,8 @@ export async function calculerIndicateurs(filtre: FiltreReporting): Promise<Indi
 
   return {
     total,
-    tauxResolution: resolution,
-    tauxCloture: cloture,
+    tauxResolution: total === 0 ? null : arrondir((resolus / total) * 100),
+    tauxCloture: total === 0 ? null : arrondir((clotures / total) * 100),
     delaiMoyen: delai,
     parParcours,
     parStatut,

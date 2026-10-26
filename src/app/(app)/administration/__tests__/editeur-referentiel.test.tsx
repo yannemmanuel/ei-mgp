@@ -169,3 +169,48 @@ describe("⚠️ Changer de ligne en cours d’édition", () => {
     ).toBe("Saisie en cours");
   });
 });
+
+describe("Affichage des référentiels volumineux", () => {
+  const communes: LigneReferentiel[] = Array.from({ length: 10 }, (_, index) => {
+    const numero = index + 1;
+    const region = numero <= 5 ? "Région A" : "Région B";
+    return {
+      id: String(numero),
+      groupe: region,
+      cellules: [region, `Commune ${numero}`],
+      valeurs: { regionId: region, libelle: `Commune ${numero}`, actif: true },
+    };
+  });
+
+  function afficherCommunes() {
+    render(
+      <EditeurReferentiel
+        titre="Communes"
+        colonnes={["Région", "Commune"]}
+        lignes={communes}
+        champs={[]}
+        action={inerte}
+        creationPossible={false}
+        taillePage={4}
+        libelleTousGroupes="Toutes les régions"
+      />,
+    );
+    return userEvent.setup();
+  }
+
+  it("recherche, filtre par région et limite le nombre de lignes affichées", async () => {
+    const clavier = afficherCommunes();
+
+    expect(screen.getByText("Page 1 sur 3")).toBeDefined();
+    expect(screen.queryAllByText("Commune 5")).toHaveLength(0);
+
+    await clavier.selectOptions(screen.getByLabelText("Filtrer communes"), "Région B");
+    expect(screen.getByText("5 résultats sur 10")).toBeDefined();
+    expect(screen.getByText("Page 1 sur 2")).toBeDefined();
+
+    await clavier.type(screen.getByLabelText("Rechercher dans communes"), "Commune 10");
+    expect(screen.getByText("1 résultat sur 10")).toBeDefined();
+    expect(screen.queryAllByText("Commune 10")).toHaveLength(2);
+    expect(screen.queryAllByText("Commune 6")).toHaveLength(0);
+  });
+});

@@ -18,7 +18,8 @@ const valides: Record<ParcoursCode, Record<string, unknown>> = {
     declarantEstVictime: true,
     directionId: '1',
     dateSurvenance: HIER,
-    lieu: 'Atelier central',
+    lieu: 'ABIDJAN',
+    ville: 'Abidjan',
   },
   grief_employe: {
     ...commun,
@@ -26,7 +27,8 @@ const valides: Record<ParcoursCode, Record<string, unknown>> = {
     declarantEstVictime: true,
     directionId: '1',
     dateHeureFaits: HIER,
-    lieu: 'Atelier central',
+    lieu: 'ABIDJAN',
+    ville: 'Abidjan',
   },
   grief_sous_traitant: {
     ...commun,
@@ -34,7 +36,8 @@ const valides: Record<ParcoursCode, Record<string, unknown>> = {
     entreprise: 'Entreprise partenaire',
     nomPrenom: 'Awa Koffi',
     dateHeureFaits: HIER,
-    lieuSite: 'Atelier central',
+    lieu: 'ABIDJAN',
+    ville: 'Abidjan',
   },
   grief_communaute: {
     ...commun,
@@ -42,7 +45,7 @@ const valides: Record<ParcoursCode, Record<string, unknown>> = {
     ville: 'Abidjan',
     statutPlaignant: 'riverain',
     dateSurvenance: HIER,
-    lieu: 'Quartier Nord',
+    lieu: 'ABIDJAN',
   },
 }
 

@@ -41,8 +41,14 @@ const REFERENTIELS = {
       { valeur: 'Agent de maintenance', libelle: 'Agent de maintenance', parent: '1' },
       { valeur: 'Comptable', libelle: 'Comptable', parent: '2' },
     ],
-    lieux: [{ valeur: 'Station de Yopougon', libelle: 'Station de Yopougon' }],
-    villes: [{ valeur: 'Abidjan', libelle: 'Abidjan' }],
+    lieux: [
+      { valeur: 'ABIDJAN', libelle: 'ABIDJAN' },
+      { valeur: 'Agnéby-Tiassa', libelle: 'Agnéby-Tiassa' },
+    ],
+    villes: [
+      { valeur: 'Yopougon', libelle: 'Yopougon', parent: 'ABIDJAN' },
+      { valeur: 'Agboville', libelle: 'Agboville', parent: 'Agnéby-Tiassa' },
+    ],
   },
 }
 
@@ -72,6 +78,11 @@ const visible = (element: HTMLElement | null) =>
 const boutonEnvoyer = () =>
   screen.getByRole('button', { name: /Envoyer ma déclaration/i }) as HTMLButtonElement
 
+async function choisirLocalisation(utilisateur: ReturnType<typeof userEvent.setup>) {
+  await utilisateur.selectOptions(screen.getByLabelText(/^Région/i), 'ABIDJAN')
+  await utilisateur.selectOptions(screen.getByLabelText(/^Commune/i), 'Yopougon')
+}
+
 /**
  * Envoie comme le ferait quelqu'un qui a lu l'étape : le bouton s'arme peu après son apparition,
  * et refuse tout jusque-là. Attendre l'armement fait partie du parcours normal, pas du décor de
@@ -93,7 +104,7 @@ async function remplirJusquAEtape3(utilisateur: ReturnType<typeof userEvent.setu
 
   await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
   await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
-  await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+  await choisirLocalisation(utilisateur)
   await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
   await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -119,7 +130,7 @@ describe('Progression entre les étapes', () => {
     await waitFor(() => expect(screen.getByText(/Étape 2 sur 4/i)).toBeDefined())
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
-    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await choisirLocalisation(utilisateur)
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -146,7 +157,7 @@ describe('Progression entre les étapes', () => {
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
 
-    // « Lieu » est obligatoire et vide : l'étape 2 ne doit pas se quitter.
+    // Région et commune sont obligatoires et vides : l'étape 2 ne doit pas se quitter.
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
     expect(visible(screen.getByLabelText(/Date et heure des faits/i)), 'l’étape 2 a été quittée').toBe(true)
@@ -163,7 +174,7 @@ describe('Progression entre les étapes', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
-    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await choisirLocalisation(utilisateur)
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -180,7 +191,8 @@ describe('Progression entre les étapes', () => {
     // Le défaut d'origine : seules les pièces jointes arrivaient, tout le reste ayant été démonté
     // en chemin.
     const envoi = soumissions[0]
-    expect(envoi.get('lieu')).toBe('Station de Yopougon')
+    expect(envoi.get('lieu')).toBe('ABIDJAN')
+    expect(envoi.get('ville')).toBe('Yopougon')
     expect(envoi.get('categorieId')).toBe('1')
     expect(envoi.get('description')).toBe('Extincteur vide.')
     expect(envoi.get('anonymat')).not.toBeNull()
@@ -199,7 +211,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
-    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await choisirLocalisation(utilisateur)
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -223,7 +235,7 @@ describe('Champs obligatoires ajoutés le 08/09/2026', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), '2026-09-01T10:00')
-    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await choisirLocalisation(utilisateur)
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -469,6 +481,34 @@ describe('Poste dépendant de la direction', () => {
   })
 })
 
+describe('Commune dépendante de la région', () => {
+  const commune = () => screen.getByLabelText(/^Commune/i) as HTMLSelectElement
+  const options = () =>
+    Array.from(commune().options).map((option) => option.value).filter(Boolean)
+
+  it('reste vide tant qu’aucune région n’est choisie', async () => {
+    const { utilisateur } = afficher()
+    await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
+
+    expect(commune().disabled).toBe(true)
+    expect(options()).toEqual([])
+  })
+
+  it('filtre les communes et oublie celle de la région précédente', async () => {
+    const { utilisateur } = afficher()
+    await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
+    const region = screen.getByLabelText(/^Région/i)
+
+    await utilisateur.selectOptions(region, 'ABIDJAN')
+    expect(options()).toEqual(['Yopougon'])
+    await utilisateur.selectOptions(commune(), 'Yopougon')
+
+    await utilisateur.selectOptions(region, 'Agnéby-Tiassa')
+    expect(commune().value).toBe('')
+    expect(options()).toEqual(['Agboville'])
+  })
+})
+
 /**
  * Repartir sur une nouvelle déclaration depuis le récépissé.
  *
@@ -484,7 +524,13 @@ describe('Faire une autre déclaration', () => {
     // Le récépissé porte bien ce qu'il ne réaffichera jamais.
     expect(screen.getByText('EI-2026-000042')).toBeDefined()
     expect(screen.getByText('ABCD-1234')).toBeDefined()
-    expect(screen.getByRole('alert').textContent).toContain('À conserver impérativement')
+    const identifiants = screen.getByRole('region', { name: 'À conserver impérativement' })
+    expect(identifiants.textContent).toContain('EI-2026-000042')
+    expect(identifiants.textContent).toContain('ABCD-1234')
+    expect(identifiants.className).toContain('bg-red-700')
+    expect(screen.getByRole('link', { name: 'Suivre mon dossier' }).getAttribute('href')).toBe(
+      '/suivi'
+    )
 
     const declencheur = screen.getByText('Faire une autre déclaration')
     const repli = declencheur.closest('details') as HTMLDetailsElement
@@ -666,7 +712,7 @@ describe('Date des faits', () => {
 
     await waitFor(() => expect(visible(screen.getByLabelText(/Date et heure des faits/i))).toBe(true))
     await utilisateur.type(screen.getByLabelText(/Date et heure des faits/i), valeur)
-    await utilisateur.selectOptions(screen.getByLabelText(/^Lieu/i), 'Station de Yopougon')
+    await choisirLocalisation(utilisateur)
     await utilisateur.selectOptions(screen.getByLabelText(/Caractère répétitif/i), 'premiere_fois')
     await utilisateur.click(screen.getByRole('button', { name: 'Continuer' }))
 

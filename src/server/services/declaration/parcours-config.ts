@@ -49,9 +49,8 @@ export type Champ = {
   /**
    * Ce champ ne se remplit qu'une fois `dependDe` renseigné, et ses options en dépendent.
    *
-   * Le seul cas aujourd'hui est Poste → Direction : les postes proposés sont ceux rattachés à la
-   * direction choisie. Tant qu'aucune direction n'est retenue, la liste reste vide et désactivée
-   * plutôt que de proposer les postes de toute l'entreprise.
+   * Utilisé pour Poste → Direction et Commune → Région. Tant que le parent n'est pas retenu, la
+   * liste reste vide et désactivée plutôt que de proposer des valeurs incohérentes.
    */
   readonly dependDe?: string
   /** Colonne cible dans `declaration_identites` ou `dossiers`. */
@@ -268,6 +267,26 @@ const LOCALISATION_EXACTE = {
   aide: 'Facultatif — quartier, bâtiment, chantier ou point de repère.',
 } as const satisfies Champ
 
+const REGION = {
+  nom: 'lieu',
+  libelle: 'Région',
+  type: 'select',
+  etape: 2,
+  obligatoire: true,
+  referentiel: 'lieux',
+} as const satisfies Champ
+
+const COMMUNE = {
+  nom: 'ville',
+  libelle: 'Commune',
+  type: 'select',
+  etape: 2,
+  obligatoire: true,
+  referentiel: 'villes',
+  dependDe: 'lieu',
+  aide: 'Les communes proposées dépendent de la région sélectionnée.',
+} as const satisfies Champ
+
 /**
  * Paliers d'ancienneté, figés ici plutôt qu'administrables (décision du 2026-09-22).
  *
@@ -325,7 +344,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
       // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
       { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      REGION,
+      COMMUNE,
       LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
@@ -396,7 +416,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       },
       TELEPHONE,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      REGION,
+      COMMUNE,
       LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
@@ -458,7 +479,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       TELEPHONE,
       EMAIL,
       { nom: 'dateHeureFaits', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieuSite', libelle: 'Lieu / site', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      REGION,
+      COMMUNE,
       LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
@@ -495,22 +517,6 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       { nom: 'nomPrenom', libelle: 'Nom et prénom', type: 'texte', etape: 1, obligatoire: 'siIdentifie', max: 255, identite: true, colonne: 'nomPrenom' },
       EMAIL,
       {
-        /*
-          « Ville », obligatoire, en remplacement de la localité libre et facultative.
-
-          Comme l'entreprise du sous-traitant : elle n'est pas marquée `identite`, sinon elle
-          disparaîtrait en anonyme alors qu'elle est exigée, et elle est stockée sur
-          `dossiers.ville`. Une plainte de riverain sans localisation ne peut être rattachée à
-          aucun site.
-        */
-        nom: 'ville',
-        libelle: 'Ville',
-        type: 'select',
-        etape: 1,
-        obligatoire: true,
-        referentiel: 'villes',
-      },
-      {
         // Qualifie la plainte, pas la personne : stocké sur `dossiers`. Marqué `identite`, il
         // était exigé à l'écran puis jeté en silence sur toute déclaration anonyme.
         nom: 'statutPlaignant',
@@ -534,7 +540,8 @@ export const PARCOURS: Record<ParcoursCode, ParcoursConfig> = {
       // Date ET heure, comme le grief employé (retour métier du 2026-10-07) : même champ, même
       // règle — jamais postérieure à aujourd'hui (RGI-01). Le nom reste `dateSurvenance`.
       { nom: 'dateSurvenance', libelle: 'Date et heure des faits', type: 'datetime', etape: 2, obligatoire: true },
-      { nom: 'lieu', libelle: 'Lieu des faits', type: 'select', etape: 2, obligatoire: true, referentiel: 'lieux' },
+      REGION,
+      COMMUNE,
       LOCALISATION_EXACTE,
       {
         nom: 'caractereRepetitif',
