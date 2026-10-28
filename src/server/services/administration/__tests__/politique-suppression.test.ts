@@ -19,6 +19,7 @@ vi.mock("@/server/services/rgpd/effacement", () => ({
 const {
   enregistrerPolitiqueSuppression,
   lirePolitiqueSuppression,
+  reintegrerDeclaration,
   retirerDeclaration,
 } = await import("../politique-suppression");
 
@@ -26,6 +27,8 @@ describe("Politique de suppression des déclarations", () => {
   const queryRaw = vi.spyOn(prisma, "$queryRaw");
   const transaction = vi.spyOn(prisma, "$transaction");
   const dossier = vi.spyOn(prisma.dossiers, "findUnique");
+  const mettreAJourDossier = vi.spyOn(prisma.dossiers, "update");
+  const trouverRetrait = vi.spyOn(prisma.audit_logs, "findFirst");
   const executeRaw = vi.fn();
 
   beforeEach(() => {
@@ -37,6 +40,7 @@ describe("Politique de suppression des déclarations", () => {
         : Promise.all(operation),
     );
     doubles.journaliser.mockResolvedValue(undefined);
+    mettreAJourDossier.mockResolvedValue({} as never);
   });
 
   it("reste fermée et ne fait pas tomber la page lorsque la migration manque", async () => {
@@ -111,5 +115,68 @@ describe("Politique de suppression des déclarations", () => {
       "désactivée",
     );
     expect(doubles.effacer).not.toHaveBeenCalled();
+  });
+
+  it("réintègre un retrait manuel à son statut précédent sans effacer la marque d’anonymisation", async () => {
+    const retireLe = new Date("2026-10-20T10:00:00Z");
+    const anonymiseLe = new Date("2026-10-20T10:00:01Z");
+    dossier.mockResolvedValueOnce({
+      id: "dossier-1",
+      reference: "DEC-001",
+      archive_le: retireLe,
+      anonymise_le: anonymiseLe,
+      statut_id: 4n,
+    } as never);
+    trouverRetrait.mockResolvedValueOnce({ id: 15n } as never);
+
+    await reintegrerDeclaration({ id: 12n }, "dossier-1");
+
+    expect(mettreAJourDossier).toHaveBeenCalledWith({
+      where: { id: "dossier-1" },
+      data: { archive_le: null, updated_at: expect.any(Date) },
+    });
+    expect(doubles.journaliser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "dossier.reintegre",
+        acteurId: 12n,
+        auditableId: "dossier-1",
+        nouvelles: expect.objectContaining({
+          archive_le: null,
+          statut_id: 4n,
+          anonymise_le: anonymiseLe,
+        }),
+      }),
+    );
+  });
+
+  it("refuse de réintégrer une déclaration qui est déjà dans le workflow", async () => {
+    dossier.mockResolvedValueOnce({
+      id: "dossier-1",
+      reference: "DEC-001",
+      archive_le: null,
+      anonymise_le: new Date("2026-10-20T10:00:01Z"),
+      statut_id: 4n,
+    } as never);
+
+    await expect(
+      reintegrerDeclaration({ id: 12n }, "dossier-1"),
+    ).rejects.toThrow("déjà dans le workflow");
+    expect(mettreAJourDossier).not.toHaveBeenCalled();
+  });
+
+  it("ne réintègre pas une archive automatique sans trace de retrait manuel", async () => {
+    dossier.mockResolvedValueOnce({
+      id: "dossier-archive",
+      reference: "DEC-ARCHIVE",
+      archive_le: new Date("2026-10-20T10:00:00Z"),
+      anonymise_le: null,
+      statut_id: 8n,
+    } as never);
+    trouverRetrait.mockResolvedValueOnce(null);
+
+    await expect(
+      reintegrerDeclaration({ id: 12n }, "dossier-archive"),
+    ).rejects.toThrow("archivée par la politique de conservation");
+    expect(mettreAJourDossier).not.toHaveBeenCalled();
   });
 });

@@ -93,6 +93,10 @@ export function FormulaireConservation({
             <li>• Les textes libres et identités sont effacés.</li>
             <li>• Le dossier est retiré des vues de travail.</li>
             <li>• La référence et la trace d’audit subsistent.</li>
+            <li>
+              • Une réintégration reste possible, sans restaurer les données
+              effacées.
+            </li>
           </ul>
         </CardContent>
       </Card>

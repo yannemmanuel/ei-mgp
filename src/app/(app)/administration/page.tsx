@@ -22,6 +22,7 @@ import { EnTetePage } from "@/components/layout/en-tete-page";
 import { prisma } from "@/lib/prisma";
 import { exigerUnePermissionParmi } from "@/server/auth";
 import { aPermission, type Permission } from "@/server/authz";
+import { compterDeclarationsRetirees } from "@/server/services/administration/politique-suppression";
 
 export const metadata: Metadata = { title: "Administration" };
 export const dynamic = "force-dynamic";
@@ -92,8 +93,7 @@ const GROUPES: Groupe[] = [
         href: "/administration/conservation",
         permission: "users.manage",
         description: "Règles de retrait et d’effacement des déclarations.",
-        compter: () =>
-          prisma.dossiers.count({ where: { archive_le: { not: null } } }),
+        compter: compterDeclarationsRetirees,
         unite: ["déclaration retirée", "déclarations retirées"],
       },
     ],

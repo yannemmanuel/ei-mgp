@@ -84,6 +84,7 @@ const VERBES: Record<string, string> = {
   permissions_modifiees: '— droits modifiés',
   premiere_connexion: '— compte pris en main',
   rattachee: 'rattachée',
+  reintegre: 'réintégré',
   retire: 'retiré',
   roles_modifies: '— rôles modifiés',
   statut_change: '— statut changé',
