@@ -44,6 +44,8 @@ export type FiltresActions = {
   statut?: string;
   responsable?: string;
   parcoursId?: string;
+  siteId?: string;
+  directionId?: string;
   echeanceDebut?: string;
   echeanceFin?: string;
 };
@@ -52,6 +54,7 @@ function clauseFiltres(
   filtres: FiltresActions,
 ): Prisma.actions_correctivesWhereInput {
   const where: Prisma.actions_correctivesWhereInput = {};
+  const dossier: Prisma.dossiersWhereInput = {};
 
   if (
     filtres.statut &&
@@ -65,8 +68,18 @@ function clauseFiltres(
   }
 
   if (filtres.parcoursId) {
-    where.dossiers = { parcours_id: BigInt(filtres.parcoursId) };
+    dossier.parcours_id = BigInt(filtres.parcoursId);
   }
+
+  if (filtres.siteId && /^\d+$/.test(filtres.siteId)) {
+    dossier.site_id = BigInt(filtres.siteId);
+  }
+
+  if (filtres.directionId && /^\d+$/.test(filtres.directionId)) {
+    dossier.direction_id = BigInt(filtres.directionId);
+  }
+
+  if (Object.keys(dossier).length > 0) where.dossiers = dossier;
 
   if (filtres.echeanceDebut || filtres.echeanceFin) {
     where.echeance = {
@@ -110,14 +123,31 @@ export async function listerActions(
         statut: true,
         date_cloture: true,
         responsable_nom: true,
+        description: true,
+        verification_efficacite: true,
         // Conservée pour les actions créées avant la saisie manuelle, qui désignaient un compte.
         users: { select: { name: true } },
         dossiers: {
           select: {
             id: true,
             reference: true,
+            description: true,
+            is_anonymous: true,
+            // Une identité que le rôle n'a pas le droit de voir n'est pas seulement masquée :
+            // elle n'est pas lue depuis la base.
+            ...(u.voitIdentiteDeclarant
+              ? {
+                  declaration_identites: {
+                    select: { nom_prenom: true, matricule: true },
+                  },
+                  users: { select: { name: true } },
+                }
+              : {}),
             parcours: { select: { libelle: true } },
             categories: { select: { libelle: true } },
+            familles_risque: { select: { libelle: true } },
+            sites: { select: { libelle: true } },
+            directions: { select: { libelle: true } },
           },
         },
       },
@@ -125,7 +155,27 @@ export async function listerActions(
   ]);
 
   return {
-    actions,
+    actions: actions.map((action) => ({
+      ...action,
+      declarant: action.dossiers.is_anonymous
+        ? 'Anonyme'
+        : !u.voitIdentiteDeclarant
+          ? 'Identité protégée'
+          : 'declaration_identites' in action.dossiers
+            ? action.dossiers.declaration_identites?.nom_prenom ??
+              action.dossiers.declaration_identites?.matricule ??
+              action.dossiers.users?.name ??
+              'Non renseigné'
+            : 'Identité protégée',
+      // Le modèle actuel suit trois jalons, sans pourcentage libre : on rend cette progression
+      // explicitement plutôt que d'inventer une précision que la base ne porte pas.
+      avancement:
+        action.statut === 'realisee'
+          ? 100
+          : action.statut === 'en_cours' || action.statut === 'en_retard'
+            ? 50
+            : 0,
+    })),
     total,
     page,
     parPage: PAR_PAGE,
@@ -139,7 +189,7 @@ export async function referentielsActions(u: UtilisateurAutorise) {
     Même règle qu'avant le changement : ne proposer que des valeurs qui ramènent des lignes. Lire
     `users` continuerait d'offrir des comptes dont plus aucune action ne porte le nom.
   */
-  const [parcours, responsables] = await Promise.all([
+  const [parcours, responsables, sites, directions] = await Promise.all([
     prisma.parcours.findMany({
       where: { actif: true, dossiers: { some: perimetreDossiers(u) } },
       orderBy: { ordre: "asc" },
@@ -154,6 +204,16 @@ export async function referentielsActions(u: UtilisateurAutorise) {
       orderBy: { responsable_nom: "asc" },
       select: { responsable_nom: true },
     }),
+    prisma.sites.findMany({
+      where: { actif: true, dossiers: { some: perimetreDossiers(u) } },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true },
+    }),
+    prisma.directions.findMany({
+      where: { actif: true, dossiers: { some: perimetreDossiers(u) } },
+      orderBy: { libelle: 'asc' },
+      select: { id: true, libelle: true, sites: { select: { libelle: true } } },
+    }),
   ]);
 
   return {
@@ -161,6 +221,8 @@ export async function referentielsActions(u: UtilisateurAutorise) {
     responsables: responsables
       .map((a) => a.responsable_nom)
       .filter((nom): nom is string => nom !== null),
+    sites,
+    directions,
   };
 }
 

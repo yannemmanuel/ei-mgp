@@ -63,7 +63,7 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'dossiers.assign': {
     libelle: 'Affecter un dossier',
     explication:
-      'Désigner qui traite un dossier. La première affectation est automatique ; les suivantes passent par « Réaffecter un dossier ».',
+      'Ancien droit d’affectation individuelle. Le traitement dépend désormais des habilitations par CSST ou direction.',
     sensibilite: 'ordinaire',
     // Accorder ou retirer ce droit ne change RIEN. Le dire est le minimum : un administrateur qui
     // le révoque en croyant fermer une porte doit savoir qu'elle n'existe pas.
@@ -71,8 +71,9 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   },
   'dossiers.reassign': {
     libelle: 'Réaffecter un dossier',
-    explication: 'Confier un dossier à quelqu’un d’autre, avec motif obligatoire.',
+    explication: 'Ancien droit de réaffectation individuelle. Aucun écran ni action serveur ne l’utilise ; le traitement dépend des habilitations.',
     sensibilite: 'ordinaire',
+    sansEffet: true,
   },
   'dossiers.status.update': {
     libelle: 'Faire avancer un dossier',
@@ -141,6 +142,12 @@ export const LIBELLES: Record<Permission, LibellePermission> = {
   'actions.close': {
     libelle: 'Clôturer une action',
     explication: 'Terminer une action dont l’efficacité a été vérifiée positivement.',
+    sensibilite: 'ordinaire',
+  },
+
+  'plan_actions.view': {
+    libelle: 'Consulter le plan d’actions',
+    explication: 'Ouvrir la vue d’ensemble du plan d’actions, dans le périmètre des dossiers autorisés.',
     sensibilite: 'ordinaire',
   },
 
@@ -293,7 +300,7 @@ export const DOMAINES: readonly Domaine[] = [
   {
     cle: 'investigations',
     titre: 'Investigations',
-    description: 'Enquêter sur un dossier et faire valider les conclusions.',
+    description: 'Enquêter sur un dossier et renseigner les conclusions.',
     permissions: [
       'investigations.view',
       'investigations.create',
@@ -323,7 +330,7 @@ export const DOMAINES: readonly Domaine[] = [
     cle: 'pilotage',
     titre: 'Pilotage et rapports',
     description: 'Suivre l’activité et extraire des données.',
-    permissions: ['reporting.view', 'reporting.export', 'reporting.export.nominatif'],
+    permissions: ['plan_actions.view', 'reporting.view', 'reporting.export', 'reporting.export.nominatif'],
   },
   {
     cle: 'conformite',

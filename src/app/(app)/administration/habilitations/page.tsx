@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { EnTetePage } from '@/components/layout/en-tete-page'
 import { exigerPermission } from '@/server/auth'
-import { DOMAINES, LIBELLES } from '@/server/authz'
+import { DOMAINES, LIBELLES, PERMISSIONS_ACTIVES } from '@/server/authz'
 import {
   chargerHabilitations,
   COMPORTEMENTS_NOMS,
@@ -35,7 +35,7 @@ export default async function PageHabilitations() {
     cle: domaine.cle,
     titre: domaine.titre,
     description: domaine.description,
-    permissions: domaine.permissions.map((nom) => ({ nom, ...LIBELLES[nom] })),
+    permissions: domaine.permissions.filter((nom) => PERMISSIONS_ACTIVES.includes(nom)).map((nom) => ({ nom, ...LIBELLES[nom] })),
   }))
 
   return (

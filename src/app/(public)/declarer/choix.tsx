@@ -19,6 +19,7 @@ type Option = {
   readonly titre: string;
   readonly description: string;
   readonly icone: LucideIcon;
+  readonly sigle: "EI" | "MGP";
 };
 
 const PLAINTES: Option[] = [
@@ -27,12 +28,14 @@ const PLAINTES: Option[] = [
     titre: "Employé SODECI",
     description: "Une situation professionnelle que vous jugez préjudiciable.",
     icone: BriefcaseBusiness,
+    sigle: "MGP",
   },
   {
     code: "grief_sous_traitant",
     titre: "Sous-Traitant SODECI",
-    description: "Conditions de travail, paiement, sécurité sur un chantier.",
+    description: "Conditions de travail, paiement, sécurité ou relation avec la SODECI.",
     icone: HardHat,
+    sigle: "MGP",
   },
   {
     code: "grief_communaute",
@@ -40,6 +43,7 @@ const PLAINTES: Option[] = [
     description:
       "Nuisance, dommage ou différend lié aux activités de l'entreprise.",
     icone: UsersRound,
+    sigle: "MGP",
   },
 ];
 
@@ -97,8 +101,9 @@ export function ChoixParcours() {
             code: "ei_employe",
             titre: "Un événement indésirable",
             description:
-              "Un incident, un presque-accident ou une situation dangereuse constatée sur le site.",
+              "Un accident, un incident, un presque-accident ou une situation dangereuse.",
             icone: ShieldAlert,
+            sigle: "EI",
           }}
         />
 
@@ -112,6 +117,7 @@ export function ChoixParcours() {
             titre="Une plainte ou un grief"
             description="Un désaccord, un préjudice ou un manquement que vous souhaitez porter à notre connaissance."
             icone={MessageSquareWarning}
+            sigle="MGP"
           />
         </button>
       </div>
@@ -156,16 +162,26 @@ function ContenuCarte({
   titre,
   description,
   icone: Icone,
+  sigle,
 }: {
   titre: string;
   description: string;
   icone: LucideIcon;
+  sigle: "EI" | "MGP";
 }) {
   return (
     <>
       <span className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary-200/70 bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100 sm:size-11">
-          <Icone className="size-5" aria-hidden />
+        <span className="relative mr-1 shrink-0">
+          <span className="flex size-10 items-center justify-center rounded-xl border border-primary-200/70 bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100 sm:size-11">
+            <Icone className="size-5" aria-hidden />
+          </span>
+          <span
+            className="absolute -right-2 -bottom-1 inline-flex min-w-7 items-center justify-center rounded-full border-2 border-card bg-primary-700 px-1.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.08em] text-white shadow-sm transition-colors group-hover:bg-primary-800"
+            aria-label={sigle === "EI" ? "Événement indésirable" : "Mécanisme de gestion des plaintes"}
+          >
+            {sigle}
+          </span>
         </span>
         <span className="min-w-0">
           <span className="block break-words text-sm font-semibold text-secondary-900">{titre}</span>
@@ -184,7 +200,12 @@ function ContenuCarte({
 function CarteOption({ option }: { option: Option }) {
   return (
     <Link href={`/declarer/${option.code}`} className={CLASSES_CARTE}>
-      <ContenuCarte titre={option.titre} description={option.description} icone={option.icone} />
+      <ContenuCarte
+        titre={option.titre}
+        description={option.description}
+        icone={option.icone}
+        sigle={option.sigle}
+      />
     </Link>
   );
 }

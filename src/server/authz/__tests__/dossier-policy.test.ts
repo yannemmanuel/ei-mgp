@@ -64,6 +64,11 @@ describe('DossierPolicy — cloisonnement par parcours', () => {
 })
 
 describe('DossierPolicy — employé déclarant', () => {
+  it('refuse ses propres déclarations après retrait de tous les droits de lecture', () => {
+    const u = { ...utilisateurAvecRoles('employe_declarant'), permissions: new Set<never>() }
+    expect(peutVoirDossier(u, dossier('ei_employe', { isAnonymous: false, declarantUserId: u.id }))).toBe(false)
+  })
+
   it('ne laisse voir que son propre dossier non anonyme', () => {
     const u = utilisateurAvecRoles('employe_declarant')
 

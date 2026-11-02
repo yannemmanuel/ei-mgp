@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 
 vi.mock('../actions', () => ({
   actionChangerStatut: async () => ({}),
+  actionModifierCategorie: async () => ({}),
   actionQualifierFamilleRisque: async () => ({}),
   actionQualifierGravite: async () => ({}),
   actionCloturer: async () => ({}),
@@ -26,6 +27,9 @@ function afficher(familleRisqueActuelle: string) {
       gravitesAQualifier={[]}
       famillesRisque={[{ valeur: '1', libelle: 'Risque opérationnel' }]}
       familleRisqueActuelle={familleRisqueActuelle}
+      categories={[{ valeur: '10', libelle: 'Incident', estAutre: false }]}
+      categorieActuelle="10"
+      categorieAutrePrecision=""
       droits={{
         changerStatut: true,
         cloturer: false,

@@ -132,6 +132,7 @@ export default async function PageDossier({
     investigationsRattachables_,
     messages,
     gravitesActives,
+    categoriesActives,
     famillesRisque,
     suivi,
     enCharge,
@@ -164,6 +165,14 @@ export default async function PageDossier({
       where: { actif: true },
       orderBy: { niveau: "asc" },
       select: { id: true, libelle: true },
+    }),
+    prisma.categories.findMany({
+      where: {
+        parcours_id: dossier.parcours.id,
+        OR: [{ actif: true }, { id: dossier.categorie_id }],
+      },
+      orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+      select: { id: true, libelle: true, is_autre: true, actif: true },
     }),
 
     /*
@@ -847,6 +856,13 @@ export default async function PageDossier({
                 ? ""
                 : String(dossier.famille_risque_id)
             }
+            categories={categoriesActives.map((categorie) => ({
+              valeur: String(categorie.id),
+              libelle: categorie.actif ? categorie.libelle : `${categorie.libelle} — désactivée`,
+              estAutre: categorie.is_autre,
+            }))}
+            categorieActuelle={String(dossier.categorie_id)}
+            categorieAutrePrecision={dossier.categorie_autre_precision ?? ''}
             droits={{
               changerStatut: peutChangerStatutDossier(utilisateur, pourPolicy),
               cloturer: peutCloturerDossier(utilisateur, pourPolicy),

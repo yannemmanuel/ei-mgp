@@ -34,6 +34,7 @@ export function revaliderDossier(dossierId: string): void {
   revalidatePath('/dashboard')
   revalidatePath('/investigations')
   revalidatePath('/actions-correctives')
+  revalidatePath('/plan-actions')
 }
 
 /**
@@ -45,6 +46,7 @@ export function revaliderDossier(dossierId: string): void {
  * annoncer un périmètre qui n'était plus le bon.
  */
 export function revaliderHabilitations(): void {
+  revalidatePath('/', 'layout')
   revalidatePath('/administration/habilitations')
   revalidatePath('/administration/utilisateurs')
   revalidatePath('/dossiers')
@@ -52,6 +54,7 @@ export function revaliderHabilitations(): void {
   revalidatePath('/dashboard')
   revalidatePath('/investigations')
   revalidatePath('/actions-correctives')
+  revalidatePath('/plan-actions')
 }
 
 /**
@@ -63,6 +66,7 @@ export function revaliderHabilitations(): void {
  * reste dans le cache de navigation et donne l'impression que l'habilitation n'a pas pris effet.
  */
 export function revaliderComptes(): void {
+  revalidatePath('/', 'layout')
   revalidatePath('/administration/utilisateurs')
   revalidatePath('/administration/habilitations')
   revalidatePath('/dossiers')
@@ -70,4 +74,5 @@ export function revaliderComptes(): void {
   revalidatePath('/dashboard')
   revalidatePath('/investigations')
   revalidatePath('/actions-correctives')
+  revalidatePath('/plan-actions')
 }

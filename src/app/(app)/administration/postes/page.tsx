@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { exigerPermission } from '@/server/auth'
 import { listerPostes } from '@/server/services/administration/referentiels'
 import { EditeurReferentiel } from '../editeur-referentiel'
-import { actionDeplacerPoste, actionEnregistrerPoste, actionSupprimerPoste } from '../actions'
+import { actionEnregistrerPoste, actionSupprimerPoste } from '../actions'
 
 export const metadata: Metadata = { title: 'Administration — Postes' }
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,7 @@ export default async function PagePostes() {
   const [postes, directions] = await Promise.all([
     listerPostes(),
     prisma.directions.findMany({
-      where: { actif: true, site_id: null },
+      where: { actif: true },
       orderBy: { libelle: 'asc' },
       select: { id: true, libelle: true },
     }),
@@ -34,7 +34,6 @@ export default async function PagePostes() {
       colonnes={['Direction', 'Poste', 'État']}
       lignes={postes.map((p) => ({
         id: String(p.id),
-        // Le rang d'un poste se compte DANS sa direction.
         groupe: String(p.direction_id),
         cellules: [
           p.directions.libelle,
@@ -59,7 +58,6 @@ export default async function PagePostes() {
         { type: 'booleen', nom: 'actif', libelle: 'Actif' },
       ]}
       action={actionEnregistrerPoste}
-      actionDeplacer={actionDeplacerPoste}
       actionSupprimer={actionSupprimerPoste}
       creationPossible
       libelleCreation="Ajouter un poste"

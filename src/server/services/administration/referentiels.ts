@@ -275,7 +275,7 @@ export type DonneesDirection = {
  */
 export async function listerDirections() {
   return prisma.directions.findMany({
-    orderBy: [{ sites: { libelle: 'asc' } }, { libelle: 'asc' }],
+    orderBy: { libelle: 'asc' },
     select: {
       id: true,
       code: true,
@@ -875,10 +875,10 @@ export type DonneesPoste = {
   actif: boolean
 }
 
-/** Rang puis alphabétique, dans chaque direction — voir `listerCategories()` pour le motif. */
+/** Ordre alphabétique des directions, puis des postes dans chaque direction. */
 export async function listerPostes() {
   return prisma.postes.findMany({
-    orderBy: [{ directions: { libelle: 'asc' } }, { ordre: 'asc' }, { libelle: 'asc' }],
+    orderBy: [{ directions: { libelle: 'asc' } }, { libelle: 'asc' }],
     select: {
       id: true,
       libelle: true,

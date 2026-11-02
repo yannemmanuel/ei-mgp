@@ -39,6 +39,9 @@ export function peutVoirListeDossiers(u: UtilisateurAutorise): boolean {
 }
 
 export function peutVoirDossier(u: UtilisateurAutorise, dossier: DossierPourAutorisation): boolean {
+  // Un comportement de rôle restreint un droit ; il ne remplace jamais ce droit.
+  if (!peutVoirListeDossiers(u)) return false
+
   // Un rôle « ne voit que ses déclarations » ne voit QUE ses propres dossiers non anonymes : un
   // dossier anonyme n'est jamais rattaché à son auteur, même connecté (RG-06). Coché sur le rôle
   // depuis le 2026-09-21 — la fonction nommait `employe_declarant`.

@@ -113,6 +113,7 @@ describe('Un droit affiché doit agir', () => {
 
     expect(sansEffet.sort()).toEqual([
       'dossiers.assign',
+      'dossiers.reassign',
       'investigations.validate',
       'rgpd.acces.view',
     ])

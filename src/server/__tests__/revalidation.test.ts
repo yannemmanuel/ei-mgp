@@ -85,6 +85,7 @@ describe('⚠️ Les actions d’un dossier rafraîchissent TOUS les écrans con
       '/dashboard',
       '/investigations',
       '/actions-correctives',
+      '/plan-actions',
     ]) {
       expect(corps, `« ${chemin} » n’est pas rafraîchi après un changement d’habilitation`).toContain(
         chemin
@@ -112,6 +113,7 @@ describe('⚠️ Les actions d’un dossier rafraîchissent TOUS les écrans con
       '/dashboard',
       '/investigations',
       '/actions-correctives',
+      '/plan-actions',
     ]) {
       expect(
         corps,

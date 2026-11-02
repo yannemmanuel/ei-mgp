@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { ParcoursCode } from './parcours'
 import { cloisonnePourSesRoles, donneAccesAuxDossiers } from './site'
-import type { Permission } from './permissions'
+import { PERMISSIONS_RETIREES, type Permission } from './permissions'
 import type { Role } from './roles'
 import { MODELES } from '@/server/modeles'
 
@@ -71,14 +71,14 @@ export function aPermission(
   u: { readonly permissions: ReadonlySet<Permission> },
   permission: Permission
 ): boolean {
-  return u.permissions.has(permission)
+  return !PERMISSIONS_RETIREES.includes(permission) && u.permissions.has(permission)
 }
 
 export function aUnePermissionParmi(
   u: { readonly permissions: ReadonlySet<Permission> },
   permissions: readonly Permission[]
 ): boolean {
-  return permissions.some((permission) => u.permissions.has(permission))
+  return permissions.some((permission) => aPermission(u, permission))
 }
 
 /**
@@ -196,12 +196,16 @@ export async function chargerUtilisateurAutorise(userId: bigint): Promise<Utilis
     }
 
     for (const rhp of lien.roles.role_has_permissions) {
-      permissions.add(rhp.permissions.name as Permission)
+      if (!PERMISSIONS_RETIREES.includes(rhp.permissions.name as Permission)) {
+        permissions.add(rhp.permissions.name as Permission)
+      }
     }
   }
 
   for (const directe of permissionsDirectes) {
-    permissions.add(directe.permissions.name as Permission)
+    if (!PERMISSIONS_RETIREES.includes(directe.permissions.name as Permission)) {
+      permissions.add(directe.permissions.name as Permission)
+    }
   }
 
   return {

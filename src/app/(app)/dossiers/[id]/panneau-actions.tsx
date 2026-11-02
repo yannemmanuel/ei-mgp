@@ -1,10 +1,11 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   actionChangerStatut,
+  actionModifierCategorie,
   actionQualifierFamilleRisque,
   actionQualifierGravite,
   actionCloturer,
@@ -44,6 +45,9 @@ type Props = {
   famillesRisque: { valeur: string; libelle: string }[]
   /** Celle du dossier, `''` tant qu'aucune n'a été posée. */
   familleRisqueActuelle: string
+  categories: { valeur: string; libelle: string; estAutre: boolean }[]
+  categorieActuelle: string
+  categorieAutrePrecision: string
   droits: {
     changerStatut: boolean
     cloturer: boolean
@@ -74,9 +78,17 @@ export function PanneauActions({
   gravitesAQualifier,
   famillesRisque,
   familleRisqueActuelle,
+  categories,
+  categorieActuelle,
+  categorieAutrePrecision,
   droits,
   contentieux,
 }: Props) {
+  const [categorieChoisie, setCategorieChoisie] = useState(categorieActuelle)
+  const categorieEstAutre = categories.some(
+    (categorie) => categorie.valeur === categorieChoisie && categorie.estAutre
+  )
+
   return (
     <div className="space-y-6">
       <Card>
@@ -142,6 +154,50 @@ export function PanneauActions({
             <p className="mt-1 text-caption text-muted-foreground">
               Vous pouvez le consulter et échanger par la messagerie.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {droits.changerStatut && categories.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h3">Catégorie</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-caption text-muted-foreground">
+              Corrigez la catégorie choisie au dépôt si l’analyse du dossier le justifie.
+              Le changement est conservé dans la piste d’audit.
+            </p>
+            <FormulaireAction
+              action={actionModifierCategorie}
+              dossierId={dossierId}
+              libelleBouton="Mettre à jour la catégorie"
+            >
+              <select
+                name="categorieId"
+                className={champ}
+                value={categorieChoisie}
+                onChange={(evenement) => setCategorieChoisie(evenement.target.value)}
+                aria-label="Catégorie du dossier"
+                required
+              >
+                {categories.map((categorie) => (
+                  <option key={categorie.valeur} value={categorie.valeur}>
+                    {categorie.libelle}
+                  </option>
+                ))}
+              </select>
+              {categorieEstAutre && (
+                <input
+                  name="categorieAutrePrecision"
+                  defaultValue={categorieAutrePrecision}
+                  maxLength={500}
+                  required
+                  placeholder="Précisez la catégorie"
+                  className={champ}
+                />
+              )}
+            </FormulaireAction>
           </CardContent>
         </Card>
       )}

@@ -126,6 +126,10 @@ export function clauseNonAffectes(
 export function perimetreDossiers(
   u: UtilisateurAutorise,
 ): Prisma.dossiersWhereInput {
+  if (!aPermission(u, "dossiers.view") && !aPermission(u, "dossiers.view.all") && !aPermission(u, "dossiers.view.own")) {
+    return { id: { in: [] } };
+  }
+
   // Un employé déclarant ne voit QUE ses propres dossiers non anonymes : un dossier anonyme
   // n'est rattaché à personne, même si son auteur était connecté (RG-06).
   // Coché sur le rôle depuis le 2026-09-21 — voir `peutVoirDossier()`, qui dit la même chose.

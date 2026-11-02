@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import {
   LIBELLES_ROLE,
-  PERMISSIONS,
+  PERMISSIONS_ACTIVES,
   PARCOURS_CODES,
   ROLES,
   ROLE_NAMES,
@@ -303,8 +303,8 @@ export async function chargerHabilitations(): Promise<Habilitations> {
       description: enBase?.description ?? null,
       actif: enBase?.actif ?? false,
       permissions:
-        enBase?.role_has_permissions.map((rhp) => rhp.permissions.name as Permission).sort() ?? [],
-      reference: livre ? ROLES[role as RoleLivre] : [],
+        enBase?.role_has_permissions.map((rhp) => rhp.permissions.name as Permission).filter((p) => PERMISSIONS_ACTIVES.includes(p)).sort() ?? [],
+      reference: livre ? ROLES[role as RoleLivre].filter((p) => PERMISSIONS_ACTIVES.includes(p)) : [],
       comptes: effectifs.get(role) ?? 0,
       livre,
       rattachements: rattachements.get(role) ?? 0,
@@ -330,7 +330,7 @@ export async function chargerHabilitations(): Promise<Habilitations> {
 
   return {
     lignes,
-    permissions: PERMISSIONS,
+    permissions: PERMISSIONS_ACTIVES,
     parcoursDisponibles: tousLesParcours,
     etapesDisponibles: toutesLesEtapes,
     ecarts: comparer(rolesEnBase),
@@ -392,7 +392,7 @@ export async function modifierPermissionsRole(
   role: string,
   permissionsVoulues: readonly string[]
 ): Promise<void> {
-  const inconnues = permissionsVoulues.filter((p) => !PERMISSIONS.includes(p as Permission))
+  const inconnues = permissionsVoulues.filter((p) => !PERMISSIONS_ACTIVES.includes(p as Permission))
 
   if (inconnues.length > 0) {
     throw new ErreurWorkflow(`Permission inconnue : ${inconnues.join(', ')}.`)
@@ -417,22 +417,29 @@ export async function modifierPermissionsRole(
 
   await verifierQuUnAdministrateurSubsiste({ role, permissions: voulues })
 
-  if (aRetirer.length > 0) {
-    await prisma.role_has_permissions.deleteMany({
-      where: { role_id: ligneRole.id, permission_id: { in: aRetirer.map(([, id]) => id) } },
-    })
-  }
+  await prisma.$transaction(async (transaction) => {
+    // Seuls les noms du catalogue actif ont été acceptés ci-dessus. Une version
+    // applicative peut introduire un droit absent d’une ancienne base : le créer
+    // explicitement évite un succès mensonger et un audit d’un droit non attribué.
+    for (const nom of aAjouter) {
+      const permission = await transaction.permissions.upsert({
+        where: { name: nom },
+        create: { name: nom, created_at: new Date(), updated_at: new Date() },
+        update: {},
+        select: { id: true },
+      })
+      await transaction.role_has_permissions.createMany({
+        data: [{ role_id: ligneRole.id, permission_id: permission.id }],
+        skipDuplicates: true,
+      })
+    }
 
-  if (aAjouter.length > 0) {
-    const lignes = await prisma.permissions.findMany({
-      where: { name: { in: aAjouter } },
-      select: { id: true },
-    })
-
-    await prisma.role_has_permissions.createMany({
-      data: lignes.map((p) => ({ role_id: ligneRole.id, permission_id: p.id })),
-    })
-  }
+    if (aRetirer.length > 0) {
+      await transaction.role_has_permissions.deleteMany({
+        where: { role_id: ligneRole.id, permission_id: { in: aRetirer.map(([, id]) => id) } },
+      })
+    }
+  })
 
   await journaliser({
     action: 'role.permissions_modifiees',
@@ -854,7 +861,7 @@ export async function creerRole(
 
   // Le catalogue des PERMISSIONS reste fermé — c'est le code qui décide ce qui existe. Seuls les
   // rôles, qui n'en sont que des assemblages, deviennent créables.
-  const inconnues = role.permissions.filter((p) => !PERMISSIONS.includes(p as Permission))
+  const inconnues = role.permissions.filter((p) => !PERMISSIONS_ACTIVES.includes(p as Permission))
 
   if (inconnues.length > 0) {
     throw new ErreurWorkflow(`Permission inconnue : ${inconnues.join(', ')}.`)

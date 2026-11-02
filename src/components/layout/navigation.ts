@@ -65,6 +65,7 @@ const SECTIONS: readonly SectionNavigation[] = [
   {
     titre: 'Pilotage',
     liens: [
+      { libelle: 'Plan d’actions', href: '/plan-actions', icone: 'clipboard', permissions: ['plan_actions.view'] },
       { libelle: 'Administration', href: '/administration', icone: 'cog', permissions: PERMISSIONS_ADMINISTRATION },
       { libelle: 'Audit', href: '/audit', icone: 'shield', permissions: ['audit.view'] },
     ],

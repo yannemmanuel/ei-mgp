@@ -1740,6 +1740,7 @@ function Droit({
       <input
         type="checkbox"
         checked={coche}
+        disabled={permission.sansEffet && !coche}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5"
       />
@@ -1757,7 +1758,7 @@ function Droit({
         )}
         {permission.sansEffet && (
           <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-caption text-secondary-600">
-            Sans effet pour l’instant
+            Droit inactif — à retirer s’il est coché
           </span>
         )}
       </span>

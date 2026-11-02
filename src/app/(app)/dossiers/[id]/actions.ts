@@ -20,6 +20,7 @@ import { STATUTS, type StatutCode } from '@/server/services/dossier/statuts'
 import { basculerContentieux } from '@/server/services/rgpd/conservation'
 import { aPermission } from '@/server/authz'
 import { qualifierFamilleRisque } from '@/server/services/dossier/famille-risque'
+import { modifierCategorieDossier } from '@/server/services/dossier/categorie'
 import { revaliderDossier } from '@/server/revalidation'
 
 /**
@@ -276,6 +277,39 @@ export async function actionQualifierFamilleRisque(
   return {
     succes: brut === '' ? 'Famille de risque retirée.' : 'Famille de risque enregistrée.',
   }
+}
+
+/** Requalification métier de la catégorie, réservée aux personnes qui traitent le dossier. */
+export async function actionModifierCategorie(
+  _precedent: EtatAction,
+  donnees: FormData
+): Promise<EtatAction> {
+  const utilisateur = await exigerUtilisateur()
+  const dossierId = String(donnees.get('dossierId') ?? '')
+  const categorieBrute = String(donnees.get('categorieId') ?? '')
+
+  if (dossierId === '' || !/^\d+$/.test(categorieBrute)) {
+    return { erreur: 'Merci de sélectionner une catégorie valide.' }
+  }
+
+  const dossier = await dossierPourAutorisation(dossierId, utilisateur.id)
+  if (!dossier || !peutChangerStatutDossier(utilisateur, dossier)) {
+    return { erreur: REFUS }
+  }
+
+  try {
+    await modifierCategorieDossier({
+      dossierId,
+      categorieId: BigInt(categorieBrute),
+      precisionAutre: String(donnees.get('categorieAutrePrecision') ?? ''),
+      acteurId: utilisateur.id,
+    })
+  } catch (erreur) {
+    return { erreur: messageErreur(erreur) }
+  }
+
+  revaliderDossier(dossierId)
+  return { succes: 'Catégorie mise à jour.' }
 }
 
 export async function actionQualifierGravite(

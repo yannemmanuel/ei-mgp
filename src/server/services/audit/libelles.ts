@@ -65,6 +65,7 @@ const VERBES: Record<string, string> = {
   active: 'réactivé',
   anonymise: 'anonymisé',
   archive: 'archivé',
+  categorie_modifiee: '— catégorie modifiée',
   connexion: 'ouverte',
   cree: 'créé',
   creee: 'créée',

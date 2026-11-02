@@ -33,6 +33,8 @@ export const PERMISSIONS = [
   'actions.update',
   'actions.verify_efficacite',
   'actions.close',
+  // Écran transverse distinct de la liste opérationnelle des actions.
+  'plan_actions.view',
   // Messagerie sécurisée
   'messagerie.view',
   'messagerie.send',
@@ -64,3 +66,12 @@ export const PERMISSIONS = [
 ] as const
 
 export type Permission = (typeof PERMISSIONS)[number]
+
+/** Conservées uniquement pour lire l’historique et reconnaître les anciennes bases. */
+export const PERMISSIONS_RETIREES: readonly Permission[] = [
+  'dossiers.assign', 'dossiers.reassign', 'investigations.validate', 'rgpd.acces.view',
+]
+
+export const PERMISSIONS_ACTIVES = PERMISSIONS.filter((permission) =>
+  !PERMISSIONS_RETIREES.includes(permission)
+)

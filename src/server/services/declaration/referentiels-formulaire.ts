@@ -52,7 +52,7 @@ export async function chargerReferentiels(): Promise<ReferentielsFormulaire> {
     // sans requête supplémentaire à chaque changement de direction.
     prisma.postes.findMany({
       where: { actif: true, directions: { actif: true } },
-      orderBy: [{ ordre: 'asc' }, { libelle: 'asc' }],
+      orderBy: [{ directions: { libelle: 'asc' } }, { libelle: 'asc' }],
       select: { id: true, libelle: true, direction_id: true },
     }),
     prisma.lieux.findMany({

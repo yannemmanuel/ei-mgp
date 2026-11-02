@@ -78,6 +78,22 @@ const visible = (element: HTMLElement | null) =>
 const boutonEnvoyer = () =>
   screen.getByRole('button', { name: /Envoyer ma déclaration/i }) as HTMLButtonElement
 
+describe('Aide à la description des faits', () => {
+  it('propose un exemple adapté à une EI', () => {
+    afficher('ei_employe')
+
+    expect(screen.getByText(/un technicien remplaçait une vanne/i)).toBeDefined()
+    expect(screen.getByLabelText(/Description des faits/i)).toBeDefined()
+  })
+
+  it('propose un exemple adapté à un grief', () => {
+    afficher('grief_employe')
+
+    expect(screen.getByText(/un usager venu signaler une fuite/i)).toBeDefined()
+    expect(screen.getByLabelText(/Description des faits/i)).toBeDefined()
+  })
+})
+
 async function choisirLocalisation(utilisateur: ReturnType<typeof userEvent.setup>) {
   await utilisateur.selectOptions(screen.getByLabelText(/^Région/i), 'ABIDJAN')
   await utilisateur.selectOptions(screen.getByLabelText(/^Commune/i), 'Yopougon')
@@ -571,6 +587,10 @@ describe('Identification des salariés', () => {
       expect(groupeDeclarant.querySelector('[name="matricule"]')).not.toBeNull()
       expect(groupeVictime.querySelector('[name="directionId"]')).not.toBeNull()
       expect(groupeDeclarant.querySelector('[name="directionId"]')).toBeNull()
+      if (parcours === 'grief_employe') {
+        expect(groupeVictime.querySelector('[name="ancienneteTranche"]')).not.toBeNull()
+        expect(groupeDeclarant.querySelector('[name="ancienneteTranche"]')).toBeNull()
+      }
     })
   }
 })

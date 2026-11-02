@@ -38,6 +38,7 @@ export async function chargerFiche(u: UtilisateurAutorise, dossierId: string) {
       action_immediate: true,
       proposition_mesure_corrective: true,
       categorie_autre_precision: true,
+      categorie_id: true,
       /*
         Tout ce que la déclaration a collecté sur `dossiers`.
 

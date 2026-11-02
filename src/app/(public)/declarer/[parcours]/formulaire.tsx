@@ -70,7 +70,12 @@ type Props = {
 
 const LIBELLES_ETAPES = ['Votre identité', 'Contexte', 'Nature de l’évènement', 'Pièces jointes']
 const NB_ETAPES = 4
-const CHAMPS_VICTIME_EMPLOYE = new Set(['directionId', 'posteOccupe'])
+const CHAMPS_VICTIME_EMPLOYE = new Set([
+  'directionId',
+  'posteOccupe',
+  // L'ancienneté décrit la personne concernée par les faits, pas nécessairement le déclarant.
+  'ancienneteTranche',
+])
 
 /**
  * Délai pendant lequel « Envoyer ma déclaration » reste inerte après son apparition (ms).
@@ -98,6 +103,26 @@ export function FormulaireDeclaration({
   soumettre = soumettreDeclaration,
   canauxRelais = [],
 }: Props) {
+  const aideDescription =
+    config.code === 'ei_employe'
+      ? [
+          'Date, heure et lieu',
+          'Personnes impliquées',
+          'Tâche réalisée au moment de l’évènement',
+          'Circonstances',
+          'Conséquences',
+          'Mesures immédiates',
+        ]
+      : [
+          'Date, heure et lieu',
+          'Personnes ou activités concernées',
+          'Exposé précis des faits',
+          'Préjudices ou conséquences',
+        ]
+  const exempleDescription =
+    config.code === 'ei_employe'
+      ? 'Le 15 octobre 2026 à 9 h 30, dans l’atelier de maintenance du CSST de Yopougon, un technicien remplaçait une vanne avec un collègue. Au moment du desserrage, la clé a glissé et sa main droite a heurté le support métallique, provoquant une coupure légère. Le travail a été arrêté, la zone sécurisée et la victime conduite à l’infirmerie pour les premiers soins.'
+      : 'Le 15 octobre 2026 à 14 h, au point d’accueil du CSST de Yopougon, un usager venu signaler une fuite a attendu plus de deux heures sans information sur la prise en charge. Malgré deux relances auprès de l’accueil, aucune estimation de délai ne lui a été communiquée. Cette situation a retardé son intervention et occasionné des frais de déplacement supplémentaires. Le responsable de permanence a été informé le jour même.'
   const [fichiersSelectionnes, setFichiersSelectionnes] = useState<File[]>([])
   const soumettreAvecFichiers = useCallback(
     async (precedent: EtatSoumission, donnees: FormData) => {
@@ -584,19 +609,41 @@ export function FormulaireDeclaration({
             <Label htmlFor="description">
               Description des faits <span className="text-destructive">*</span>
             </Label>
+            <div className="rounded-xl border border-primary-100 bg-primary-50/60 p-3">
+              <p className="text-caption font-semibold text-primary-900">
+                Pour faciliter le traitement, précisez :
+              </p>
+              <ul className="mt-2 grid gap-1 text-caption text-secondary-700 sm:grid-cols-2">
+                {aideDescription.map((element) => (
+                  <li key={element} className="flex gap-2">
+                    <span className="text-primary-600" aria-hidden>•</span>
+                    <span>{element}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 border-t border-primary-100 pt-3">
+                <p className="text-caption font-semibold text-primary-900">
+                  Exemple de formulation — à adapter à votre situation :
+                </p>
+                <p className="mt-1 text-caption leading-relaxed text-secondary-700">
+                  {exempleDescription}
+                </p>
+              </div>
+            </div>
             <textarea
               id="description"
               name="description"
-            rows={5}
-            required
-            aria-invalid={erreur('description') ? true : undefined}
-            aria-describedby={
-              erreur('description') ? 'description-aide description-erreur' : 'description-aide'
-            }
-            className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+              rows={7}
+              required
+              placeholder="Décrivez ici ce qui s’est passé, dans l’ordre chronologique…"
+              aria-invalid={erreur('description') ? true : undefined}
+              aria-describedby={
+                erreur('description') ? 'description-aide description-erreur' : 'description-aide'
+              }
+              className="w-full min-w-0 max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
             <p id="description-aide" className="text-caption text-muted-foreground">
-              Décrivez les faits aussi longuement que nécessaire.
+              Décrivez les faits chronologiquement et aussi précisément que nécessaire.
             </p>
             {erreur('description') && (
               <Erreur id="description-erreur" message={erreur('description')!} />
